@@ -564,7 +564,7 @@ const activeFilterCount = computed(
             />
 
             <div
-                class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-card"
+                class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border bg-card"
                 data-test="logs-list"
             >
                 <!--

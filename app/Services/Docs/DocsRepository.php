@@ -37,14 +37,57 @@ class DocsRepository
      */
     public function sections(): array
     {
-        /** @var array<int, DocsSection> $sections */
+        /*
+         * Cached as plain arrays, not serialized objects: the database cache
+         * store refuses to unserialize objects (__PHP_Incomplete_Class), and
+         * primitives also survive class renames across deploys. The DTOs are
+         * rehydrated per request.
+         */
+
+        /** @var array<int, array<string, mixed>> $sections */
         $sections = Cache::remember(
             'docs:nav:'.$this->signature(),
             self::CACHE_TTL_SECONDS,
-            fn (): array => $this->scan(),
+            fn (): array => array_map(
+                fn (DocsSection $section): array => [
+                    'slug' => $section->slug,
+                    'title' => $section->title,
+                    'order' => $section->order,
+                    'pages' => array_map(
+                        fn (DocsPage $page): array => [
+                            'section' => $page->section,
+                            'slug' => $page->slug,
+                            'title' => $page->title,
+                            'description' => $page->description,
+                            'order' => $page->order,
+                            'path' => $page->path,
+                        ],
+                        $section->pages,
+                    ),
+                ],
+                $this->scan(),
+            ),
         );
 
-        return $sections;
+        return array_map(
+            fn (array $section): DocsSection => new DocsSection(
+                slug: (string) $section['slug'],
+                title: (string) $section['title'],
+                order: (int) $section['order'],
+                pages: array_map(
+                    fn (array $page): DocsPage => new DocsPage(
+                        section: (string) $page['section'],
+                        slug: (string) $page['slug'],
+                        title: (string) $page['title'],
+                        description: $page['description'] !== null ? (string) $page['description'] : null,
+                        order: (int) $page['order'],
+                        path: (string) $page['path'],
+                    ),
+                    $section['pages'],
+                ),
+            ),
+            $sections,
+        );
     }
 
     /**
@@ -115,14 +158,24 @@ class DocsRepository
     {
         $key = 'docs:page:'.md5($page->path.':'.(File::lastModified($page->path) ?: 0));
 
-        /** @var RenderedDoc $rendered */
+        /*
+         * Cached as a plain array — the database cache store refuses to
+         * unserialize objects (they come back as __PHP_Incomplete_Class),
+         * and primitives survive class renames across deploys anyway.
+         */
+
+        /** @var array{html: string, toc: array<int, array{id: string, title: string, level: int}>} $rendered */
         $rendered = Cache::remember(
             $key,
             self::CACHE_TTL_SECONDS,
-            fn (): RenderedDoc => $this->renderer->render(FrontMatter::parse(File::get($page->path))['body']),
+            function () use ($page): array {
+                $doc = $this->renderer->render(FrontMatter::parse(File::get($page->path))['body']);
+
+                return ['html' => $doc->html, 'toc' => $doc->tableOfContents];
+            },
         );
 
-        return $rendered;
+        return new RenderedDoc(html: $rendered['html'], tableOfContents: $rendered['toc']);
     }
 
     /**

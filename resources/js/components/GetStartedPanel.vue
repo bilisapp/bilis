@@ -94,7 +94,7 @@ const snippets = computed<Record<TabId, string>>(() => {
   -H "Content-Type: application/json" \\
   -d '{"message":"Hello from curl","level":"info","service":"checkout"}'`,
         otel: `OTEL_EXPORTER_OTLP_PROTOCOL=http/json
-OTEL_EXPORTER_OTLP_ENDPOINT=${url}/api/v1
+OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=${url}/api/v1/logs
 OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer <YOUR_API_KEY>"`,
         laravel: `// .env
 BILIS_ENDPOINT=${url}/api/v1/ingest
@@ -295,7 +295,7 @@ const {
                         :aria-label="copied ? 'Copied' : 'Copy snippet'"
                         @click="copy(snippets[tab])"
                     >
-                        <Check v-if="copied" class="size-4 text-teal" />
+                        <Check v-if="copied" class="size-4 text-foreground" />
                         <Copy v-else class="size-4" />
                     </button>
                 </div>
@@ -332,7 +332,7 @@ const {
                                         v-if="
                                             copied && copiedText === file.source
                                         "
-                                        class="size-4 text-teal"
+                                        class="size-4 text-foreground"
                                     />
                                     <Copy v-else class="size-4" />
                                 </button>

@@ -21,82 +21,87 @@ export type StyleguideSection = {
 };
 
 export const STYLEGUIDE_SECTIONS: StyleguideSection[] = [
-    { id: 'palette', title: 'Brand palette' },
+    { id: 'surfaces', title: 'Neutral ladder' },
     { id: 'tokens', title: 'Semantic tokens' },
     { id: 'severity', title: 'Severity scale' },
     { id: 'typography', title: 'Typography' },
-    { id: 'fonts', title: 'Fonts' },
     { id: 'components', title: 'Components' },
     { id: 'app-components', title: 'App components' },
     { id: 'charts', title: 'Charts' },
 ];
 
 /**
- * The static brand palette, derived from the mid-century stripes artwork.
+ * The neutral ladder every surface is cut from.
+ *
+ * Bilis spends colour on data and nowhere else, so the interface is built
+ * entirely from these achromatic steps. They all carry the same faint
+ * cool cast, which is what keeps them reading as one material instead of a
+ * pile of unrelated greys — and what leaves severity as the only hue on
+ * screen. Rendered through their utilities, so they invert with the mode.
  */
-export const BRAND_SWATCHES: Swatch[] = [
+export const SURFACE_SWATCHES: Swatch[] = [
     {
-        name: 'Cream',
-        hex: '#f3f0e7',
-        className: 'bg-cream',
-        label: 'bg-cream',
-        note: 'Light mode page surface, the paper the product sits on.',
+        name: 'Sidebar',
+        className: 'bg-sidebar text-sidebar-foreground',
+        label: 'bg-sidebar',
+        preview: 'Aa',
+        note: 'The rail. One step below the page in both modes, so navigation separates from work without needing a colour.',
     },
     {
-        name: 'Greige',
-        hex: '#dbd5c3',
-        className: 'bg-greige',
-        label: 'bg-greige',
-        note: 'Secondary surfaces, borders and inset panels in light mode.',
+        name: 'Background',
+        className: 'bg-background text-foreground',
+        label: 'bg-background',
+        preview: 'Aa',
+        note: 'The page the content panel sits on.',
     },
     {
-        name: 'Espresso',
-        hex: '#463828',
-        className: 'bg-espresso',
-        label: 'bg-espresso',
-        note: 'Ink in light mode, page and card surfaces in dark mode.',
+        name: 'Card',
+        className: 'bg-card text-card-foreground',
+        label: 'bg-card',
+        preview: 'Aa',
+        note: 'Every panel that should read as a surface: the toolbar, the volume strip, the log list.',
     },
     {
-        name: 'Navy',
-        hex: '#1f3a5f',
-        className: 'bg-navy',
-        label: 'bg-navy',
-        note: 'Light mode brand and primary: buttons, focus rings, info.',
+        name: 'Muted',
+        className: 'bg-muted text-muted-foreground',
+        label: 'bg-muted',
+        preview: 'Aa',
+        note: 'Expanded log detail and other quiet fills inside a card.',
     },
     {
-        name: 'Gold',
-        hex: '#f3c440',
-        className: 'bg-gold',
-        label: 'bg-gold',
-        note: 'Dark mode primary, and the warning accent in both modes.',
+        name: 'Accent',
+        className: 'bg-accent text-accent-foreground',
+        label: 'bg-accent',
+        preview: 'Aa',
+        note: 'The pointer response: row hover, menu highlight, ghost button fill.',
     },
     {
-        name: 'Crimson',
-        hex: '#d8394a',
-        className: 'bg-crimson',
-        label: 'bg-crimson',
-        note: 'Destructive actions, error severity and failed ingest states.',
+        name: 'Secondary',
+        className: 'bg-secondary text-secondary-foreground',
+        label: 'bg-secondary',
+        preview: 'Aa',
+        note: 'Selected chips and quiet buttons.',
     },
     {
-        name: 'Teal',
-        hex: '#45bfa6',
-        className: 'bg-teal',
-        label: 'bg-teal',
-        note: 'Success and healthy-state accents, debug severity.',
+        name: 'Border',
+        className: 'bg-border text-foreground',
+        label: 'bg-border',
+        preview: 'Aa',
+        note: 'Every hairline. Always 1px — emphasis comes from fill or tone, never from a heavier stroke.',
     },
     {
-        name: 'Aqua',
-        hex: '#abdcd2',
-        className: 'bg-aqua',
-        label: 'bg-aqua',
-        note: 'Soft informational accent, chart fills and empty states.',
+        name: 'Input',
+        className: 'bg-input text-foreground',
+        label: 'bg-input',
+        preview: 'Aa',
+        note: 'Field outlines, one step darker than a plain border so a transparent input still reads as an input.',
     },
     {
-        name: 'Blush',
-        hex: '#f3b9b3',
-        className: 'bg-blush',
-        label: 'bg-blush',
-        note: 'Soft accent for highlights that must not read as an error.',
+        name: 'Foreground',
+        className: 'bg-foreground text-background',
+        label: 'bg-foreground',
+        preview: 'Aa',
+        note: 'Ink — and the primary action, which is filled with ink rather than with an accent colour.',
     },
 ];
 
@@ -110,28 +115,28 @@ export const TOKEN_SWATCHES: Swatch[] = [
         className: 'bg-background text-foreground',
         label: 'bg-background text-foreground',
         preview: 'Aa',
-        note: 'Cream page with espresso ink; espresso page with cream ink.',
+        note: 'The page and the ink on it. Near-white on charcoal in light, charcoal on near-white in dark.',
     },
     {
         name: 'Card',
         className: 'bg-card text-card-foreground',
         label: 'bg-card text-card-foreground',
         preview: 'Aa',
-        note: 'Near-white paper in light mode, lifted off the espresso page in dark. Toolbars, cards and the log list all sit on it.',
+        note: 'One step above the page in both modes. Toolbars, cards and the log list all sit on it.',
     },
     {
         name: 'Primary',
         className: 'bg-primary text-primary-foreground',
         label: 'bg-primary text-primary-foreground',
         preview: 'Aa',
-        note: 'Navy in light mode, gold in dark mode.',
+        note: 'Ink, not a colour. The primary action is the darkest thing in light mode and the lightest in dark — this product has no accent hue.',
     },
     {
         name: 'Secondary',
         className: 'bg-secondary text-secondary-foreground',
         label: 'bg-secondary text-secondary-foreground',
         preview: 'Aa',
-        note: 'Greige chips and quiet buttons, and the fill of an active severity chip.',
+        note: 'Quiet buttons, and the fill of an active severity chip.',
     },
     {
         name: 'Muted',
@@ -152,7 +157,7 @@ export const TOKEN_SWATCHES: Swatch[] = [
         className: 'bg-destructive text-destructive-foreground',
         label: 'bg-destructive text-destructive-foreground',
         preview: 'Aa',
-        note: 'Crimson: delete team, revoke API key, error alerts.',
+        note: 'Delete team, revoke API key, error alerts. The one place a warm hue is allowed outside the severity ramp, because it warns about an action rather than describing a log.',
     },
     {
         name: 'Popover',
@@ -180,14 +185,14 @@ export const TOKEN_SWATCHES: Swatch[] = [
         className: 'bg-card text-card-foreground ring-4 ring-ring ring-inset',
         label: 'ring-ring',
         preview: 'Aa',
-        note: 'Keyboard focus. Navy in light mode, gold in dark mode.',
+        note: 'Keyboard focus. A neutral step, never a colour — focus is a shape and a weight here, not a hue.',
     },
     {
         name: 'Sidebar',
         className: 'bg-sidebar text-sidebar-foreground',
         label: 'bg-sidebar text-sidebar-foreground',
         preview: 'Aa',
-        note: 'The navigation rail, a shade deeper than the page so the rail separates from the content.',
+        note: 'The navigation rail, one step below the page so it separates from the content it frames.',
     },
 ];
 
@@ -200,31 +205,31 @@ export const CHART_SWATCHES: Swatch[] = [
         name: 'Chart 1',
         className: 'bg-chart-1',
         label: 'bg-chart-1',
-        note: 'Primary series. Gold in both modes.',
+        note: 'The tail gold. The first series a chart reaches for.',
     },
     {
         name: 'Chart 2',
         className: 'bg-chart-2',
         label: 'bg-chart-2',
-        note: 'Teal. Healthy throughput and info volume.',
+        note: 'The tail teal. A full hue step from the first, never a lighter version of it.',
     },
     {
         name: 'Chart 3',
         className: 'bg-chart-3',
         label: 'bg-chart-3',
-        note: 'Navy, lightened in dark mode so it stays legible.',
+        note: 'The tail navy, lifted in dark mode so it holds on the dark card.',
     },
     {
         name: 'Chart 4',
         className: 'bg-chart-4',
         label: 'bg-chart-4',
-        note: 'Crimson. Error rate lines and failure bars.',
+        note: 'The tail crimson.',
     },
     {
         name: 'Chart 5',
         className: 'bg-chart-5',
         label: 'bg-chart-5',
-        note: 'Espresso in light mode, blush in dark mode.',
+        note: 'Crimson shifted toward magenta, so a five-series chart does not end on two reds.',
     },
 ];
 
@@ -232,12 +237,12 @@ export const CHART_SWATCHES: Swatch[] = [
  * Usage notes for each severity bucket, keyed by level.
  */
 export const SEVERITY_NOTES: Record<SeverityLevel, string> = {
-    trace: 'Span-level noise. Muted so it never competes with real signal.',
-    debug: 'Developer detail. Teal, readable but calm.',
-    info: 'The default. Navy in light mode, lifted blue in dark mode.',
-    warn: 'Gold. Something is off but the request still succeeded.',
-    error: 'Crimson. A request or job failed.',
-    fatal: 'Deep crimson. The process went down.',
+    trace: 'Span-level noise. Achromatic on purpose — the quietest level sits below the ramp and gets no hue at all.',
+    debug: 'The tail teal. Developer detail: present, but the coolest hue in the ramp.',
+    info: 'The tail navy, opened up to a blue. The default, and the anchor the rest of the ramp is read against.',
+    warn: 'The tail gold. Something is off but the request still succeeded.',
+    error: 'The tail crimson. A request or job failed.',
+    fatal: 'Crimson pushed toward magenta. The process went down — a hue away from error, not a darker shade of it, so the two loudest levels can never be confused at a glance.',
 };
 
 const demoBodies: Record<SeverityLevel, string> = {

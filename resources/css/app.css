@@ -9,9 +9,17 @@
 
 @theme inline {
     --font-sans:
-        Instrument Sans, ui-sans-serif, system-ui, sans-serif,
-        'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
-        'Noto Color Emoji';
+        Geist, ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
+        'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+
+    /*
+      Log data is machine-authored text and gets a face designed for it. Geist
+      Mono keeps digits and punctuation distinct at 12px, which is the whole
+      job in a stream of timestamps and identifiers.
+    */
+    --font-mono:
+        'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+        'Liberation Mono', 'Courier New', monospace;
 
     --radius-lg: var(--radius);
     --radius-md: calc(var(--radius) - 2px);
@@ -69,25 +77,17 @@
 }
 
 @theme {
-    /* Font candidates under evaluation — see the styleguide Fonts section */
-    --font-plex-sans:
-        'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif,
-        'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
-        'Noto Color Emoji';
-    --font-plex-mono:
-        'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-        'Liberation Mono', 'Courier New', monospace;
-
-    /* Bilis brand palette */
-    --color-cream: #f3f0e7;
-    --color-greige: #dbd5c3;
-    --color-espresso: #463828;
-    --color-navy: #1f3a5f;
-    --color-gold: #f3c440;
-    --color-crimson: #d8394a;
-    --color-teal: #45bfa6;
-    --color-aqua: #abdcd2;
-    --color-blush: #f3b9b3;
+    /*
+      The mark's tail colours. These are not interface colours — nothing in the
+      chrome may use them — but they are the source every data colour is drawn
+      from, so the palette has a visible origin rather than an arbitrary one:
+      point at the logo and you are pointing at the severity ramp.
+    */
+    --color-mark-gold: #f3c440;
+    --color-mark-teal: #45bfa6;
+    --color-mark-crimson: #d8394a;
+    --color-mark-navy: #1f3a5f;
+    --color-mark-cream: #f3f0e7;
 }
 
 /*
@@ -105,17 +105,6 @@
     ::backdrop,
     ::file-selector-button {
         border-color: var(--color-gray-200, currentColor);
-    }
-}
-
-@layer base {
-    /*
-      The rail is espresso in every theme, so the mark takes its dark-surface
-      treatment there regardless of which mode the rest of the page is in.
-    */
-    [data-slot='sidebar'] {
-        --logo-body: var(--color-cream);
-        --logo-detail: var(--color-espresso);
     }
 }
 
@@ -161,117 +150,164 @@
     body,
     html {
         --font-sans:
-            'Instrument Sans', ui-sans-serif, system-ui, sans-serif,
-            'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
-            'Noto Color Emoji';
+            Geist, ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
+            'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
     }
 }
 
 :root {
-    --background: hsl(44 33% 93%);
-    --foreground: hsl(30 27% 17%);
-    --card: hsl(44 50% 98%);
-    --card-foreground: hsl(30 27% 17%);
-    --popover: hsl(44 50% 98%);
-    --popover-foreground: hsl(30 27% 17%);
-    --primary: hsl(215 51% 25%);
-    --primary-foreground: hsl(44 40% 95%);
-    --secondary: hsl(43 28% 84%);
-    --secondary-foreground: hsl(30 27% 17%);
-    --muted: hsl(44 26% 88%);
-    --muted-foreground: hsl(30 12% 40%);
-    --accent: hsl(45 74% 86%);
-    --accent-foreground: hsl(30 27% 17%);
-    --destructive: hsl(354 64% 51%);
-    --destructive-foreground: hsl(44 40% 96%);
-    --border: hsl(42 18% 72%);
-    --input: hsl(42 18% 65%);
-    --ring: hsl(215 51% 25%);
-    --chart-1: hsl(45 87% 54%);
-    --chart-2: hsl(166 48% 45%);
-    --chart-3: hsl(215 51% 30%);
-    --chart-4: hsl(354 64% 54%);
-    --chart-5: hsl(30 27% 35%);
-    --radius: 0.5rem;
     /*
-      The rail is espresso in BOTH modes. Light mode used to sit the rail six
-      points of lightness below the page, which is not a surface change a reader
-      can see — the whole left side read as unclaimed margin. A dark rail framing
-      a cream work surface is one navigation identity across both themes.
+      An achromatic interface. Every neutral carries the same faint cool cast
+      (hue 225, 4-10% saturation) so the greys read as one material rather
+      than as a stack of unrelated greys — but none of them reads as blue.
+      That restraint is the point: it is what leaves severity as the only hue
+      a reader can find on the screen.
     */
-    --sidebar-background: hsl(28 24% 13%);
-    --sidebar-foreground: hsl(42 18% 78%);
-    /*
-      The active item is the work surface, cut into the rail: a reader can see
-      which page they are on from the shape alone, before reading a word.
-    */
-    --sidebar-primary: hsl(44 45% 96%);
-    --sidebar-primary-foreground: hsl(28 28% 14%);
-    --sidebar-accent: hsl(28 16% 21%);
-    --sidebar-accent-foreground: hsl(44 30% 93%);
-    --sidebar-border: hsl(28 14% 24%);
-    --sidebar-ring: hsl(45 85% 61%);
-    --sidebar: hsl(28 24% 13%);
+    --background: hsl(225 20% 97%);
+    --foreground: hsl(225 18% 12%);
+    --card: hsl(0 0% 100%);
+    --card-foreground: hsl(225 18% 12%);
+    --popover: hsl(0 0% 100%);
+    --popover-foreground: hsl(225 18% 12%);
 
-    /* Logo mark: navy with cream detailing on light surfaces. */
-    --logo-body: var(--color-navy);
-    --logo-detail: var(--color-cream);
-    --severity-trace: hsl(30 10% 55%);
-    --severity-debug: hsl(166 25% 42%);
-    --severity-info: hsl(215 51% 38%);
-    --severity-warn: hsl(42 90% 40%);
-    --severity-error: hsl(354 64% 48%);
-    --severity-fatal: hsl(354 75% 32%);
+    /* The primary action is ink, not a colour. */
+    --primary: hsl(225 18% 14%);
+    --primary-foreground: hsl(225 20% 98%);
+
+    --secondary: hsl(225 14% 93%);
+    --secondary-foreground: hsl(225 18% 18%);
+    --muted: hsl(225 16% 95%);
+    --muted-foreground: hsl(225 9% 46%);
+    --accent: hsl(225 16% 94%);
+    --accent-foreground: hsl(225 18% 14%);
+
+    --destructive: hsl(2 72% 47%);
+    --destructive-foreground: hsl(225 20% 98%);
+
+    --border: hsl(225 14% 89%);
+    --input: hsl(225 13% 82%);
+    --ring: hsl(225 12% 55%);
+
+    /*
+      Chart series are data, and data is where this product spends colour. The
+      five series are the mark's tail colours in order, darkened to hold their
+      own on a near-white card. A chart may still never reach into the severity
+      ramp for a non-severity meaning.
+    */
+    --chart-1: hsl(45 87% 46%);
+    --chart-2: hsl(167 48% 38%);
+    --chart-3: hsl(214 55% 38%);
+    --chart-4: hsl(354 64% 50%);
+    --chart-5: hsl(330 46% 52%);
+
+    /* Tighter than the old world: this is instrument chrome, not stationery. */
+    --radius: 0.5rem;
+
+    --code-surface: hsl(225 20% 96%);
+    --code-foreground: hsl(225 18% 18%);
+
+    /*
+      The rail is a neutral surface one step below the page. It does not need
+      a colour to be an architecture — it needs a real step and a hairline.
+    */
+    --sidebar-background: hsl(225 20% 95%);
+    --sidebar-foreground: hsl(225 12% 38%);
+    --sidebar-primary: hsl(0 0% 100%);
+    --sidebar-primary-foreground: hsl(225 18% 12%);
+    --sidebar-accent: hsl(225 16% 91%);
+    --sidebar-accent-foreground: hsl(225 18% 14%);
+    --sidebar-border: hsl(225 14% 88%);
+    --sidebar-ring: hsl(225 12% 55%);
+    --sidebar: hsl(225 20% 95%);
+
+    /*
+      The mark keeps its colours: the tail is where the severity ramp and the
+      chart palette come from, and a grey mark hides that. Body and detail
+      follow the surface so the silhouette stays legible in either mode.
+    */
+    --logo-body: var(--color-mark-navy);
+    --logo-detail: var(--color-mark-cream);
+
+    /*
+      The severity ramp, drawn from the mark's tail: teal, navy, gold and
+      crimson in severity order, with trace left achromatic below them and
+      fatal pushed off crimson toward magenta so the two loudest levels are a
+      hue apart rather than two shades of the same red. Hand-set against the
+      near-white card each one is read on.
+    */
+    --severity-trace: hsl(225 8% 52%);
+    --severity-debug: hsl(167 45% 33%);
+    --severity-info: hsl(214 62% 42%);
+    --severity-warn: hsl(41 92% 33%);
+    --severity-error: hsl(354 66% 47%);
+    --severity-fatal: hsl(330 60% 42%);
 }
 
 .dark {
-    --background: hsl(28 22% 9%);
-    --foreground: hsl(44 30% 90%);
-    --card: hsl(28 20% 12%);
-    --card-foreground: hsl(44 30% 90%);
-    --popover: hsl(28 20% 12%);
-    --popover-foreground: hsl(44 30% 90%);
-    --primary: hsl(45 85% 61%);
-    --primary-foreground: hsl(28 30% 12%);
-    --secondary: hsl(28 15% 19%);
-    --secondary-foreground: hsl(44 30% 90%);
-    --muted: hsl(28 15% 17%);
-    --muted-foreground: hsl(40 15% 63%);
-    --accent: hsl(28 15% 22%);
-    --accent-foreground: hsl(44 30% 92%);
-    --destructive: hsl(354 70% 58%);
-    --destructive-foreground: hsl(44 40% 96%);
-    --border: hsl(28 14% 24%);
-    --input: hsl(28 14% 30%);
-    --ring: hsl(45 85% 61%);
-    --chart-1: hsl(45 85% 61%);
-    --chart-2: hsl(166 48% 51%);
-    --chart-3: hsl(215 48% 60%);
-    --chart-4: hsl(354 70% 62%);
-    --chart-5: hsl(4 73% 83%);
-    --sidebar-background: hsl(28 24% 7%);
-    --sidebar-foreground: hsl(44 25% 85%);
     /*
-      Dark mode cannot borrow light mode's cream pill — a bright slab is the
-      wrong instrument at 2am. The fill lifts, and gold carries the state.
+      Dark is the mode this product was designed for: a log stream read for an
+      hour at a time, often at night, beside a terminal. The steps are close
+      together and none of them is black, so a long stream of text never sits
+      on a hole in the screen.
     */
-    --sidebar-primary: hsl(28 18% 22%);
-    --sidebar-primary-foreground: hsl(45 85% 61%);
-    --sidebar-accent: hsl(28 14% 15%);
-    --sidebar-accent-foreground: hsl(44 25% 90%);
-    --sidebar-border: hsl(28 14% 20%);
-    --sidebar-ring: hsl(45 85% 61%);
-    --sidebar: hsl(28 24% 7%);
+    --background: hsl(225 14% 8%);
+    --foreground: hsl(225 16% 93%);
+    --card: hsl(225 13% 11%);
+    --card-foreground: hsl(225 16% 93%);
+    --popover: hsl(225 13% 13%);
+    --popover-foreground: hsl(225 16% 93%);
 
-    /* Logo mark: inverted so the fish stays legible on espresso. */
-    --logo-body: var(--color-cream);
-    --logo-detail: var(--color-espresso);
-    --severity-trace: hsl(40 10% 55%);
-    --severity-debug: hsl(166 35% 55%);
-    --severity-info: hsl(215 55% 65%);
+    --primary: hsl(225 16% 93%);
+    --primary-foreground: hsl(225 14% 10%);
+
+    --secondary: hsl(225 11% 17%);
+    --secondary-foreground: hsl(225 16% 93%);
+    --muted: hsl(225 11% 15%);
+    --muted-foreground: hsl(225 10% 62%);
+    --accent: hsl(225 11% 18%);
+    --accent-foreground: hsl(225 16% 95%);
+
+    --destructive: hsl(2 76% 62%);
+    --destructive-foreground: hsl(225 14% 10%);
+
+    --border: hsl(225 10% 20%);
+    --input: hsl(225 10% 27%);
+    --ring: hsl(225 10% 58%);
+
+    /* The same tail colours, lifted to hold on the dark card. */
+    --chart-1: hsl(45 85% 61%);
+    --chart-2: hsl(167 50% 55%);
+    --chart-3: hsl(214 62% 66%);
+    --chart-4: hsl(354 72% 66%);
+    --chart-5: hsl(330 62% 72%);
+
+    --code-surface: hsl(225 13% 12%);
+    --code-foreground: hsl(225 16% 90%);
+
+    --sidebar-background: hsl(225 15% 6%);
+    --sidebar-foreground: hsl(225 10% 60%);
+    --sidebar-primary: hsl(225 12% 19%);
+    --sidebar-primary-foreground: hsl(225 16% 96%);
+    --sidebar-accent: hsl(225 12% 13%);
+    --sidebar-accent-foreground: hsl(225 16% 93%);
+    --sidebar-border: hsl(225 10% 17%);
+    --sidebar-ring: hsl(225 10% 58%);
+    --sidebar: hsl(225 15% 6%);
+
+    --logo-body: var(--color-mark-cream);
+    --logo-detail: hsl(225 14% 8%);
+
+    /*
+      The same tail hues, authored against the dark card rather than lightened
+      from the light values — each one needs its own lightness here to read as
+      the same level.
+    */
+    --severity-trace: hsl(225 8% 54%);
+    --severity-debug: hsl(167 48% 52%);
+    --severity-info: hsl(214 66% 66%);
     --severity-warn: hsl(45 85% 61%);
-    --severity-error: hsl(354 75% 63%);
-    --severity-fatal: hsl(354 85% 72%);
+    --severity-error: hsl(354 74% 66%);
+    --severity-fatal: hsl(330 72% 72%);
 }
 
 @layer base {
@@ -389,18 +425,25 @@
         background-color: var(--muted);
         padding: 0.1rem 0.3rem;
         color: var(--foreground);
-        font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+        font-family: var(
+            --font-mono,
+            ui-monospace,
+            SFMono-Regular,
+            Menlo,
+            monospace
+        );
         font-size: 0.8125em;
         white-space: nowrap;
     }
 
-    /* Code blocks are an espresso surface in both modes — a brand moment. */
+    /* Code blocks sit one step below the page in both modes. */
     .docs-prose pre {
         overflow-x: auto;
+        border: 1px solid var(--border);
         border-radius: var(--radius);
-        background-color: var(--color-espresso);
+        background-color: var(--code-surface);
         padding: 1rem 1.25rem;
-        color: var(--color-cream);
+        color: var(--code-foreground);
         font-size: 0.8125rem;
         line-height: 1.65;
         scrollbar-width: thin;
@@ -408,13 +451,19 @@
     }
 
     .docs-prose pre code {
-        font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+        font-family: var(
+            --font-mono,
+            ui-monospace,
+            SFMono-Regular,
+            Menlo,
+            monospace
+        );
         white-space: pre;
     }
 
     /* Blockquotes double as callouts: `> **Note:** …`. */
     .docs-prose blockquote {
-        border-left: 2px solid var(--color-gold);
+        border-left: 1px solid var(--border);
         border-radius: calc(var(--radius) - 4px);
         background-color: var(--card);
         padding: 0.75rem 1rem;

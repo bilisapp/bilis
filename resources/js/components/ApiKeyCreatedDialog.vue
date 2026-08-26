@@ -58,7 +58,7 @@ const { copy, copied } = useClipboard({ legacy: true });
                     :aria-label="copied ? 'Copied' : 'Copy API key'"
                     @click="copy(props.apiKey?.key ?? '')"
                 >
-                    <Check v-if="copied" class="w-4 text-teal" />
+                    <Check v-if="copied" class="w-4 text-foreground" />
                     <Copy v-else class="w-4" />
                 </button>
             </div>
@@ -67,7 +67,7 @@ const { copy, copied } = useClipboard({ legacy: true });
                 class="flex items-start gap-2 text-sm text-muted-foreground"
                 data-test="api-key-warning"
             >
-                <TriangleAlert class="mt-0.5 size-4 shrink-0 text-crimson" />
+                <TriangleAlert class="text-crimson mt-0.5 size-4 shrink-0" />
                 <span>
                     Copy it now — only a hash is stored, so this is the last
                     time Bilis can show you the key. Lose it and you will have

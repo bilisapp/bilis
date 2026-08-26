@@ -9,7 +9,7 @@ import SectionShell from './SectionShell.vue';
     <SectionShell
         id="typography"
         title="Typography"
-        description="Instrument Sans everywhere, with the browser monospace stack reserved for log data. Headings stay tight and slightly condensed; body copy sits at 14px so a dense log table and its surrounding chrome share one rhythm."
+        description="Geist for everything the interface says, Geist Mono for everything a machine wrote. The split is the whole type system: if it came out of a log — a body, a timestamp, an id, an attribute pair — it is monospace; if the interface is talking about that data, it is Geist. Headings stay tight; body copy sits at 14px and support copy at 12px, so a dense log table and its surrounding chrome share one rhythm."
     >
         <div class="grid gap-4 lg:grid-cols-2">
             <DemoBlock
@@ -54,7 +54,7 @@ import SectionShell from './SectionShell.vue';
 
         <DemoBlock
             title="Monospace log row"
-            description="font-mono text-xs with tabular-nums timestamps — the exact treatment LogEntryRow uses"
+            description="Geist Mono at text-xs with tabular-nums timestamps — the exact treatment LogEntryRow uses"
         >
             <div class="overflow-x-auto rounded-md border">
                 <div

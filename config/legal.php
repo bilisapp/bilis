@@ -1,5 +1,22 @@
 <?php
 
+/*
+| Where the hosted service runs. Every statement the legal pages make about
+| data location, and the OVH sub-processor row, reads from this one array -
+| the pages used to hardcode "France" in four places, which is exactly how a
+| promise goes stale after a move.
+|
+| Set `in_eea` to false when the servers sit outside the EEA, and give
+| `transfer_basis` the Chapter V ground that covers the transfer. The pages
+| swap to third-country wording on their own.
+*/
+$hosting = [
+    'provider' => env('LEGAL_HOSTING_PROVIDER', 'OVH'),
+    'country' => env('LEGAL_HOSTING_COUNTRY', 'France'),
+    'in_eea' => (bool) env('LEGAL_HOSTING_IN_EEA', true),
+    'transfer_basis' => env('LEGAL_HOSTING_TRANSFER_BASIS', ''),
+];
+
 return [
 
     /*
@@ -129,11 +146,13 @@ return [
     |
     */
 
+    'hosting' => $hosting,
+
     'sub_processors' => [
         [
             'name' => 'OVH SAS',
             'purpose' => 'Server hosting, storage and network for the entire service',
-            'location' => 'France (EU)',
+            'location' => $hosting['country'].($hosting['in_eea'] ? ' (EU)' : ''),
             'url' => 'https://www.ovhcloud.com/en/personal-data-protection/',
         ],
         [

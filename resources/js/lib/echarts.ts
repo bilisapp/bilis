@@ -79,8 +79,7 @@ export type ChartTokens = {
     fontFamily: string;
 };
 
-const FALLBACK_FONT_FAMILY =
-    "'Instrument Sans', ui-sans-serif, system-ui, sans-serif";
+const FALLBACK_FONT_FAMILY = 'Geist, ui-sans-serif, system-ui, sans-serif';
 
 /**
  * Whether the document is currently rendered in dark mode.

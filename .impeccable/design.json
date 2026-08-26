@@ -4,58 +4,383 @@
   "title": "Design System: Bilis",
   "extensions": {
     "colorMeta": {
-      "cream": { "role": "neutral", "displayName": "Cream Page", "canonical": "#f3f0e7", "tonalRamp": ["#241f16", "#3a3324", "#564c37", "#7a6e54", "#a2977c", "#c6bda6", "#e2dbcb", "#f8f6ef"] },
-      "greige": { "role": "secondary", "displayName": "Warm Greige", "canonical": "#dbd5c3", "tonalRamp": ["#221f18", "#3a352a", "#544d3c", "#756c55", "#9a9078", "#bdb49c", "#dbd5c3", "#f1eee4"] },
-      "espresso": { "role": "neutral", "displayName": "Espresso Ink", "canonical": "#463828", "tonalRamp": ["#191309", "#2b2115", "#463828", "#63513c", "#856f56", "#a89176", "#c9b79e", "#e7ddcc"] },
-      "navy": { "role": "primary", "displayName": "Deep Ledger Navy", "canonical": "#1f3a5f", "tonalRamp": ["#0a1220", "#122238", "#1f3a5f", "#2d5286", "#3f6ea9", "#6a92c3", "#9fb9da", "#d3e0ee"] },
-      "gold": { "role": "primary", "displayName": "Signal Gold", "canonical": "#f3c440", "tonalRamp": ["#2a1f00", "#463400", "#6b4f00", "#946d00", "#c08f0e", "#e5ad24", "#f3c440", "#fbe6a5"] },
-      "crimson": { "role": "tertiary", "displayName": "Crimson", "canonical": "#d8394a", "tonalRamp": ["#2a0409", "#460910", "#6c111c", "#96192a", "#bd2738", "#d8394a", "#e77c86", "#f6c5ca"] },
-      "teal": { "role": "tertiary", "displayName": "Stripe Teal", "canonical": "#45bfa6", "tonalRamp": ["#04211b", "#083a30", "#0e5748", "#157663", "#1e9880", "#33b79c", "#6fd0bd", "#b8e9df"] },
-      "aqua": { "role": "tertiary", "displayName": "Pale Aqua", "canonical": "#abdcd2", "tonalRamp": ["#0a221e", "#0f3a33", "#17564c", "#207568", "#2c9787", "#5cbcac", "#abdcd2", "#dcf1ec"] },
-      "blush": { "role": "tertiary", "displayName": "Blush", "canonical": "#f3b9b3", "tonalRamp": ["#2c110e", "#4a1e1a", "#6f2f29", "#98443c", "#bf5f56", "#dc8880", "#f3b9b3", "#fbdedb"] },
-      "page": { "role": "neutral", "displayName": "Cream Page", "canonical": "hsl(44 33% 93%)", "tonalRamp": ["hsl(44 33% 15%)", "hsl(44 33% 26%)", "hsl(44 33% 37%)", "hsl(44 33% 49%)", "hsl(44 33% 60%)", "hsl(44 33% 72%)", "hsl(44 33% 83%)", "hsl(44 33% 95%)"] },
-      "surface": { "role": "neutral", "displayName": "Warm Near-White", "canonical": "hsl(44 50% 98%)", "tonalRamp": ["hsl(44 50% 15%)", "hsl(44 50% 26%)", "hsl(44 50% 37%)", "hsl(44 50% 49%)", "hsl(44 50% 60%)", "hsl(44 50% 72%)", "hsl(44 50% 86%)", "hsl(44 50% 98%)"] },
-      "ink": { "role": "neutral", "displayName": "Espresso Ink", "canonical": "hsl(30 27% 17%)", "tonalRamp": ["hsl(30 27% 8%)", "hsl(30 27% 17%)", "hsl(30 27% 28%)", "hsl(30 27% 40%)", "hsl(30 27% 54%)", "hsl(30 27% 68%)", "hsl(30 27% 82%)", "hsl(30 27% 94%)"] },
-      "ink-muted": { "role": "neutral", "displayName": "Muted Ink", "canonical": "hsl(30 12% 40%)", "tonalRamp": ["hsl(30 12% 15%)", "hsl(30 12% 26%)", "hsl(30 12% 40%)", "hsl(30 12% 52%)", "hsl(30 12% 63%)", "hsl(30 12% 74%)", "hsl(30 12% 85%)", "hsl(30 12% 95%)"] },
-      "primary": { "role": "primary", "displayName": "Deep Ledger Navy", "canonical": "hsl(215 51% 25%)", "tonalRamp": ["hsl(215 51% 12%)", "hsl(215 51% 19%)", "hsl(215 51% 25%)", "hsl(215 51% 34%)", "hsl(215 51% 46%)", "hsl(215 51% 60%)", "hsl(215 51% 76%)", "hsl(215 51% 92%)"] },
-      "primary-dark": { "role": "primary", "displayName": "Signal Gold", "canonical": "hsl(45 85% 61%)", "tonalRamp": ["hsl(45 85% 15%)", "hsl(45 85% 24%)", "hsl(45 85% 33%)", "hsl(45 85% 43%)", "hsl(45 85% 52%)", "hsl(45 85% 61%)", "hsl(45 85% 76%)", "hsl(45 85% 91%)"] },
-      "secondary": { "role": "secondary", "displayName": "Warm Greige", "canonical": "hsl(43 28% 84%)", "tonalRamp": ["hsl(43 28% 15%)", "hsl(43 28% 26%)", "hsl(43 28% 38%)", "hsl(43 28% 50%)", "hsl(43 28% 62%)", "hsl(43 28% 73%)", "hsl(43 28% 84%)", "hsl(43 28% 95%)"] },
-      "accent": { "role": "secondary", "displayName": "Pale Gold Wash", "canonical": "hsl(45 74% 86%)", "tonalRamp": ["hsl(45 74% 15%)", "hsl(45 74% 26%)", "hsl(45 74% 38%)", "hsl(45 74% 50%)", "hsl(45 74% 62%)", "hsl(45 74% 74%)", "hsl(45 74% 86%)", "hsl(45 74% 95%)"] },
-      "destructive": { "role": "tertiary", "displayName": "Crimson", "canonical": "hsl(354 64% 51%)", "tonalRamp": ["hsl(354 64% 12%)", "hsl(354 64% 21%)", "hsl(354 64% 30%)", "hsl(354 64% 40%)", "hsl(354 64% 51%)", "hsl(354 64% 64%)", "hsl(354 64% 78%)", "hsl(354 64% 92%)"] },
-      "hairline": { "role": "neutral", "displayName": "Hairline", "canonical": "hsl(42 18% 72%)", "tonalRamp": ["hsl(42 18% 15%)", "hsl(42 18% 26%)", "hsl(42 18% 38%)", "hsl(42 18% 50%)", "hsl(42 18% 61%)", "hsl(42 18% 72%)", "hsl(42 18% 84%)", "hsl(42 18% 95%)"] },
-      "field-edge": { "role": "neutral", "displayName": "Field Edge", "canonical": "hsl(42 18% 65%)", "tonalRamp": ["hsl(42 18% 15%)", "hsl(42 18% 26%)", "hsl(42 18% 37%)", "hsl(42 18% 48%)", "hsl(42 18% 57%)", "hsl(42 18% 65%)", "hsl(42 18% 80%)", "hsl(42 18% 94%)"] },
-      "page-dark": { "role": "neutral", "displayName": "Deep Espresso Ground", "canonical": "hsl(28 22% 9%)", "tonalRamp": ["hsl(28 22% 5%)", "hsl(28 22% 9%)", "hsl(28 22% 16%)", "hsl(28 22% 26%)", "hsl(28 22% 40%)", "hsl(28 22% 56%)", "hsl(28 22% 74%)", "hsl(28 22% 92%)"] },
-      "surface-dark": { "role": "neutral", "displayName": "Espresso Surface", "canonical": "hsl(28 20% 12%)", "tonalRamp": ["hsl(28 20% 5%)", "hsl(28 20% 12%)", "hsl(28 20% 20%)", "hsl(28 20% 30%)", "hsl(28 20% 43%)", "hsl(28 20% 58%)", "hsl(28 20% 75%)", "hsl(28 20% 92%)"] },
-      "severity-trace": { "role": "tertiary", "displayName": "Trace Grey", "canonical": "hsl(30 10% 55%)", "tonalRamp": ["hsl(30 10% 15%)", "hsl(30 10% 25%)", "hsl(30 10% 35%)", "hsl(30 10% 45%)", "hsl(30 10% 55%)", "hsl(30 10% 68%)", "hsl(30 10% 81%)", "hsl(30 10% 94%)"] },
-      "severity-debug": { "role": "tertiary", "displayName": "Debug Teal", "canonical": "hsl(166 25% 42%)", "tonalRamp": ["hsl(166 25% 12%)", "hsl(166 25% 20%)", "hsl(166 25% 28%)", "hsl(166 25% 35%)", "hsl(166 25% 42%)", "hsl(166 25% 58%)", "hsl(166 25% 76%)", "hsl(166 25% 93%)"] },
-      "severity-info": { "role": "tertiary", "displayName": "Info Navy", "canonical": "hsl(215 51% 38%)", "tonalRamp": ["hsl(215 51% 12%)", "hsl(215 51% 20%)", "hsl(215 51% 29%)", "hsl(215 51% 38%)", "hsl(215 51% 50%)", "hsl(215 51% 63%)", "hsl(215 51% 78%)", "hsl(215 51% 93%)"] },
-      "severity-warn": { "role": "tertiary", "displayName": "Warn Amber", "canonical": "hsl(42 90% 40%)", "tonalRamp": ["hsl(42 90% 12%)", "hsl(42 90% 20%)", "hsl(42 90% 28%)", "hsl(42 90% 34%)", "hsl(42 90% 40%)", "hsl(42 90% 55%)", "hsl(42 90% 72%)", "hsl(42 90% 90%)"] },
-      "severity-error": { "role": "tertiary", "displayName": "Error Crimson", "canonical": "hsl(354 64% 48%)", "tonalRamp": ["hsl(354 64% 12%)", "hsl(354 64% 20%)", "hsl(354 64% 29%)", "hsl(354 64% 38%)", "hsl(354 64% 48%)", "hsl(354 64% 62%)", "hsl(354 64% 77%)", "hsl(354 64% 92%)"] },
-      "severity-fatal": { "role": "tertiary", "displayName": "Fatal Deep Crimson", "canonical": "hsl(354 75% 32%)", "tonalRamp": ["hsl(354 75% 10%)", "hsl(354 75% 17%)", "hsl(354 75% 24%)", "hsl(354 75% 32%)", "hsl(354 75% 44%)", "hsl(354 75% 58%)", "hsl(354 75% 75%)", "hsl(354 75% 91%)"] }
+      "page": {
+        "role": "neutral",
+        "displayName": "Page",
+        "canonical": "hsl(225 20% 97%)",
+        "tonalRamp": [
+          "hsl(225 16% 15%)",
+          "hsl(225 16% 25%)",
+          "hsl(225 16% 35%)",
+          "hsl(225 16% 45%)",
+          "hsl(225 16% 55%)",
+          "hsl(225 16% 68%)",
+          "hsl(225 16% 82%)",
+          "hsl(225 16% 95%)"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Surface",
+        "canonical": "hsl(0 0% 100%)",
+        "tonalRamp": [
+          "hsl(225 12% 15%)",
+          "hsl(225 12% 25%)",
+          "hsl(225 12% 35%)",
+          "hsl(225 12% 45%)",
+          "hsl(225 12% 55%)",
+          "hsl(225 12% 68%)",
+          "hsl(225 12% 82%)",
+          "hsl(225 12% 95%)"
+        ]
+      },
+      "rail": {
+        "role": "neutral",
+        "displayName": "Rail",
+        "canonical": "hsl(225 20% 95%)",
+        "tonalRamp": [
+          "hsl(225 18% 15%)",
+          "hsl(225 18% 25%)",
+          "hsl(225 18% 35%)",
+          "hsl(225 18% 45%)",
+          "hsl(225 18% 55%)",
+          "hsl(225 18% 68%)",
+          "hsl(225 18% 82%)",
+          "hsl(225 18% 95%)"
+        ]
+      },
+      "ink": {
+        "role": "primary",
+        "displayName": "Ink",
+        "canonical": "hsl(225 18% 12%)",
+        "tonalRamp": [
+          "hsl(225 18% 15%)",
+          "hsl(225 18% 25%)",
+          "hsl(225 18% 35%)",
+          "hsl(225 18% 45%)",
+          "hsl(225 18% 55%)",
+          "hsl(225 18% 68%)",
+          "hsl(225 18% 82%)",
+          "hsl(225 18% 95%)"
+        ]
+      },
+      "ink-muted": {
+        "role": "neutral",
+        "displayName": "Muted Ink",
+        "canonical": "hsl(225 9% 46%)",
+        "tonalRamp": [
+          "hsl(225 9% 15%)",
+          "hsl(225 9% 25%)",
+          "hsl(225 9% 35%)",
+          "hsl(225 9% 45%)",
+          "hsl(225 9% 55%)",
+          "hsl(225 9% 68%)",
+          "hsl(225 9% 82%)",
+          "hsl(225 9% 95%)"
+        ]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "hsl(225 14% 89%)",
+        "tonalRamp": [
+          "hsl(225 14% 15%)",
+          "hsl(225 14% 25%)",
+          "hsl(225 14% 35%)",
+          "hsl(225 14% 45%)",
+          "hsl(225 14% 55%)",
+          "hsl(225 14% 68%)",
+          "hsl(225 14% 82%)",
+          "hsl(225 14% 95%)"
+        ]
+      },
+      "field-edge": {
+        "role": "neutral",
+        "displayName": "Field Edge",
+        "canonical": "hsl(225 13% 82%)",
+        "tonalRamp": [
+          "hsl(225 13% 15%)",
+          "hsl(225 13% 25%)",
+          "hsl(225 13% 35%)",
+          "hsl(225 13% 45%)",
+          "hsl(225 13% 55%)",
+          "hsl(225 13% 68%)",
+          "hsl(225 13% 82%)",
+          "hsl(225 13% 95%)"
+        ]
+      },
+      "ring": {
+        "role": "neutral",
+        "displayName": "Ring",
+        "canonical": "hsl(225 12% 55%)",
+        "tonalRamp": [
+          "hsl(225 12% 15%)",
+          "hsl(225 12% 25%)",
+          "hsl(225 12% 35%)",
+          "hsl(225 12% 45%)",
+          "hsl(225 12% 55%)",
+          "hsl(225 12% 68%)",
+          "hsl(225 12% 82%)",
+          "hsl(225 12% 95%)"
+        ]
+      },
+      "destructive": {
+        "role": "tertiary",
+        "displayName": "Destructive",
+        "canonical": "hsl(2 72% 47%)",
+        "tonalRamp": [
+          "hsl(2 72% 15%)",
+          "hsl(2 72% 25%)",
+          "hsl(2 72% 35%)",
+          "hsl(2 72% 45%)",
+          "hsl(2 72% 55%)",
+          "hsl(2 72% 68%)",
+          "hsl(2 72% 82%)",
+          "hsl(2 72% 95%)"
+        ]
+      },
+      "chart-1": {
+        "role": "tertiary",
+        "displayName": "Series Gold (tail)",
+        "canonical": "hsl(45 87% 46%)",
+        "tonalRamp": [
+          "hsl(45 87% 15%)",
+          "hsl(45 87% 25%)",
+          "hsl(45 87% 35%)",
+          "hsl(45 87% 45%)",
+          "hsl(45 87% 55%)",
+          "hsl(45 87% 68%)",
+          "hsl(45 87% 82%)",
+          "hsl(45 87% 95%)"
+        ]
+      },
+      "chart-2": {
+        "role": "tertiary",
+        "displayName": "Series Teal (tail)",
+        "canonical": "hsl(167 48% 38%)",
+        "tonalRamp": [
+          "hsl(167 48% 15%)",
+          "hsl(167 48% 25%)",
+          "hsl(167 48% 35%)",
+          "hsl(167 48% 45%)",
+          "hsl(167 48% 55%)",
+          "hsl(167 48% 68%)",
+          "hsl(167 48% 82%)",
+          "hsl(167 48% 95%)"
+        ]
+      },
+      "chart-3": {
+        "role": "tertiary",
+        "displayName": "Series Navy (tail)",
+        "canonical": "hsl(214 55% 38%)",
+        "tonalRamp": [
+          "hsl(214 55% 15%)",
+          "hsl(214 55% 25%)",
+          "hsl(214 55% 35%)",
+          "hsl(214 55% 45%)",
+          "hsl(214 55% 55%)",
+          "hsl(214 55% 68%)",
+          "hsl(214 55% 82%)",
+          "hsl(214 55% 95%)"
+        ]
+      },
+      "chart-4": {
+        "role": "tertiary",
+        "displayName": "Series Crimson (tail)",
+        "canonical": "hsl(354 64% 50%)",
+        "tonalRamp": [
+          "hsl(354 64% 15%)",
+          "hsl(354 64% 25%)",
+          "hsl(354 64% 35%)",
+          "hsl(354 64% 45%)",
+          "hsl(354 64% 55%)",
+          "hsl(354 64% 68%)",
+          "hsl(354 64% 82%)",
+          "hsl(354 64% 95%)"
+        ]
+      },
+      "chart-5": {
+        "role": "tertiary",
+        "displayName": "Series Magenta",
+        "canonical": "hsl(330 46% 52%)",
+        "tonalRamp": [
+          "hsl(330 46% 15%)",
+          "hsl(330 46% 25%)",
+          "hsl(330 46% 35%)",
+          "hsl(330 46% 45%)",
+          "hsl(330 46% 55%)",
+          "hsl(330 46% 68%)",
+          "hsl(330 46% 82%)",
+          "hsl(330 46% 95%)"
+        ]
+      },
+      "severity-trace": {
+        "role": "tertiary",
+        "displayName": "Trace Grey",
+        "canonical": "hsl(225 8% 52%)",
+        "tonalRamp": [
+          "hsl(225 8% 15%)",
+          "hsl(225 8% 25%)",
+          "hsl(225 8% 35%)",
+          "hsl(225 8% 45%)",
+          "hsl(225 8% 55%)",
+          "hsl(225 8% 68%)",
+          "hsl(225 8% 82%)",
+          "hsl(225 8% 95%)"
+        ]
+      },
+      "severity-debug": {
+        "role": "tertiary",
+        "displayName": "Debug Teal",
+        "canonical": "hsl(167 45% 33%)",
+        "tonalRamp": [
+          "hsl(167 45% 15%)",
+          "hsl(167 45% 25%)",
+          "hsl(167 45% 35%)",
+          "hsl(167 45% 45%)",
+          "hsl(167 45% 55%)",
+          "hsl(167 45% 68%)",
+          "hsl(167 45% 82%)",
+          "hsl(167 45% 95%)"
+        ]
+      },
+      "severity-info": {
+        "role": "tertiary",
+        "displayName": "Info Blue",
+        "canonical": "hsl(214 62% 42%)",
+        "tonalRamp": [
+          "hsl(214 62% 15%)",
+          "hsl(214 62% 25%)",
+          "hsl(214 62% 35%)",
+          "hsl(214 62% 45%)",
+          "hsl(214 62% 55%)",
+          "hsl(214 62% 68%)",
+          "hsl(214 62% 82%)",
+          "hsl(214 62% 95%)"
+        ]
+      },
+      "severity-warn": {
+        "role": "tertiary",
+        "displayName": "Warn Gold",
+        "canonical": "hsl(41 92% 33%)",
+        "tonalRamp": [
+          "hsl(41 92% 15%)",
+          "hsl(41 92% 25%)",
+          "hsl(41 92% 35%)",
+          "hsl(41 92% 45%)",
+          "hsl(41 92% 55%)",
+          "hsl(41 92% 68%)",
+          "hsl(41 92% 82%)",
+          "hsl(41 92% 95%)"
+        ]
+      },
+      "severity-error": {
+        "role": "tertiary",
+        "displayName": "Error Crimson",
+        "canonical": "hsl(354 66% 47%)",
+        "tonalRamp": [
+          "hsl(354 66% 15%)",
+          "hsl(354 66% 25%)",
+          "hsl(354 66% 35%)",
+          "hsl(354 66% 45%)",
+          "hsl(354 66% 55%)",
+          "hsl(354 66% 68%)",
+          "hsl(354 66% 82%)",
+          "hsl(354 66% 95%)"
+        ]
+      },
+      "severity-fatal": {
+        "role": "tertiary",
+        "displayName": "Fatal Magenta",
+        "canonical": "hsl(330 60% 42%)",
+        "tonalRamp": [
+          "hsl(330 60% 15%)",
+          "hsl(330 60% 25%)",
+          "hsl(330 60% 35%)",
+          "hsl(330 60% 45%)",
+          "hsl(330 60% 55%)",
+          "hsl(330 60% 68%)",
+          "hsl(330 60% 82%)",
+          "hsl(330 60% 95%)"
+        ]
+      }
     },
     "typographyMeta": {
-      "display": { "displayName": "Display", "purpose": "Page-level titles. One per page at most." },
-      "headline": { "displayName": "Headline", "purpose": "Section headings and page headers — Heading.vue default and SectionShell titles." },
-      "title": { "displayName": "Title", "purpose": "Subsection headings inside a card or section." },
-      "body": { "displayName": "Body", "purpose": "All interface prose. The default size; descriptions cap around 65–75 characters." },
-      "label": { "displayName": "Label", "purpose": "Form labels, toolbar labels, chip text, row counts, helper text. Usually muted ink." },
-      "data": { "displayName": "Data", "purpose": "Machine-authored text only: log bodies, timestamps, ids, attribute pairs. Timestamps are tabular-nums." }
+      "display": {
+        "displayName": "Display",
+        "purpose": "Page-level titles. One per page at most."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Section headings and page headers."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Subsection headings inside a card or section."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "All interface prose. The default size."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Form labels, toolbar labels, chip text, row counts."
+      },
+      "group-label": {
+        "displayName": "Group label",
+        "purpose": "Sidebar section headings only: 11px, 600, uppercase, wide tracking."
+      },
+      "data": {
+        "displayName": "Data",
+        "purpose": "Machine-authored text only: log bodies, timestamps, ids, attribute pairs. Geist Mono, tabular-nums."
+      }
     },
     "shadows": [
-      { "name": "state-lift", "value": "0 1px 2px 0 rgb(0 0 0 / 0.05)", "purpose": "The hover/interactive whisper. Never applied at rest." },
-      { "name": "overlay", "value": "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)", "purpose": "Dialogs, dropdowns, popovers, sheets — elements that genuinely float above the page." },
-      { "name": "focus-ring", "value": "0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent)", "purpose": "Focus-visible state on every interactive element, paired with a border shift to --ring." }
+      {
+        "name": "overlay",
+        "value": "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
+        "purpose": "Dialogs, dropdowns, popovers, sheets \u2014 elements that genuinely float."
+      },
+      {
+        "name": "focus-ring",
+        "value": "0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent)",
+        "purpose": "Focus-visible on every interactive element, paired with a border shift to --ring. Neutral, never a hue."
+      }
     ],
     "motion": [
-      { "name": "ease-standard", "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Default easing for every state transition." },
-      { "name": "duration-fast", "value": "150ms", "purpose": "Colour and shadow transitions on buttons, chips, rows, and inputs." },
-      { "name": "tail-pulse", "value": "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite", "purpose": "The live-tail radio icon while tailing is active — the only continuous motion in the product." }
+      {
+        "name": "ease-standard",
+        "value": "cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Default easing for every state transition."
+      },
+      {
+        "name": "duration-fast",
+        "value": "150ms",
+        "purpose": "Colour and shadow transitions on buttons, chips, rows, inputs."
+      },
+      {
+        "name": "tail-pulse",
+        "value": "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "purpose": "The live-tail indicator while tailing \u2014 the only continuous motion in the product."
+      }
     ],
     "breakpoints": [
-      { "name": "sm", "value": "640px" },
-      { "name": "md", "value": "768px" },
-      { "name": "lg", "value": "1024px" },
-      { "name": "xl", "value": "1280px" }
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      }
     ]
   },
   "components": [
@@ -63,119 +388,159 @@
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "The default action. Navy with cream text in light mode, gold with espresso text in dark.",
+      "description": "The default action. Filled with ink, never with an accent hue.",
       "html": "<button class=\"ds-btn-primary\">Apply filters</button>",
-      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 8px 16px; border: none; border-radius: 6px; background: var(--primary, hsl(215 51% 25%)); color: var(--primary-foreground, hsl(44 40% 95%)); font-family: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; line-height: 1.25rem; white-space: nowrap; cursor: pointer; transition: background 150ms cubic-bezier(0.4,0,0.2,1), box-shadow 150ms cubic-bezier(0.4,0,0.2,1); } .ds-btn-primary:hover { background: color-mix(in oklab, var(--primary, hsl(215 51% 25%)) 90%, transparent); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring, hsl(215 51% 25%)) 50%, transparent); } .ds-btn-primary:disabled { opacity: 0.5; pointer-events: none; }"
-    },
-    {
-      "name": "Outline Button",
-      "kind": "button",
-      "refersTo": "button-outline",
-      "description": "The secondary action. A hairline on the page ground that fills with the pale gold accent on hover.",
-      "html": "<button class=\"ds-btn-outline\">Reset</button>",
-      "css": ".ds-btn-outline { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 8px 16px; border: 1px solid var(--border, hsl(42 18% 72%)); border-radius: 6px; background: var(--background, hsl(44 33% 93%)); color: var(--foreground, hsl(30 27% 17%)); font-family: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; line-height: 1.25rem; white-space: nowrap; cursor: pointer; transition: background 150ms cubic-bezier(0.4,0,0.2,1), color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-btn-outline:hover { background: var(--accent, hsl(45 74% 86%)); color: var(--accent-foreground, hsl(30 27% 17%)); } .ds-btn-outline:focus-visible { outline: none; border-color: var(--ring, hsl(215 51% 25%)); box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring, hsl(215 51% 25%)) 50%, transparent); }"
+      "css": ".ds-btn-primary { display:inline-flex; align-items:center; justify-content:center; gap:8px; height:36px; padding:8px 16px; border:none; border-radius:6px; background:var(--primary, hsl(225 18% 14%)); color:var(--primary-foreground, hsl(225 20% 98%)); font-family:Geist, ui-sans-serif, system-ui, sans-serif; font-size:.875rem; font-weight:500; line-height:1.25rem; cursor:pointer; transition:background 150ms cubic-bezier(.4,0,.2,1); } .ds-btn-primary:hover { background:color-mix(in oklab, var(--primary, hsl(225 18% 14%)) 90%, transparent); } .ds-btn-primary:focus-visible { outline:none; box-shadow:0 0 0 3px color-mix(in oklab, var(--ring, hsl(225 12% 55%)) 50%, transparent); }"
     },
     {
       "name": "Ghost Button",
       "kind": "button",
       "refersTo": "button-ghost",
-      "description": "No fill at rest, accent fill on hover. The default for icon-only controls in headers and rows.",
-      "html": "<button class=\"ds-btn-ghost\" aria-label=\"Refresh\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8\"/><path d=\"M21 3v5h-5\"/><path d=\"M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16\"/><path d=\"M3 21v-5h5\"/></svg></button>",
-      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border: none; border-radius: 6px; background: transparent; color: var(--foreground, hsl(30 27% 17%)); cursor: pointer; transition: background 150ms cubic-bezier(0.4,0,0.2,1); } .ds-btn-ghost:hover { background: var(--accent, hsl(45 74% 86%)); color: var(--accent-foreground, hsl(30 27% 17%)); } .ds-btn-ghost:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring, hsl(215 51% 25%)) 50%, transparent); }"
+      "description": "No fill at rest, accent fill on hover. Used for the toolbar's Step back and Reset.",
+      "html": "<button class=\"ds-btn-ghost\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9 14 4 9l5-5\"/><path d=\"M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11\"/></svg>Step back</button>",
+      "css": ".ds-btn-ghost { display:inline-flex; align-items:center; gap:8px; height:32px; padding:6px 12px; border:none; border-radius:6px; background:transparent; color:var(--foreground, hsl(225 18% 12%)); font-family:Geist, ui-sans-serif, system-ui, sans-serif; font-size:.875rem; font-weight:500; cursor:pointer; transition:background 150ms cubic-bezier(.4,0,.2,1); } .ds-btn-ghost:hover { background:var(--accent, hsl(225 16% 94%)); } .ds-btn-ghost:disabled { opacity:.5; pointer-events:none; } .ds-btn-ghost:focus-visible { outline:none; box-shadow:0 0 0 3px color-mix(in oklab, var(--ring, hsl(225 12% 55%)) 50%, transparent); }"
     },
     {
       "name": "Search Input",
       "kind": "input",
       "refersTo": "input",
-      "description": "Transparent fill defined entirely by its darker field-edge stroke, with a leading 16px icon. Debounced; never paired with a submit button.",
-      "html": "<div class=\"ds-input-wrap\"><svg class=\"ds-input-icon\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg><input class=\"ds-input-search\" type=\"search\" placeholder=\"Search log bodies…\"></div>",
-      "css": ".ds-input-wrap { position: relative; display: block; width: 100%; max-width: 360px; } .ds-input-icon { position: absolute; top: 50%; left: 10px; transform: translateY(-50%); color: var(--muted-foreground, hsl(30 12% 40%)); pointer-events: none; } .ds-input-search { width: 100%; height: 36px; padding: 4px 12px 4px 32px; border: 1px solid var(--input, hsl(42 18% 65%)); border-radius: 6px; background: transparent; color: var(--foreground, hsl(30 27% 17%)); font-family: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; line-height: 1.25rem; outline: none; transition: color 150ms cubic-bezier(0.4,0,0.2,1), box-shadow 150ms cubic-bezier(0.4,0,0.2,1), border-color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-input-search::placeholder { color: var(--muted-foreground, hsl(30 12% 40%)); } .ds-input-search:focus-visible { border-color: var(--ring, hsl(215 51% 25%)); box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring, hsl(215 51% 25%)) 50%, transparent); } .ds-input-search[aria-invalid=\"true\"] { border-color: var(--destructive, hsl(354 64% 51%)); }"
+      "description": "Transparent fill defined entirely by its darker field-edge stroke.",
+      "html": "<div class=\"ds-input-wrap\"><svg class=\"ds-input-icon\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg><input class=\"ds-input-search\" type=\"search\" placeholder=\"Search log bodies\u2026\"></div>",
+      "css": ".ds-input-wrap { position:relative; display:block; width:100%; max-width:360px; } .ds-input-icon { position:absolute; top:50%; left:12px; transform:translateY(-50%); color:var(--muted-foreground, hsl(225 9% 46%)); pointer-events:none; } .ds-input-search { width:100%; height:40px; padding:4px 12px 4px 36px; border:1px solid var(--input, hsl(225 13% 82%)); border-radius:6px; background:transparent; color:var(--foreground, hsl(225 18% 12%)); font-family:Geist, ui-sans-serif, system-ui, sans-serif; font-size:.875rem; outline:none; transition:border-color 150ms, box-shadow 150ms; } .ds-input-search::placeholder { color:var(--muted-foreground, hsl(225 9% 46%)); } .ds-input-search:focus-visible { border-color:var(--ring, hsl(225 12% 55%)); box-shadow:0 0 0 3px color-mix(in oklab, var(--ring, hsl(225 12% 55%)) 50%, transparent); }"
     },
     {
       "name": "Severity Chip",
       "kind": "chip",
       "refersTo": "severity-chip",
-      "description": "The signature control: the six-level filter row in the log toolbar. State is carried by fill, weight, and dot opacity together — never by colour alone.",
-      "html": "<div class=\"ds-severity-row\"><button class=\"ds-severity-chip is-active\" aria-pressed=\"true\"><span class=\"ds-dot\" style=\"background: var(--severity-error, hsl(354 64% 48%))\"></span>error</button><button class=\"ds-severity-chip\" aria-pressed=\"false\"><span class=\"ds-dot\" style=\"background: var(--severity-warn, hsl(42 90% 40%))\"></span>warn</button><button class=\"ds-severity-chip\" aria-pressed=\"false\"><span class=\"ds-dot\" style=\"background: var(--severity-info, hsl(215 51% 38%))\"></span>info</button></div>",
-      "css": ".ds-severity-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; } .ds-severity-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--border, hsl(42 18% 72%)); border-radius: 9999px; background: var(--background, hsl(44 33% 93%)); color: var(--muted-foreground, hsl(30 12% 40%)); font-family: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; font-size: 0.75rem; font-weight: 500; line-height: 1rem; text-transform: capitalize; cursor: pointer; outline: none; transition: color 150ms cubic-bezier(0.4,0,0.2,1), border-color 150ms cubic-bezier(0.4,0,0.2,1), background 150ms cubic-bezier(0.4,0,0.2,1); } .ds-severity-chip .ds-dot { width: 8px; height: 8px; border-radius: 9999px; opacity: 0.4; transition: opacity 150ms cubic-bezier(0.4,0,0.2,1); } .ds-severity-chip:hover { color: var(--foreground, hsl(30 27% 17%)); border-color: color-mix(in oklab, var(--foreground, hsl(30 27% 17%)) 20%, transparent); } .ds-severity-chip:focus-visible { box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring, hsl(215 51% 25%)) 50%, transparent); } .ds-severity-chip.is-active { background: var(--secondary, hsl(43 28% 84%)); color: var(--secondary-foreground, hsl(30 27% 17%)); font-weight: 600; border-color: color-mix(in oklab, var(--foreground, hsl(30 27% 17%)) 25%, transparent); } .ds-severity-chip.is-active .ds-dot { opacity: 1; }"
+      "description": "The six-level filter row. State is carried by fill, weight and dot opacity together \u2014 never by colour alone.",
+      "html": "<div class=\"ds-sev-row\"><button class=\"ds-sev is-active\" aria-pressed=\"true\"><span class=\"ds-dot\" style=\"background:var(--severity-error, hsl(2 74% 47%))\"></span>error</button><button class=\"ds-sev\" aria-pressed=\"false\"><span class=\"ds-dot\" style=\"background:var(--severity-warn, hsl(33 92% 36%))\"></span>warn</button><button class=\"ds-sev\" aria-pressed=\"false\"><span class=\"ds-dot\" style=\"background:var(--severity-fatal, hsl(320 62% 44%))\"></span>fatal</button></div>",
+      "css": ".ds-sev-row { display:flex; flex-wrap:wrap; align-items:center; gap:6px; } .ds-sev { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border:1px solid var(--border, hsl(225 14% 89%)); border-radius:9999px; background:var(--background, hsl(225 20% 97%)); color:var(--muted-foreground, hsl(225 9% 46%)); font-family:Geist, ui-sans-serif, system-ui, sans-serif; font-size:.75rem; font-weight:500; text-transform:capitalize; cursor:pointer; outline:none; transition:color 150ms, border-color 150ms, background 150ms; } .ds-sev .ds-dot { width:8px; height:8px; border-radius:9999px; opacity:.4; transition:opacity 150ms; } .ds-sev:hover { color:var(--foreground, hsl(225 18% 12%)); } .ds-sev:focus-visible { box-shadow:0 0 0 3px color-mix(in oklab, var(--ring, hsl(225 12% 55%)) 50%, transparent); } .ds-sev.is-active { background:var(--secondary, hsl(225 14% 93%)); color:var(--secondary-foreground, hsl(225 18% 18%)); font-weight:600; } .ds-sev.is-active .ds-dot { opacity:1; }"
     },
     {
       "name": "Card",
       "kind": "card",
       "refersTo": "card",
-      "description": "A warm near-white surface with a hairline and a 12px radius. Flat at rest — depth comes from the tonal ladder.",
-      "html": "<div class=\"ds-card\"><div class=\"ds-card-header\"><h3 class=\"ds-card-title\">Ingest endpoints</h3><p class=\"ds-card-desc\">Point any OTLP-compatible exporter at your project key.</p></div><div class=\"ds-card-content\"><p class=\"ds-card-body\">Rows appear in the viewer within a second of being queued.</p></div></div>",
-      "css": ".ds-card { display: flex; flex-direction: column; gap: 24px; padding: 24px 0; border: 1px solid var(--border, hsl(42 18% 72%)); border-radius: 12px; background: var(--card, hsl(44 50% 98%)); color: var(--card-foreground, hsl(30 27% 17%)); font-family: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; } .ds-card-header { display: grid; gap: 6px; padding: 0 24px; } .ds-card-title { margin: 0; font-size: 1.125rem; font-weight: 600; line-height: 1.75rem; letter-spacing: -0.025em; } .ds-card-desc { margin: 0; font-size: 0.875rem; line-height: 1.25rem; color: var(--muted-foreground, hsl(30 12% 40%)); } .ds-card-content { padding: 0 24px; } .ds-card-body { margin: 0; font-size: 0.875rem; line-height: 1.25rem; }"
+      "description": "A surface one step above the page, with a hairline and an 8px radius. Flat at rest.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-header\"><h3 class=\"ds-card-title\">Ingest endpoints</h3><p class=\"ds-card-desc\">Point any OTLP-compatible exporter at your project key.</p></div></div>",
+      "css": ".ds-card { display:flex; flex-direction:column; gap:24px; padding:24px 0; border:1px solid var(--border, hsl(225 14% 89%)); border-radius:8px; background:var(--card, hsl(0 0% 100%)); color:var(--card-foreground, hsl(225 18% 12%)); font-family:Geist, ui-sans-serif, system-ui, sans-serif; } .ds-card-header { display:grid; gap:6px; padding:0 24px; } .ds-card-title { margin:0; font-size:1.125rem; font-weight:600; line-height:1.75rem; letter-spacing:-.025em; } .ds-card-desc { margin:0; font-size:.875rem; line-height:1.25rem; color:var(--muted-foreground, hsl(225 9% 46%)); }"
     },
     {
       "name": "Log Entry Row",
       "kind": "custom",
       "refersTo": "log-row",
-      "description": "The signature component. Fixed-width columns left of the message so the eye lands in the same place on every row; ruled by a bottom hairline, never stacked as cards.",
-      "html": "<div class=\"ds-log-list\"><button class=\"ds-log-row\"><svg class=\"ds-log-chevron\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m9 18 6-6-6-6\"/></svg><span class=\"ds-log-time\">09:14:02.118</span><span class=\"ds-log-sev\" style=\"color: var(--severity-info, hsl(215 51% 38%))\"><span class=\"ds-dot\" style=\"background: var(--severity-info, hsl(215 51% 38%))\"></span>INFO</span><span class=\"ds-log-service\">checkout-api</span><span class=\"ds-log-body\">POST /api/v1/logs 202 project=checkout-api batch=128</span></button><button class=\"ds-log-row\"><svg class=\"ds-log-chevron\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m9 18 6-6-6-6\"/></svg><span class=\"ds-log-time\">09:14:03.007</span><span class=\"ds-log-sev\" style=\"color: var(--severity-error, hsl(354 64% 48%))\"><span class=\"ds-dot\" style=\"background: var(--severity-error, hsl(354 64% 48%))\"></span>ERROR</span><span class=\"ds-log-service\">bilis-ingest</span><span class=\"ds-log-body\">failed to flush batch to ClickHouse: connection reset by peer</span></button></div>",
-      "css": ".ds-log-list { width: 100%; } .ds-log-row { display: flex; width: 100%; align-items: flex-start; gap: 12px; padding: 6px 12px; border: none; border-bottom: 1px solid color-mix(in oklab, var(--sidebar-border, hsl(42 18% 72%)) 70%, transparent); background: transparent; color: var(--foreground, hsl(30 27% 17%)); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.75rem; line-height: 1rem; text-align: left; cursor: pointer; transition: background 150ms cubic-bezier(0.4,0,0.2,1); } .ds-log-row:hover { background: color-mix(in oklab, var(--accent, hsl(45 74% 86%)) 50%, transparent); } .ds-log-chevron { flex-shrink: 0; margin-top: 2px; color: var(--muted-foreground, hsl(30 12% 40%)); } .ds-log-time { flex-shrink: 0; color: var(--muted-foreground, hsl(30 12% 40%)); font-variant-numeric: tabular-nums; } .ds-log-sev { display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; width: 64px; font-weight: 600; text-transform: uppercase; } .ds-log-sev .ds-dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: 9999px; } .ds-log-service { flex-shrink: 0; width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground, hsl(30 12% 40%)); } .ds-log-body { flex: 1 1 0%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }"
+      "description": "The signature component. Fixed columns, a 1px severity hairline on the left edge, and a resting tint on the levels that mean something broke.",
+      "html": "<div class=\"ds-log\"><button class=\"ds-log-row\" data-sev=\"info\"><span class=\"ds-log-time\">09:14:02.118</span><span class=\"ds-log-sev\" style=\"color:var(--severity-info, hsl(212 82% 42%))\"><span class=\"ds-dot\" style=\"background:var(--severity-info, hsl(212 82% 42%))\"></span>INFO</span><span class=\"ds-log-svc\">checkout-api</span><span class=\"ds-log-body\">POST /api/v1/logs 202 batch=128</span></button><button class=\"ds-log-row is-error\" data-sev=\"error\"><span class=\"ds-log-time\">09:14:03.007</span><span class=\"ds-log-sev\" style=\"color:var(--severity-error, hsl(2 74% 47%))\"><span class=\"ds-dot\" style=\"background:var(--severity-error, hsl(2 74% 47%))\"></span>ERROR</span><span class=\"ds-log-svc\">bilis-ingest</span><span class=\"ds-log-body\">failed to flush batch to ClickHouse</span></button></div>",
+      "css": ".ds-log { width:100%; } .ds-log-row { display:flex; width:100%; align-items:flex-start; gap:12px; padding:6px 12px; border:none; border-bottom:1px solid var(--border, hsl(225 14% 89%)); border-left:1px solid var(--severity-info, hsl(212 82% 42%)); background:transparent; color:var(--foreground, hsl(225 18% 12%)); font-family:'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size:.75rem; line-height:1rem; text-align:left; cursor:pointer; transition:background 150ms; } .ds-log-row.is-error { border-left-color:var(--severity-error, hsl(2 74% 47%)); background:color-mix(in oklab, var(--severity-error, hsl(2 74% 47%)) 6%, transparent); } .ds-log-row:hover { background:color-mix(in oklab, var(--accent, hsl(225 16% 94%)) 50%, transparent); } .ds-log-time { flex-shrink:0; color:var(--muted-foreground, hsl(225 9% 46%)); font-variant-numeric:tabular-nums; } .ds-log-sev { display:inline-flex; flex-shrink:0; align-items:center; gap:6px; width:64px; font-weight:600; text-transform:uppercase; } .ds-log-sev .ds-dot { width:8px; height:8px; flex-shrink:0; border-radius:9999px; } .ds-log-svc { flex-shrink:0; width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted-foreground, hsl(225 9% 46%)); } .ds-log-body { flex:1 1 0%; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }"
     },
     {
       "name": "Sidebar Navigation",
       "kind": "nav",
-      "refersTo": "nav-sidebar",
-      "description": "The rail sits one tone below the page. The Bilis mark is an 8px-radius primary tile carrying the three-stripe glyph; active items take the sidebar accent fill.",
-      "html": "<nav class=\"ds-nav\"><div class=\"ds-nav-brand\"><span class=\"ds-nav-mark\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><rect x=\"3\" y=\"4.8\" width=\"14\" height=\"3.4\" rx=\"1.7\" fill=\"currentColor\"/><rect x=\"6\" y=\"10.3\" width=\"15\" height=\"3.4\" rx=\"1.7\" fill=\"currentColor\"/><rect x=\"3\" y=\"15.8\" width=\"11\" height=\"3.4\" rx=\"1.7\" fill=\"currentColor\"/></svg></span><span class=\"ds-nav-word\">Bilis</span></div><a class=\"ds-nav-item is-active\" href=\"#\">Logs</a><a class=\"ds-nav-item\" href=\"#\">Dashboard</a><a class=\"ds-nav-item\" href=\"#\">Projects</a></nav>",
-      "css": ".ds-nav { display: flex; flex-direction: column; gap: 2px; width: 220px; padding: 12px; background: var(--sidebar, hsl(44 26% 87%)); border-right: 1px solid var(--sidebar-border, hsl(42 18% 72%)); font-family: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; } .ds-nav-brand { display: flex; align-items: center; gap: 8px; padding: 4px 8px 12px; } .ds-nav-mark { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; background: var(--sidebar-primary, hsl(215 51% 25%)); color: var(--sidebar-primary-foreground, hsl(44 40% 95%)); } .ds-nav-word { font-size: 0.875rem; font-weight: 600; line-height: 1.25rem; color: var(--sidebar-foreground, hsl(30 20% 25%)); } .ds-nav-item { display: block; padding: 8px 10px; border-radius: 6px; color: var(--sidebar-foreground, hsl(30 20% 25%)); font-size: 0.875rem; font-weight: 500; line-height: 1.25rem; text-decoration: none; transition: background 150ms cubic-bezier(0.4,0,0.2,1); } .ds-nav-item:hover { background: var(--sidebar-accent, hsl(43 26% 81%)); } .ds-nav-item.is-active { background: var(--sidebar-accent, hsl(43 26% 81%)); color: var(--sidebar-accent-foreground, hsl(30 27% 20%)); font-weight: 600; } .ds-nav-item:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklab, var(--sidebar-ring, hsl(215 51% 40%)) 50%, transparent); }"
-    },
-    {
-      "name": "Badge",
-      "kind": "chip",
-      "refersTo": "badge",
-      "description": "Fully round status pill at 12px. Default is the primary fill; secondary and outline variants carry lower-emphasis metadata.",
-      "html": "<span class=\"ds-badge\">Live</span> <span class=\"ds-badge ds-badge-secondary\">queued</span> <span class=\"ds-badge ds-badge-outline\">v1</span>",
-      "css": ".ds-badge { display: inline-flex; align-items: center; justify-content: center; gap: 4px; width: fit-content; padding: 2px 8px; border: 1px solid transparent; border-radius: 9999px; background: var(--primary, hsl(215 51% 25%)); color: var(--primary-foreground, hsl(44 40% 95%)); font-family: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; font-size: 0.75rem; font-weight: 500; line-height: 1rem; white-space: nowrap; } .ds-badge-secondary { background: var(--secondary, hsl(43 28% 84%)); color: var(--secondary-foreground, hsl(30 27% 17%)); } .ds-badge-outline { background: transparent; border-color: var(--border, hsl(42 18% 72%)); color: var(--foreground, hsl(30 27% 17%)); }"
+      "refersTo": "nav-item",
+      "description": "The rail sits one step below the page. The active item takes the work surface as its fill, so the current page is legible from the silhouette.",
+      "html": "<nav class=\"ds-nav\"><span class=\"ds-nav-group\">Platform</span><a class=\"ds-nav-item\" href=\"#\">Dashboard</a><a class=\"ds-nav-item is-active\" href=\"#\">Logs</a><a class=\"ds-nav-item\" href=\"#\">Projects</a></nav>",
+      "css": ".ds-nav { display:flex; flex-direction:column; gap:2px; width:220px; padding:12px; background:var(--sidebar, hsl(225 20% 95%)); border-right:1px solid var(--sidebar-border, hsl(225 14% 88%)); font-family:Geist, ui-sans-serif, system-ui, sans-serif; } .ds-nav-group { padding:4px 8px; font-size:.6875rem; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:color-mix(in oklab, var(--sidebar-foreground, hsl(225 12% 38%)) 45%, transparent); } .ds-nav-item { display:block; padding:8px; border-radius:6px; color:var(--sidebar-foreground, hsl(225 12% 38%)); font-size:.875rem; text-decoration:none; transition:background 150ms, color 150ms; } .ds-nav-item:hover { background:var(--sidebar-accent, hsl(225 16% 91%)); color:var(--sidebar-accent-foreground, hsl(225 18% 14%)); } .ds-nav-item.is-active { background:var(--sidebar-primary, hsl(0 0% 100%)); color:var(--sidebar-primary-foreground, hsl(225 18% 12%)); font-weight:600; }"
     }
   ],
   "narrative": {
-    "northStar": "The Reading Room",
-    "overview": "Bilis is a place built for long sessions with dense machine text. Somebody is going to sit in front of a log stream at two in the morning, scanning thousands of monospace lines for the one that explains the outage. Every decision in this system serves that person's eyes over that duration. Chrome recedes; content holds the contrast. The rhythm is generous where it costs nothing and tight where density earns its keep.\n\nThe character is utilitarian with a warm accent. Function comes first and says so — hairline borders, modest radii, no ornament that isn't doing work. The mid-century palette is the one concession to character, and it is spent deliberately: a cream page instead of a white one, espresso instead of black, navy and gold instead of a generic blue. That warmth is not decoration, it is ergonomics. Cream at 93% lightness and espresso ink at 17% is a gentler pairing to read for an hour than pure black on pure white, and the system's entire reason for choosing it is that the reading session is long.\n\nLight and dark are two designed worlds, not one world with a filter over it. The primary voice actually changes between them — navy in light, gold in dark — and every severity colour is hand-tuned twice. Dark mode is where this product is most often used, and it is authored, not derived.",
+    "northStar": "The Achromatic Instrument",
+    "overview": "Bilis has exactly one idea about colour: it belongs to data, and the interface around the data does not get any. Every surface, border, button, focus ring, icon, nav item and piece of type is cut from a single neutral ladder. Only two families carry hue, and both are data \u2014 the six severity levels and the five chart series.\n\nThe reason is the job. Somebody sits in front of a log stream at two in the morning scanning thousands of monospace lines for the one that explains the outage. Anything chromatic in that field is a claim on attention. Strip the interface to grey and the ramp becomes the only signal in the room.\n\nThe neutrals are not dead grey. They all carry the same faint cool cast \u2014 hue 225 at 8-20% saturation \u2014 so they read as one material rather than a pile of unrelated greys, without ever reading as blue. Dark is the designed-for mode; light is authored properly, not derived.",
     "keyCharacteristics": [
-      "Cream page, near-white surfaces, espresso ink — warm neutrals all the way down, never a pure white or a pure black.",
-      "A strict three-level surface ladder in light mode: page < card < hairline.",
-      "Colour is rationed. Severity is the only thing on screen allowed to be chromatic for its own sake.",
-      "Monospace is reserved for log data; the interface around it is Instrument Sans.",
-      "Flat at rest. Depth is a response to state, not a resting property.",
+      "Colour belongs to data. The chrome is built from one achromatic ladder; the severity ramp and the chart series are the only things with hue, and both come from the mark's tail.",
+      "The primary action is filled with ink, never with an accent hue.",
+      "Cool-cast neutrals (hue 225) so greys read as one material, never as blue.",
+      "Geist for what the interface says, Geist Mono for what a machine wrote.",
+      "Flat at rest \u2014 depth is a response to state, never a resting property.",
+      "Dark-first: the mode this product is actually read in.",
       "Every reusable component appears in /styleguide. A component that isn't there isn't done."
     ],
     "rules": [
-      { "name": "The Two Primaries Rule", "body": "Navy is the light-mode voice; gold is the dark-mode voice. Both are first-class and neither is derived from the other. Always reference --primary / bg-primary; never hardcode either hex, and never assume the primary is dark — in dark mode it is the brightest thing on screen and requires --primary-foreground (espresso) on top of it.", "section": "colors" },
-      { "name": "The Reserved Ramp Rule", "body": "The six severity colours mean severity and nothing else. No badge, chart series, chip, illustration, or decorative accent may borrow a severity value for a non-severity meaning. When a UI needs a colour and it isn't communicating log severity, it takes one from the semantic tokens or the brand stripes.", "section": "colors" },
-      { "name": "The No Pure Values Rule", "body": "No #fff, no #000, no neutral grey with zero chroma anywhere in the interface. Every neutral carries warmth. A cool grey next to cream reads as a mistake.", "section": "colors" },
-      { "name": "The Twice-Tuned Rule", "body": "Every colour that appears in both modes is authored twice. Never derive a dark-mode value by fading, lightening, or applying opacity to its light-mode counterpart.", "section": "colors" },
-      { "name": "The Monospace Boundary Rule", "body": "Monospace marks machine-authored text. Log bodies, timestamps, ids, and attribute pairs are monospace; every label about them drops back to Instrument Sans. The typeface change is how a reader tells the record from the annotation.", "section": "typography" },
-      { "name": "The 14/12 Rule", "body": "Interface copy is 14px and support copy is 12px. There is no 16px body and no 13px anything. Two sizes carry ninety percent of the product, which is what lets a dense table and its surrounding chrome share one rhythm.", "section": "typography" },
-      { "name": "The Tabular Timestamp Rule", "body": "Any column of numbers a reader scans vertically — timestamps above all — is tabular-nums. Digits that shift width break the scan.", "section": "typography" },
-      { "name": "The Surface Declaration Rule", "body": "A rounded-xl border alone sits at page level and disappears. Any element that should read as a surface must declare bg-card. This is the practical consequence of the three-level ladder and it is the single most common way to break light mode.", "section": "layout" },
-      { "name": "The Fixed Column Rule", "body": "In the log stream, every column left of the message has a fixed width. Nothing shifts between rows.", "section": "layout" },
-      { "name": "The Flat-At-Rest Rule", "body": "If an element's state has not changed, it casts no shadow. Structure is carried by tone and hairline. A shadow on a resting card is borrowed depth the ladder already provides.", "section": "elevation" },
-      { "name": "The Hairline-Only Rule", "body": "Borders are 1px. To emphasise an element, change its fill or its tone; never thicken its stroke.", "section": "shapes" }
+      {
+        "name": "The Chrome Is Achromatic Rule",
+        "body": "Colour belongs to data; chrome never gets any. Surfaces, borders, buttons, focus rings, nav, icons and type are built entirely from the neutral ladder. Destructive is the one stated exception, and it warns about an action rather than decorating the interface.",
+        "section": "colors"
+      },
+      {
+        "name": "The Data Gets Colour Rule",
+        "body": "Two families are allowed hue, because both are data: the severity ramp, and the five categorical chart series. Both are drawn from the mark's tail \u2014 gold, teal, navy, crimson \u2014 and both are ordered so adjacent members separate by hue rather than by saturation.",
+        "section": "colors"
+      },
+      {
+        "name": "The Reserved Ramp Rule",
+        "body": "The six severity values mean severity and nothing else. A severity chart reads --severity-* directly rather than approximating it from the chart palette.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Cast Rule",
+        "body": "Every neutral carries hue 225 at 8-20% saturation. A dead 0%-saturation grey, or a neutral mixed from another hue, breaks the material.",
+        "section": "colors"
+      },
+      {
+        "name": "The Twice-Tuned Rule",
+        "body": "Every value that appears in both modes is authored twice. Never derive a dark value by fading or lightening its light counterpart.",
+        "section": "colors"
+      },
+      {
+        "name": "The Monospace Boundary Rule",
+        "body": "Monospace marks machine-authored text. Log bodies, timestamps, ids and attribute pairs are Geist Mono; every label about them drops back to Geist.",
+        "section": "typography"
+      },
+      {
+        "name": "The 14/12 Rule",
+        "body": "Interface copy is 14px and support copy is 12px. There is no 16px body and no 13px anything.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Timestamp Rule",
+        "body": "Any column of digits a reader scans vertically is tabular-nums.",
+        "section": "typography"
+      },
+      {
+        "name": "The Surface Declaration Rule",
+        "body": "A rounded-lg border alone sits at page level and disappears. Anything that should read as a surface must declare bg-card.",
+        "section": "layout"
+      },
+      {
+        "name": "The Fixed Column Rule",
+        "body": "In the log stream every column left of the message has a fixed width. Nothing shifts between rows.",
+        "section": "layout"
+      },
+      {
+        "name": "The Shell Owns The Scroll Rule",
+        "body": "The document never scrolls in the app. A scroll container must have a definite-height ancestor and be a containing block, or absolutely positioned descendants escape its clip.",
+        "section": "layout"
+      },
+      {
+        "name": "The Flat-At-Rest Rule",
+        "body": "If an element's state has not changed, it casts no shadow. Structure is carried by tone and hairline.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Hairline-Only Rule",
+        "body": "Borders are 1px. To emphasise an element, change its fill or its tone; never thicken its stroke.",
+        "section": "shapes"
+      }
     ],
     "dos": [
-      "Do give every panel that should read as a surface bg-card. A bordered box without it sits at page level and vanishes.",
-      "Do reference semantic tokens (bg-primary, text-muted-foreground, border-border) in components. Raw brand utilities (bg-navy, text-gold) are for deliberate brand moments only.",
-      "Do author every colour twice — a hand-tuned light value and a hand-tuned dark value.",
-      "Do pair severity colour with the dot and the uppercase text label. Colour never carries severity by itself.",
-      "Do use tabular-nums on any column of digits a reader scans vertically.",
-      "Do keep monospace for machine-authored text and Instrument Sans for everything the interface says about it.",
-      "Do add every new reusable component to /styleguide in the same change, with realistic Bilis-flavoured demo content.",
+      "Do build every non-data element from the neutral ladder \u2014 surfaces, borders, buttons, focus rings, icons, type.",
+      "Do give every panel that should read as a surface bg-card.",
+      "Do reference semantic tokens rather than raw values.",
+      "Do author every value twice \u2014 a hand-tuned light value and a hand-tuned dark value.",
+      "Do pair severity colour with the dot and the uppercase label. Colour never carries severity alone.",
+      "Do use tabular-nums on any column of digits scanned vertically.",
+      "Do keep Geist Mono for machine-authored text and Geist for everything the interface says about it.",
+      "Do add every new reusable component to /styleguide in the same change.",
       "Do keep borders at 1px and create emphasis with fill or tone."
     ],
     "donts": [
-      "Don't use #fff, #000, or a zero-chroma grey. Every neutral in this system is warm.",
+      "Don't introduce an accent colour, a brand hue, a coloured primary button, or a coloured link. Colour is for data.",
       "Don't borrow a severity colour for anything that isn't log severity.",
-      "Don't assume the primary is dark — in dark mode it is gold, and it needs espresso text on top of it.",
-      "Don't derive a dark-mode value by fading or lightening its light-mode counterpart.",
-      "Don't put a resting shadow on a surface. Shadow is a response to hover, focus, or floating.",
-      "Don't let column widths vary between log rows, or the vertical scan breaks.",
+      "Don't use a dead 0%-saturation grey or a neutral mixed from another hue \u2014 every neutral is hue 225.",
+      "Don't derive a dark-mode value by fading or lightening its light counterpart.",
+      "Don't put a resting shadow on a surface.",
+      "Don't let column widths vary between log rows.",
       "Don't introduce a third interface type size. 14px body and 12px support carry the product.",
-      "Don't hardcode a chart colour or import from 'echarts' — go through lib/echarts.ts and useChartTokens().",
-      "Don't add a second page header. The breadcrumb bar is the page's identity."
+      "Don't hardcode a chart colour or import from 'echarts' \u2014 go through lib/echarts.ts and useChartTokens().",
+      "Don't let the document scroll in the app shell; the content column owns the scroll."
     ]
   }
 }

@@ -113,7 +113,7 @@ const ingestOption = computed<BilisChartOption>(() => ({
     <SectionShell
         id="charts"
         title="Charts"
-        description="Charts are Apache ECharts, always wrapped in ChartCanvas. Five ordered series colours for volume histograms and error-rate lines: unlike the brand palette these are tokens, and they are tuned per mode: the navy and espresso entries lighten in dark mode so a five-series chart stays readable on the espresso background."
+        description="Charts are Apache ECharts, always wrapped in ChartCanvas. Chart series are one of only two places this product spends colour — the interface itself is achromatic, and a series is data. Both data palettes come from the same place: the three stripes in the Bilis mark's tail, plus its navy body. The five series are those colours in order, authored twice so they hold on both the near-white and the dark card. A severity chart ignores this palette entirely and reads the --severity-* tokens directly, so its bars always agree with the dots in the log viewer."
     >
         <SwatchGrid :swatches="CHART_SWATCHES" />
 

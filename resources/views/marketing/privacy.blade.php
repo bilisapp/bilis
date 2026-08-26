@@ -3,7 +3,13 @@
     description="What personal data the hosted Bilis service collects, why, where it is stored, and what rights you have."
 >
     <x-slot:summary>
-        <p>Everything stays in the EU, on servers in France. We use essential cookies only — no analytics, no trackers, no third-party scripts or fonts. We are the controller for your account details and the processor for whatever your applications write into their logs. We never sell your data or train models on it.</p>
+        @php
+            $where = config('legal.hosting.in_eea')
+                ? 'Everything stays in the EU, on servers in '.config('legal.hosting.country').'.'
+                : 'Everything is stored on servers in '.config('legal.hosting.country').', covered by an EU adequacy decision.';
+        @endphp
+
+        <p>{{ $where }} We use essential cookies only — no analytics, no trackers, no third-party scripts or fonts. We are the controller for your account details and the processor for whatever your applications write into their logs. We never sell your data or train models on it.</p>
     </x-slot:summary>
 
     <h2 id="who">1. Who is responsible</h2>
@@ -135,9 +141,22 @@
 
     <h2 id="location">7. Where your data lives</h2>
 
-    <p><strong>All data — account data and log data alike — is stored on servers operated by OVH in France, inside the European Union.</strong></p>
+    @php
+        $located = 'is stored on servers operated by '.config('legal.hosting.provider').' in '.config('legal.hosting.country')
+            .(config('legal.hosting.in_eea') ? ', inside the European Union.' : '.');
+    @endphp
 
-    <p>We do not transfer personal data outside the EU or EEA. If that ever needs to change, we will update this policy and put a valid Chapter V transfer mechanism, such as the European Commission's Standard Contractual Clauses, in place before any transfer happens.</p>
+    <p><strong>All data — account data and log data alike — {{ $located }}</strong></p>
+
+    @if (config('legal.hosting.in_eea'))
+        <p>We do not transfer personal data outside the EU or EEA. If that ever needs to change, we will update this policy and put a valid Chapter V transfer mechanism, such as the European Commission's Standard Contractual Clauses, in place before any transfer happens.</p>
+    @else
+        <p>{{ \Illuminate\Support\Str::ucfirst(config('legal.hosting.country')) }} is outside the EEA, so storing your data there is a transfer under Chapter V of the GDPR. It is covered by {{ config('legal.hosting.transfer_basis') }}, which means the transfer needs no Standard Contractual Clauses and no transfer impact assessment: the European Commission has found the destination to offer a level of protection essentially equivalent to EU law.</p>
+
+        <p>If that finding is withdrawn or lapses, we will put a valid Chapter V mechanism — Standard Contractual Clauses or another ground — in place before the transfer continues, and update this policy.</p>
+    @endif
+
+    <p>We use no other hosting region and no third-country sub-processor for log data.</p>
 
     <h2 id="retention">8. How long we keep things</h2>
 

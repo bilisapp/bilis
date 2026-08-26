@@ -315,14 +315,14 @@ const onHistogramZoom = (window: { from: string; to: string }) => {
 
         <DemoBlock
             title="AppLogoIcon"
-            description="the same mark turned 45deg so it squares off — for tiles, the sidebar and the favicon. Body and detail colours invert in dark mode via --logo-body / --logo-detail"
+            description="the same mark turned 45deg so it squares off — for tiles, the sidebar and the favicon. The three tail stripes are the origin of the product's data palette, so the mark keeps them; body and detail follow the surface via --logo-body / --logo-detail, as the inverted tile on the right shows"
         >
             <div class="flex items-end gap-6">
                 <AppLogoIcon class="size-16" />
                 <AppLogoIcon class="size-8" />
                 <AppLogoIcon class="size-5" />
                 <div
-                    class="flex size-16 items-center justify-center rounded-xl bg-espresso [--logo-body:var(--color-cream)] [--logo-detail:var(--color-espresso)]"
+                    class="flex size-16 items-center justify-center rounded-lg bg-foreground [--logo-detail:var(--foreground)]"
                 >
                     <AppLogoIcon class="size-12" />
                 </div>

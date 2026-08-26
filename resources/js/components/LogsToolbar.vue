@@ -140,7 +140,7 @@ function fromLocalInput(value: string, fallback: string): string {
 
 <template>
     <div
-        class="flex flex-col rounded-xl border bg-card"
+        class="flex flex-col rounded-lg border bg-card"
         data-test="logs-toolbar"
     >
         <!--

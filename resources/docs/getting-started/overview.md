@@ -44,7 +44,7 @@ Said plainly, so you can plan around it:
 2. The key resolves to a project. Bad records inside the batch are skipped and
    counted; the healthy ones still go through.
 3. Rows are written to ClickHouse with `async_insert=1` and
-   `wait_for_async_insert=0` — the response means *queued*, not *durable*. See
+   `wait_for_async_insert=0` — the response means _queued_, not _durable_. See
    [Limits and behavior](/docs/reference/limits-and-behavior).
 4. The viewer reads them back, filtered by project and time range.
 

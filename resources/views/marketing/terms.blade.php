@@ -116,7 +116,11 @@
 
     <h3>6.6 Location, transfers, and retention</h3>
 
-    <p><strong>Your log data does not leave the European Union.</strong> It is stored on servers operated by OVH in France. We do not transfer it to third countries. If that ever changes, we will give you 30 days' notice and put Standard Contractual Clauses or another Chapter V mechanism in place first.</p>
+    @if (config('legal.hosting.in_eea'))
+        <p><strong>Your log data does not leave the European Union.</strong> It is stored on servers operated by {{ config('legal.hosting.provider') }} in {{ config('legal.hosting.country') }}. We do not transfer it to third countries. If that ever changes, we will give you 30 days' notice and put Standard Contractual Clauses or another Chapter V mechanism in place first.</p>
+    @else
+        <p><strong>Your log data is stored in {{ config('legal.hosting.country') }}</strong>, on servers operated by {{ config('legal.hosting.provider') }}. {{ \Illuminate\Support\Str::ucfirst(config('legal.hosting.country')) }} sits outside the EEA, so this is a Chapter V transfer; it relies on {{ config('legal.hosting.transfer_basis') }}. We use no other hosting region. If we change region, or if that basis lapses, we will give you 30 days' notice and put a valid Chapter V mechanism in place first.</p>
+    @endif
 
     <p>Log records are retained for <strong>{{ config('legal.log_retention_days') }} days</strong> from ingest and then deleted automatically. Backups are retained for a further {{ config('legal.backup_retention_days') }} days.</p>
 

@@ -164,7 +164,7 @@ const onSelect = ({ dataIndex }: { dataIndex: number }) => {
 
 <template>
     <section
-        class="rounded-xl border bg-card px-3 pt-2.5 pb-1"
+        class="rounded-lg border bg-card px-3 pt-2.5 pb-1"
         data-test="logs-histogram"
         aria-label="Log volume over the selected window"
     >

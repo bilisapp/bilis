@@ -53,6 +53,11 @@
                 </a>
 
                 <nav class="flex shrink-0 items-center gap-1 text-sm font-medium whitespace-nowrap">
+                    <a href="{{ route('docs.index') }}"
+                       class="rounded-md px-3 py-2 transition-colors hover:bg-accent hover:text-accent-foreground">
+                        Docs
+                    </a>
+
                     <a href="{{ config('bilis.github_url') }}"
                        class="hidden items-center gap-1.5 rounded-md px-3 py-2 transition-colors hover:bg-accent hover:text-accent-foreground sm:flex"
                        target="_blank" rel="noopener noreferrer">
@@ -98,6 +103,7 @@
                         <x-icons.github class="size-4" />
                         Source on GitHub
                     </a>
+                    <a href="{{ route('docs.index') }}" class="transition-colors hover:text-foreground">Docs</a>
                     <a href="{{ route('terms') }}" class="transition-colors hover:text-foreground">Terms</a>
                     <a href="{{ route('privacy') }}" class="transition-colors hover:text-foreground">Privacy</a>
                     <a href="{{ config('bilis.github_url') }}/blob/main/SECURITY.md"

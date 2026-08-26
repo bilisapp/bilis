@@ -25,6 +25,7 @@ Self-hostable log storage and search. **v1 scope is exactly this — nothing els
 | Left navigation | `AppSidebar.vue` (Platform: Dashboard, Logs, Projects; Resources: Styleguide), groups rendered by `NavMain.vue` (`label` prop); active state matches nested URLs via `isCurrentOrParentUrl` |
 | Styleguide / component showcase | `/styleguide` route, `resources/js/pages/styleguide/` |
 | Marketing pages (public, Blade only) | `resources/views/marketing/`, layout `resources/views/components/layouts/marketing.blade.php` |
+| Public docs (Blade + CommonMark) | `resources/docs/{section}/{page}.md` (front matter: title/description/order, `_section.md` per group), `App\Services\Docs\` (DocsRepository/DocsRenderer/FrontMatter), `DocsController`, `resources/views/docs/`, layout `resources/views/components/layouts/docs.blade.php`, nav `resources/views/components/docs/nav.blade.php`, prose styles `.docs-prose` in `app.css`; routes `docs.index` / `docs.show` |
 | Charts (Apache ECharts) | `ChartCanvas.vue` wrapper; register chart types in `resources/js/lib/echarts.ts`; theme comes from CSS tokens via `useChartTokens` — never hardcode chart colours |
 
 ## Invariants (do not break)
@@ -51,7 +52,14 @@ Self-hostable log storage and search. **v1 scope is exactly this — nothing els
 
 ## Branding
 
-Palette from a mid-century stripes artwork, defined in `resources/css/app.css`: brand utilities `cream, greige, espresso, navy, gold, crimson, teal, aqua, blush`; semantic shadcn tokens (light = navy on cream, dark = gold on espresso); log severity utilities `text-severity-{trace,debug,info,warn,error,fatal}` (per-mode). Light mode keeps a strict three-level surface hierarchy — cream page < near-white cards < darker border/input hairlines (see `.ai/rules/css.md`); a bordered panel needs `bg-card` to read as a surface. Wordmark: "Bilis" with the three-stripes mark (`AppLogo.vue`/`AppLogoIcon.vue`). Font: Instrument Sans (IBM Plex Sans/Mono are loaded as candidates for evaluation on `/styleguide` — remove the losers once decided). Use semantic tokens in components; raw brand colors only for deliberate brand moments. Living reference: the `/styleguide` page.
+**Colour belongs to data; the chrome is achromatic.** The whole interface — surfaces, borders, buttons, focus rings, nav, icons, type — is built from one neutral ladder (hue 225 at 8–20% saturation, per-mode) defined in `resources/css/app.css`. There is no accent colour, no brand hue in the UI, and no coloured primary button. Only two families carry hue, and both are data:
+
+- **Severity** — `--severity-{trace,debug,info,warn,error,fatal}` and the `text-severity-*` / `bg-severity-*` utilities.
+- **Chart series** — `--chart-1..5`.
+
+Both are drawn from the Bilis mark's tail (`--color-mark-{gold,teal,crimson,navy}`), which is the palette's origin and is never used for chrome. `destructive` is the single stated exception, because it warns about an action rather than describing data.
+
+Dark is the designed-for mode; light is authored separately, never derived. Font: **Geist** for the interface, **Geist Mono** for log data — self-hosted via the Vite font plugin. Wordmark: "Bilis" with the mark (`AppLogo.vue` / `AppLogoIcon.vue`), which keeps its tail colours. Living reference: the `/styleguide` page. Full system: `DESIGN.md`.
 
 ## Commands
 

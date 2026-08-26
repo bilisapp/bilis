@@ -1,87 +1,96 @@
 ---
 name: Bilis
-description: Self-hostable log storage and search — a warm, quiet reading room for dense machine text.
+description: Self-hostable log storage and search — an achromatic instrument where colour belongs to the data alone.
 colors:
-  cream: "#f3f0e7"
-  greige: "#dbd5c3"
-  espresso: "#463828"
-  navy: "#1f3a5f"
-  gold: "#f3c440"
-  crimson: "#d8394a"
-  teal: "#45bfa6"
-  aqua: "#abdcd2"
-  blush: "#f3b9b3"
-  page: "hsl(44 33% 93%)"
-  surface: "hsl(44 50% 98%)"
-  ink: "hsl(30 27% 17%)"
-  ink-muted: "hsl(30 12% 40%)"
-  primary: "hsl(215 51% 25%)"
-  primary-foreground: "hsl(44 40% 95%)"
-  secondary: "hsl(43 28% 84%)"
-  muted: "hsl(44 26% 88%)"
-  accent: "hsl(45 74% 86%)"
-  destructive: "hsl(354 64% 51%)"
-  hairline: "hsl(42 18% 72%)"
-  field-edge: "hsl(42 18% 65%)"
-  rail: "hsl(44 26% 87%)"
-  page-dark: "hsl(28 22% 9%)"
-  surface-dark: "hsl(28 20% 12%)"
-  ink-dark: "hsl(44 30% 90%)"
-  ink-muted-dark: "hsl(40 15% 63%)"
-  primary-dark: "hsl(45 85% 61%)"
-  primary-foreground-dark: "hsl(28 30% 12%)"
-  secondary-dark: "hsl(28 15% 19%)"
-  muted-dark: "hsl(28 15% 17%)"
-  accent-dark: "hsl(28 15% 22%)"
-  destructive-dark: "hsl(354 70% 58%)"
-  hairline-dark: "hsl(28 14% 24%)"
-  field-edge-dark: "hsl(28 14% 30%)"
-  rail-dark: "hsl(28 24% 7%)"
-  severity-trace: "hsl(30 10% 55%)"
-  severity-debug: "hsl(166 25% 42%)"
-  severity-info: "hsl(215 51% 38%)"
-  severity-warn: "hsl(42 90% 40%)"
-  severity-error: "hsl(354 64% 48%)"
-  severity-fatal: "hsl(354 75% 32%)"
-  severity-trace-dark: "hsl(40 10% 55%)"
-  severity-debug-dark: "hsl(166 35% 55%)"
-  severity-info-dark: "hsl(215 55% 65%)"
+  page: "hsl(225 20% 97%)"
+  surface: "hsl(0 0% 100%)"
+  rail: "hsl(225 20% 95%)"
+  ink: "hsl(225 18% 12%)"
+  ink-muted: "hsl(225 9% 46%)"
+  secondary: "hsl(225 14% 93%)"
+  muted: "hsl(225 16% 95%)"
+  accent: "hsl(225 16% 94%)"
+  hairline: "hsl(225 14% 89%)"
+  field-edge: "hsl(225 13% 82%)"
+  ring: "hsl(225 12% 55%)"
+  destructive: "hsl(2 72% 47%)"
+  mark-gold: "#f3c440"
+  mark-teal: "#45bfa6"
+  mark-crimson: "#d8394a"
+  mark-navy: "#1f3a5f"
+  chart-1: "hsl(45 87% 46%)"
+  chart-2: "hsl(167 48% 38%)"
+  chart-3: "hsl(214 55% 38%)"
+  chart-4: "hsl(354 64% 50%)"
+  chart-5: "hsl(330 46% 52%)"
+  page-dark: "hsl(225 14% 8%)"
+  surface-dark: "hsl(225 13% 11%)"
+  rail-dark: "hsl(225 15% 6%)"
+  ink-dark: "hsl(225 16% 93%)"
+  ink-muted-dark: "hsl(225 10% 62%)"
+  secondary-dark: "hsl(225 11% 17%)"
+  muted-dark: "hsl(225 11% 15%)"
+  accent-dark: "hsl(225 11% 18%)"
+  hairline-dark: "hsl(225 10% 20%)"
+  field-edge-dark: "hsl(225 10% 27%)"
+  ring-dark: "hsl(225 10% 58%)"
+  destructive-dark: "hsl(2 76% 62%)"
+  chart-1-dark: "hsl(45 85% 61%)"
+  chart-2-dark: "hsl(167 50% 55%)"
+  chart-3-dark: "hsl(214 62% 66%)"
+  chart-4-dark: "hsl(354 72% 66%)"
+  chart-5-dark: "hsl(330 62% 72%)"
+  severity-trace: "hsl(225 8% 52%)"
+  severity-debug: "hsl(167 45% 33%)"
+  severity-info: "hsl(214 62% 42%)"
+  severity-warn: "hsl(41 92% 33%)"
+  severity-error: "hsl(354 66% 47%)"
+  severity-fatal: "hsl(330 60% 42%)"
+  severity-trace-dark: "hsl(225 8% 54%)"
+  severity-debug-dark: "hsl(167 48% 52%)"
+  severity-info-dark: "hsl(214 66% 66%)"
   severity-warn-dark: "hsl(45 85% 61%)"
-  severity-error-dark: "hsl(354 75% 63%)"
-  severity-fatal-dark: "hsl(354 85% 72%)"
+  severity-error-dark: "hsl(354 74% 66%)"
+  severity-fatal-dark: "hsl(330 72% 72%)"
 typography:
   display:
-    fontFamily: "Instrument Sans, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif"
     fontSize: "1.875rem"
     fontWeight: 600
     lineHeight: "2.25rem"
     letterSpacing: "-0.025em"
   headline:
-    fontFamily: "Instrument Sans, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif"
     fontSize: "1.25rem"
     fontWeight: 600
     lineHeight: "1.75rem"
     letterSpacing: "-0.025em"
   title:
-    fontFamily: "Instrument Sans, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif"
     fontSize: "1.125rem"
     fontWeight: 600
     lineHeight: "1.75rem"
     letterSpacing: "-0.025em"
   body:
-    fontFamily: "Instrument Sans, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif"
     fontSize: "0.875rem"
     fontWeight: 400
     lineHeight: "1.25rem"
     letterSpacing: "normal"
   label:
-    fontFamily: "Instrument Sans, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif"
     fontSize: "0.75rem"
     fontWeight: 500
     lineHeight: "1rem"
     letterSpacing: "normal"
+  group-label:
+    fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "0.6875rem"
+    fontWeight: 600
+    lineHeight: "1rem"
+    letterSpacing: "0.12em"
   data:
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+    fontFamily: "'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace"
     fontSize: "0.75rem"
     fontWeight: 400
     lineHeight: "1rem"
@@ -90,7 +99,6 @@ rounded:
   sm: "4px"
   md: "6px"
   lg: "8px"
-  xl: "12px"
   full: "9999px"
 spacing:
   hairline-gap: "6px"
@@ -101,15 +109,12 @@ spacing:
   section: "48px"
 components:
   button-primary:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.primary-foreground}"
+    backgroundColor: "{colors.ink}"
+    textColor: "{colors.page}"
     typography: "{typography.label}"
     rounded: "{rounded.md}"
     padding: "8px 16px"
     height: "36px"
-  button-primary-hover:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.primary-foreground}"
   button-outline:
     backgroundColor: "{colors.page}"
     textColor: "{colors.ink}"
@@ -117,9 +122,6 @@ components:
     rounded: "{rounded.md}"
     padding: "8px 16px"
     height: "36px"
-  button-outline-hover:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.ink}"
   button-ghost:
     backgroundColor: "transparent"
     textColor: "{colors.ink}"
@@ -130,7 +132,7 @@ components:
   card:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
-    rounded: "{rounded.xl}"
+    rounded: "{rounded.lg}"
     padding: "24px 0"
   input:
     backgroundColor: "transparent"
@@ -140,12 +142,6 @@ components:
     padding: "4px 12px"
     height: "36px"
     width: "100%"
-  badge:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.primary-foreground}"
-    typography: "{typography.label}"
-    rounded: "{rounded.full}"
-    padding: "2px 8px"
   severity-chip:
     backgroundColor: "{colors.page}"
     textColor: "{colors.ink-muted}"
@@ -158,6 +154,18 @@ components:
     typography: "{typography.label}"
     rounded: "{rounded.full}"
     padding: "4px 10px"
+  nav-item:
+    backgroundColor: "transparent"
+    textColor: "{colors.ink-muted}"
+    typography: "{typography.body}"
+    rounded: "{rounded.md}"
+    padding: "8px"
+  nav-item-active:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    typography: "{typography.body}"
+    rounded: "{rounded.md}"
+    padding: "8px"
   log-row:
     backgroundColor: "transparent"
     textColor: "{colors.ink}"
@@ -170,143 +178,142 @@ components:
 
 ## Overview
 
-**Creative North Star: "The Reading Room"**
+**Creative North Star: "The Achromatic Instrument"**
 
-Bilis is a place built for long sessions with dense machine text. Somebody is going to sit in front of a log stream at two in the morning, scanning thousands of monospace lines for the one that explains the outage. Every decision in this system serves that person's eyes over that duration. Chrome recedes; content holds the contrast. The rhythm is generous where it costs nothing and tight where density earns its keep.
+Bilis has exactly one idea about colour: it belongs to data, and the interface around the data does not get any. Every surface, border, button, focus ring, icon, nav item and piece of type is cut from a single neutral ladder. Only two families carry hue, and both are data — the six severity levels and the five chart series. Both are drawn from the three stripes in the mark's tail, so the palette has a visible origin: point at the logo and you are pointing at the severity ramp. There is no brand accent, no primary blue, no coloured call to action; that absence is the design, not a shortage of one.
 
-The character is **utilitarian with a warm accent**. Function comes first and says so — hairline borders, modest radii, no ornament that isn't doing work. The mid-century palette is the one concession to character, and it is spent deliberately: a cream page instead of a white one, espresso instead of black, navy and gold instead of a generic blue. That warmth is not decoration, it is ergonomics. Cream at 93% lightness and espresso ink at 17% is a gentler pairing to read for an hour than pure black on pure white, and the system's entire reason for choosing it is that the reading session is long.
+The reason is the job. Somebody sits in front of a log stream at two in the morning scanning thousands of monospace lines for the one that explains the outage. Anything chromatic in that field is a claim on attention. If the primary button is blue and the nav highlight is indigo and the logo is gold, then a red `ERROR` is competing with three things that mean nothing. Strip the interface to grey and the ramp becomes the only signal in the room.
 
-Light and dark are two designed worlds, not one world with a filter over it. The primary voice actually changes between them — navy in light, gold in dark — and every severity colour is hand-tuned twice. Dark mode is where this product is most often used, and it is authored, not derived.
+The neutrals are not dead grey. They all carry the same faint cool cast — hue 225 at 8–20% saturation — so they read as one material rather than a pile of unrelated greys, without ever reading as blue. Dark is the designed-for mode; light is authored properly, not derived. Density is high, corners are modest, borders are hairlines, and nothing rests on a shadow.
 
 **Key Characteristics:**
 
-- Cream page, near-white surfaces, espresso ink — warm neutrals all the way down, never a pure white or a pure black.
-- A strict three-level surface ladder in light mode: page < card < hairline.
-- Colour is rationed. Severity is the only thing on screen allowed to be chromatic for its own sake.
-- Monospace is reserved for log data; the interface around it is Instrument Sans.
-- Flat at rest. Depth is a response to state, not a resting property.
+- Colour belongs to data. The chrome is built from one achromatic ladder; the severity ramp and the chart series are the only things with hue, and both come from the mark's tail.
+- The primary action is filled with ink, never with an accent hue.
+- Cool-cast neutrals (hue 225) so greys read as one material, never as blue.
+- Geist for what the interface says, Geist Mono for what a machine wrote.
+- Flat at rest — depth is a response to state, never a resting property.
+- Dark-first: the mode this product is actually read in.
 - Every reusable component appears in `/styleguide`. A component that isn't there isn't done.
 
 ## Colors
 
-Warm neutrals carrying a small, disciplined set of signal colours — the palette is drawn from a mid-century stripes artwork and defined once in `resources/css/app.css`.
+An achromatic chrome with two chromatic data families. Defined once in `resources/css/app.css`.
 
 ### Primary
 
-- **Deep Ledger Navy** (`hsl(215 51% 25%)`): the light-mode primary. Filled buttons, focus rings, the sidebar logo tile, the active link. Dark enough to carry white text at full AA on the cream page, saturated enough to read as a decision rather than a default.
-- **Signal Gold** (`hsl(45 85% 61%)`): the dark-mode primary, and the same value as the dark-mode `warn` severity. On espresso it is the brightest thing available, so it takes over every job navy does in light mode.
+- **Ink** (`hsl(225 18% 12%)` light / `hsl(225 16% 93%)` dark): the primary action and the body text, the same value doing both jobs. A filled primary button is ink on the page in light mode and near-white on the page in dark. There is no primary *colour* in this product.
 
 ### Secondary
 
-- **Warm Greige** (`hsl(43 28% 84%)` light / `hsl(28 15% 19%)` dark): secondary buttons, the active severity chip, and any fill that needs to read as selected without shouting. It is the palette's `greige` (`#dbd5c3`) tuned per mode.
-- **Pale Gold Wash** (`hsl(45 74% 86%)` light / `hsl(28 15% 22%)` dark): the accent — hover fills on ghost buttons, log-row hover, dropdown item highlight. It is the only fill that appears purely as a response to the pointer.
+- **Secondary** (`hsl(225 14% 93%)` / `hsl(225 11% 17%)`): quiet buttons and the fill of an active severity chip.
+- **Accent** (`hsl(225 16% 94%)` / `hsl(225 11% 18%)`): the pointer response only — row hover, menu highlight, ghost button fill. It is the one fill that appears purely because a cursor is present.
 
 ### Tertiary
 
-- **Crimson** (`#d8394a`, semantic `hsl(354 64% 51%)`): destructive actions and the error severity. Never used decoratively.
-- **Teal, Aqua, Blush** (`#45bfa6`, `#abdcd2`, `#f3b9b3`): the remaining brand stripes. They exist for deliberate brand moments and for chart series, not for UI state. Teal appears as `chart-2` and as the light-mode `debug` severity.
+- **Destructive** (`hsl(2 72% 47%)` / `hsl(2 76% 62%)`): delete team, revoke API key, error alerts. The single warm hue permitted outside the ramp, because it warns about an *action* the reader is about to take rather than describing a log they are reading.
 
 ### Neutral
 
-- **Cream Page** (`hsl(44 33% 93%)`, brand `#f3f0e7`): the application background. The floor of the light-mode ladder.
-- **Warm Near-White** (`hsl(44 50% 98%)`): cards, popovers, and every panel that must read as a surface. It is not white; it carries the same warmth as the page, two steps up.
-- **Espresso Ink** (`hsl(30 27% 17%)`, brand `#463828`): body text in light mode. A brown-black, never `#000`.
-- **Muted Ink** (`hsl(30 12% 40%)` light / `hsl(40 15% 63%)` dark): timestamps, service names, row counts, helper text, and every label that supports content rather than being it.
-- **Hairline** (`hsl(42 18% 72%)` light / `hsl(28 14% 24%)` dark) and **Field Edge** (`hsl(42 18% 65%)` light / `hsl(28 14% 30%)` dark): borders and input strokes. Field edge is deliberately darker than hairline so a `bg-transparent` input stays visible on a near-white card.
-- **Deep Espresso Ground** (`hsl(28 22% 9%)`) and **Rail** (`hsl(28 24% 7%)` dark / `hsl(44 26% 87%)` light): dark page and the sidebar rail. Note the inversion — in light mode the rail sits *below* the page; in dark mode it sits below as well, and in both cases the content area is the brighter of the two.
+- **Page** (`hsl(225 20% 97%)` / `hsl(225 14% 8%)`): the ground the content panel sits on.
+- **Surface** (`hsl(0 0% 100%)` / `hsl(225 13% 11%)`): every panel that must read as a surface — toolbar, volume strip, log list.
+- **Rail** (`hsl(225 20% 95%)` / `hsl(225 15% 6%)`): the navigation rail, one step *below* the page in both modes so navigation separates from work without needing a colour to do it.
+- **Muted Ink** (`hsl(225 9% 46%)` / `hsl(225 10% 62%)`): timestamps, service names, row counts, helper text — everything that supports content rather than being it.
+- **Hairline** (`hsl(225 14% 89%)` / `hsl(225 10% 20%)`) and **Field Edge** (`hsl(225 13% 82%)` / `hsl(225 10% 27%)`): borders and input strokes. Field edge is deliberately darker so a transparent input still reads as an input on a surface.
+- **Ring** (`hsl(225 12% 55%)` / `hsl(225 10% 58%)`): keyboard focus. A neutral step, never a hue — focus is a shape and a weight here.
+
+### The mark's tail — where the data colours come from
+
+Both data palettes are drawn from one place: the three stripes in the Bilis mark's tail, plus its navy body. `--color-mark-gold` (`#f3c440`), `--color-mark-teal` (`#45bfa6`), `--color-mark-crimson` (`#d8394a`), `--color-mark-navy` (`#1f3a5f`).
+
+These are **not interface colours** — nothing in the chrome may use them — but they give the palette a visible origin rather than an arbitrary one. Point at the logo and you are pointing at the severity ramp.
 
 ### Severity
 
-Six hand-tuned values per mode, exposed as `--severity-{trace,debug,info,warn,error,fatal}` and the `text-severity-*` / `bg-severity-*` utilities.
+Six hand-tuned values per mode, exposed as `--severity-{trace,debug,info,warn,error,fatal}` and the `text-severity-*` / `bg-severity-*` utilities. The ramp is the tail read in severity order:
 
-- **trace** — neutral warm grey. Present, unremarkable.
-- **debug** — muted teal. Cool and quiet.
-- **info** — navy in light, a lifted blue in dark. The baseline.
-- **warn** — amber; in dark mode it *is* the primary gold.
-- **error** — crimson.
-- **fatal** — the deepest crimson in light, the brightest in dark. In both modes it is the extreme end of the ramp, never a mid-tone.
-
-The ramp is engineered to read as temperature before it reads as hue: cool and low-chroma at trace/debug, warm and loud at warn/error/fatal.
+- **trace** — achromatic grey. Sits *below* the ramp; the quietest level gets no hue at all.
+- **debug** — the tail teal. The coolest hue in the ramp.
+- **info** — the tail navy, opened up to a readable blue. The anchor the rest is read against.
+- **warn** — the tail gold.
+- **error** — the tail crimson.
+- **fatal** — crimson pushed toward magenta. A *hue away* from error, not a darker shade of it, so the two loudest levels can never be confused at a glance.
 
 ### Named Rules
 
-**The Two Primaries Rule.** Navy is the light-mode voice; gold is the dark-mode voice. Both are first-class and neither is derived from the other. Always reference `--primary` / `bg-primary`; never hardcode either hex, and never assume the primary is dark — in dark mode it is the brightest thing on screen and requires `--primary-foreground` (espresso) on top of it.
+**The Chrome Is Achromatic Rule.** Colour belongs to data; chrome never gets any. Surfaces, borders, buttons, focus rings, nav, icons and type are built entirely from the neutral ladder — there is no accent colour, no brand hue, no coloured primary button, no coloured link. Anything that needs emphasis and is not *data* gets a neutral step, a weight change, or a fill. Destructive is the one stated exception, and it warns about an action the reader is about to take rather than decorating the interface.
 
-**The Reserved Ramp Rule.** The six severity colours mean severity and nothing else. No badge, chart series, chip, illustration, or decorative accent may borrow a severity value for a non-severity meaning. When a UI needs a colour and it isn't communicating log severity, it takes one from the semantic tokens or the brand stripes.
+**The Data Gets Colour Rule.** Two families are allowed hue, because both *are* data: the severity ramp, and the five categorical chart series. Both are drawn from the mark's tail, and both are ordered so adjacent members separate by hue rather than by saturation.
 
-**The No Pure Values Rule.** No `#fff`, no `#000`, no neutral grey with zero chroma anywhere in the interface. Every neutral carries warmth. A cool grey next to cream reads as a mistake.
+**The Reserved Ramp Rule.** The six severity values mean severity and nothing else. No badge, chip, illustration, chart series, or decorative accent may borrow one for another meaning — and a severity chart reads `--severity-*` directly rather than approximating it from the chart palette.
 
-**The Twice-Tuned Rule.** Every colour that appears in both modes is authored twice. Never derive a dark-mode value by fading, lightening, or applying opacity to its light-mode counterpart.
+**The One Cast Rule.** Every neutral carries hue 225 at 8–20% saturation. A neutral mixed from another hue, or a dead 0%-saturation grey, breaks the material and reads as a mistake beside the others.
+
+**The Twice-Tuned Rule.** Every value that appears in both modes is authored twice. Never derive a dark value by fading, lightening, or applying opacity to its light counterpart.
 
 ## Typography
 
-**Display / Body Font:** Instrument Sans (with `ui-sans-serif, system-ui, sans-serif`)
-**Data Font:** the platform monospace stack (`ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace`)
+**Interface Font:** Geist (with `ui-sans-serif, system-ui, sans-serif`)
+**Data Font:** Geist Mono (with `ui-monospace, SFMono-Regular, Menlo, monospace`)
 
-**Character:** One humanist sans doing all the interface work, and a system monospace doing all the data work. Instrument Sans is slightly condensed and even in colour, so headings stay tight at `-0.025em` tracking without feeling cramped, and 14px body copy holds up against a dense table. The split is strict and it is the type system's whole idea: if it came out of a log, it's monospace; if the interface is saying it, it's Instrument Sans.
+Both are self-hosted through the Vite font plugin (`bunny()` in `vite.config.ts`); nothing is fetched from a third party at runtime.
 
-> **Under evaluation:** IBM Plex Sans and IBM Plex Mono are loaded alongside Instrument Sans as candidates (`--font-plex-sans`, `--font-plex-mono`), compared on the `/styleguide` Fonts section. Instrument Sans is the current default. Remove the losing stack once the decision lands.
+**Character:** One family, two voices. Geist is a workhorse UI face that stays even and legible at 12px, which is where most of this product lives. Geist Mono is drawn for exactly this job — digits, identifiers and punctuation that must stay distinct in a stream of timestamps. The split between them is the whole type system.
 
 ### Hierarchy
 
-- **Display** (600, `1.875rem`/`2.25rem`, `-0.025em`): page-level titles. One per page, at most.
-- **Headline** (600, `1.25rem`/`1.75rem`, `-0.025em`): section headings and page headers (`Heading.vue` default, `SectionShell` titles).
+- **Display** (600, `1.875rem`/`2.25rem`, `-0.025em`): page-level titles. One per page at most.
+- **Headline** (600, `1.25rem`/`1.75rem`, `-0.025em`): section headings and page headers.
 - **Title** (600, `1.125rem`/`1.75rem`, `-0.025em`): subsection headings.
-- **Body** (400, `0.875rem`/`1.25rem`): all interface prose. The default. Descriptions cap at roughly `max-w-3xl` (~65–75 characters).
-- **Label** (500, `0.75rem`/`1rem`): form labels, toolbar labels, chip text, row counts, helper text. Almost always paired with muted ink.
-- **Data** (400, `0.75rem`/`1rem`, monospace, `tabular-nums` on timestamps): log rows, attribute keys and values, trace and span ids, expanded bodies.
+- **Body** (400, `0.875rem`/`1.25rem`): all interface prose. The default; descriptions cap around 65–75 characters.
+- **Label** (500, `0.75rem`/`1rem`): form labels, toolbar labels, chip text, row counts.
+- **Group label** (600, `0.6875rem`/`1rem`, `0.12em`, uppercase): sidebar section headings only.
+- **Data** (400, `0.75rem`/`1rem`, Geist Mono, `tabular-nums` on timestamps): log rows, attribute pairs, trace and span ids.
 
 ### Named Rules
 
-**The Monospace Boundary Rule.** Monospace marks machine-authored text. Log bodies, timestamps, ids, and attribute pairs are monospace; every label *about* them ("Log attributes", "Resource attributes", "Showing 1–50 of 12,481 rows") drops back to Instrument Sans. The typeface change is how a reader tells the record from the annotation.
+**The Monospace Boundary Rule.** Monospace marks machine-authored text. Log bodies, timestamps, ids and attribute pairs are Geist Mono; every label *about* them ("Log attributes", "Showing 1–50 of 12,481 rows") drops back to Geist. The typeface change is how a reader tells the record from the annotation.
 
-**The 14/12 Rule.** Interface copy is 14px and support copy is 12px. There is no 16px body and no 13px anything. Two sizes carry ninety percent of the product, which is what lets a dense table and its surrounding chrome share one rhythm.
+**The 14/12 Rule.** Interface copy is 14px and support copy is 12px. There is no 16px body and no 13px anything.
 
-**The Tabular Timestamp Rule.** Any column of numbers a reader scans vertically — timestamps above all — is `tabular-nums`. Digits that shift width break the scan.
+**The Tabular Timestamp Rule.** Any column of digits a reader scans vertically is `tabular-nums`. Digits that shift width break the scan.
 
 ## Layout
 
-The application is a fixed sidebar rail plus a content column; the log viewer is the archetype. Content sits in a `px-4 py-6` field with sections separated by `48px` (`space-y-12`) and card interiors at `24px`. Panels — the toolbar, the log list, cards — are `rounded-xl` (12px) with a hairline border and `bg-card`.
+A fixed navigation rail plus a content panel; the log viewer is the archetype. The shell is viewport-height (`h-svh` on the sidebar provider) and the *page* scrolls inside the content column, never the document — which is what keeps the breadcrumb bar and the log stream's own header fixed while a reader scrolls thousands of rows.
 
-Spacing runs on Tailwind's 4px base, but the system really uses six steps: `6px` between a label and its field, `8px` for tight inline gaps, `12px` for row padding and control gaps, `16px` for panel padding, `24px` for card interiors, and `48px` between page sections.
+Content sits in a `px-4 py-6` field, sections separated by `48px`, card interiors at `24px`. Panels are `rounded-lg` (8px) with a hairline and `bg-card`.
 
-The log stream is the one place density overrides rhythm. Rows are `6px 12px` with fixed-width columns — timestamp, a 64px severity column, a 160px truncated service name — and the message takes all remaining width with `truncate` until the row is expanded. Column widths are fixed on purpose: the reader's eye lands in the same place on every row, and a ragged left edge on the message column would destroy the scan.
+Spacing runs on a 4px base, but really uses six steps: `6px` label-to-field, `8px` tight inline, `12px` row padding and control gaps, `16px` panel padding, `24px` card interiors, `48px` between sections.
 
-Responsive behaviour is straightforward: control clusters in the toolbar are `flex-wrap` and reflow rather than collapsing into a menu; definition grids go from one column to `sm:grid-cols-2`; the styleguide demo grid goes to `lg:grid-cols-2`. The log list scrolls horizontally inside its own container rather than letting the page scroll sideways.
+The log stream is the one place density overrides rhythm: rows are `6px 12px` with fixed-width columns — timestamp, a 64px severity column, a 160px truncated service — and the message takes the rest.
 
 ### Named Rules
 
-**The Surface Declaration Rule.** A `rounded-xl border` alone sits at page level and disappears. Any element that should read as a surface must declare `bg-card`. This is the practical consequence of the three-level ladder and it is the single most common way to break light mode.
+**The Surface Declaration Rule.** A `rounded-lg border` alone sits at page level and disappears. Anything that should read as a surface must declare `bg-card`.
 
-**The Fixed Column Rule.** In the log stream, every column left of the message has a fixed width. Nothing shifts between rows.
+**The Fixed Column Rule.** In the log stream every column left of the message has a fixed width. Nothing shifts between rows.
+
+**The Shell Owns The Scroll Rule.** The document never scrolls in the app. A scroll container must have a definite-height ancestor and be a containing block (`relative`), or absolutely positioned descendants escape its clip and hand scrolling back to the document.
 
 ## Elevation & Depth
 
-Depth comes from tone, not from shadow. The light mode is a three-level ladder — page `hsl(44 33% 93%)` below card `hsl(44 50% 98%)` below the hairline and field-edge strokes that are darker than every surface — and that ladder alone is expected to communicate structure. The sidebar rail sits below the page on both sides of the ladder so the content area separates from the chrome. Dark mode runs the same structure with espresso tones and leans even harder on tone plus border, because shadows are close to invisible on a `9%`-lightness ground.
-
-**Shadows are a response to state, not a resting property.** A surface at rest is flat. Shadow appears when something is hovered, focused, or floating above the page — dropdowns, dialogs, popovers, sheets. It is a signal that an element is temporarily lifted or temporarily interactive, and if nothing has changed state, nothing should be casting.
-
-> **Known drift:** `Card.vue`, `LogsToolbar.vue`, and several shadcn primitives currently carry a resting `shadow-sm` / `shadow-xs`. That is the incumbent code, not the doctrine above. Removing resting shadows in favour of the tonal ladder plus hairline is an open cleanup.
+Depth comes from tone and hairlines, not from shadow. Both modes run a ladder — rail below page below surface — with borders darker than every surface. Surfaces are flat at rest; shadow appears only when something is hovered, focused, or genuinely floating (dialogs, dropdowns, popovers, sheets).
 
 ### Shadow Vocabulary
 
-- **State lift** (`box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05)`): the hover/interactive whisper. Never at rest.
-- **Overlay** (`box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)`): dialogs, dropdowns, popovers, sheets — things that genuinely float.
-- **Focus ring** (`0 0 0 3px var(--ring) / 50%`): not elevation, but the same family of state response. Always `ring-[3px]` with a `border-ring` shift; never an outline suppression without a replacement.
+- **Overlay** (`0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)`): things that float above the page.
+- **Focus ring** (`0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent)`): paired with a border shift to `--ring`.
 
 ### Named Rules
 
-**The Flat-At-Rest Rule.** If an element's state has not changed, it casts no shadow. Structure is carried by tone and hairline. A shadow on a resting card is borrowed depth the ladder already provides.
+**The Flat-At-Rest Rule.** If an element's state has not changed, it casts no shadow. Structure is carried by tone and hairline.
 
 ## Shapes
 
-Corners are modest and consistent. A single `--radius: 0.5rem` seeds a three-step scale — `4px` (sm), `6px` (md), `8px` (lg) — with `12px` (`rounded-xl`) for large panels and full-round reserved for things that are conceptually pills. Buttons and inputs are `6px`. Cards, the toolbar, and the log list are `12px`. Chips, badges, and the severity dots are fully round.
+A single `--radius: 0.5rem` seeds a three-step scale — `4px` / `6px` / `8px`. Buttons and inputs are `6px`; cards, toolbar and log list are `8px`; chips, badges and severity dots are fully round. Nothing is sharp-cornered and nothing is heavily rounded: instrument chrome, not stationery.
 
-Nothing is sharp-cornered and nothing is heavily rounded. The form language is a well-made instrument: softened enough to feel considered, square enough to feel precise.
-
-Borders are hairlines — always `1px`, always the `border` token, never a heavier stroke to create emphasis. Emphasis comes from fill or from tone, not from border weight.
-
-The severity dot is the system's smallest and most repeated shape: an `8px` circle at full opacity when active, `40%` when not. It appears in the log row, in the toolbar's filter chips, and in the styleguide's severity section — the same object in every context.
+Borders are always `1px`. The severity dot — an `8px` circle at full opacity when active, `40%` when not — is the system's smallest and most repeated shape.
 
 ### Named Rules
 
@@ -316,84 +323,71 @@ The severity dot is the system's smallest and most repeated shape: an `8px` circ
 
 ### Buttons
 
-Tactile and confident — solid fills, decisive hovers, components that feel pressable.
-
-- **Shape:** gently rounded (`6px`), `36px` tall at default size, `32px` small, `40px` large, with `16px` horizontal padding that tightens to `12px` when the button holds an icon.
-- **Primary:** `bg-primary` with `text-primary-foreground` — navy with cream text in light, gold with espresso text in dark. `text-sm font-medium`, icons at `16px` with an `8px` gap.
-- **Hover / Focus:** primary drops to `90%` opacity on hover; focus-visible shifts the border to `--ring` and adds a `3px` ring at `50%` opacity. Transitions run on `transition-all`.
-- **Outline:** hairline border on the page background, hover fills with the pale gold accent. In dark mode it uses a translucent input fill (`bg-input/30`) instead.
-- **Ghost:** no fill at rest, accent fill on hover. The default for icon-only controls in headers and rows.
-- **Destructive:** crimson fill with white text and a crimson focus ring. Dark mode drops it to `60%` opacity so it doesn't glare on espresso.
-- **Link:** primary-coloured text with a `4px` underline offset, underlined on hover only.
-
-### Severity Chips
-
-The product's signature control — the six-level filter row in the log toolbar.
-
-- **Style:** fully round, `4px 10px`, `12px` capitalised text, each carrying its severity dot at `8px`.
-- **Active:** greige `bg-secondary` fill, `font-semibold`, a `foreground/25` border, and the dot at full opacity.
-- **Inactive:** page-background fill, `font-medium` muted ink, hairline border, and the dot faded to `40%`.
-- **Behaviour:** `aria-pressed` carries the state; the dot's opacity plus the weight change means the toggle never depends on colour alone. Focus-visible gets the standard `3px` ring.
-
-### Cards / Containers
-
-- **Corner Style:** `12px` (`rounded-xl`).
-- **Background:** `bg-card` — warm near-white in light, `hsl(28 20% 12%)` in dark. Required, per the Surface Declaration Rule.
-- **Shadow Strategy:** flat at rest (see Elevation & Depth; the incumbent `shadow-sm` is known drift).
-- **Border:** a single hairline.
-- **Internal Padding:** `24px` vertical with `24px` horizontal on header and content; the log toolbar runs tighter at `12px` because it is a control surface, not a reading surface.
-
-### Inputs / Fields
-
-- **Style:** `36px` tall, `6px` radius, `4px 12px` padding, `bg-transparent` with a `border-input` stroke. In light mode the field inherits the card's near-white and depends entirely on that darker stroke for definition — which is why field-edge is tuned darker than hairline.
-- **Focus:** border shifts to `--ring`, plus a `3px` ring at `50%`. Transition is limited to `color, box-shadow` so the field doesn't reflow.
-- **Error:** `aria-invalid` turns the border and ring destructive. Messages render below in `12px` destructive text.
-- **Disabled:** `50%` opacity, `cursor-not-allowed`, pointer events off.
-- **Labels:** always present, `12px` muted ink, `6px` above the field.
-- **Search:** the search input takes a `16px` icon absolutely positioned at `10px` from the left with `pl-8` on the field. Debounced, never a submit button.
+- **Shape:** `6px` radius, `36px` tall by default, `16px` horizontal padding.
+- **Primary:** `bg-primary` with `text-primary-foreground` — ink on light, near-white on dark. Never a coloured fill.
+- **Hover / Focus:** primary drops to 90% opacity; focus-visible shifts the border to `--ring` and adds a `3px` ring at 50%.
+- **Outline:** hairline on the page ground, accent fill on hover.
+- **Ghost:** no fill at rest, accent fill on hover. The default for icon-only controls and for the toolbar's history controls.
+- **Destructive:** the one warm fill in the system.
 
 ### Navigation
 
-- **Sidebar:** a rail one tone below the page, holding the Bilis logo tile (an `8px`-radius `bg-sidebar-primary` square with the three-stripe mark at `20px`), the main nav, and the user menu at the foot. Active items take the sidebar accent fill.
-- **Breadcrumbs:** `14px`, muted ink for ancestors, foreground for the current page. One page header per page — the breadcrumb bar is the page's identity, not a second `<h1>`.
-- **Hover / Active:** accent fill, never an underline, never a colour shift on the label alone.
+- **Rail:** one tone below the page, holding the monochrome Bilis mark and wordmark at the top, grouped nav in the middle, and the team switcher plus account at the foot. Team and account sit together because both answer "who am I acting as".
+- **Active item:** takes the *work surface* as its fill (`bg-sidebar-primary`) with full-strength ink and `font-semibold`, so the current page is legible from the rail's silhouette before a word is read. Hover stays a quiet accent lift, which keeps the two states distinct.
+- **Group labels:** `11px`, `600`, uppercase, `0.12em` tracking, at 45% of the rail foreground.
+
+### Severity Chips
+
+The signature control — the six-level filter row.
+
+- Fully round, `4px 10px`, `12px` capitalised text, each carrying its severity dot.
+- **Active:** secondary fill, `font-semibold`, dot at full opacity. **Inactive:** page fill, muted text, dot at 40%.
+- `aria-pressed` carries the state; opacity plus weight mean the toggle never depends on colour alone.
+
+### Cards / Containers
+
+`8px` radius, `bg-card`, a single hairline, flat at rest, `24px` interiors (the log toolbar runs tighter at `12px` because it is a control surface, not a reading surface).
+
+### Inputs / Fields
+
+`36px` tall, `6px` radius, `bg-transparent` with a `border-input` stroke. Focus shifts the border to `--ring` plus a `3px` ring. `aria-invalid` turns border and ring destructive. Labels are always present at `12px` muted.
 
 ### Log Entry Row
 
-The signature component. Everything else exists to frame it.
+The signature component; everything else frames it.
 
-- **Structure:** a full-width `button` row (`6px 12px`, monospace, `12px`) followed by an expandable detail panel. Columns in fixed order: chevron (`14px`, muted), timestamp (`tabular-nums`, muted), severity (`64px`, uppercase, semibold, dot + label in the severity colour), service name (`160px`, truncated, muted), message (flexes, truncated until expanded).
-- **Separator:** a bottom hairline at `sidebar-border/70`. No card, no radius, no shadow — rows are ruled lines, not stacked objects.
-- **Hover:** `accent/50` fill across the whole row.
-- **Expanded:** a `muted/40` panel indented to `40px` holding the wrapped body, then trace/span/scope in a two-column definition grid, then log and resource attributes. Group titles drop to `11px` Instrument Sans; keys and values stay monospace. Empty groups render an em dash, never a hidden section.
+- Full-width button row (`6px 12px`, Geist Mono, `12px`) plus an expandable detail panel. Fixed columns: chevron, `tabular-nums` timestamp, `64px` severity (dot + uppercase label in the severity colour), `160px` truncated service, then the message.
+- Every row carries a **1px severity hairline on its left edge**, so a stack of rows reads as a temperature ribbon before a single line is read.
+- **warn, error and fatal** add a resting tint; quieter levels stay clean, so the loud ones carry all the weight.
+- Separator is a bottom hairline. Rows are ruled lines, not stacked cards.
+- Rows arriving from a live-tail poll animate in once, `motion-reduce` guarded.
 
 ### Charts
 
-- **Rule:** Apache ECharts only, always through `ChartCanvas.vue`, always themed from CSS custom properties via `useChartTokens()`. Chart colour is never hardcoded and never imported from a chart library's default palette.
-- **Series colours:** `--chart-1..5` — gold, teal, navy, crimson, espresso in light; their lifted dark counterparts in dark, where `chart-5` becomes blush.
-- **Severity charts** read the `--severity-*` variables so a bar chart and the log rows beneath it agree on what "error" looks like.
+Apache ECharts only, always through `ChartCanvas.vue`, always themed from CSS custom properties via `useChartTokens()`. `--chart-1..5` is the mark's tail in order — gold, teal, navy, crimson, and crimson-toward-magenta so a five-series chart never ends on two reds — authored twice so it holds on both the near-white and the dark card. A **severity** chart ignores that palette and reads `--severity-*` directly, so a bar and the rows beneath it always agree on what "error" looks like.
 
 ## Do's and Don'ts
 
 ### Do:
 
-- **Do** give every panel that should read as a surface `bg-card`. A bordered box without it sits at page level and vanishes.
-- **Do** reference semantic tokens (`bg-primary`, `text-muted-foreground`, `border-border`) in components. Raw brand utilities (`bg-navy`, `text-gold`) are for deliberate brand moments only.
-- **Do** author every colour twice — a hand-tuned light value and a hand-tuned dark value.
-- **Do** pair severity colour with the dot *and* the uppercase text label. Colour never carries severity by itself.
-- **Do** use `tabular-nums` on any column of digits a reader scans vertically.
-- **Do** keep monospace for machine-authored text and Instrument Sans for everything the interface says about it.
-- **Do** add every new reusable component to `/styleguide` in the same change, with realistic Bilis-flavoured demo content.
+- **Do** build every non-severity element from the neutral ladder — surfaces, borders, buttons, focus rings, icons, type.
+- **Do** give every panel that should read as a surface `bg-card`.
+- **Do** reference semantic tokens (`bg-primary`, `text-muted-foreground`, `border-border`) rather than raw values.
+- **Do** author every value twice — a hand-tuned light value and a hand-tuned dark value.
+- **Do** pair severity colour with the dot *and* the uppercase label. Colour never carries severity alone.
+- **Do** use `tabular-nums` on any column of digits scanned vertically.
+- **Do** keep Geist Mono for machine-authored text and Geist for everything the interface says about it.
+- **Do** add every new reusable component to `/styleguide` in the same change.
 - **Do** keep borders at `1px` and create emphasis with fill or tone.
 
 ### Don't:
 
-- **Don't** use `#fff`, `#000`, or a zero-chroma grey. Every neutral in this system is warm.
+- **Don't** introduce an accent colour, a brand hue, a coloured primary button, or a coloured link. Colour is for data; spending it on chrome costs the severity ramp its meaning.
 - **Don't** borrow a severity colour for anything that isn't log severity.
-- **Don't** assume the primary is dark — in dark mode it is gold, and it needs espresso text on top of it.
-- **Don't** derive a dark-mode value by fading or lightening its light-mode counterpart.
-- **Don't** put a resting shadow on a surface. Shadow is a response to hover, focus, or floating.
-- **Don't** let column widths vary between log rows, or the vertical scan breaks.
+- **Don't** use a dead 0%-saturation grey or a neutral mixed from another hue — every neutral is hue 225.
+- **Don't** derive a dark-mode value by fading or lightening its light counterpart.
+- **Don't** put a resting shadow on a surface.
+- **Don't** let column widths vary between log rows.
 - **Don't** introduce a third interface type size. 14px body and 12px support carry the product.
 - **Don't** hardcode a chart colour or `import from 'echarts'` — go through `lib/echarts.ts` and `useChartTokens()`.
-- **Don't** add a second page header. The breadcrumb bar is the page's identity.
+- **Don't** let the document scroll in the app shell; the content column owns the scroll.

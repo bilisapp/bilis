@@ -25,6 +25,7 @@ Self-hostable log storage and search. **v1 scope is exactly this — nothing els
 | Left navigation | `AppSidebar.vue` (Platform: Dashboard, Logs, Projects; Resources: Styleguide), groups rendered by `NavMain.vue` (`label` prop); active state matches nested URLs via `isCurrentOrParentUrl` |
 | Styleguide / component showcase | `/styleguide` route, `resources/js/pages/styleguide/` |
 | Marketing pages (public, Blade only) | `resources/views/marketing/`, layout `resources/views/components/layouts/marketing.blade.php` |
+| Public docs (Blade + CommonMark) | `resources/docs/{section}/{page}.md` (front matter: title/description/order, `_section.md` per group), `App\Services\Docs\` (DocsRepository/DocsRenderer/FrontMatter), `DocsController`, `resources/views/docs/`, layout `resources/views/components/layouts/docs.blade.php`, nav `resources/views/components/docs/nav.blade.php`, prose styles `.docs-prose` in `app.css`; routes `docs.index` / `docs.show` |
 | Charts (Apache ECharts) | `ChartCanvas.vue` wrapper; register chart types in `resources/js/lib/echarts.ts`; theme comes from CSS tokens via `useChartTokens` — never hardcode chart colours |
 
 ## Invariants (do not break)

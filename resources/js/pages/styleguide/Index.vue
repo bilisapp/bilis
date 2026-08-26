@@ -4,7 +4,6 @@ import { styleguide } from '@/routes';
 import AppComponentsSection from './partials/AppComponentsSection.vue';
 import ChartsSection from './partials/ChartsSection.vue';
 import ComponentsSection from './partials/ComponentsSection.vue';
-import FontsSection from './partials/FontsSection.vue';
 import PaletteSection from './partials/PaletteSection.vue';
 import SeveritySection from './partials/SeveritySection.vue';
 import StyleguideNav from './partials/StyleguideNav.vue';
@@ -43,7 +42,6 @@ defineOptions({
             <TokensSection />
             <SeveritySection />
             <TypographySection />
-            <FontsSection />
             <ComponentsSection />
             <AppComponentsSection />
             <ChartsSection />
