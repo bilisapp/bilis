@@ -55,7 +55,7 @@ about a minute to wire up.
 
 ```bash
 # .env
-BILIS_ENDPOINT=https://bilis.example.com/api/v1/ingest
+BILIS_ENDPOINT=https://bilis.example.com
 BILIS_API_KEY=bilis_YOUR_API_KEY
 LOG_STACK=single,bilis
 ```
@@ -65,6 +65,7 @@ LOG_STACK=single,bilis
 'bilis' => [
     'driver' => 'custom',
     'via' => App\Logging\BilisLogger::class,
+    // BILIS_ENDPOINT is the Bilis origin; the handler appends /api/v1/ingest.
     'endpoint' => env('BILIS_ENDPOINT'),
     'api_key' => env('BILIS_API_KEY'),
     'level' => env('BILIS_LOG_LEVEL', 'debug'),
@@ -80,6 +81,8 @@ How the channel behaves, and why it is safe to leave in a stack:
 
 - Records **buffer in memory** and ship as one batched request after the
   response, on `terminating()` — request latency is untouched.
+- `BILIS_ENDPOINT` is just the Bilis origin, such as
+  `https://bilis.example.com`; the handler chooses `/api/v1/ingest` itself.
 - With `BILIS_ENDPOINT` or `BILIS_API_KEY` unset the channel is **inert**, so it
   is harmless in a shared `config/logging.php` across environments.
 - A dead or unreachable Bilis never breaks your application. Failures to ship

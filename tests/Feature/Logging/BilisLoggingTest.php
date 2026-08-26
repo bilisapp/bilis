@@ -12,7 +12,8 @@ use Monolog\Handler\WhatFailureGroupHandler;
 use Monolog\Level;
 use Monolog\LogRecord;
 
-const ENDPOINT = 'https://bilis.test/api/v1/ingest';
+const BILIS_BASE_URL = 'https://bilis.test';
+const ENDPOINT = BILIS_BASE_URL.'/api/v1/ingest';
 
 /**
  * A handler pointed at the fake ingest endpoint.
@@ -186,7 +187,7 @@ test('the service name falls back to the application name', function () {
 });
 
 test('the factory wraps the handler so a failure can never bubble', function () {
-    $logger = (new BilisLogger)(['endpoint' => ENDPOINT, 'api_key' => 'bilis_test_key']);
+    $logger = (new BilisLogger)(['endpoint' => BILIS_BASE_URL, 'api_key' => 'bilis_test_key']);
 
     expect($logger->getHandlers()[0])->toBeInstanceOf(WhatFailureGroupHandler::class);
 });
@@ -208,10 +209,32 @@ test('the channel is inert without an endpoint or an api key', function (array $
     Http::assertNothingSent();
 })->with([
     'nothing configured' => [[]],
-    'no api key' => [['endpoint' => ENDPOINT]],
+    'no api key' => [['endpoint' => BILIS_BASE_URL]],
     'no endpoint' => [['api_key' => 'bilis_test_key']],
     'blank values' => [['endpoint' => ' ', 'api_key' => ' ']],
 ]);
+
+test('the factory resolves the simple ingest route from a base url', function () {
+    Http::fake([ENDPOINT => Http::response('', 202)]);
+
+    $logger = (new BilisLogger)(['endpoint' => BILIS_BASE_URL.'/', 'api_key' => 'bilis_test_key']);
+
+    $logger->info('Base URL only');
+    $logger->close();
+
+    Http::assertSent(fn (Request $request) => $request->url() === ENDPOINT);
+});
+
+test('legacy full ingest endpoint configuration is still accepted', function () {
+    Http::fake([ENDPOINT => Http::response('', 202)]);
+
+    $logger = (new BilisLogger)(['endpoint' => ENDPOINT, 'api_key' => 'bilis_test_key']);
+
+    $logger->info('Legacy full URL');
+    $logger->close();
+
+    Http::assertSent(fn (Request $request) => $request->url() === ENDPOINT);
+});
 
 test('logging to the configured channel reaches the ingest endpoint', function () {
     Http::fake([ENDPOINT => Http::response(['accepted' => 1, 'skipped' => 0], 202)]);
@@ -219,7 +242,7 @@ test('logging to the configured channel reaches the ingest endpoint', function (
     config(['logging.channels.bilis' => [
         'driver' => 'custom',
         'via' => BilisLogger::class,
-        'endpoint' => ENDPOINT,
+        'endpoint' => BILIS_BASE_URL,
         'api_key' => 'bilis_test_key',
         'level' => 'debug',
         'service' => 'bilis-app',
@@ -251,7 +274,7 @@ test('the terminating hook ships the batch after the response', function () {
     config(['logging.channels.bilis' => [
         'driver' => 'custom',
         'via' => BilisLogger::class,
-        'endpoint' => ENDPOINT,
+        'endpoint' => BILIS_BASE_URL,
         'api_key' => 'bilis_test_key',
         'level' => 'debug',
     ]]);
