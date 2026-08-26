@@ -29,6 +29,11 @@ Self-hostable log storage and search. **v1 scope is exactly this — nothing els
 - Inserts use `async_insert=1` / `wait_for_async_insert=0` — success means *queued*, not durable.
 - OTLP protobuf content-type -> 415 (JSON encoding only in v1; adding a protobuf dep requires approval).
 
+## Frontend conventions
+
+- **Every new reusable Vue component must be added to the `/styleguide` showcase** (`resources/js/pages/styleguide/`) in the same change — add it to the matching section (or a new one) with realistic Bilis-flavored demo content. A component that isn't in the styleguide isn't done.
+- **Charting: use Apache ECharts** (`echarts`) for all charts — not chart.js, not hand-rolled SVG. Not yet installed; add it (prefer tree-shakeable `echarts/core` imports) the first time a chart is built, wrap it in a reusable component themed via the CSS `--chart-1..5` / semantic tokens, and showcase it in the styleguide's Charts section.
+
 ## Branding
 
 Palette from a mid-century stripes artwork, defined in `resources/css/app.css`: brand utilities `cream, greige, espresso, navy, gold, crimson, teal, aqua, blush`; semantic shadcn tokens (light = navy on cream, dark = gold on espresso); log severity utilities `text-severity-{trace,debug,info,warn,error,fatal}` (per-mode). Font: Instrument Sans. Use semantic tokens in components; raw brand colors only for deliberate brand moments. Living reference: the `/styleguide` page.
