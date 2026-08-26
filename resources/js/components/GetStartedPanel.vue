@@ -1,10 +1,22 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { Check, Copy, FolderKanban, KeyRound, Plus } from '@lucide/vue';
+import {
+    Check,
+    ChevronDown,
+    Copy,
+    FolderKanban,
+    KeyRound,
+    Plus,
+} from '@lucide/vue';
 import { useClipboard } from '@vueuse/core';
 import { computed, ref, watch } from 'vue';
 import CreateProjectModal from '@/components/CreateProjectModal.vue';
 import { Button } from '@/components/ui/button';
+import {
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import {
     Select,
     SelectContent,
@@ -15,6 +27,8 @@ import {
 import { cn } from '@/lib/utils';
 import { index as projectsIndex, show as projectShow } from '@/routes/projects';
 import type { LogOnboardingStage, LogProject } from '@/types';
+import bilisHandlerSource from '../../../app/Logging/BilisHandler.php?raw';
+import bilisLoggerSource from '../../../app/Logging/BilisLogger.php?raw';
 
 const props = withDefaults(
     defineProps<{
@@ -68,7 +82,7 @@ const HINTS: Record<TabId, string> = {
     curl: 'The fastest proof the pipe works: one line, straight into the simple JSON endpoint.',
     otel: 'Any OTLP exporter — Go, Python, Node, the Collector — needs nothing but these three variables. Bilis speaks OTLP over HTTP/JSON.',
     laravel:
-        'A first-party package is on the way. Until then, a custom Monolog channel gets your lines flowing today.',
+        'A first-party package is on the way. Until then, copy the channel config plus the two classes below — the exact, tested code this Bilis instance ships with.',
 };
 
 const snippets = computed<Record<TabId, string>>(() => {
@@ -85,8 +99,9 @@ OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer <YOUR_API_KEY>"`,
         laravel: `// .env
 BILIS_ENDPOINT=${url}/api/v1/ingest
 BILIS_API_KEY=<YOUR_API_KEY>
+LOG_STACK=single,bilis
 
-// config/logging.php
+// config/logging.php — add the channel
 'bilis' => [
     'driver' => 'custom',
     'via' => App\\Logging\\BilisLogger::class,
@@ -95,33 +110,28 @@ BILIS_API_KEY=<YOUR_API_KEY>
     'level' => env('BILIS_LOG_LEVEL', 'debug'),
 ],
 
-// Then opt the channel into your stack: LOG_STACK=single,bilis
-
-// app/Logging/BilisLogger.php
-class BilisLogger
-{
-    public function __invoke(array $config): Logger
-    {
-        return new Logger('bilis', [new BilisHandler(
-            endpoint: $config['endpoint'],
-            apiKey: $config['api_key'],
-        )]);
-    }
-}
-
-// The handler buffers records and posts one array per flush —
-// on close(), on terminate(), or when the buffer fills up:
-// Http::withToken($this->apiKey)->timeout(2)->post($this->endpoint, [[
-//     'message' => $record->message,
-//     'level' => strtolower($record->level->getName()),
-//     'timestamp' => $record->datetime->format('Y-m-d\\TH:i:s.uP'),
-//     'service' => config('app.name'),
-//     'context' => $record->context,
-// ]]);`,
+// Then drop the two classes below into app/Logging/ — done.
+// Records buffer in memory and ship as one batched request after
+// the response; a dead or unreachable Bilis never breaks your app.`,
     };
 });
 
-const { copy, copied } = useClipboard({ copiedDuring: 1_500 });
+/**
+ * The real shipper source, inlined at build time. What the reader copies is
+ * the exact code this instance runs — it cannot drift from reality.
+ */
+const SHIPPER_FILES = [
+    { path: 'app/Logging/BilisLogger.php', source: bilisLoggerSource },
+    { path: 'app/Logging/BilisHandler.php', source: bilisHandlerSource },
+] as const;
+
+const {
+    copy,
+    copied,
+    text: copiedText,
+} = useClipboard({
+    copiedDuring: 1_500,
+});
 </script>
 
 <template>
@@ -285,6 +295,47 @@ const { copy, copied } = useClipboard({ copiedDuring: 1_500 });
                         <Check v-if="copied" class="size-4 text-teal" />
                         <Copy v-else class="size-4" />
                     </button>
+                </div>
+
+                <div v-if="tab === 'laravel'" class="space-y-2">
+                    <Collapsible
+                        v-for="file in SHIPPER_FILES"
+                        :key="file.path"
+                        class="overflow-hidden rounded-lg border border-input"
+                    >
+                        <CollapsibleTrigger
+                            class="flex w-full items-center justify-between gap-2 bg-muted/40 px-4 py-2.5 text-left font-mono text-xs font-medium transition-colors hover:bg-muted/70"
+                            :data-test="`get-started-file-${file.path}`"
+                        >
+                            {{ file.path }}
+                            <ChevronDown class="size-4 text-muted-foreground" />
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                            <div class="relative border-t border-input">
+                                <pre
+                                    class="max-h-96 overflow-auto p-4 pr-14 font-mono text-xs leading-relaxed text-foreground"
+                                ><code>{{ file.source }}</code></pre>
+                                <button
+                                    type="button"
+                                    class="absolute top-2 right-2 rounded-md border border-input bg-card p-2 text-muted-foreground transition-colors hover:text-foreground"
+                                    :aria-label="
+                                        copied && copiedText === file.source
+                                            ? 'Copied'
+                                            : `Copy ${file.path}`
+                                    "
+                                    @click="copy(file.source)"
+                                >
+                                    <Check
+                                        v-if="
+                                            copied && copiedText === file.source
+                                        "
+                                        class="size-4 text-teal"
+                                    />
+                                    <Copy v-else class="size-4" />
+                                </button>
+                            </div>
+                        </CollapsibleContent>
+                    </Collapsible>
                 </div>
 
                 <!--

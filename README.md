@@ -1,6 +1,24 @@
-# Bilis
+<p align="center">
+  <img src="public/bilis.png" alt="Bilis" width="640">
+</p>
 
-Self-hostable log storage and search. Point any OTLP-compatible shipper at one HTTP endpoint, and get a fast, searchable, live-tailing view of your logs — backed by ClickHouse, on your own box.
+<h1 align="center">Bilis</h1>
+
+<p align="center">
+  <strong>Self-hostable log storage and search.</strong><br>
+  Point any OTLP-compatible shipper at one HTTP endpoint, and get a fast,<br>
+  searchable, live-tailing view of your logs — backed by ClickHouse, on your own box.
+</p>
+
+<p align="center">
+  <a href="https://github.com/bilisapp/bilis/actions/workflows/tests.yml"><img src="https://github.com/bilisapp/bilis/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
+  <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-FSL--1.1--ALv2-1d3a5f" alt="License: FSL-1.1-ALv2"></a>
+  <img src="https://img.shields.io/badge/PHP-8.4-777bb4" alt="PHP 8.4">
+  <img src="https://img.shields.io/badge/Laravel-13-crimson" alt="Laravel 13">
+  <img src="https://img.shields.io/badge/ClickHouse-storage-e8b339" alt="ClickHouse">
+</p>
+
+---
 
 **v1 is exactly that — nothing else.** No traces, metrics, alerting, dashboards, saved searches, or billing.
 
