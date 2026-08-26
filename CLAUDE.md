@@ -19,7 +19,9 @@ Self-hostable log storage and search. **v1 scope is exactly this — nothing els
 | Log querying for the UI | `app/Services/Logs/` (LogQuery, LogFilters, SeverityLevel) |
 | Log viewer page | `LogsController`, `resources/js/pages/logs/`, `LogsToolbar.vue`, `LogEntryRow.vue`, `resources/js/lib/logs.ts` |
 | Projects (team-scoped, slug route key) | `App\Models\Project`, belongs to existing Teams system |
+| Projects & API keys UI | `ProjectController`, `ProjectApiKeyController`, `resources/js/pages/projects/`, project/API-key modals in `resources/js/components/`; `{project}` / `{apiKey}` route bindings are team-scoped in `AppServiceProvider` |
 | Styleguide / component showcase | `/styleguide` route, `resources/js/pages/styleguide/` |
+| Marketing pages (public, Blade only) | `resources/views/marketing/`, layout `resources/views/components/layouts/marketing.blade.php` |
 | Charts (Apache ECharts) | `ChartCanvas.vue` wrapper; register chart types in `resources/js/lib/echarts.ts`; theme comes from CSS tokens via `useChartTokens` — never hardcode chart colours |
 
 ## Invariants (do not break)
@@ -31,6 +33,8 @@ Self-hostable log storage and search. **v1 scope is exactly this — nothing els
 - OTLP protobuf content-type -> 415 (JSON encoding only in v1; adding a protobuf dep requires approval).
 
 ## Frontend conventions
+
+- **Public marketing pages are Blade, never Inertia.** Anything a logged-out visitor is meant to read (the `/` landing page and whatever follows it) lives in `resources/views/marketing/` under `<x-layouts.marketing>` and loads `@vite('resources/css/app.css')` only — no Inertia bundle. Inertia is for in-app, authenticated surfaces. Inertia SSR is off (`config/inertia.php`, `inertia({ ssr: false })`) and stays off: the pages that needed pre-rendering are Blade now.
 
 - **Every new reusable Vue component must be added to the `/styleguide` showcase** (`resources/js/pages/styleguide/`) in the same change — add it to the matching section (or a new one) with realistic Bilis-flavored demo content. A component that isn't in the styleguide isn't done.
 - **Charting: use Apache ECharts** (`echarts`) for all charts — not chart.js, not hand-rolled SVG. Not yet installed; add it (prefer tree-shakeable `echarts/core` imports) the first time a chart is built, wrap it in a reusable component themed via the CSS `--chart-1..5` / semantic tokens, and showcase it in the styleguide's Charts section.

@@ -36,6 +36,10 @@ class LogsController extends Controller
             'filters' => $filters->toArray(),
             'severityLevels' => SeverityLevel::values(),
             'logs' => Inertia::defer(fn (): array => $logQuery->search($projectIds, $filters)),
+            'histogram' => Inertia::defer(
+                fn (): array => $logQuery->histogram($projectIds, $filters),
+                'histogram',
+            ),
         ]);
     }
 

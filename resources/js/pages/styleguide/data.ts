@@ -1,4 +1,4 @@
-import type { LogEntry, SeverityLevel } from '@/types';
+import type { LogEntry, LogHistogram, SeverityLevel } from '@/types';
 
 export type Swatch = {
     /** Human readable name of the colour or token. */
@@ -301,6 +301,51 @@ export function demoLogEntry(
             'http.status_code': '202',
             'batch.size': '128',
         },
+    };
+}
+
+/**
+ * Build a demo histogram for the LogsHistogram showcase: forty-eight one-minute
+ * buckets shaped like a real incident — steady info traffic, a warn ramp, then
+ * a burst of errors that tails off.
+ */
+export function demoHistogram(): LogHistogram {
+    const intervalSeconds = 60;
+    const start = Date.UTC(2026, 7, 26, 8, 26, 0);
+
+    const buckets = Array.from({ length: 48 }, (_, index) => {
+        const spike = index >= 30 && index <= 38;
+        const ramp = index >= 26 && index < 30;
+
+        const counts: Record<SeverityLevel, number> = {
+            trace: 2 + ((index * 5) % 4),
+            debug: 9 + ((index * 7) % 11),
+            info: 48 + ((index * 13) % 22),
+            warn: ramp ? 14 + index - 26 : spike ? 26 : 1 + ((index * 3) % 3),
+            error: spike ? 38 - Math.abs(34 - index) * 5 : 0,
+            fatal: index === 34 ? 3 : 0,
+        };
+
+        const total = Object.values(counts).reduce(
+            (sum, value) => sum + value,
+            0,
+        );
+
+        return {
+            bucket: new Date(start + index * intervalSeconds * 1_000)
+                .toISOString()
+                .replace('T', ' ')
+                .replace('Z', ''),
+            counts,
+            total,
+        };
+    });
+
+    return {
+        buckets,
+        intervalSeconds,
+        total: buckets.reduce((sum, entry) => sum + entry.total, 0),
+        unavailable: false,
     };
 }
 

@@ -34,6 +34,36 @@ export const SEVERITY_DOT_CLASS: Record<SeverityLevel, string> = {
 };
 
 /**
+ * The left-edge hairline colour for each severity bucket.
+ *
+ * Every row carries one, so the left edge of the stream reads as a continuous
+ * temperature ribbon: a burst of red is visible before a single line is read.
+ */
+export const SEVERITY_EDGE_CLASS: Record<SeverityLevel, string> = {
+    trace: 'border-l-severity-trace',
+    debug: 'border-l-severity-debug',
+    info: 'border-l-severity-info',
+    warn: 'border-l-severity-warn',
+    error: 'border-l-severity-error',
+    fatal: 'border-l-severity-fatal',
+};
+
+/**
+ * The resting tint for a row, reserved for the levels that mean something broke.
+ *
+ * Quiet levels stay on the card so the loud ones carry all the weight — if
+ * every row were tinted, none of them would read as urgent.
+ */
+export const SEVERITY_ROW_CLASS: Record<SeverityLevel, string> = {
+    trace: '',
+    debug: '',
+    info: '',
+    warn: 'bg-severity-warn/[0.05] dark:bg-severity-warn/[0.08]',
+    error: 'bg-severity-error/[0.06] dark:bg-severity-error/[0.10]',
+    fatal: 'bg-severity-fatal/[0.09] dark:bg-severity-fatal/[0.14]',
+};
+
+/**
  * The CSS custom property holding each severity colour, defined in app.css.
  *
  * Charts cannot use the utility classes, so they read these variables off the

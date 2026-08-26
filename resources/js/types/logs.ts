@@ -38,3 +38,18 @@ export type LogFilters = {
 };
 
 export type LogRangePreset = '15m' | '1h' | '6h' | '24h' | '7d' | 'custom';
+
+export type LogHistogramBucket = {
+    /** The bucket start, as a naive UTC ClickHouse timestamp. */
+    bucket: string;
+    counts: Record<SeverityLevel, number>;
+    total: number;
+};
+
+export type LogHistogram = {
+    buckets: LogHistogramBucket[];
+    /** The server-chosen bar width, used to label and to zoom into a bar. */
+    intervalSeconds: number;
+    total: number;
+    unavailable: boolean;
+};

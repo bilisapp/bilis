@@ -4,16 +4,23 @@ import { computed } from 'vue';
 import {
     formatTimestamp,
     SEVERITY_DOT_CLASS,
+    SEVERITY_EDGE_CLASS,
+    SEVERITY_ROW_CLASS,
     SEVERITY_TEXT_CLASS,
     severityLevelFor,
 } from '@/lib/logs';
 import { cn } from '@/lib/utils';
 import type { LogEntry } from '@/types';
 
-const props = defineProps<{
-    entry: LogEntry;
-    expanded: boolean;
-}>();
+const props = withDefaults(
+    defineProps<{
+        entry: LogEntry;
+        expanded: boolean;
+        /** Arrived in the last live-tail poll; announces itself once. */
+        fresh?: boolean;
+    }>(),
+    { fresh: false },
+);
 
 const emit = defineEmits<{
     (event: 'toggle'): void;
@@ -33,7 +40,16 @@ const attributeGroups = computed(() => [
 
 <template>
     <div
-        class="border-b border-sidebar-border/70 text-xs dark:border-sidebar-border"
+        :class="
+            cn(
+                'border-b border-l border-b-sidebar-border/70 text-xs dark:border-b-sidebar-border',
+                SEVERITY_EDGE_CLASS[level],
+                SEVERITY_ROW_CLASS[level],
+                fresh &&
+                    'animate-in duration-300 ease-out fade-in slide-in-from-top-1 motion-reduce:animate-none',
+            )
+        "
+        :data-severity="level"
         data-test="log-row"
     >
         <button

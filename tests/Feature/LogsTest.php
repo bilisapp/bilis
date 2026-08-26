@@ -244,3 +244,142 @@ test('the tail endpoint is forbidden for non members', function () {
         ->getJson(route('logs.tail', ['current_team' => $team->slug]))
         ->assertForbidden();
 });
+
+/**
+ * A JSONEachRow response body for the histogram aggregate.
+ */
+function histogramRowsResponse(): string
+{
+    return collect([
+        ['Bucket' => '2026-08-26 09:00:00.000000000', 'Level' => 2, 'Total' => 40],
+        ['Bucket' => '2026-08-26 09:00:00.000000000', 'Level' => 4, 'Total' => 2],
+        ['Bucket' => '2026-08-26 09:30:00.000000000', 'Level' => 4, 'Total' => 7],
+    ])->map(fn (array $row): string => json_encode($row))->implode("\n")."\n";
+}
+
+test('the histogram is deferred, bucketed and filled across the window', function () {
+    Http::fake(['127.0.0.1:8123/*' => Http::response(histogramRowsResponse())]);
+
+    [$user, $team] = logTeam();
+
+    $this->actingAs($user)
+        ->get(route('logs.index', [
+            'current_team' => $team->slug,
+            'from' => '2026-08-26T09:00:00Z',
+            'to' => '2026-08-26T10:00:00Z',
+        ]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->missing('histogram')
+            ->loadDeferredProps(fn (Assert $reload) => $reload
+                ->where('histogram.unavailable', false)
+                // A one hour window lands on 300 second buckets: 12 plus the
+                // closing edge, every one present even where nothing was logged.
+                ->where('histogram.intervalSeconds', 300)
+                ->has('histogram.buckets', 13)
+                ->where('histogram.total', 49)
+                ->where('histogram.buckets.0.counts.info', 40)
+                ->where('histogram.buckets.0.counts.error', 2)
+                ->where('histogram.buckets.0.total', 42)
+                ->where('histogram.buckets.1.total', 0)
+                ->where('histogram.buckets.6.counts.error', 7),
+            ),
+        );
+});
+
+test('the histogram groups by severity with bound parameters only', function () {
+    Http::fake(['127.0.0.1:8123/*' => Http::response(histogramRowsResponse())]);
+
+    [$user, $team, $project] = logTeam();
+
+    $this->actingAs($user)
+        ->get(route('logs.index', [
+            'current_team' => $team->slug,
+            'service' => 'api',
+            'search' => 'timeout',
+            'from' => '2026-08-26T09:00:00Z',
+            'to' => '2026-08-26T10:00:00Z',
+        ]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->loadDeferredProps(
+            fn (Assert $reload) => $reload->has('histogram.buckets'),
+        ));
+
+    Http::assertSent(function (Request $request) use ($project) {
+        if (! str_contains($request->body(), 'GROUP BY Bucket, Level')) {
+            return false;
+        }
+
+        $query = clickHouseQuery($request);
+
+        return str_contains($request->body(), 'toIntervalSecond({bucketSeconds:UInt32})')
+            && str_contains($request->body(), 'ProjectId IN {projectIds:Array(UInt64)}')
+            && str_contains($request->body(), 'ServiceName = {service:String}')
+            && str_contains($request->body(), 'hasToken(Body, {search:String})')
+            && ! str_contains($request->body(), 'timeout"')
+            && $query['param_bucketSeconds'] === '300'
+            && $query['param_projectIds'] === '['.$project->id.']'
+            && $query['param_service'] === 'api';
+    });
+});
+
+test('a wider window gets wider buckets', function () {
+    Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
+
+    [$user, $team] = logTeam();
+
+    $this->actingAs($user)
+        ->get(route('logs.index', [
+            'current_team' => $team->slug,
+            'from' => '2026-08-19T09:00:00Z',
+            'to' => '2026-08-26T09:00:00Z',
+        ]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->loadDeferredProps(
+            fn (Assert $reload) => $reload
+                // Seven days over a forty-eight bar target: six hour buckets,
+                // aligned down to the bucket the window starts inside.
+                ->where('histogram.intervalSeconds', 21600)
+                ->where('histogram.total', 0)
+                ->has('histogram.buckets', 29),
+        ));
+});
+
+test('an overloaded clickhouse leaves the histogram flagged unavailable', function () {
+    Http::fake([
+        '127.0.0.1:8123/*' => Http::response('Too many simultaneous queries', 503),
+    ]);
+
+    [$user, $team] = logTeam();
+
+    $this->actingAs($user)
+        ->get(route('logs.index', ['current_team' => $team->slug]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->loadDeferredProps(
+            fn (Assert $reload) => $reload
+                ->where('histogram.unavailable', true)
+                ->where('histogram.total', 0),
+        ));
+});
+
+test('a project outside the team is never counted', function () {
+    Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
+
+    [$user, $team] = logTeam();
+
+    Project::factory()->create(['slug' => 'not-mine']);
+
+    $this->actingAs($user)
+        ->get(route('logs.index', [
+            'current_team' => $team->slug,
+            'project' => 'not-mine',
+        ]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->loadDeferredProps(
+            fn (Assert $reload) => $reload
+                ->where('histogram.total', 0)
+                ->where('histogram.unavailable', false),
+        ));
+
+    Http::assertNotSent(fn (Request $request) => str_contains($request->url(), ':8123'));
+});

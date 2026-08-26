@@ -15,6 +15,8 @@ use Illuminate\Support\Carbon;
  *
  * @phpstan-type LogRow array{timestamp: string, traceId: string, spanId: string, severityText: string, severityNumber: int, serviceName: string, body: string, scopeName: string, scopeVersion: string, resourceAttributes: array<string, string>, logAttributes: array<string, string>, projectId: int}
  * @phpstan-type LogResult array{rows: list<LogRow>, nextCursor: string|null, unavailable: bool}
+ * @phpstan-type HistogramBucket array{bucket: string, counts: array<string, int>, total: int}
+ * @phpstan-type HistogramResult array{buckets: list<HistogramBucket>, intervalSeconds: int, total: int, unavailable: bool}
  */
 class LogQuery
 {
@@ -27,6 +29,23 @@ class LogQuery
      * A search term made only of these characters can use the token bloom filter.
      */
     private const TOKEN_PATTERN = '/^[A-Za-z0-9_]{3,}$/';
+
+    /**
+     * The bucket widths, in seconds, the volume histogram may choose from.
+     *
+     * @var list<int>
+     */
+    private const BUCKET_INTERVALS = [1, 5, 15, 30, 60, 300, 900, 1800, 3600, 10800, 21600, 43200, 86400];
+
+    /**
+     * How many bars the histogram aims for across the selected window.
+     */
+    private const TARGET_BUCKETS = 48;
+
+    /**
+     * The hard ceiling on generated buckets, so an absurd window cannot blow up the payload.
+     */
+    private const MAX_BUCKETS = 240;
 
     public function __construct(private readonly ClickHouseClient $client) {}
 
@@ -89,6 +108,151 @@ class LogQuery
         }
 
         return ['rows' => $rows, 'nextCursor' => null, 'unavailable' => false];
+    }
+
+    /**
+     * Count logs per time bucket and severity across the selected window.
+     *
+     * The bucket width is derived from the window on the server, so the chart
+     * always gets a comparable number of bars whether the user is looking at
+     * fifteen minutes or seven days. Empty buckets are filled in here rather
+     * than in SQL so the time axis stays honest: a gap means no logs, not a
+     * missing row.
+     *
+     * @param  list<int>  $projectIds
+     * @return HistogramResult
+     */
+    public function histogram(array $projectIds, LogFilters $filters): array
+    {
+        $intervalSeconds = $this->bucketInterval($filters);
+
+        if ($projectIds === []) {
+            return $this->emptyHistogram($filters, $intervalSeconds);
+        }
+
+        [$conditions, $params] = $this->conditions($projectIds, $filters);
+
+        $params['bucketSeconds'] = $intervalSeconds;
+
+        $sql = sprintf(
+            'SELECT toStartOfInterval(Timestamp, toIntervalSecond({bucketSeconds:UInt32})) AS Bucket, %s AS Level, count() AS Total '
+            .'FROM otel_logs WHERE %s GROUP BY Bucket, Level ORDER BY Bucket ASC',
+            $this->severityBucketExpression(),
+            implode(' AND ', $conditions),
+        );
+
+        try {
+            $rows = $this->client->select($sql, $params);
+        } catch (ClickHouseException $exception) {
+            if (! $exception->isOverload()) {
+                throw $exception;
+            }
+
+            report($exception);
+
+            $empty = $this->emptyHistogram($filters, $intervalSeconds);
+            $empty['unavailable'] = true;
+
+            return $empty;
+        }
+
+        /** @var array<int, array<string, int>> $counts */
+        $counts = [];
+
+        foreach ($rows as $row) {
+            $bucket = (string) ($row['Bucket'] ?? '');
+            $level = SeverityLevel::cases()[(int) ($row['Level'] ?? 2)] ?? SeverityLevel::Info;
+
+            if ($bucket === '') {
+                continue;
+            }
+
+            $key = Carbon::parse($bucket)->utc()->getTimestamp();
+            $counts[$key][$level->value] = ($counts[$key][$level->value] ?? 0) + (int) ($row['Total'] ?? 0);
+        }
+
+        return $this->fillBuckets($filters, $intervalSeconds, $counts);
+    }
+
+    /**
+     * The SQL expression bucketing an OTel severity number into a level index.
+     *
+     * A record with no severity number at all is counted as info, matching the
+     * fallback the viewer applies when it cannot read a level off a row.
+     */
+    private function severityBucketExpression(): string
+    {
+        return 'multiIf(SeverityNumber >= 21, 5, SeverityNumber >= 17, 4, SeverityNumber >= 13, 3, SeverityNumber >= 9, 2, SeverityNumber >= 5, 1, SeverityNumber >= 1, 0, 2)';
+    }
+
+    /**
+     * Choose the narrowest bucket width that keeps the bar count near the target.
+     */
+    private function bucketInterval(LogFilters $filters): int
+    {
+        $span = max(1, $filters->to->getTimestamp() - $filters->from->getTimestamp());
+
+        foreach (self::BUCKET_INTERVALS as $interval) {
+            if ((int) ceil($span / $interval) <= self::TARGET_BUCKETS) {
+                return $interval;
+            }
+        }
+
+        return (int) max(
+            self::BUCKET_INTERVALS[count(self::BUCKET_INTERVALS) - 1],
+            (int) ceil($span / self::MAX_BUCKETS),
+        );
+    }
+
+    /**
+     * Expand the sparse counts into one entry per bucket across the window.
+     *
+     * @param  array<int, array<string, int>>  $counts
+     * @return HistogramResult
+     */
+    private function fillBuckets(LogFilters $filters, int $intervalSeconds, array $counts): array
+    {
+        $start = intdiv($filters->from->getTimestamp(), $intervalSeconds) * $intervalSeconds;
+        $end = $filters->to->getTimestamp();
+
+        $buckets = [];
+        $total = 0;
+
+        for ($at = $start; $at <= $end && count($buckets) < self::MAX_BUCKETS; $at += $intervalSeconds) {
+            $bucketCounts = [];
+            $bucketTotal = 0;
+
+            foreach (SeverityLevel::cases() as $level) {
+                $value = $counts[$at][$level->value] ?? 0;
+                $bucketCounts[$level->value] = $value;
+                $bucketTotal += $value;
+            }
+
+            $buckets[] = [
+                'bucket' => Carbon::createFromTimestampUTC($at)->format('Y-m-d H:i:s.u'),
+                'counts' => $bucketCounts,
+                'total' => $bucketTotal,
+            ];
+
+            $total += $bucketTotal;
+        }
+
+        return [
+            'buckets' => $buckets,
+            'intervalSeconds' => $intervalSeconds,
+            'total' => $total,
+            'unavailable' => false,
+        ];
+    }
+
+    /**
+     * An all-zero histogram spanning the window.
+     *
+     * @return HistogramResult
+     */
+    private function emptyHistogram(LogFilters $filters, int $intervalSeconds): array
+    {
+        return $this->fillBuckets($filters, $intervalSeconds, []);
     }
 
     /**

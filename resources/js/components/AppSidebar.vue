@@ -3,6 +3,7 @@ import { Link, usePage } from '@inertiajs/vue3';
 import {
     BookOpen,
     FolderGit2,
+    FolderKanban,
     LayoutGrid,
     Palette,
     ScrollText,
@@ -25,6 +26,7 @@ import {
 import { useCurrentUrl } from '@/composables/useCurrentUrl';
 import { dashboard, styleguide } from '@/routes';
 import { index as logsIndex } from '@/routes/logs';
+import { index as projectsIndex } from '@/routes/projects';
 import type { NavItem } from '@/types';
 
 const page = usePage();
@@ -39,11 +41,22 @@ const logsUrl = computed(() =>
     page.props.currentTeam ? logsIndex(page.props.currentTeam.slug).url : '/',
 );
 
+const projectsUrl = computed(() =>
+    page.props.currentTeam
+        ? projectsIndex(page.props.currentTeam.slug).url
+        : '/',
+);
+
 const mainNavItems = computed<NavItem[]>(() => [
     {
         title: 'Dashboard',
         href: dashboardUrl.value,
         icon: LayoutGrid,
+    },
+    {
+        title: 'Projects',
+        href: projectsUrl.value,
+        icon: FolderKanban,
     },
     {
         title: 'Logs',

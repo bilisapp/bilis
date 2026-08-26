@@ -34,6 +34,17 @@ const props = withDefaults(
     },
 );
 
+const emit = defineEmits<{
+    /**
+     * A click on a rendered item. `dataIndex` is the index within the series,
+     * which is what a caller needs to map back to its own data.
+     */
+    (
+        event: 'select',
+        payload: { dataIndex: number; seriesIndex: number },
+    ): void;
+}>();
+
 const container = shallowRef<HTMLDivElement | null>(null);
 const chart = shallowRef<EChartsType | null>(null);
 
@@ -84,6 +95,18 @@ function renderChart() {
     chart.value?.dispose();
     chart.value = init(container.value, theme, { renderer: 'canvas' });
     chart.value.setOption(cloneOption(toRaw(props.option)), { notMerge: true });
+
+    // Re-bound on every render because renderChart() disposes the instance.
+    chart.value.on('click', (params) => {
+        emit('select', {
+            dataIndex:
+                typeof params.dataIndex === 'number' ? params.dataIndex : -1,
+            seriesIndex:
+                typeof params.seriesIndex === 'number'
+                    ? params.seriesIndex
+                    : -1,
+        });
+    });
 }
 
 onMounted(() => {

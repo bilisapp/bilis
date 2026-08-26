@@ -30,9 +30,12 @@
             }
         </style>
 
-        <link rel="icon" href="/favicon.ico" sizes="any">
+        <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48 64x64">
         <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+
+        <meta name="theme-color" content="#f0ebdd" media="(prefers-color-scheme: light)">
+        <meta name="theme-color" content="#1c1611" media="(prefers-color-scheme: dark)">
 
         @fonts
 

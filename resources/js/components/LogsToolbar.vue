@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Radio, Search } from '@lucide/vue';
+import { Search } from '@lucide/vue';
 import { useDebounceFn } from '@vueuse/core';
 import { computed, ref, watch } from 'vue';
 import { Button } from '@/components/ui/button';
@@ -132,65 +132,80 @@ function fromLocalInput(value: string, fallback: string): string {
 
 <template>
     <div
-        class="flex flex-col gap-3 rounded-xl border bg-card p-3 shadow-sm"
+        class="flex flex-col rounded-xl border bg-card"
         data-test="logs-toolbar"
     >
-        <div class="flex flex-wrap items-end gap-x-3 gap-y-2">
-            <div class="grid gap-1.5">
-                <Label class="text-xs text-muted-foreground" for="logs-range">
-                    Time range
+        <!--
+          Tier 1 — the question being asked. Search is the primary action on
+          this page, so it gets the full width and the taller control; live
+          tail sits beside it because it is the other way logs arrive.
+        -->
+        <div class="flex flex-wrap items-center gap-2 p-3">
+            <div class="relative min-w-64 flex-1">
+                <Label class="sr-only" for="logs-search">
+                    Search log bodies
                 </Label>
-                <Select v-model="rangeValue">
-                    <SelectTrigger id="logs-range" class="w-44">
-                        <SelectValue placeholder="Time range" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem
-                            v-for="preset in RANGE_PRESETS"
-                            :key="preset.value"
-                            :value="preset.value"
-                        >
-                            {{ preset.label }}
-                        </SelectItem>
-                        <SelectItem value="custom">Custom range</SelectItem>
-                    </SelectContent>
-                </Select>
+                <Search
+                    class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+                />
+                <Input
+                    id="logs-search"
+                    v-model="searchTerm"
+                    data-test="logs-search"
+                    placeholder="Search log bodies…"
+                    class="h-10 pl-9 text-sm"
+                    @input="emitSearch"
+                />
             </div>
 
-            <template v-if="range === 'custom'">
-                <div class="grid gap-1.5">
-                    <Label
-                        class="text-xs text-muted-foreground"
-                        for="logs-from"
-                    >
-                        From
-                    </Label>
-                    <Input
-                        id="logs-from"
-                        v-model="customFrom"
-                        type="datetime-local"
-                        class="w-56"
+            <Button
+                type="button"
+                size="lg"
+                data-test="logs-live-tail"
+                :variant="liveTail ? 'default' : 'outline'"
+                :aria-pressed="liveTail"
+                @click="emit('update:liveTail', !liveTail)"
+            >
+                <span class="relative flex size-2 items-center justify-center">
+                    <span
+                        v-if="liveTail"
+                        class="absolute inline-flex size-2 animate-ping rounded-full bg-current opacity-60 motion-reduce:hidden"
                     />
-                </div>
-                <div class="grid gap-1.5">
-                    <Label class="text-xs text-muted-foreground" for="logs-to">
-                        To
-                    </Label>
-                    <Input
-                        id="logs-to"
-                        v-model="customTo"
-                        type="datetime-local"
-                        class="w-56"
+                    <span
+                        :class="
+                            cn(
+                                'relative inline-flex size-2 rounded-full',
+                                liveTail
+                                    ? 'bg-current'
+                                    : 'border border-current opacity-60',
+                                tailing && 'opacity-100',
+                            )
+                        "
                     />
-                </div>
-            </template>
+                </span>
+                {{ liveTail ? 'Live' : 'Live tail' }}
+            </Button>
+        </div>
 
-            <div class="grid gap-1.5">
-                <Label class="text-xs text-muted-foreground" for="logs-project">
-                    Project
+        <!--
+          Tier 2 — what you are looking at, and when. Two groups, one hairline
+          between them, so scope and window never read as one flat row of six.
+        -->
+        <div
+            class="flex flex-wrap items-center gap-x-2 gap-y-2 border-t px-3 py-2"
+        >
+            <div class="flex min-w-0 flex-1 items-center gap-2 sm:flex-none">
+                <Label
+                    class="shrink-0 text-xs font-medium text-muted-foreground"
+                    for="logs-project"
+                >
+                    Scope
                 </Label>
                 <Select v-model="projectValue">
-                    <SelectTrigger id="logs-project" class="w-48">
+                    <SelectTrigger
+                        id="logs-project"
+                        class="h-8 w-full min-w-0 sm:w-44"
+                    >
                         <SelectValue placeholder="All projects" />
                     </SelectTrigger>
                     <SelectContent>
@@ -206,54 +221,76 @@ function fromLocalInput(value: string, fallback: string): string {
                         </SelectItem>
                     </SelectContent>
                 </Select>
-            </div>
-
-            <div class="grid gap-1.5">
-                <Label class="text-xs text-muted-foreground" for="logs-service">
-                    Service
-                </Label>
+                <Label class="sr-only" for="logs-service">Service</Label>
                 <Input
                     id="logs-service"
                     v-model="serviceTerm"
                     data-test="logs-service"
                     placeholder="All services"
-                    class="w-48"
+                    class="h-8 w-full min-w-0 sm:w-44"
                     @input="emitService"
                 />
             </div>
 
-            <div class="grid flex-1 gap-1.5">
-                <Label class="text-xs text-muted-foreground" for="logs-search">
-                    Search
-                </Label>
-                <div class="relative">
-                    <Search
-                        class="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-                    />
-                    <Input
-                        id="logs-search"
-                        v-model="searchTerm"
-                        data-test="logs-search"
-                        placeholder="Search log bodies"
-                        class="pl-8"
-                        @input="emitSearch"
-                    />
-                </div>
-            </div>
+            <div
+                class="mx-1 hidden h-5 w-px shrink-0 bg-border sm:block"
+                aria-hidden="true"
+            />
 
-            <Button
-                type="button"
-                data-test="logs-live-tail"
-                :variant="liveTail ? 'default' : 'outline'"
-                @click="emit('update:liveTail', !liveTail)"
+            <div
+                class="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:flex-none"
             >
-                <Radio :class="cn('size-4', tailing && 'animate-pulse')" />
-                {{ liveTail ? 'Live' : 'Live tail' }}
-            </Button>
+                <Label
+                    class="shrink-0 text-xs font-medium text-muted-foreground"
+                    for="logs-range"
+                >
+                    Window
+                </Label>
+                <Select v-model="rangeValue">
+                    <SelectTrigger
+                        id="logs-range"
+                        class="h-8 w-full min-w-0 sm:w-40"
+                    >
+                        <SelectValue placeholder="Time range" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem
+                            v-for="preset in RANGE_PRESETS"
+                            :key="preset.value"
+                            :value="preset.value"
+                        >
+                            {{ preset.label }}
+                        </SelectItem>
+                        <SelectItem value="custom">Custom range</SelectItem>
+                    </SelectContent>
+                </Select>
+
+                <template v-if="range === 'custom'">
+                    <Label class="sr-only" for="logs-from">From</Label>
+                    <Input
+                        id="logs-from"
+                        v-model="customFrom"
+                        type="datetime-local"
+                        class="h-8 w-full min-w-0 sm:w-52"
+                    />
+                    <span class="text-xs text-muted-foreground">to</span>
+                    <Label class="sr-only" for="logs-to">To</Label>
+                    <Input
+                        id="logs-to"
+                        v-model="customTo"
+                        type="datetime-local"
+                        class="h-8 w-full min-w-0 sm:w-52"
+                    />
+                </template>
+            </div>
         </div>
 
-        <div class="flex flex-wrap items-center gap-x-2 gap-y-2 border-t pt-3">
-            <span class="text-xs text-muted-foreground">Severity</span>
+        <div
+            class="flex flex-wrap items-center gap-x-2 gap-y-2 border-t px-3 py-2"
+        >
+            <span class="text-xs font-medium text-muted-foreground"
+                >Severity</span
+            >
             <div class="flex flex-wrap items-center gap-1.5">
                 <button
                     v-for="level in SEVERITY_LEVELS"

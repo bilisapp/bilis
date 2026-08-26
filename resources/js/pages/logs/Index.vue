@@ -3,14 +3,17 @@ import { Head, router, useHttp, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import AlertError from '@/components/AlertError.vue';
 import LogEntryRow from '@/components/LogEntryRow.vue';
+import LogsHistogram from '@/components/LogsHistogram.vue';
 import LogsToolbar from '@/components/LogsToolbar.vue';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { presetForRange, RANGE_PRESETS } from '@/lib/logs';
+import { presetForRange, RANGE_PRESETS, SEVERITY_DOT_CLASS } from '@/lib/logs';
+import { cn } from '@/lib/utils';
 import { index as logsIndex, tail as logsTail } from '@/routes/logs';
 import type {
     LogEntry,
     LogFilters,
+    LogHistogram,
     LogProject,
     LogRangePreset,
     LogResult,
@@ -23,6 +26,7 @@ const props = defineProps<{
     filters: LogFilters;
     severityLevels: SeverityLevel[];
     logs?: LogResult;
+    histogram?: LogHistogram;
 }>();
 
 defineOptions({
@@ -168,6 +172,29 @@ const scrolledDown = ref(false);
 const entryKey = (entry: LogEntry, index: number) =>
     `${entry.timestamp}|${entry.spanId}|${index}`;
 
+/**
+ * Rows that arrived in the most recent tail poll, so they can announce
+ * themselves once and then settle into the stream.
+ */
+const freshKeys = ref<Set<string>>(new Set());
+
+let freshTimer: ReturnType<typeof setTimeout> | null = null;
+
+const freshId = (entry: LogEntry) => `${entry.timestamp}|${entry.spanId}`;
+
+const markFresh = (entries: LogEntry[]) => {
+    freshKeys.value = new Set(entries.map(freshId));
+
+    if (freshTimer !== null) {
+        clearTimeout(freshTimer);
+    }
+
+    freshTimer = setTimeout(() => {
+        freshKeys.value = new Set();
+        freshTimer = null;
+    }, 1_500);
+};
+
 const rows = computed<LogEntry[]>(() => [
     ...tailRows.value,
     ...(props.logs?.rows ?? []),
@@ -199,6 +226,7 @@ const fetchTail = async () => {
 
         if (result?.rows?.length) {
             tailRows.value = [...result.rows, ...tailRows.value].slice(0, 500);
+            markFresh(result.rows);
         }
     } catch {
         liveTail.value = false;
@@ -211,6 +239,11 @@ const stopTail = () => {
     if (tailTimer !== null) {
         clearInterval(tailTimer);
         tailTimer = null;
+    }
+
+    if (freshTimer !== null) {
+        clearTimeout(freshTimer);
+        freshTimer = null;
     }
 };
 
@@ -240,6 +273,27 @@ const onScroll = (event: Event) => {
 const toggleExpanded = (key: string) => {
     expandedKey.value = expandedKey.value === key ? null : key;
 };
+
+/**
+ * Clicking a histogram bar narrows the viewer to that bucket.
+ */
+const onZoom = (window: { from: string; to: string }) => {
+    range.value = 'custom';
+    onWindow(window);
+};
+
+/**
+ * The recovery offered by the empty state: jump to the widest preset.
+ */
+const onWiden = () => onRange('7d');
+
+const activeFilterCount = computed(
+    () =>
+        (project.value ? 1 : 0) +
+        (service.value ? 1 : 0) +
+        (search.value ? 1 : 0) +
+        (severity.value.length > 0 ? 1 : 0),
+);
 </script>
 
 <template>
@@ -274,61 +328,184 @@ const toggleExpanded = (key: string) => {
             ]"
         />
 
-        <p
-            v-if="liveTail && tailPaused"
-            class="text-xs text-muted-foreground"
-            data-test="logs-tail-paused"
-        >
-            Live tail paused while you are reading. Scroll back to the top and
-            collapse the expanded row to resume.
-        </p>
+        <LogsHistogram
+            :histogram="histogram"
+            :severity="severity"
+            @zoom="onZoom"
+        />
 
         <div
-            class="flex min-h-0 flex-1 flex-col overflow-y-auto rounded-xl border bg-card shadow-sm"
+            class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-card"
             data-test="logs-list"
-            @scroll="onScroll"
         >
-            <div v-if="!logs" class="space-y-2 p-3" data-test="logs-skeleton">
-                <Skeleton
-                    v-for="index in 12"
-                    :key="index"
-                    class="h-5 w-full animate-pulse"
-                />
-            </div>
-
-            <div
-                v-else-if="rows.length === 0"
-                class="flex flex-1 flex-col items-center justify-center gap-1 p-10 text-center"
-                data-test="logs-empty"
+            <!--
+              The stream's own header: what you are looking at, and whether it
+              is still moving. It lives outside the scroll area so the state
+              stays readable however far down the reader has gone.
+            -->
+            <header
+                class="flex items-center gap-2 border-b px-3 py-1.5 text-xs"
             >
-                <p class="text-sm font-medium">No logs in this window</p>
-                <p class="text-sm text-muted-foreground">
-                    Widen the time range, clear a filter, or send your first log
-                    to a project.
+                <p v-if="logs" class="text-muted-foreground">
+                    <span class="font-medium text-foreground tabular-nums">
+                        {{ rows.length.toLocaleString() }}
+                    </span>
+                    {{ rows.length === 1 ? 'line' : 'lines' }} loaded
+                    <template v-if="activeFilterCount > 0">
+                        · {{ activeFilterCount }}
+                        {{ activeFilterCount === 1 ? 'filter' : 'filters' }}
+                        active
+                    </template>
                 </p>
-            </div>
+                <p v-else class="text-muted-foreground">Loading lines…</p>
 
-            <template v-else>
-                <LogEntryRow
-                    v-for="(entry, index) in rows"
-                    :key="entryKey(entry, index)"
-                    :entry="entry"
-                    :expanded="expandedKey === entryKey(entry, index)"
-                    @toggle="toggleExpanded(entryKey(entry, index))"
-                />
+                <p
+                    v-if="liveTail && tailPaused"
+                    class="ml-auto inline-flex items-center gap-1.5 rounded-full border border-severity-warn/40 bg-severity-warn/10 px-2 py-0.5 font-medium text-severity-warn"
+                    data-test="logs-tail-paused"
+                >
+                    <span class="size-1.5 rounded-full bg-current" />
+                    Tail paused while you read
+                </p>
+                <p
+                    v-else-if="liveTail"
+                    class="ml-auto inline-flex items-center gap-1.5 font-medium text-severity-info"
+                    data-test="logs-tail-live"
+                >
+                    <span class="relative flex size-1.5">
+                        <span
+                            class="absolute inline-flex size-1.5 animate-ping rounded-full bg-current opacity-60 motion-reduce:hidden"
+                        />
+                        <span
+                            class="relative inline-flex size-1.5 rounded-full bg-current"
+                        />
+                    </span>
+                    Tailing
+                </p>
+            </header>
 
-                <div v-if="logs.nextCursor" class="p-3 text-center">
+            <div class="min-h-0 flex-1 overflow-y-auto" @scroll="onScroll">
+                <!--
+                  The skeleton mirrors the real row: timestamp, severity,
+                  service, body. A row-shaped wait reads as "logs are coming"
+                  rather than "a box is loading".
+                -->
+                <div v-if="!logs" data-test="logs-skeleton">
+                    <div
+                        v-for="index in 14"
+                        :key="index"
+                        class="flex items-center gap-3 border-b border-b-sidebar-border/70 px-3 py-1.5"
+                    >
+                        <Skeleton class="h-3 w-3.5 shrink-0 rounded-sm" />
+                        <Skeleton class="h-3 w-40 shrink-0" />
+                        <Skeleton class="h-3 w-14 shrink-0" />
+                        <Skeleton class="h-3 w-28 shrink-0" />
+                        <Skeleton
+                            class="h-3 flex-1"
+                            :style="{
+                                maxWidth: `${40 + ((index * 37) % 55)}%`,
+                            }"
+                        />
+                    </div>
+                </div>
+
+                <div
+                    v-else-if="rows.length === 0 && unavailable"
+                    class="flex h-full flex-col items-center justify-center gap-2 px-6 py-16 text-center"
+                    data-test="logs-unreachable"
+                >
+                    <p class="text-sm font-semibold">
+                        No lines to show while storage is busy
+                    </p>
+                    <p
+                        class="max-w-sm text-sm text-balance text-muted-foreground"
+                    >
+                        This is not an empty window — the query never ran. The
+                        lines are still in ClickHouse.
+                    </p>
+                </div>
+
+                <div
+                    v-else-if="rows.length === 0"
+                    class="flex h-full flex-col items-center justify-center gap-4 px-6 py-16 text-center"
+                    data-test="logs-empty"
+                >
+                    <!--
+                      The severity ramp, drawn flat: the shape the stream would
+                      have if it had anything to show.
+                    -->
+                    <div class="flex w-40 items-end gap-1.5" aria-hidden="true">
+                        <span
+                            v-for="level in severityLevels"
+                            :key="level"
+                            :class="
+                                cn(
+                                    'h-0.5 flex-1 rounded-full opacity-40',
+                                    SEVERITY_DOT_CLASS[level],
+                                )
+                            "
+                        />
+                    </div>
+
+                    <div class="space-y-1">
+                        <p class="text-sm font-semibold">
+                            Nothing landed in this window
+                        </p>
+                        <p
+                            class="max-w-sm text-sm text-balance text-muted-foreground"
+                        >
+                            <template v-if="activeFilterCount > 0">
+                                {{ activeFilterCount }}
+                                {{
+                                    activeFilterCount === 1
+                                        ? 'filter is'
+                                        : 'filters are'
+                                }}
+                                active. Widen the window or clear a filter to
+                                see more.
+                            </template>
+                            <template v-else>
+                                Point an OTLP exporter at this project's ingest
+                                endpoint and its lines will show up here.
+                            </template>
+                        </p>
+                    </div>
+
                     <Button
+                        v-if="range !== '7d'"
                         type="button"
                         variant="outline"
                         size="sm"
-                        data-test="logs-load-older"
-                        @click="applyFilters(logs.nextCursor)"
+                        data-test="logs-widen"
+                        @click="onWiden"
                     >
-                        Load older logs
+                        Search the last 7 days
                     </Button>
                 </div>
-            </template>
+
+                <template v-else>
+                    <LogEntryRow
+                        v-for="(entry, index) in rows"
+                        :key="entryKey(entry, index)"
+                        :entry="entry"
+                        :expanded="expandedKey === entryKey(entry, index)"
+                        :fresh="freshKeys.has(freshId(entry))"
+                        @toggle="toggleExpanded(entryKey(entry, index))"
+                    />
+
+                    <div v-if="logs.nextCursor" class="p-3 text-center">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            data-test="logs-load-older"
+                            @click="applyFilters(logs.nextCursor)"
+                        >
+                            Load older logs
+                        </Button>
+                    </div>
+                </template>
+            </div>
         </div>
     </div>
 </template>

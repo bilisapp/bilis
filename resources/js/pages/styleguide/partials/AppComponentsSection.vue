@@ -1,17 +1,22 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import AlertError from '@/components/AlertError.vue';
+import ApiKeyCreatedDialog from '@/components/ApiKeyCreatedDialog.vue';
 import AppLogo from '@/components/AppLogo.vue';
+import AppLogoIcon from '@/components/AppLogoIcon.vue';
+import AppLogoMark from '@/components/AppLogoMark.vue';
 import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
 import LogEntryRow from '@/components/LogEntryRow.vue';
+import LogsHistogram from '@/components/LogsHistogram.vue';
 import LogsToolbar from '@/components/LogsToolbar.vue';
 import PlaceholderPattern from '@/components/PlaceholderPattern.vue';
 import TextLink from '@/components/TextLink.vue';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SEVERITY_LEVELS } from '@/lib/logs';
-import { demoLogEntry } from '@/pages/styleguide/data';
+import { demoHistogram, demoLogEntry } from '@/pages/styleguide/data';
 import { styleguide } from '@/routes';
 import type { LogProject, LogRangePreset, SeverityLevel } from '@/types';
 import DemoBlock from './DemoBlock.vue';
@@ -39,6 +44,21 @@ const toolbarSeverity = ref<SeverityLevel[]>(['warn', 'error', 'fatal']);
 const toolbarSearch = ref<string | null>('connection reset');
 const toolbarRange = ref<LogRangePreset>('15m');
 const toolbarLiveTail = ref(true);
+
+const apiKeyDialogOpen = ref(false);
+
+const demoApiKey = {
+    name: 'Production collector',
+    key: 'bilis_9fZ1qPdK3sWmXbT7vRcYhN2eJgL4uA6oQ8iM0zSr',
+};
+
+const histogram = demoHistogram();
+const histogramSeverity = ref<SeverityLevel[]>([]);
+const histogramZoom = ref<string | null>(null);
+
+const onHistogramZoom = (window: { from: string; to: string }) => {
+    histogramZoom.value = `${window.from} → ${window.to}`;
+};
 </script>
 
 <template>
@@ -49,7 +69,7 @@ const toolbarLiveTail = ref(true);
     >
         <DemoBlock
             title="LogEntryRow"
-            description="one row per severity bucket; the error row starts expanded to show the attribute panel"
+            description="one row per severity bucket; the error row starts expanded to show the attribute panel. Every row carries a 1px severity hairline on its left edge, so a stack of rows reads as a temperature ribbon before a single line is read — and warn, error and fatal add a resting tint, because those are the only levels that mean something broke."
         >
             <div class="overflow-x-auto rounded-md border">
                 <LogEntryRow
@@ -63,8 +83,42 @@ const toolbarLiveTail = ref(true);
         </DemoBlock>
 
         <DemoBlock
+            title="LogsHistogram"
+            description="log volume across the window, stacked by severity and coloured from the same --severity-* tokens as the rows beneath it. The server picks the bucket width from the window; clicking a bar zooms the viewer into that bucket."
+        >
+            <LogsHistogram
+                :histogram="histogram"
+                :severity="histogramSeverity"
+                @zoom="onHistogramZoom"
+            />
+            <p class="text-xs text-muted-foreground">
+                <template v-if="histogramZoom">
+                    Zoomed to
+                    <span class="font-mono">{{ histogramZoom }}</span>
+                </template>
+                <template v-else> Click a bar to emit a zoom window. </template>
+            </p>
+        </DemoBlock>
+
+        <DemoBlock
+            title="LogsHistogram — waiting and empty"
+            description="the deferred prop has not landed yet, and a window with nothing in it. The empty case draws a dashed baseline rather than collapsing, so the strip never changes height."
+        >
+            <LogsHistogram :severity="[]" />
+            <LogsHistogram
+                :severity="[]"
+                :histogram="{
+                    buckets: [],
+                    intervalSeconds: 60,
+                    total: 0,
+                    unavailable: false,
+                }"
+            />
+        </DemoBlock>
+
+        <DemoBlock
             title="LogsToolbar"
-            description="wired to local refs, so the controls move but nothing is fetched. Warn, error and fatal are toggled on — active severity chips fill with the secondary tint, a solid dot and semibold copy, inactive ones stay outlined and muted with a faded dot."
+            description="wired to local refs, so the controls move but nothing is fetched. Three tiers, hairline-separated: search plus live tail on top because those are the two ways you reach a line, then scope and window, then severity. Warn, error and fatal are toggled on — active severity chips fill with the secondary tint, a solid dot and semibold copy, inactive ones stay outlined and muted with a faded dot."
         >
             <LogsToolbar
                 :projects="demoProjects"
@@ -147,11 +201,48 @@ const toolbarLiveTail = ref(true);
 
         <DemoBlock
             title="AppLogo"
-            description="the sidebar wordmark: navy tile in light mode, gold in dark, with the three offset stripes from the brand artwork"
+            description="the sidebar wordmark: the square mark next to the app name"
         >
             <div class="flex items-center">
                 <AppLogo />
             </div>
+        </DemoBlock>
+
+        <DemoBlock
+            title="AppLogoMark"
+            description="the full brand mark — the fish trailing its three speed stripes. Use wherever the layout gives the logo room to run horizontally"
+        >
+            <AppLogoMark class="h-16 w-auto" />
+        </DemoBlock>
+
+        <DemoBlock
+            title="AppLogoIcon"
+            description="the same mark turned 45deg so it squares off — for tiles, the sidebar and the favicon. Body and detail colours invert in dark mode via --logo-body / --logo-detail"
+        >
+            <div class="flex items-end gap-6">
+                <AppLogoIcon class="size-16" />
+                <AppLogoIcon class="size-8" />
+                <AppLogoIcon class="size-5" />
+                <div
+                    class="flex size-16 items-center justify-center rounded-xl bg-espresso [--logo-body:var(--color-cream)] [--logo-detail:var(--color-espresso)]"
+                >
+                    <AppLogoIcon class="size-12" />
+                </div>
+            </div>
+        </DemoBlock>
+
+        <DemoBlock
+            title="ApiKeyCreatedDialog"
+            description="the one and only time a plaintext key is on screen: a monospace field, a copy button that flips to a check, and a warning that Bilis stores nothing but the hash"
+        >
+            <Button variant="secondary" @click="apiKeyDialogOpen = true">
+                Show the dialog
+            </Button>
+
+            <ApiKeyCreatedDialog
+                v-model:open="apiKeyDialogOpen"
+                :api-key="demoApiKey"
+            />
         </DemoBlock>
 
         <DemoBlock
