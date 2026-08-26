@@ -23,9 +23,9 @@ use Illuminate\Support\Carbon;
  *
  * @phpstan-type DigestCounts array{current: int, previous: int}
  * @phpstan-type DigestError array{body: string, total: int}
- * @phpstan-type DigestService array{name: string, lastSeen: string, quiet: bool}
+ * @phpstan-type DigestService array{name: string, lastSeen: string, quiet: bool, series: list<int>}
  * @phpstan-type DigestPoint array{bucket: string, total: int, errors: int}
- * @phpstan-type DigestResult array{logs: DigestCounts, errors: DigestCounts, topErrors: list<DigestError>, services: list<DigestService>, series: list<DigestPoint>, unavailable: bool}
+ * @phpstan-type DigestResult array{logs: DigestCounts, errors: DigestCounts, topErrors: list<DigestError>, services: list<DigestService>, series: list<DigestPoint>, generatedAt: string, unavailable: bool}
  */
 class LogDigest
 {
@@ -110,9 +110,11 @@ class LogDigest
         /*
          * The version prefix is part of the key on purpose: the shape stored
          * here has grown a field, and a warm cache from the previous shape
-         * must never be served back as a digest missing `series`.
+         * must never be served back as a digest missing `series` — or, at
+         * v3, missing the `generatedAt` the page states its age from, or, at
+         * v4, missing the per-service trend each liveness row draws.
          */
-        $key = 'logs.digest.v2.'.sha1(implode(',', $projectIds));
+        $key = 'logs.digest.v4.'.sha1(implode(',', $projectIds));
 
         /** @var DigestResult|null $cached */
         $cached = $this->cache->get($key);
@@ -159,8 +161,14 @@ class LogDigest
             'logs' => $counts['logs'],
             'errors' => $counts['errors'],
             'topErrors' => $this->topErrors($projectIds, $now),
-            'services' => $this->services($projectIds, $now),
+            'services' => $this->services($projectIds, $now, $this->serviceSeries($projectIds, $now)),
             'series' => $this->series($projectIds, $now),
+            /*
+             * Measured inside the cached payload on purpose: a digest served
+             * from cache has to report the age of the numbers it is showing,
+             * not the age of the request that happened to read it.
+             */
+            'generatedAt' => $this->formatTimestamp($now),
             'unavailable' => false,
         ];
     }
@@ -247,9 +255,10 @@ class LogDigest
      * notice it.
      *
      * @param  list<string>  $projectIds
+     * @param  array<string, list<int>>  $series  The 24 hour trend per service, from serviceSeries().
      * @return list<DigestService>
      */
-    private function services(array $projectIds, Carbon $now): array
+    private function services(array $projectIds, Carbon $now, array $series): array
     {
         [$conditions, $params] = $this->conditions(
             $projectIds,
@@ -268,6 +277,13 @@ class LogDigest
 
         $quietBefore = $now->clone()->subMinutes(self::QUIET_MINUTES);
 
+        /*
+         * A service in the 7 day liveness list that logged nothing in the
+         * last 24 hours is the whole point of the trend: it draws a flatline,
+         * so the row has to carry zeroes rather than be left without a series.
+         */
+        $flat = $this->fillHours([], $this->seriesStart($now));
+
         $services = [];
 
         foreach ($this->client->select($sql, $params) as $row) {
@@ -282,6 +298,7 @@ class LogDigest
                 'name' => $name,
                 'lastSeen' => $lastSeen,
                 'quiet' => Carbon::parse($lastSeen, 'UTC')->lessThan($quietBefore),
+                'series' => $series[$name] ?? $flat,
             ];
         }
 
@@ -305,8 +322,7 @@ class LogDigest
      */
     private function series(array $projectIds, Carbon $now): array
     {
-        $end = $now->clone()->startOfHour();
-        $start = $end->clone()->subHours(self::SERIES_HOURS - 1);
+        $start = $this->seriesStart($now);
 
         [$conditions, $params] = $this->conditions($projectIds, $start, $now);
 
@@ -354,6 +370,87 @@ class LogDigest
     }
 
     /**
+     * The same 24 hourly buckets, split by service.
+     *
+     * A second aggregate over the window `series()` already reads rather than
+     * a fan-out of one query per service: one scan answers every row of the
+     * liveness list. `toStartOfInterval` lives in SELECT/GROUP BY only — the
+     * WHERE stays the plain range `conditions()` builds (R4).
+     *
+     * @param  list<string>  $projectIds
+     * @return array<string, list<int>>
+     */
+    private function serviceSeries(array $projectIds, Carbon $now): array
+    {
+        $start = $this->seriesStart($now);
+
+        [$conditions, $params] = $this->conditions($projectIds, $start, $now);
+
+        $conditions[] = "ServiceName != ''";
+
+        $sql = sprintf(
+            'SELECT ServiceName, toStartOfInterval(Timestamp, toIntervalHour(1)) AS Bucket, '
+            .'count() AS Total FROM otel_logs WHERE %s '
+            .'GROUP BY ServiceName, Bucket ORDER BY Bucket ASC',
+            implode(' AND ', $conditions),
+        );
+
+        /** @var array<string, array<int, int>> $counts */
+        $counts = [];
+
+        foreach ($this->client->select($sql, $params) as $row) {
+            $name = (string) ($row['ServiceName'] ?? '');
+            $bucket = (string) ($row['Bucket'] ?? '');
+
+            if ($name === '' || $bucket === '') {
+                continue;
+            }
+
+            $counts[$name][Carbon::parse($bucket, 'UTC')->getTimestamp()] = (int) ($row['Total'] ?? 0);
+        }
+
+        $series = [];
+
+        foreach ($counts as $name => $byBucket) {
+            $series[$name] = $this->fillHours($byBucket, $start);
+        }
+
+        return $series;
+    }
+
+    /**
+     * The top of the oldest hour the 24 hour trend covers.
+     *
+     * Snapped so the series is always exactly SERIES_HOURS long and every
+     * trend on the page — the tiles' and the per-service ones — shares the
+     * same buckets, which is what lets the service rows ship bare totals.
+     */
+    private function seriesStart(Carbon $now): Carbon
+    {
+        return $now->clone()->startOfHour()->subHours(self::SERIES_HOURS - 1);
+    }
+
+    /**
+     * Spread bucket-keyed counts across the dense 24 hour window.
+     *
+     * A missing hour is a zero, never a dropped point: leaving it out would
+     * compress the axis and lie about the shape of the day.
+     *
+     * @param  array<int, int>  $counts  Keyed by the bucket's unix timestamp.
+     * @return list<int>
+     */
+    private function fillHours(array $counts, Carbon $start): array
+    {
+        $points = [];
+
+        for ($hour = 0; $hour < self::SERIES_HOURS; $hour++) {
+            $points[] = $counts[$start->clone()->addHours($hour)->getTimestamp()] ?? 0;
+        }
+
+        return $points;
+    }
+
+    /**
      * Build the shared WHERE conditions and their bound parameters.
      *
      * The one place the base predicate is assembled (R4): a plain range on the
@@ -392,6 +489,7 @@ class LogDigest
             'topErrors' => [],
             'services' => [],
             'series' => $this->emptySeries(),
+            'generatedAt' => $this->formatTimestamp(Carbon::now()->utc()),
             'unavailable' => $unavailable,
         ];
     }

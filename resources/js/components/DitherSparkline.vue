@@ -19,11 +19,23 @@ const props = withDefaults(
         values: number[];
         /** Which token family the series is drawn from. */
         tone?: 'volume' | 'error';
+        /**
+         * One label per value, oldest first — the hour each point covers.
+         *
+         * Supplying them turns the sparkline from decoration into something
+         * readable: hover gets a tooltip. Without them the chart stays
+         * silent, exactly as it was.
+         */
+        labels?: string[];
+        /** What the values count, for the tooltip's prose. */
+        unit?: string;
         /** CSS height of the sparkline; a number is treated as pixels. */
         height?: string | number;
     }>(),
     {
         tone: 'volume',
+        labels: undefined,
+        unit: 'logs',
         height: 40,
     },
 );
@@ -110,17 +122,57 @@ const pattern = computed(() => ditherPattern(color.value));
 
 const hasValues = computed(() => props.values.length > 0);
 
+/** Tooltips are opt-in: no labels, no hover behaviour. */
+const hasLabels = computed(
+    () =>
+        (props.labels?.length ?? 0) === props.values.length &&
+        props.values.length > 0,
+);
+
+/**
+ * The hovered point as prose: which hour, and how much of what.
+ *
+ * `params` is typed loosely on purpose — ECharts hands an axis-triggered
+ * formatter an array of per-series payloads whose exact shape depends on the
+ * series type, and only the index and the value are wanted here.
+ */
+function tooltipFormatter(params: unknown): string {
+    const first = Array.isArray(params) ? params[0] : params;
+    const point = first as { dataIndex?: number; value?: unknown } | undefined;
+    const index = point?.dataIndex ?? 0;
+    const label = props.labels?.[index] ?? '';
+    const value = typeof point?.value === 'number' ? point.value : 0;
+
+    return `${label} · ${value.toLocaleString()} ${props.unit}`;
+}
+
 /** True while nothing has been logged: the baseline stays flat, not rescaled. */
 const isFlat = computed(() => props.values.every((value) => value === 0));
 
 const option = computed<BilisChartOption>(() => ({
     animation: false,
     grid: { left: 0, right: 0, top: 2, bottom: 0, containLabel: false },
+    /*
+     * `confine` matters more here than anywhere else on the page: a 40px
+     * chart sits at the edge of its card, and an unconfined tooltip would be
+     * clipped by it.
+     */
+    tooltip: hasLabels.value
+        ? {
+              trigger: 'axis',
+              confine: true,
+              textStyle: { fontSize: 12 },
+              axisPointer: { type: 'line', lineStyle: { width: 1 } },
+              formatter: tooltipFormatter,
+          }
+        : undefined,
     xAxis: {
         type: 'category',
         show: false,
         boundaryGap: false,
-        data: props.values.map((_, index) => String(index)),
+        data: props.values.map(
+            (_, index) => props.labels?.[index] ?? String(index),
+        ),
     },
     yAxis: {
         type: 'value',
@@ -133,7 +185,7 @@ const option = computed<BilisChartOption>(() => ({
         {
             type: 'line',
             symbol: 'none',
-            silent: true,
+            silent: !hasLabels.value,
             lineStyle: { width: 1, color: color.value },
             areaStyle: pattern.value
                 ? { color: { image: pattern.value, repeat: 'repeat' } }

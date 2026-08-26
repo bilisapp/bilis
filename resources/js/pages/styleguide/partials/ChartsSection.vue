@@ -12,6 +12,7 @@ import {
     CHART_VOLUME_BY_SEVERITY,
     CHART_VOLUME_DAYS,
     SPARKLINE_ERRORS_24H,
+    SPARKLINE_HOUR_LABELS,
     SPARKLINE_VOLUME_24H,
 } from '@/pages/styleguide/data';
 import DemoBlock from './DemoBlock.vue';
@@ -136,7 +137,7 @@ const ingestOption = computed<BilisChartOption>(() => ({
 
         <DemoBlock
             title="DitherSparkline"
-            description="A trend small enough to sit inside a stat tile. The fill is a 4x4 Bayer ordered dither painted onto a repeating canvas tile — the 1-bit halftone, scaled by the device pixel ratio so the dots stay hard-edged. Tone picks the token family: volume is chart data (--chart-1), errors are severity data (--severity-error)."
+            description="A trend small enough to sit inside a stat tile. The fill is a 4x4 Bayer ordered dither painted onto a repeating canvas tile — the 1-bit halftone, scaled by the device pixel ratio so the dots stay hard-edged. Tone picks the token family: volume is chart data (--chart-1), errors are severity data (--severity-error). Pass labels — one per value — to make it hoverable: the tooltip reads the label and the value, with the noun set by unit. Without labels the chart stays silent."
         >
             <div class="grid gap-4 sm:grid-cols-2">
                 <div class="space-y-2 rounded-lg border bg-card p-4">
@@ -144,7 +145,9 @@ const ingestOption = computed<BilisChartOption>(() => ({
                     <p class="font-mono text-2xl">94,318</p>
                     <DitherSparkline
                         :values="SPARKLINE_VOLUME_24H"
+                        :labels="SPARKLINE_HOUR_LABELS"
                         tone="volume"
+                        unit="logs"
                     />
                     <p class="text-xs text-muted-foreground">
                         +38% vs prior day
@@ -156,7 +159,9 @@ const ingestOption = computed<BilisChartOption>(() => ({
                     <p class="font-mono text-2xl text-severity-error">265</p>
                     <DitherSparkline
                         :values="SPARKLINE_ERRORS_24H"
+                        :labels="SPARKLINE_HOUR_LABELS"
                         tone="error"
+                        unit="errors"
                     />
                     <p class="text-xs text-muted-foreground">
                         +212% vs prior day

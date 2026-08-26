@@ -438,3 +438,12 @@ export const SPARKLINE_VOLUME_24H: number[] = [
 export const SPARKLINE_ERRORS_24H: number[] = [
     0, 0, 2, 0, 0, 1, 0, 4, 18, 96, 74, 31, 12, 6, 3, 2, 9, 4, 1, 0, 0, 2, 0, 0,
 ];
+
+/**
+ * The hour each sparkline point covers, UTC — what a DitherSparkline needs
+ * before it will show a tooltip on hover.
+ */
+export const SPARKLINE_HOUR_LABELS: string[] = Array.from(
+    { length: 24 },
+    (_, hour) => `${String(hour).padStart(2, '0')}:00`,
+);

@@ -91,6 +91,13 @@ export type LogDigestService = {
     lastSeen: string;
     /** Nothing logged for over an hour — a dead shipper, not a healthy silence. */
     quiet: boolean;
+    /**
+     * The service's own 24 hourly totals, oldest first, over exactly the
+     * buckets `LogDigest.series` uses — which is why the points carry no
+     * timestamps of their own. A silent service is 24 zeroes: a flatline,
+     * not a missing series.
+     */
+    series: number[];
 };
 
 /** One hour of the digest's 24 hour trend, dense: a gap is a zero, not a hole. */
@@ -110,6 +117,13 @@ export type LogDigest = {
     services: LogDigestService[];
     /** Exactly 24 hourly points, oldest first — the tiles' sparklines. */
     series: LogDigestPoint[];
+    /**
+     * When the numbers were measured, as a naive UTC ClickHouse timestamp.
+     *
+     * Part of the cached payload, so a digest served from cache reports the
+     * age of its own numbers rather than the age of the request.
+     */
+    generatedAt: string;
     unavailable: boolean;
 };
 

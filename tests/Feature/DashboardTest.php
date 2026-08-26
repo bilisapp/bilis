@@ -261,6 +261,28 @@ test('an overloaded clickhouse marks storage unavailable without failing the pag
  */
 function digestResponse(string $body, ?string $lastSeen = null): PromiseInterface
 {
+    /*
+     * Matched before the hourly branch: the per-service trend also selects
+     * toStartOfInterval, so only its GROUP BY tells the two statements apart.
+     */
+    if (str_contains($body, 'GROUP BY ServiceName, Bucket')) {
+        $hour = now()->utc()->startOfHour();
+
+        // Only `api` logged in the last 24 hours; `worker` has to come back flat.
+        return Http::response(
+            json_encode([
+                'ServiceName' => 'api',
+                'Bucket' => $hour->clone()->subHours(5)->format('Y-m-d H:i:s.u'),
+                'Total' => '40',
+            ])."\n"
+            .json_encode([
+                'ServiceName' => 'api',
+                'Bucket' => $hour->format('Y-m-d H:i:s.u'),
+                'Total' => '60',
+            ])."\n",
+        );
+    }
+
     if (str_contains($body, 'toStartOfInterval')) {
         /*
          * Two hours of the last 24, deliberately non-adjacent: everything in
@@ -326,6 +348,7 @@ test('dashboard digest summarises the last 24 hours', function () {
     $response->assertInertia(fn (Assert $page) => $page
         ->component('Dashboard')
         ->where('digest.unavailable', false)
+        ->where('digest.generatedAt', now()->utc()->startOfMinute()->format('Y-m-d H:i:s.u'))
         ->where('digest.logs.current', 100)
         ->where('digest.logs.previous', 50)
         ->where('digest.logs.deltaPercent', 100)
@@ -340,6 +363,8 @@ test('dashboard digest summarises the last 24 hours', function () {
         ->where('digest.services.0.quiet', true)
         ->where('digest.services.1.name', 'api')
         ->where('digest.services.1.quiet', false)
+        ->has('digest.services.0.series', 24)
+        ->has('digest.services.1.series', 24)
         ->has('digest.series', 24),
     );
 
@@ -443,6 +468,7 @@ test('an overloaded clickhouse marks the digest unavailable without failing the 
     $response->assertInertia(fn (Assert $page) => $page
         ->component('Dashboard')
         ->where('digest.unavailable', true)
+        ->has('digest.generatedAt')
         ->where('digest.logs.current', 0)
         ->where('digest.errors.current', 0)
         ->has('digest.topErrors', 0)
@@ -450,4 +476,50 @@ test('an overloaded clickhouse marks the digest unavailable without failing the 
         ->has('digest.series', 24)
         ->where('digest.series.0.total', 0),
     );
+});
+
+test('each service carries its own dense 24 hour trend', function () {
+    [$user, $team] = storageTeam();
+
+    Http::fake(fn (Request $request) => digestResponse($request->body()));
+
+    $response = $this
+        ->actingAs($user)
+        ->get(route('dashboard', ['current_team' => $team->slug]));
+
+    $response->assertOk();
+
+    $services = collect($response->viewData('page')['props']['digest']['services'])
+        ->keyBy('name');
+
+    $api = $services['api']['series'];
+
+    expect($api)->toHaveCount(24);
+
+    // The two hours the fake answered, in order, everything else filled with zeroes.
+    expect($api[18])->toBe(40)
+        ->and($api[23])->toBe(60)
+        ->and(array_sum($api))->toBe(100);
+
+    foreach ([0, 5, 17, 19, 22] as $index) {
+        expect($api[$index])->toBe(0);
+    }
+
+    // Present in the 7 day liveness list, silent for the last 24: a flatline, not a gap.
+    expect($services['worker']['series'])->toBe(array_fill(0, 24, 0));
+
+    Http::assertSent(function (Request $request) {
+        if (! str_contains($request->body(), 'GROUP BY ServiceName, Bucket')) {
+            return false;
+        }
+
+        $query = [];
+        parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+
+        return str_contains($request->body(), 'ProjectId IN {projectIds:Array(String)}')
+            && str_contains($request->body(), 'Timestamp >= {from:DateTime64(9)}')
+            && str_contains($request->body(), 'Timestamp <= {to:DateTime64(9)}')
+            && ! str_contains($request->body(), 'toStartOfInterval(Timestamp, toIntervalHour(1)) >=')
+            && isset($query['param_projectIds'], $query['param_from'], $query['param_to']);
+    });
 });

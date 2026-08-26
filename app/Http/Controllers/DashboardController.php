@@ -113,7 +113,7 @@ class DashboardController extends Controller
      * and the section stays out of the way of the onboarding steps.
      *
      * @param  list<string>  $projectIds
-     * @return array{logs: array{current: int, previous: int, deltaPercent: int|null}, errors: array{current: int, previous: int, deltaPercent: int|null}, topErrors: list<array{body: string, total: int}>, services: list<array{name: string, lastSeen: string, quiet: bool}>, series: list<array{bucket: string, total: int, errors: int}>, unavailable: bool}|null
+     * @return array{logs: array{current: int, previous: int, deltaPercent: int|null}, errors: array{current: int, previous: int, deltaPercent: int|null}, topErrors: list<array{body: string, total: int}>, services: list<array{name: string, lastSeen: string, quiet: bool, series: list<int>}>, series: list<array{bucket: string, total: int, errors: int}>, generatedAt: string, unavailable: bool}|null
      */
     private function digest(LogDigest $digest, array $projectIds): ?array
     {
@@ -137,6 +137,7 @@ class DashboardController extends Controller
             'topErrors' => $overview['topErrors'],
             'services' => $overview['services'],
             'series' => $overview['series'],
+            'generatedAt' => $overview['generatedAt'],
             'unavailable' => $overview['unavailable'],
         ];
     }
