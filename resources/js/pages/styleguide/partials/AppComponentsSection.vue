@@ -124,7 +124,7 @@ const onHistogramZoom = (window: { from: string; to: string }) => {
             <GetStartedPanel
                 stage="no-projects"
                 team-slug="bilis"
-                origin="https://logs.example.com"
+                origin="https://bilis.app"
             />
         </DemoBlock>
 
@@ -136,7 +136,7 @@ const onHistogramZoom = (window: { from: string; to: string }) => {
                 stage="no-logs"
                 :projects="demoProjects"
                 team-slug="bilis"
-                origin="https://logs.example.com"
+                origin="https://bilis.app"
             />
         </DemoBlock>
 

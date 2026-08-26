@@ -29,7 +29,10 @@ Self-hostable log storage and search. **v1 scope is exactly this — nothing els
 ## Invariants (do not break)
 
 - **Ingest never returns 400.** Malformed records are skipped best-effort with counts (`partialSuccess` for OTLP). ClickHouse failure -> 503 + `Retry-After`. The client is never blamed.
-- **ProjectId comes only from the authenticated API key** (ingest) or the current team's projects (UI). Never from the payload or from a slug reaching SQL.
+- **ProjectId comes only from the authenticated API key** (ingest) or the current team's projects (UI). Never from the payload or from a slug reaching SQL. It is a `String` column, so ids are cast at the controller boundary. The sort key leading with it is *clustering, not isolation* — never call it a tenancy boundary.
+- **`database/clickhouse/SCHEMA.md` is the source of truth** for the `otel_logs` table: pinned collector tag, exact DDL, rules R1–R9. Column names and types belong to the OTel exporter (R1); `ORDER BY`, `PARTITION BY`, `TTL`, indexes and `ProjectId` are ours. Read it before touching the DDL or any query against the table.
+- **Every log query follows R4.** Sort key `(ProjectId, Timestamp, ServiceName)`: a plain `ProjectId IN … AND Timestamp >= {from} AND Timestamp <= {to}`, `ORDER BY Timestamp DESC`, no bucket expression. The base predicate is built in one method (`LogQuery::conditions()`); user filters append to it and never replace the ProjectId predicate.
+- **Body search must match the index expression exactly** (R5, ClickHouse < 26.2): `hasToken(lower(Body), lower({q:String}))` against `INDEX idx_lower_body lower(Body) tokenbf_v1`. On a >= 26.2 floor both sides change together — text index, no `lower()`, `hasAnyTokens`.
 - **All ClickHouse SQL is parameterized** with `{name:Type}` server-side placeholders — never string-interpolate values.
 - Inserts use `async_insert=1` / `wait_for_async_insert=0` — success means *queued*, not durable.
 - OTLP protobuf content-type -> 415 (JSON encoding only in v1; adding a protobuf dep requires approval).

@@ -282,7 +282,7 @@ export function demoLogEntry(
         .replace('Z', '');
 
     return {
-        projectId: 1,
+        projectId: '1',
         timestamp,
         traceId: '4f2a9c1e7b3d48a5b6c0d1e2f3a4b5c6',
         spanId: 'a1b2c3d4e5f60718',

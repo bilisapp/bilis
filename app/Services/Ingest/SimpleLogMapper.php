@@ -13,8 +13,12 @@ class SimpleLogMapper
 {
     /**
      * Map a decoded simple ingest payload for the given project.
+     *
+     * The project id is always the one the API key authenticated to, never a
+     * value lifted out of the payload (SCHEMA.md R2). ProjectId is a String
+     * column, so callers pass the id already cast.
      */
-    public function map(mixed $payload, int $projectId): MappedLogs
+    public function map(mixed $payload, string $projectId): MappedLogs
     {
         if (! is_array($payload) || $payload === []) {
             return new MappedLogs(rejected: 1, errorMessage: 'Request body could not be read as a log record or a list of them.');
@@ -47,7 +51,7 @@ class SimpleLogMapper
      * @param  array<string, mixed>  $record
      * @return array<string, mixed>|null
      */
-    private function row(array $record, int $projectId, string $observedAt): ?array
+    private function row(array $record, string $projectId, string $observedAt): ?array
     {
         $body = $this->body($record);
 
@@ -62,10 +66,14 @@ class SimpleLogMapper
             is_string($level) ? $level : null,
         );
 
+        /*
+         * Every column is written explicitly, in schema order, because the INSERT
+         * names its columns (SCHEMA.md R1). The simple format has no notion of
+         * schema urls or scope attributes, so those are empty by construction
+         * rather than by column DEFAULT.
+         */
         return [
-            'ProjectId' => $projectId,
             'Timestamp' => LogTimestamp::parse($record['timestamp'] ?? $record['time'] ?? null) ?? $observedAt,
-            'ObservedTimestamp' => $observedAt,
             'TraceId' => $this->stringField($record['trace_id'] ?? $record['traceId'] ?? null),
             'SpanId' => $this->stringField($record['span_id'] ?? $record['spanId'] ?? null),
             'TraceFlags' => 0,
@@ -73,10 +81,15 @@ class SimpleLogMapper
             'SeverityNumber' => $severityNumber,
             'ServiceName' => $this->stringField($record['service'] ?? $record['service_name'] ?? null),
             'Body' => $body,
+            'ResourceSchemaUrl' => '',
+            'ResourceAttributes' => [],
+            'ScopeSchemaUrl' => '',
             'ScopeName' => $this->stringField($record['scope'] ?? null),
             'ScopeVersion' => '',
-            'ResourceAttributes' => [],
+            'ScopeAttributes' => [],
             'LogAttributes' => $this->context($record['context'] ?? $record['attributes'] ?? null),
+            'EventName' => $this->stringField($record['event'] ?? null),
+            'ProjectId' => $projectId,
         ];
     }
 

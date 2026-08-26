@@ -10,6 +10,25 @@ use App\Http\Middleware\EnsureTeamMembership;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'marketing.home')->name('home');
+Route::view('terms', 'marketing.terms')->name('terms');
+Route::view('privacy', 'marketing.privacy')->name('privacy');
+
+/**
+ * Machine-readable pointer to the disclosure policy, per RFC 9116. Rendered
+ * rather than served as a static file so Expires can never go stale.
+ */
+Route::get('.well-known/security.txt', function () {
+    $lines = [
+        'Contact: mailto:'.config('legal.contact.security'),
+        'Expires: '.now()->addYear()->startOfDay()->toIso8601ZuluString(),
+        'Preferred-Languages: en',
+        'Canonical: '.url('/.well-known/security.txt'),
+        'Policy: '.config('bilis.github_url').'/blob/main/SECURITY.md',
+    ];
+
+    return response(implode(PHP_EOL, $lines).PHP_EOL)
+        ->header('Content-Type', 'text/plain; charset=utf-8');
+})->name('security-txt');
 
 Route::prefix('{current_team}')
     ->middleware(['auth', 'verified', EnsureTeamMembership::class])

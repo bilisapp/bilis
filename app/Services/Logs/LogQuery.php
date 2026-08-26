@@ -13,7 +13,13 @@ use Illuminate\Support\Carbon;
  * the server, and every user supplied value is bound as a ClickHouse query
  * parameter rather than being interpolated into the SQL.
  *
- * @phpstan-type LogRow array{timestamp: string, traceId: string, spanId: string, severityText: string, severityNumber: int, serviceName: string, body: string, scopeName: string, scopeVersion: string, resourceAttributes: array<string, string>, logAttributes: array<string, string>, projectId: int}
+ * The sort key is (ProjectId, Timestamp, ServiceName), so every statement reads
+ * in Timestamp order behind the ProjectId prefix and the range predicate is a
+ * plain one on raw Timestamp. `conditions()` is the single builder for that base
+ * predicate — see rule R4 in database/clickhouse/SCHEMA.md. User filters append
+ * to it; they never replace the ProjectId predicate.
+ *
+ * @phpstan-type LogRow array{timestamp: string, traceId: string, spanId: string, severityText: string, severityNumber: int, serviceName: string, body: string, scopeName: string, scopeVersion: string, resourceAttributes: array<string, string>, logAttributes: array<string, string>, projectId: string}
  * @phpstan-type LogResult array{rows: list<LogRow>, nextCursor: string|null, unavailable: bool}
  * @phpstan-type HistogramBucket array{bucket: string, counts: array<string, int>, total: int}
  * @phpstan-type HistogramResult array{buckets: list<HistogramBucket>, intervalSeconds: int, total: int, unavailable: bool}
@@ -27,6 +33,9 @@ class LogQuery
 
     /**
      * A search term made only of these characters can use the token bloom filter.
+     *
+     * The index is built on lower(Body), so the query expression must be
+     * hasToken(lower(Body), lower(...)) — see SCHEMA.md R5.
      */
     private const TOKEN_PATTERN = '/^[A-Za-z0-9_]{3,}$/';
 
@@ -52,7 +61,7 @@ class LogQuery
     /**
      * Fetch a page of logs, newest first.
      *
-     * @param  list<int>  $projectIds
+     * @param  list<string>  $projectIds
      * @return LogResult
      */
     public function search(array $projectIds, LogFilters $filters): array
@@ -64,6 +73,11 @@ class LogQuery
         [$conditions, $params] = $this->conditions($projectIds, $filters);
 
         if ($filters->cursor !== null) {
+            /*
+             * Timestamp sits directly behind ProjectId in the sort key and the
+             * page is ordered by it, so a strict bound on the last row's
+             * timestamp is both the correct cut and an index seek.
+             */
             $conditions[] = 'Timestamp < {cursor:DateTime64(9)}';
             $params['cursor'] = $filters->cursor;
         }
@@ -86,7 +100,7 @@ class LogQuery
     /**
      * Fetch the logs recorded after the given timestamp, newest first.
      *
-     * @param  list<int>  $projectIds
+     * @param  list<string>  $projectIds
      * @return LogResult
      */
     public function tail(array $projectIds, LogFilters $filters, ?string $after): array
@@ -97,6 +111,11 @@ class LogQuery
 
         [$conditions, $params] = $this->conditions($projectIds, $filters, withTimeWindow: false);
 
+        /*
+         * Live tail drops the window entirely (R4) and keeps only this lower
+         * bound, which the sort key satisfies by reading in order from the
+         * cursor forward.
+         */
         $conditions[] = 'Timestamp > {after:DateTime64(9)}';
         $params['after'] = $after ?? $filters->from->clone()->utc()->format('Y-m-d H:i:s.u');
         $params['rowLimit'] = $filters->limit;
@@ -119,7 +138,7 @@ class LogQuery
      * because an overloaded database must never make an established team look
      * like a brand new one.
      *
-     * @param  list<int>  $projectIds
+     * @param  list<string>  $projectIds
      */
     public function hasAnyLogs(array $projectIds): bool
     {
@@ -127,8 +146,14 @@ class LogQuery
             return false;
         }
 
-        $sql = 'SELECT 1 AS Present FROM otel_logs WHERE ProjectId IN {projectIds:Array(UInt64)} LIMIT 1';
-        $params = ['projectIds' => '['.implode(',', $projectIds).']'];
+        /*
+         * Deliberately unconstrained in time: the question is "ever", so a full
+         * scan is the point, and it stops at the first matching row. The rows it
+         * may read are limited by the bound project id list, which the server
+         * resolved — not by the sort key, which is only clustering (SCHEMA.md R3).
+         */
+        $sql = 'SELECT 1 AS Present FROM otel_logs WHERE ProjectId IN {projectIds:Array(String)} LIMIT 1';
+        $params = ['projectIds' => $this->projectIdsParameter($projectIds)];
 
         try {
             return $this->client->select($sql, $params) !== [];
@@ -152,7 +177,7 @@ class LogQuery
      * than in SQL so the time axis stays honest: a gap means no logs, not a
      * missing row.
      *
-     * @param  list<int>  $projectIds
+     * @param  list<string>  $projectIds
      * @return HistogramResult
      */
     public function histogram(array $projectIds, LogFilters $filters): array
@@ -321,15 +346,25 @@ class LogQuery
     /**
      * Build the shared WHERE conditions and their bound parameters.
      *
-     * @param  list<int>  $projectIds
+     * This is the one place the base predicate is assembled (R4). Callers append
+     * their own conditions to what comes back; nothing may drop the ProjectId
+     * predicate it starts with.
+     *
+     * @param  list<string>  $projectIds
      * @return array{0: list<string>, 1: array<string, scalar|null>}
      */
     private function conditions(array $projectIds, LogFilters $filters, bool $withTimeWindow = true): array
     {
-        $conditions = ['ProjectId IN {projectIds:Array(UInt64)}'];
-        $params = ['projectIds' => '['.implode(',', $projectIds).']'];
+        $conditions = ['ProjectId IN {projectIds:Array(String)}'];
+        $params = ['projectIds' => $this->projectIdsParameter($projectIds)];
 
         if ($withTimeWindow) {
+            /*
+             * A plain range on raw Timestamp: it is the second sort key column,
+             * so this is the seek. No bucket expression is involved — if one is
+             * ever reintroduced, R4 requires constraining it *and* the raw
+             * column, with the bound itself truncated.
+             */
             $conditions[] = 'Timestamp >= {from:DateTime64(9)}';
             $conditions[] = 'Timestamp <= {to:DateTime64(9)}';
             $params['from'] = $this->formatTimestamp($filters->from);
@@ -360,15 +395,45 @@ class LogQuery
 
         if ($filters->search !== null) {
             if (preg_match(self::TOKEN_PATTERN, $filters->search) === 1) {
-                $conditions[] = 'hasToken(Body, {search:String})';
+                /*
+                 * The expression has to be character for character the one the
+                 * idx_lower_body index is defined on, or the index is skipped.
+                 * hasToken is whole-token and case sensitive, which is why both
+                 * sides go through lower().
+                 */
+                $conditions[] = 'hasToken(lower(Body), lower({search:String}))';
                 $params['search'] = $filters->search;
             } else {
+                /*
+                 * The slower "contains" mode for terms that are not a single
+                 * token. It is a real substring match rather than a token match,
+                 * and it does not read the body index.
+                 */
                 $conditions[] = 'Body ILIKE {search:String}';
                 $params['search'] = '%'.$this->escapeLike($filters->search).'%';
             }
         }
 
         return [$conditions, $params];
+    }
+
+    /**
+     * Render the project ids the way ClickHouse expects an Array(String) parameter.
+     *
+     * ProjectId is a String column, so the ids have to be quoted inside the
+     * array literal. They are our own primary keys rather than user input, but
+     * they are escaped anyway so this stays safe if that ever changes.
+     *
+     * @param  list<string>  $projectIds
+     */
+    private function projectIdsParameter(array $projectIds): string
+    {
+        $quoted = array_map(
+            fn (string $id): string => "'".str_replace(['\\', "'"], ['\\\\', "\\'"], $id)."'",
+            $projectIds,
+        );
+
+        return '['.implode(',', $quoted).']';
     }
 
     /**
@@ -401,7 +466,7 @@ class LogQuery
         $logAttributes = is_array($row['LogAttributes'] ?? null) ? $row['LogAttributes'] : [];
 
         return [
-            'projectId' => (int) ($row['ProjectId'] ?? 0),
+            'projectId' => (string) ($row['ProjectId'] ?? ''),
             'timestamp' => (string) ($row['Timestamp'] ?? ''),
             'traceId' => (string) ($row['TraceId'] ?? ''),
             'spanId' => (string) ($row['SpanId'] ?? ''),

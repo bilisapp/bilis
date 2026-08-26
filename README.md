@@ -7,7 +7,7 @@ Self-hostable log storage and search. Point any OTLP-compatible shipper at one H
 ## How it works
 
 - **Ingest** — `POST /api/v1/logs` accepts OTLP/HTTP (JSON encoding), `POST /api/v1/ingest` accepts a simple JSON shape (`{"level": "error", "message": "...", "service": "...", "context": {...}}`). An API key resolves to a project; malformed records are skipped best-effort — ingest never returns 400, and overload returns 503 with `Retry-After`.
-- **Storage** — an OTel-compatible `otel_logs` MergeTree table in ClickHouse (async inserts, token bloom filter on the body, `ProjectId`-first ordering).
+- **Storage** — an OTel-compatible `otel_logs` MergeTree table in ClickHouse (async inserts, token bloom filter on `lower(Body)`, `ProjectId`-first ordering, 30 day TTL). Schema and its rules: [`database/clickhouse/SCHEMA.md`](database/clickhouse/SCHEMA.md).
 - **UI** — per-team log viewer: time range, project/service/severity filters, full-text search, expandable rows, live tail.
 
 ## Stack
@@ -25,6 +25,8 @@ cp .env.example .env && php artisan key:generate
 # ClickHouse connection (defaults: 127.0.0.1:8123, database "bilis")
 # -> set CLICKHOUSE_* in .env, then create the database + otel_logs table:
 php artisan clickhouse:migrate
+# the schema is still pre-1.0: if you already have a dev otel_logs table from an
+# earlier checkout, DROP TABLE it first — migrate is CREATE ... IF NOT EXISTS.
 
 # App database + demo team/project/API key (the key is printed once)
 php artisan migrate --seed

@@ -34,10 +34,23 @@ test('the migrate command creates the database and the otel logs table', functio
         return str_contains($request->body(), 'CREATE TABLE IF NOT EXISTS otel_logs')
             && str_contains($request->body(), 'ENGINE = MergeTree')
             && str_contains($request->body(), 'PARTITION BY toDate(Timestamp)')
-            && str_contains($request->body(), 'ORDER BY (ProjectId, ServiceName, toDateTime(Timestamp))')
-            && str_contains($request->body(), 'INDEX idx_body Body TYPE tokenbf_v1(32768, 3, 0) GRANULARITY 1')
-            && str_contains($request->body(), 'INDEX idx_trace_id TraceId TYPE bloom_filter')
-            && str_contains($request->body(), 'ResourceAttributes Map(LowCardinality(String), String)')
+            && str_contains($request->body(), 'ORDER BY (ProjectId, Timestamp, ServiceName)')
+            && str_contains($request->body(), 'INDEX idx_service ServiceName TYPE set(100) GRANULARITY 4')
+            && str_contains($request->body(), 'TTL toDateTime(Timestamp) + toIntervalDay(30)')
+            && str_contains($request->body(), 'ttl_only_drop_parts = 1')
+            && str_contains($request->body(), 'non_replicated_deduplication_window = 1000')
+            // The <26.2 branch of SCHEMA.md R5: the index expression has to be
+            // the same lower(Body) the search query uses.
+            && str_contains($request->body(), 'INDEX idx_lower_body lower(Body) TYPE tokenbf_v1(32768, 3, 0) GRANULARITY 8')
+            && str_contains($request->body(), 'INDEX idx_trace_id         TraceId                       TYPE bloom_filter(0.001) GRANULARITY 1')
+            && str_contains($request->body(), 'INDEX idx_scope_attr_key   mapKeys(ScopeAttributes)      TYPE bloom_filter(0.01)  GRANULARITY 1')
+            && str_contains($request->body(), 'ResourceSchemaUrl  LowCardinality(String)              CODEC(ZSTD(1))')
+            && str_contains($request->body(), 'ScopeAttributes    Map(LowCardinality(String), String) CODEC(ZSTD(1))')
+            && str_contains($request->body(), 'EventName          String                              CODEC(ZSTD(1))')
+            && str_contains($request->body(), "ProjectId          LowCardinality(String) DEFAULT ''   CODEC(ZSTD(1))")
+            // R6: no derived timestamp columns may come back.
+            && ! str_contains($request->body(), 'ObservedTimestamp')
+            && ! str_contains($request->body(), 'TimestampTime')
             && ! str_ends_with($request->body(), ';')
             && ($query['database'] ?? null) === 'bilis';
     });

@@ -32,9 +32,18 @@ test('a valid otlp export inserts correctly shaped rows', function () {
                         ]]]],
                     ],
                 ],
+                'schemaUrl' => 'https://opentelemetry.io/schemas/1.31.0',
                 'scopeLogs' => [[
-                    'scope' => ['name' => 'bilis.instrumentation', 'version' => '1.2.3'],
+                    'schemaUrl' => 'https://opentelemetry.io/schemas/1.30.0',
+                    'scope' => [
+                        'name' => 'bilis.instrumentation',
+                        'version' => '1.2.3',
+                        'attributes' => [
+                            ['key' => 'library.mode', 'value' => ['stringValue' => 'auto']],
+                        ],
+                    ],
                     'logRecords' => [[
+                        'eventName' => 'payment.failed',
                         'timeUnixNano' => '1735689600123456789',
                         'observedTimeUnixNano' => 1735689600987654321,
                         'severityNumber' => 17,
@@ -58,9 +67,10 @@ test('a valid otlp export inserts correctly shaped rows', function () {
 
         expect($rows)->toHaveCount(1)
             ->and($rows[0])->toMatchArray([
-                'ProjectId' => $this->project->id,
+                // ProjectId is a String column now, and it is written from the
+                // authenticated key rather than defaulted (SCHEMA.md R2).
+                'ProjectId' => (string) $this->project->id,
                 'Timestamp' => '2025-01-01 00:00:00.123456789',
-                'ObservedTimestamp' => '2025-01-01 00:00:00.987654321',
                 'TraceId' => '5b8efff798038103d269b633813fc60c',
                 'SpanId' => 'eee19b7ec3c1b174',
                 'TraceFlags' => 1,
@@ -68,9 +78,22 @@ test('a valid otlp export inserts correctly shaped rows', function () {
                 'SeverityText' => 'ERROR',
                 'ServiceName' => 'checkout',
                 'Body' => 'Payment failed',
+                'ResourceSchemaUrl' => 'https://opentelemetry.io/schemas/1.31.0',
+                'ScopeSchemaUrl' => 'https://opentelemetry.io/schemas/1.30.0',
                 'ScopeName' => 'bilis.instrumentation',
                 'ScopeVersion' => '1.2.3',
+                'EventName' => 'payment.failed',
             ])
+            // R6: the derived observed timestamp column is gone from the table,
+            // so it must not be written either.
+            ->and($rows[0])->not->toHaveKey('ObservedTimestamp')
+            ->and(array_keys($rows[0]))->toBe([
+                'Timestamp', 'TraceId', 'SpanId', 'TraceFlags', 'SeverityText',
+                'SeverityNumber', 'ServiceName', 'Body', 'ResourceSchemaUrl',
+                'ResourceAttributes', 'ScopeSchemaUrl', 'ScopeName', 'ScopeVersion',
+                'ScopeAttributes', 'LogAttributes', 'EventName', 'ProjectId',
+            ])
+            ->and($rows[0]['ScopeAttributes'])->toBe(['library.mode' => 'auto'])
             ->and($rows[0]['ResourceAttributes'])->toBe([
                 'service.name' => 'checkout',
                 'host.cpus' => '8',
@@ -130,8 +153,13 @@ test('a complex otlp body is json encoded and missing timestamps fall back to no
     Http::assertSent(function (Request $request) {
         $row = insertedRows($request)[0];
 
+        // With no event time and no observed time, the row falls back to now:
+        // there is no ObservedTimestamp column left to compare against.
         return $row['Body'] === '{"event":"checkout"}'
-            && $row['Timestamp'] === $row['ObservedTimestamp']
+            && $row['EventName'] === ''
+            && $row['ResourceSchemaUrl'] === ''
+            && $row['ScopeSchemaUrl'] === ''
+            && $row['ScopeAttributes'] === []
             && preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{9}$/', $row['Timestamp']) === 1;
     });
 });

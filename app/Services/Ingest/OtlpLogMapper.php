@@ -19,8 +19,12 @@ class OtlpLogMapper
 
     /**
      * Map a decoded OTLP export request for the given project.
+     *
+     * The project id is always the one the API key authenticated to, never a
+     * value lifted out of the payload (SCHEMA.md R2). ProjectId is a String
+     * column, so callers pass the id already cast.
      */
-    public function map(mixed $payload, int $projectId): MappedLogs
+    public function map(mixed $payload, string $projectId): MappedLogs
     {
         if (! is_array($payload)) {
             return new MappedLogs(errorMessage: 'Request body could not be read as an OTLP ExportLogsServiceRequest.');
@@ -46,6 +50,7 @@ class OtlpLogMapper
             $resource = $resourceLog['resource'] ?? [];
             $resourceAttributes = $this->attributes(is_array($resource) ? ($resource['attributes'] ?? []) : []);
             $serviceName = $resourceAttributes[self::SERVICE_NAME_ATTRIBUTE] ?? '';
+            $resourceSchemaUrl = $this->string($resourceLog['schemaUrl'] ?? $resourceLog['schema_url'] ?? '');
 
             $scopeLogs = $resourceLog['scopeLogs'] ?? $resourceLog['scope_logs'] ?? [];
 
@@ -63,8 +68,12 @@ class OtlpLogMapper
                 }
 
                 $scope = $scopeLog['scope'] ?? [];
-                $scopeName = is_array($scope) ? $this->string($scope['name'] ?? '') : '';
-                $scopeVersion = is_array($scope) ? $this->string($scope['version'] ?? '') : '';
+                $scopeFields = [
+                    'schemaUrl' => $this->string($scopeLog['schemaUrl'] ?? $scopeLog['schema_url'] ?? ''),
+                    'name' => is_array($scope) ? $this->string($scope['name'] ?? '') : '',
+                    'version' => is_array($scope) ? $this->string($scope['version'] ?? '') : '',
+                    'attributes' => $this->attributes(is_array($scope) ? ($scope['attributes'] ?? []) : []),
+                ];
 
                 $logRecords = $scopeLog['logRecords'] ?? $scopeLog['log_records'] ?? [];
 
@@ -86,9 +95,9 @@ class OtlpLogMapper
                             $logRecord,
                             $projectId,
                             $resourceAttributes,
+                            $resourceSchemaUrl,
                             $serviceName,
-                            $scopeName,
-                            $scopeVersion,
+                            $scopeFields,
                             $observedAt,
                         );
                     } catch (Throwable) {
@@ -106,15 +115,16 @@ class OtlpLogMapper
      *
      * @param  array<string, mixed>  $logRecord
      * @param  array<string, string>  $resourceAttributes
+     * @param  array{schemaUrl: string, name: string, version: string, attributes: array<string, string>}  $scope
      * @return array<string, mixed>
      */
     private function row(
         array $logRecord,
-        int $projectId,
+        string $projectId,
         array $resourceAttributes,
+        string $resourceSchemaUrl,
         string $serviceName,
-        string $scopeName,
-        string $scopeVersion,
+        array $scope,
         string $observedAt,
     ): array {
         $observedTimestamp = $this->nanos($logRecord['observedTimeUnixNano'] ?? $logRecord['observed_time_unix_nano'] ?? null)
@@ -135,10 +145,15 @@ class OtlpLogMapper
 
         $traceFlags = $logRecord['traceFlags'] ?? $logRecord['trace_flags'] ?? 0;
 
+        /*
+         * Every column of the table is written explicitly, in schema order, with
+         * an empty default where OTLP omits the field: the INSERT names its
+         * columns, so a missing key would be a mapping bug rather than a default
+         * (SCHEMA.md R1). ObservedTimestamp is not a column — it only survives
+         * here as the fallback for a record that carries no event time.
+         */
         return [
-            'ProjectId' => $projectId,
             'Timestamp' => $timestamp,
-            'ObservedTimestamp' => $observedTimestamp,
             'TraceId' => $this->string($logRecord['traceId'] ?? $logRecord['trace_id'] ?? ''),
             'SpanId' => $this->string($logRecord['spanId'] ?? $logRecord['span_id'] ?? ''),
             'TraceFlags' => is_numeric($traceFlags) ? max(0, min(255, (int) $traceFlags)) : 0,
@@ -146,10 +161,15 @@ class OtlpLogMapper
             'SeverityNumber' => $severityNumber,
             'ServiceName' => $serviceName,
             'Body' => $this->body($logRecord['body'] ?? null),
-            'ScopeName' => $scopeName,
-            'ScopeVersion' => $scopeVersion,
+            'ResourceSchemaUrl' => $resourceSchemaUrl,
             'ResourceAttributes' => $resourceAttributes,
+            'ScopeSchemaUrl' => $scope['schemaUrl'],
+            'ScopeName' => $scope['name'],
+            'ScopeVersion' => $scope['version'],
+            'ScopeAttributes' => $scope['attributes'],
             'LogAttributes' => $this->attributes($logRecord['attributes'] ?? []),
+            'EventName' => $this->string($logRecord['eventName'] ?? $logRecord['event_name'] ?? ''),
+            'ProjectId' => $projectId,
         ];
     }
 

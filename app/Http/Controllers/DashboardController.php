@@ -42,7 +42,7 @@ class DashboardController extends Controller
             'pendingInvitations' => $pendingInvitations,
             'onboarding' => $onboarding->state(
                 $team,
-                array_values($projects->map(fn (Project $project): int => $project->id)->all()),
+                array_values($projects->map(fn (Project $project): string => (string) $project->id)->all()),
             ),
             'firstProject' => $firstProject instanceof Project
                 ? ['name' => $firstProject->name, 'slug' => $firstProject->slug]

@@ -81,8 +81,11 @@ class LogsController extends Controller
     /**
      * Resolve the project ids a query may read, always scoped to the team.
      *
+     * ProjectId is a String column in ClickHouse, so the ids are cast here and
+     * travel as strings from this point on.
+     *
      * @param  Collection<int, Project>  $projects
-     * @return list<int>
+     * @return list<string>
      */
     private function projectIds(Collection $projects, ?string $slug): array
     {
@@ -90,7 +93,7 @@ class LogsController extends Controller
             $projects = $projects->where('slug', $slug);
         }
 
-        return array_values($projects->map(fn (Project $project): int => $project->id)->all());
+        return array_values($projects->map(fn (Project $project): string => (string) $project->id)->all());
     }
 
     /**

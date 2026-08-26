@@ -2,7 +2,7 @@ export type SeverityLevel =
     'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 
 export type LogEntry = {
-    projectId: number;
+    projectId: string;
     timestamp: string;
     traceId: string;
     spanId: string;

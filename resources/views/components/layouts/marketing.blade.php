@@ -86,7 +86,7 @@
         </main>
 
         <footer class="border-t border-border">
-            <div class="mx-auto flex max-w-5xl flex-col gap-4 px-6 py-8 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+            <div class="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-8 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <div class="flex items-center gap-2.5">
                     <img src="/logo-mark.svg" alt="" class="h-5 w-auto" width="20790" height="4080">
                     <span>{{ config('app.name', 'Bilis') }} — self-hosted log storage and search.</span>
@@ -98,7 +98,30 @@
                         <x-icons.github class="size-4" />
                         Source on GitHub
                     </a>
-                    <span>Logs only. That is the whole product.</span>
+                    <a href="{{ route('terms') }}" class="transition-colors hover:text-foreground">Terms</a>
+                    <a href="{{ route('privacy') }}" class="transition-colors hover:text-foreground">Privacy</a>
+                    <a href="{{ config('bilis.github_url') }}/blob/main/SECURITY.md"
+                       class="transition-colors hover:text-foreground"
+                       target="_blank" rel="noopener noreferrer">Security</a>
+                </div>
+            </div>
+
+            {{-- Operator identification, as Slovak and EU rules require on a business website. --}}
+            <div class="border-t border-border">
+                <div class="mx-auto max-w-5xl px-4 py-6 text-xs leading-relaxed text-muted-foreground sm:px-6">
+                    <p>
+                        {{ config('app.name', 'Bilis') }} is operated by
+                        <span class="text-foreground">{{ config('legal.operator.name') }}</span>,
+                        {{ config('legal.operator.address') }}, {{ config('legal.operator.country') }}.
+                    </p>
+                    <p class="mt-1">
+                        IČO {{ config('legal.operator.company_id') }} ·
+                        DIČ {{ config('legal.operator.tax_id') }}
+                        @if (config('legal.operator.vat_id'))
+                            · IČ DPH {{ config('legal.operator.vat_id') }}
+                        @endif
+                        · Registered in {{ config('legal.operator.register') }}.
+                    </p>
                 </div>
             </div>
         </footer>

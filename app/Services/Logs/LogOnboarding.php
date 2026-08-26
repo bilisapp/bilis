@@ -35,7 +35,7 @@ class LogOnboarding
     /**
      * Resolve the onboarding state for a team from its full project list.
      *
-     * @param  list<int>  $projectIds  every project the team owns, not the filtered subset
+     * @param  list<string>  $projectIds  every project the team owns, not the filtered subset
      * @return OnboardingState
      */
     public function state(Team $team, array $projectIds): array
@@ -50,7 +50,7 @@ class LogOnboarding
     /**
      * Whether the team has ever received a log line, short-circuited once true.
      *
-     * @param  list<int>  $projectIds
+     * @param  list<string>  $projectIds
      */
     private function hasEverReceivedLogs(Team $team, array $projectIds): bool
     {

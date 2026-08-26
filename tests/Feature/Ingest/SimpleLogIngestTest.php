@@ -33,20 +33,27 @@ test('a single simple log record is accepted and mapped', function () {
         $row = insertedRows($request)[0];
 
         expect($row)->toMatchArray([
-            'ProjectId' => $this->project->id,
+            // ProjectId is a String column, written from the authenticated key.
+            'ProjectId' => (string) $this->project->id,
             'Timestamp' => '2025-01-01 00:00:00.123456000',
             'TraceId' => '5b8efff798038103d269b633813fc60c',
             'SeverityNumber' => 17,
             'SeverityText' => 'error',
             'ServiceName' => 'billing',
             'Body' => 'Something broke',
+            // The simple format has no schema urls, scope attributes or event
+            // name, but the columns are still written explicitly (R1).
+            'ResourceSchemaUrl' => '',
+            'ScopeSchemaUrl' => '',
+            'EventName' => '',
         ])->and($row['LogAttributes'])->toBe([
             'user_id' => '7',
             'retry' => 'true',
             'tags' => '["a"]',
-        ]);
+        ])->and($row['ScopeAttributes'])->toBe([])
+            ->and($row)->not->toHaveKey('ObservedTimestamp');
 
-        return preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{9}$/', $row['ObservedTimestamp']) === 1;
+        return preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{9}$/', $row['Timestamp']) === 1;
     });
 });
 

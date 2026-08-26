@@ -99,13 +99,13 @@
 
             <div class="mt-8 overflow-x-auto rounded-xl border border-border bg-background p-4">
                 <pre class="font-mono text-xs leading-relaxed"><span class="text-muted-foreground"># One log line, no collector, no SDK.</span>
-curl -X POST https://logs.example.com/api/v1/ingest \
+curl -X POST https://bilis.app/api/v1/ingest \
   -H <span class="text-severity-debug">"Authorization: Bearer bilis_&hellip;"</span> \
   -H <span class="text-severity-debug">"Content-Type: application/json"</span> \
   -d '<span class="text-severity-debug">{"severity":"error","service":"billing","message":"Stripe webhook timed out"}</span>'
 
 <span class="text-muted-foreground"># Or the OTLP endpoint your exporter already knows.</span>
-OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://logs.example.com/api/v1/logs</pre>
+OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs</pre>
             </div>
 
             <p class="mt-4 max-w-2xl text-xs leading-relaxed text-muted-foreground">
@@ -136,7 +136,9 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://logs.example.com/api/v1/logs</pre>
                 <h3 class="text-base font-semibold tracking-tight">OTel-native, no lock-in</h3>
                 <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
                     Standard OTLP/HTTP ingest into an OTel-compatible schema. Nothing about your data
-                    is shaped so that leaving is hard.
+                    is shaped so that leaving is hard, and the code that handles it is
+                    <a href="{{ config('bilis.github_url') }}" class="underline underline-offset-2 hover:text-foreground"
+                       target="_blank" rel="noopener noreferrer">public</a>.
                 </p>
             </div>
         </div>
@@ -187,7 +189,12 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://logs.example.com/api/v1/logs</pre>
                 self-hosting stays the first-class way to use it.
             </p>
 
-            <div class="mt-8">
+            <p class="mt-4 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                The whole thing is open on GitHub, so you can read exactly what it does with your
+                logs before you point anything at it.
+            </p>
+
+            <div class="mt-8 flex flex-wrap items-center gap-3">
                 @auth
                     @if ($team = auth()->user()->currentTeam)
                         <a href="{{ route('dashboard', $team) }}"
@@ -197,10 +204,17 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://logs.example.com/api/v1/logs</pre>
                     @endif
                 @else
                     <a href="{{ route('register') }}"
-                       class="inline-block rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
+                       class="rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
                         Create an account
                     </a>
                 @endauth
+
+                <a href="{{ config('bilis.github_url') }}"
+                   class="flex items-center gap-2 rounded-md border border-border px-5 py-2.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+                   target="_blank" rel="noopener noreferrer">
+                    <x-icons.github class="size-4" />
+                    Read the source
+                </a>
             </div>
         </div>
     </section>

@@ -42,7 +42,7 @@ class LogIngestController extends Controller
             return new JsonResponse(['message' => 'API key invalid.'], Response::HTTP_UNAUTHORIZED);
         }
 
-        $mapped = $this->mapper->map($this->decode($request), $project->id);
+        $mapped = $this->mapper->map($this->decode($request), (string) $project->id);
 
         if ($mapped->rows !== []) {
             try {

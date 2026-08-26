@@ -97,10 +97,10 @@ test('a team with a project but no logs is shown the setup snippets', function (
 
     expect($request->body())
         ->toContain('SELECT 1 AS Present FROM otel_logs')
-        ->toContain('ProjectId IN {projectIds:Array(UInt64)}')
+        ->toContain('ProjectId IN {projectIds:Array(String)}')
         ->toContain('LIMIT 1');
 
-    expect(onboardingQuery($request)['param_projectIds'])->toBe('['.$project->id.']');
+    expect(onboardingQuery($request)['param_projectIds'])->toBe("['".$project->id."']");
 });
 
 test('a team that has logged before gets no onboarding at all', function () {
@@ -164,7 +164,7 @@ test('the existence query only ever names the current team projects', function (
 
     foreach (existenceRequests() as $request) {
         expect(onboardingQuery($request)['param_projectIds'])
-            ->toBe('['.$project->id.']')
+            ->toBe("['".$project->id."']")
             ->not->toContain((string) $foreign->id);
     }
 });

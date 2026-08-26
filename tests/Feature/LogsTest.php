@@ -29,7 +29,7 @@ function logTeam(): array
 function logRowsResponse(string $body = 'boom'): string
 {
     return json_encode([
-        'ProjectId' => 1,
+        'ProjectId' => '1',
         'Timestamp' => '2026-08-26 10:00:00.000000000',
         'TraceId' => 'trace-1',
         'SpanId' => 'span-1',
@@ -133,12 +133,18 @@ test('filters are sent to clickhouse as bound query parameters', function () {
     Http::assertSent(function (Request $request) use ($project) {
         $query = clickHouseQuery($request);
 
-        return str_contains($request->body(), 'ProjectId IN {projectIds:Array(UInt64)}')
+        return str_contains($request->body(), 'ProjectId IN {projectIds:Array(String)}')
             && str_contains($request->body(), 'ServiceName = {service:String}')
-            && str_contains($request->body(), 'hasToken(Body, {search:String})')
+            // SCHEMA.md R4: a plain range on the raw Timestamp, which is the
+            // second sort key column. No bucket expression anywhere.
+            && str_contains($request->body(), 'Timestamp >= {from:DateTime64(9)}')
+            && str_contains($request->body(), 'Timestamp <= {to:DateTime64(9)}')
+            && ! str_contains($request->body(), 'toStartOfFiveMinutes')
+            // R5, <26.2 branch: the expression must be the indexed one.
+            && str_contains($request->body(), 'hasToken(lower(Body), lower({search:String}))')
             && str_contains($request->body(), 'ORDER BY Timestamp DESC LIMIT {rowLimit:UInt32}')
             && ! str_contains($request->body(), 'timeout"')
-            && $query['param_projectIds'] === '['.$project->id.']'
+            && $query['param_projectIds'] === "['".$project->id."']"
             && $query['param_service'] === 'api'
             && $query['param_search'] === 'timeout'
             && $query['param_severityMin0'] === '17'
@@ -197,7 +203,7 @@ test('a project outside the team is never queried', function () {
     // rows: the foreign slug resolves to an empty id list and short-circuits.
     Http::assertNotSent(fn (Request $request) => str_contains($request->body(), 'ORDER BY Timestamp DESC'));
     Http::assertNotSent(fn (Request $request) => str_contains(
-        (string) parse_url($request->url(), PHP_URL_QUERY),
+        clickHouseQuery($request)['param_projectIds'] ?? '',
         (string) $otherProject->id,
     ));
 });
@@ -239,6 +245,7 @@ test('the tail endpoint returns rows newer than the given timestamp', function (
 
         return str_contains($request->body(), 'Timestamp > {after:DateTime64(9)}')
             && ! str_contains($request->body(), '{to:DateTime64(9)}')
+            && ! str_contains($request->body(), 'toStartOfFiveMinutes')
             && $query['param_after'] === '2026-08-26 09:59:00.000000';
     });
 });
@@ -319,12 +326,12 @@ test('the histogram groups by severity with bound parameters only', function () 
         $query = clickHouseQuery($request);
 
         return str_contains($request->body(), 'toIntervalSecond({bucketSeconds:UInt32})')
-            && str_contains($request->body(), 'ProjectId IN {projectIds:Array(UInt64)}')
+            && str_contains($request->body(), 'ProjectId IN {projectIds:Array(String)}')
             && str_contains($request->body(), 'ServiceName = {service:String}')
-            && str_contains($request->body(), 'hasToken(Body, {search:String})')
+            && str_contains($request->body(), 'hasToken(lower(Body), lower({search:String}))')
             && ! str_contains($request->body(), 'timeout"')
             && $query['param_bucketSeconds'] === '300'
-            && $query['param_projectIds'] === '['.$project->id.']'
+            && $query['param_projectIds'] === "['".$project->id."']"
             && $query['param_service'] === 'api';
     });
 });
@@ -391,7 +398,7 @@ test('a project outside the team is never counted', function () {
     // aggregate is run, and the foreign project id is never bound.
     Http::assertNotSent(fn (Request $request) => str_contains($request->body(), 'GROUP BY Bucket, Level'));
     Http::assertNotSent(fn (Request $request) => str_contains(
-        (string) parse_url($request->url(), PHP_URL_QUERY),
+        clickHouseQuery($request)['param_projectIds'] ?? '',
         (string) $otherProject->id,
     ));
 });
