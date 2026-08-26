@@ -134,3 +134,22 @@ test('a clickhouse overload becomes a 503 with a retry after header', function (
         ->assertStatus(503)
         ->assertHeader('Retry-After', '5');
 });
+
+test('empty attribute maps are serialized as JSON objects, not arrays', function () {
+    Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
+
+    $this->withToken($this->plainTextKey)
+        ->postJson('/api/v1/ingest', ['message' => 'no context at all'])
+        ->assertStatus(202);
+
+    Http::assertSent(function (Request $request) {
+        $line = trim($request->body());
+
+        // ClickHouse JSONEachRow rejects `[]` for Map columns and, with
+        // wait_for_async_insert=0, drops the row silently after the ack.
+        return str_contains($line, '"ResourceAttributes":{}')
+            && str_contains($line, '"ScopeAttributes":{}')
+            && str_contains($line, '"LogAttributes":{}')
+            && ! str_contains($line, '":[]');
+    });
+});

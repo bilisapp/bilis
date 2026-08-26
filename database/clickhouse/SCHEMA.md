@@ -31,7 +31,7 @@ specific tag. Re-diff on every collector upgrade and update the date above.
 ```sql
 CREATE TABLE otel_logs
 (
-    Timestamp          DateTime64(9)                       CODEC(Delta(8), ZSTD(1)),
+    Timestamp          DateTime64(9, 'UTC')                CODEC(Delta(8), ZSTD(1)),
     TraceId            String                              CODEC(ZSTD(1)),
     SpanId             String                              CODEC(ZSTD(1)),
     TraceFlags         UInt8,
@@ -65,7 +65,13 @@ CREATE TABLE otel_logs
     -- ClickHouse < 26.2 only. See rule 5 for >= 26.2.
     INDEX idx_lower_body lower(Body) TYPE tokenbf_v1(32768, 3, 0) GRANULARITY 8
 )
--- Deliberate divergence from upstream. Upstream leads with
+-- Deliberate divergence from upstream (2): Timestamp is DateTime64(9, 'UTC')
+-- rather than naive DateTime64(9). A naive column parses AND renders in the
+-- server/session timezone, so a server not running UTC silently skews stored
+-- epochs and returns shifted strings. The exporter inserts epochs, so the
+-- explicit timezone does not affect ingest compatibility. The Laravel client
+-- additionally pins session_timezone=UTC on every request.
+-- Deliberate divergence from upstream (1). Upstream leads with
 -- toStartOfFiveMinutes(Timestamp) because it has no tenant column; with
 -- ProjectId leading, the bucket adds little and breaks read-in-order for
 -- live tail and the default "latest N logs" view. idx_service compensates

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Search } from '@lucide/vue';
+import { RotateCcw, Search, Undo2 } from '@lucide/vue';
 import { useDebounceFn } from '@vueuse/core';
 import { computed, ref, watch } from 'vue';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,10 @@ const props = defineProps<{
     to: string;
     liveTail: boolean;
     tailing: boolean;
+    /** There is an earlier filter state to return to. */
+    canStepBack: boolean;
+    /** The filters are not already at their default state. */
+    canReset: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -37,6 +41,10 @@ const emit = defineEmits<{
     (event: 'update:liveTail', value: boolean): void;
     (event: 'update:range', value: LogRangePreset): void;
     (event: 'update:window', value: { from: string; to: string }): void;
+    /** Undo the last filter change. */
+    (event: 'stepBack'): void;
+    /** Return every filter to its default. */
+    (event: 'reset'): void;
 }>();
 
 const ALL_PROJECTS = '__all__';
@@ -284,6 +292,38 @@ function fromLocalInput(value: string, fallback: string): string {
                         class="h-8 min-w-52 flex-1 sm:w-52 sm:flex-none"
                     />
                 </template>
+            </div>
+
+            <!--
+              The history controls act on the whole filter set, so they close
+              the tier rather than sitting inside either group. Both stay
+              visible and go disabled: a control that disappears once it has
+              nothing to do is a control nobody learns is there.
+            -->
+            <div class="flex items-center gap-1 sm:ml-auto">
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    data-test="logs-step-back"
+                    :disabled="!canStepBack"
+                    @click="emit('stepBack')"
+                >
+                    <Undo2 class="size-4" />
+                    Step back
+                </Button>
+
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    data-test="logs-reset"
+                    :disabled="!canReset"
+                    @click="emit('reset')"
+                >
+                    <RotateCcw class="size-4" />
+                    Reset
+                </Button>
             </div>
         </div>
 

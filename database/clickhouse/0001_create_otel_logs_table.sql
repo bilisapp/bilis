@@ -4,7 +4,7 @@
 -- (ORDER BY, PARTITION BY, TTL, indexes, ProjectId) belongs to Bilis.
 CREATE TABLE IF NOT EXISTS otel_logs
 (
-    Timestamp          DateTime64(9)                       CODEC(Delta(8), ZSTD(1)),
+    Timestamp          DateTime64(9, 'UTC')                       CODEC(Delta(8), ZSTD(1)),
     TraceId            String                              CODEC(ZSTD(1)),
     SpanId             String                              CODEC(ZSTD(1)),
     TraceFlags         UInt8,

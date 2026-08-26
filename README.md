@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="public/bilis.png" alt="Bilis" width="640">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="public/bilis-dark.png">
+    <img src="public/bilis.png" alt="Bilis" width="640">
+  </picture>
 </p>
 
 <h1 align="center">Bilis</h1>

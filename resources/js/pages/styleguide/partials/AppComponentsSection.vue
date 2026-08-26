@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import AlertError from '@/components/AlertError.vue';
 import ApiKeyCreatedDialog from '@/components/ApiKeyCreatedDialog.vue';
 import AppLogo from '@/components/AppLogo.vue';
@@ -16,7 +16,7 @@ import TextLink from '@/components/TextLink.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { SEVERITY_LEVELS } from '@/lib/logs';
+import { DEFAULT_RANGE_PRESET, SEVERITY_LEVELS } from '@/lib/logs';
 import { demoHistogram, demoLogEntry } from '@/pages/styleguide/data';
 import { styleguide } from '@/routes';
 import type { LogProject, LogRangePreset, SeverityLevel } from '@/types';
@@ -45,6 +45,66 @@ const toolbarSeverity = ref<SeverityLevel[]>(['warn', 'error', 'fatal']);
 const toolbarSearch = ref<string | null>('connection reset');
 const toolbarRange = ref<LogRangePreset>('15m');
 const toolbarLiveTail = ref(true);
+
+/**
+ * A miniature of the log page's own filter history, so the Step back and
+ * Reset controls demo for real rather than sitting permanently disabled.
+ */
+type ToolbarSnapshot = {
+    project: string | null;
+    service: string | null;
+    severity: SeverityLevel[];
+    search: string | null;
+    range: LogRangePreset;
+};
+
+const toolbarHistory = ref<ToolbarSnapshot[]>([]);
+
+const toolbarSnapshot = (): ToolbarSnapshot => ({
+    project: toolbarProject.value,
+    service: toolbarService.value,
+    severity: [...toolbarSeverity.value],
+    search: toolbarSearch.value,
+    range: toolbarRange.value,
+});
+
+const recordToolbarChange = (apply: () => void) => {
+    toolbarHistory.value = [...toolbarHistory.value, toolbarSnapshot()];
+    apply();
+};
+
+const toolbarCanReset = computed(
+    () =>
+        toolbarProject.value !== null ||
+        toolbarService.value !== null ||
+        toolbarSearch.value !== null ||
+        toolbarSeverity.value.length > 0 ||
+        toolbarRange.value !== DEFAULT_RANGE_PRESET,
+);
+
+const onToolbarStepBack = () => {
+    const previous = toolbarHistory.value[toolbarHistory.value.length - 1];
+
+    if (!previous) {
+        return;
+    }
+
+    toolbarHistory.value = toolbarHistory.value.slice(0, -1);
+    toolbarProject.value = previous.project;
+    toolbarService.value = previous.service;
+    toolbarSeverity.value = [...previous.severity];
+    toolbarSearch.value = previous.search;
+    toolbarRange.value = previous.range;
+};
+
+const onToolbarReset = () =>
+    recordToolbarChange(() => {
+        toolbarProject.value = null;
+        toolbarService.value = null;
+        toolbarSeverity.value = [];
+        toolbarSearch.value = null;
+        toolbarRange.value = DEFAULT_RANGE_PRESET;
+    });
 
 const apiKeyDialogOpen = ref(false);
 
@@ -142,7 +202,7 @@ const onHistogramZoom = (window: { from: string; to: string }) => {
 
         <DemoBlock
             title="LogsToolbar"
-            description="wired to local refs, so the controls move but nothing is fetched. Three tiers, hairline-separated: search plus live tail on top because those are the two ways you reach a line, then scope and window, then severity. Warn, error and fatal are toggled on — active severity chips fill with the secondary tint, a solid dot and semibold copy, inactive ones stay outlined and muted with a faded dot."
+            description="wired to local refs, so the controls move but nothing is fetched. Three tiers, hairline-separated: search plus live tail on top because those are the two ways you reach a line, then scope and window plus the history controls, then severity. Step back walks the filter history the log page keeps in local state; Reset returns every filter to its default, and both go disabled rather than disappearing when there is nothing to do. Warn, error and fatal are toggled on — active severity chips fill with the secondary tint, a solid dot and semibold copy, inactive ones stay outlined and muted with a faded dot."
         >
             <LogsToolbar
                 :projects="demoProjects"
@@ -155,11 +215,25 @@ const onHistogramZoom = (window: { from: string; to: string }) => {
                 to="2026-08-26T09:14:00.000Z"
                 :live-tail="toolbarLiveTail"
                 :tailing="toolbarLiveTail"
-                @update:project="toolbarProject = $event"
-                @update:service="toolbarService = $event"
-                @update:severity="toolbarSeverity = $event"
-                @update:search="toolbarSearch = $event"
-                @update:range="toolbarRange = $event"
+                :can-step-back="toolbarHistory.length > 0"
+                :can-reset="toolbarCanReset"
+                @step-back="onToolbarStepBack"
+                @reset="onToolbarReset"
+                @update:project="
+                    recordToolbarChange(() => (toolbarProject = $event))
+                "
+                @update:service="
+                    recordToolbarChange(() => (toolbarService = $event))
+                "
+                @update:severity="
+                    recordToolbarChange(() => (toolbarSeverity = $event))
+                "
+                @update:search="
+                    recordToolbarChange(() => (toolbarSearch = $event))
+                "
+                @update:range="
+                    recordToolbarChange(() => (toolbarRange = $event))
+                "
                 @update:live-tail="toolbarLiveTail = $event"
             />
         </DemoBlock>

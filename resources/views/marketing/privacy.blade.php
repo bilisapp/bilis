@@ -55,7 +55,9 @@
 
     <h3>3.5 Billing</h3>
 
-    <p>If you take a paid plan, we store your billing name, address, VAT number where applicable, and a record of invoices and payments. <strong>We do not see or store your card number</strong> — that goes directly to our payment provider.</p>
+    <p>Paid plans are sold through {{ config('legal.payments.merchant_of_record') }} Managed Payments, which makes {{ config('legal.payments.merchant_of_record') }} the merchant of record. You enter your billing details and payment method with {{ config('legal.payments.merchant_of_record') }}, not with us. <strong>We never see or store your card number.</strong></p>
+
+    <p>What reaches us is the transaction record: your billing name and country, the tax identifier you gave at checkout where applicable, the plan, the amounts, and whether payment succeeded. {{ config('legal.payments.merchant_of_record') }} is the controller for the payment data it holds under its own <a href="https://stripe.com/privacy" rel="noopener noreferrer" target="_blank">privacy policy</a>, and it issues your receipts and invoices directly.</p>
 
     <p><em>Why:</em> to charge you and to satisfy tax and accounting law. <em>Legal basis:</em> contract and legal obligation (Art. 6(1)(c)).</p>
 

@@ -3,6 +3,7 @@
 namespace App\Services\Ingest;
 
 use App\Services\ClickHouse\ClickHouseClient;
+use stdClass;
 
 /**
  * Writes mapped log rows into ClickHouse.
@@ -17,6 +18,17 @@ class LogWriter
      */
     public const TABLE = 'otel_logs';
 
+    /**
+     * Columns with a ClickHouse Map type. JSONEachRow requires them to be
+     * JSON objects; an empty PHP array would encode as `[]` and the whole
+     * row would be discarded server-side after the async-insert ack.
+     */
+    private const MAP_COLUMNS = [
+        'ResourceAttributes',
+        'ScopeAttributes',
+        'LogAttributes',
+    ];
+
     public function __construct(private readonly ClickHouseClient $client) {}
 
     /**
@@ -26,6 +38,15 @@ class LogWriter
      */
     public function write(array $rows): void
     {
+        foreach ($rows as &$row) {
+            foreach (self::MAP_COLUMNS as $column) {
+                if (($row[$column] ?? null) === []) {
+                    $row[$column] = new stdClass;
+                }
+            }
+        }
+        unset($row);
+
         $this->client->insert(self::TABLE, $rows);
     }
 }

@@ -136,9 +136,26 @@
 
     <p>Prices and plan limits are published on the site and may change. Where you are on a paid plan, we will give you at least 30 days' notice before a price increase takes effect, and you may cancel before it does.</p>
 
-    <p>Fees are stated exclusive of VAT and other taxes, which we add where required. Paid plans are billed in advance for the period you choose and, unless you cancel, renew automatically for the same period.</p>
+    <p>Paid plans are billed in advance for the period you choose and, unless you cancel, renew automatically for the same period.</p>
+
+    <h3>8.1 Who you pay</h3>
+
+    <p>We sell the hosted service through <strong>{{ config('legal.payments.merchant_of_record') }} Managed Payments</strong>. That means {{ config('legal.payments.merchant_of_record') }} is the <strong>merchant of record</strong> for your purchase — you buy from {{ config('legal.payments.merchant_of_record') }} rather than from {{ config('legal.operator.name') }} directly. In practice:</p>
+
+    <ul>
+        <li>Checkout, payment processing, and the payment relationship are handled by {{ config('legal.payments.merchant_of_record') }}. Your purchase appears as <em>“Sold through {{ config('legal.payments.customer_facing_brand') }}”</em>, and your card or bank statement shows <strong>{{ config('legal.payments.statement_descriptor_prefix') }}</strong> followed by our name.</li>
+        <li>Fees are stated exclusive of sales tax, VAT, and GST. {{ config('legal.payments.merchant_of_record') }} calculates and adds the tax due for your location at checkout, and files and remits it to the relevant tax authority. Where {{ config('legal.payments.merchant_of_record') }} does not cover a country, we remain responsible for the tax in that country.</li>
+        <li>Receipts, invoices, credit notes, and refund notifications are sent to you by {{ config('legal.payments.merchant_of_record') }} directly, not by us.</li>
+        <li>You can view your order history, update your payment method and billing address, and cancel or change a subscription at <a href="{{ config('legal.payments.order_management_url') }}" rel="noopener noreferrer" target="_blank">{{ str_replace('https://', '', config('legal.payments.order_management_url')) }}</a>, as well as in your Bilis account.</li>
+    </ul>
+
+    <p>Your contract for the <em>service itself</em> — everything else in these terms — remains with us.</p>
+
+    <h3>8.2 Refunds, failed payments, and disputes</h3>
 
     <p>If a payment fails, we will tell you and give you a reasonable chance to fix it before suspending the account. Genuinely unused, prepaid time is refundable on request; consumed time is not. This does not affect any statutory right of withdrawal you have as a consumer.</p>
+
+    <p>You can request a refund from us, or from <a href="{{ config('legal.payments.support_url') }}" rel="noopener noreferrer" target="_blank">{{ config('legal.payments.customer_facing_brand') }} support</a>. Because {{ config('legal.payments.merchant_of_record') }} is the merchant of record, it handles payment and subscription support and may issue a refund within 60 days of a transaction, including without our approval where we do not respond to it in time. It also manages card disputes and chargebacks on our behalf. Refunds include any tax you paid.</p>
 
     <p>During any free tier, trial, or beta period, we may change or withdraw the offer with reasonable notice.</p>
 

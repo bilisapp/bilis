@@ -91,6 +91,12 @@ export const RANGE_PRESETS: {
 ];
 
 /**
+ * The window the viewer opens on, matching `LogFilters::DEFAULT_RANGE_MINUTES`
+ * on the server. Resetting the filters returns here; change both or neither.
+ */
+export const DEFAULT_RANGE_PRESET: LogRangePreset = '1h';
+
+/**
  * Resolve the severity bucket an entry belongs to.
  */
 export function severityLevelFor(entry: LogEntry): SeverityLevel {

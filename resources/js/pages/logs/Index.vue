@@ -8,7 +8,12 @@ import LogsHistogram from '@/components/LogsHistogram.vue';
 import LogsToolbar from '@/components/LogsToolbar.vue';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { presetForRange, RANGE_PRESETS, SEVERITY_DOT_CLASS } from '@/lib/logs';
+import {
+    DEFAULT_RANGE_PRESET,
+    presetForRange,
+    RANGE_PRESETS,
+    SEVERITY_DOT_CLASS,
+} from '@/lib/logs';
 import { cn } from '@/lib/utils';
 import { index as logsIndex, tail as logsTail } from '@/routes/logs';
 import type {
@@ -164,7 +169,152 @@ const applyFilters = (cursor: string | null = null) => {
     });
 };
 
+/**
+ * Everything a step back has to restore.
+ */
+type FilterSnapshot = {
+    project: string | null;
+    service: string | null;
+    severity: SeverityLevel[];
+    search: string | null;
+    from: string;
+    to: string;
+    range: LogRangePreset;
+};
+
+/**
+ * How many steps back the viewer remembers. Deep enough to walk out of a
+ * wrong turn, shallow enough that the array never becomes a memory concern.
+ */
+const HISTORY_LIMIT = 50;
+
+/**
+ * Filter history is deliberately local and deliberately not the browser's.
+ *
+ * Every filter change is a `replace: true` visit — that is what keeps the
+ * browser's own back button pointed at the page the reader arrived from,
+ * rather than burying it under fifty query strings. This stack is the undo
+ * that replacing the entry takes away.
+ */
+const history = ref<FilterSnapshot[]>([]);
+
+const currentSnapshot = (): FilterSnapshot => ({
+    project: project.value,
+    service: service.value,
+    severity: [...severity.value],
+    search: search.value,
+    from: from.value,
+    to: to.value,
+    range: range.value,
+});
+
+const sameSnapshot = (a: FilterSnapshot, b: FilterSnapshot): boolean =>
+    a.project === b.project &&
+    a.service === b.service &&
+    a.search === b.search &&
+    a.from === b.from &&
+    a.to === b.to &&
+    a.range === b.range &&
+    a.severity.length === b.severity.length &&
+    a.severity.every((level) => b.severity.includes(level));
+
+/**
+ * Record the state a change is about to leave behind.
+ *
+ * Called before the mutation, never after, and only by the handlers that go
+ * on to hit the server — a step that changed nothing the reader can see is a
+ * step back that appears to do nothing.
+ */
+const pushHistory = () => {
+    const snapshot = currentSnapshot();
+    const previous = history.value[history.value.length - 1];
+
+    if (previous && sameSnapshot(previous, snapshot)) {
+        return;
+    }
+
+    history.value = [...history.value, snapshot].slice(-HISTORY_LIMIT);
+};
+
+const applySnapshot = (snapshot: FilterSnapshot) => {
+    project.value = snapshot.project;
+    service.value = snapshot.service;
+    severity.value = [...snapshot.severity];
+    search.value = snapshot.search;
+    from.value = snapshot.from;
+    to.value = snapshot.to;
+    range.value = snapshot.range;
+
+    applyFilters();
+};
+
+const canStepBack = computed(() => history.value.length > 0);
+
+/**
+ * Undo the last filter change. A preset window is re-resolved against now on
+ * the way back, so stepping into "last hour" means the last hour, not the
+ * hour it meant when you left it.
+ */
+const stepBack = () => {
+    const previous = history.value[history.value.length - 1];
+
+    if (!previous) {
+        return;
+    }
+
+    history.value = history.value.slice(0, -1);
+
+    applySnapshot(previous);
+};
+
+const isDefaultFilters = computed(
+    () =>
+        project.value === null &&
+        service.value === null &&
+        search.value === null &&
+        severity.value.length === 0 &&
+        range.value === DEFAULT_RANGE_PRESET,
+);
+
+/**
+ * Back to the state the page opens on. Recorded like any other change, so a
+ * reset is itself undoable.
+ */
+const resetFilters = () => {
+    if (isDefaultFilters.value) {
+        return;
+    }
+
+    pushHistory();
+
+    project.value = null;
+    service.value = null;
+    severity.value = [];
+    search.value = null;
+    range.value = DEFAULT_RANGE_PRESET;
+
+    applyFilters();
+};
+
+/*
+ * Every handler below leaves early when it is handed the value it already
+ * holds. That is not just a saved request: the search box debounces by 350ms,
+ * so a step back taken mid-keystroke would otherwise be followed by the
+ * pending emit re-recording the state it had just restored, and the next step
+ * back would appear to do nothing.
+ */
+
 const onRange = (value: LogRangePreset) => {
+    if (value === range.value) {
+        return;
+    }
+
+    // Choosing "Custom range" only opens the two date fields; the window has
+    // not moved yet, so there is nothing to step back to.
+    if (value !== 'custom') {
+        pushHistory();
+    }
+
     range.value = value;
 
     if (value !== 'custom') {
@@ -173,27 +323,60 @@ const onRange = (value: LogRangePreset) => {
 };
 
 const onWindow = (window: { from: string; to: string }) => {
+    if (window.from === from.value && window.to === to.value) {
+        return;
+    }
+
+    pushHistory();
+
     from.value = window.from;
     to.value = window.to;
     applyFilters();
 };
 
 const onProject = (value: string | null) => {
+    if (value === project.value) {
+        return;
+    }
+
+    pushHistory();
+
     project.value = value;
     applyFilters();
 };
 
 const onService = (value: string | null) => {
+    if (value === service.value) {
+        return;
+    }
+
+    pushHistory();
+
     service.value = value;
     applyFilters();
 };
 
 const onSeverity = (value: SeverityLevel[]) => {
+    if (
+        value.length === severity.value.length &&
+        value.every((level) => severity.value.includes(level))
+    ) {
+        return;
+    }
+
+    pushHistory();
+
     severity.value = value;
     applyFilters();
 };
 
 const onSearch = (value: string | null) => {
+    if (value === search.value) {
+        return;
+    }
+
+    pushHistory();
+
     search.value = value;
     applyFilters();
 };
@@ -353,6 +536,10 @@ const activeFilterCount = computed(
                 :to="to"
                 :live-tail="liveTail"
                 :tailing="tailRequest.processing"
+                :can-step-back="canStepBack"
+                :can-reset="!isDefaultFilters"
+                @step-back="stepBack"
+                @reset="resetFilters"
                 @update:project="onProject"
                 @update:service="onService"
                 @update:severity="onSeverity"

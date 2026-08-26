@@ -180,3 +180,21 @@ test('a statement error is not reported as an overload', function () {
 
     $this->fail('Expected a ClickHouseException to be thrown.');
 });
+
+test('every request pins the session timezone to UTC', function () {
+    Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
+
+    $client = app(ClickHouseClient::class);
+    $client->select('SELECT 1');
+    $client->insert('otel_logs', [['Body' => 'tz probe']]);
+    $client->execute('SELECT 1', withDatabase: false);
+
+    Http::assertSentCount(3);
+    Http::assertSent(function (Request $request) {
+        parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+
+        // DateTime64 strings are parsed in the session timezone; without this
+        // pin a server in another timezone silently skews stored epochs.
+        return ($query['session_timezone'] ?? null) === 'UTC';
+    });
+});
