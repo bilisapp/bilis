@@ -37,7 +37,8 @@ Self-hostable log storage and search. **v1 scope is exactly this — nothing els
 - **Body search must match the index expression exactly** (R5, ClickHouse < 26.2): `hasToken(lower(Body), lower({q:String}))` against `INDEX idx_lower_body lower(Body) tokenbf_v1`. On a >= 26.2 floor both sides change together — text index, no `lower()`, `hasAnyTokens`.
 - **All ClickHouse SQL is parameterized** with `{name:Type}` server-side placeholders — never string-interpolate values.
 - Inserts use `async_insert=1` / `wait_for_async_insert=0` — success means *queued*, not durable.
-- OTLP protobuf content-type -> 415 (JSON encoding only in v1; adding a protobuf dep requires approval).
+- **OTLP protobuf is decoded in-process, in pure PHP** (`app/Services/Ingest/Protobuf/`) — no composer package, no `ext-protobuf`, and it stays that way. It emits the same array shape the JSON path produces, so `OtlpLogMapper` never learns which encoding arrived; the equivalence is asserted against fixtures captured from a real Go exporter (`tests/Fixtures/otlp/`). `BILIS_OTLP_PROTOBUF=false` restores the old 415. OTLP over **gRPC** is still out of scope.
+- Ingest bodies sent with `Content-Encoding: gzip`/`deflate` are inflated (`App\Services\Ingest\RequestBody`, capped); anything else -> 415 naming what is supported.
 
 ## Frontend conventions
 

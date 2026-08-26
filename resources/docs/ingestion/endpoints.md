@@ -7,10 +7,10 @@ order: 1
 Bilis exposes two ingest endpoints. Both authenticate the same way, both write
 into the same table, and both follow the same never-blame-the-client contract.
 
-| Endpoint              | Payload                                        | Success |
-| --------------------- | ---------------------------------------------- | ------- |
-| `POST /api/v1/logs`   | OTLP `ExportLogsServiceRequest`, JSON encoding | `200`   |
-| `POST /api/v1/ingest` | Simple JSON: one object or an array of them    | `202`   |
+| Endpoint              | Payload                                                 | Success |
+| --------------------- | ------------------------------------------------------- | ------- |
+| `POST /api/v1/logs`   | OTLP `ExportLogsServiceRequest`, JSON **or** protobuf   | `200`   |
+| `POST /api/v1/ingest` | Simple JSON: one object or an array of them             | `202`   |
 
 ## Authentication
 
@@ -61,9 +61,28 @@ curl -X POST https://bilis.example.com/api/v1/logs \
 Both the camelCase and snake_case spellings of the OTLP JSON fields are
 accepted (`timeUnixNano` / `time_unix_nano`, and so on).
 
-**Protobuf is not supported.** A request with `Content-Type:
-application/x-protobuf` (or `application/protobuf`) gets `415` with the fix in
-the body:
+### Protobuf
+
+`Content-Type: application/x-protobuf` (or `application/protobuf`) is accepted
+too, and produces exactly the same rows as the JSON encoding of the same
+export. That matters because most OTel SDKs cannot speak OTLP/JSON at all — the
+Go, Java, .NET and Rust HTTP exporters are protobuf-only — so this is what lets
+them point straight at Bilis.
+
+It is decoded in-process, in **pure PHP**, by `app/Services/Ingest/Protobuf`:
+about three hundred lines reading the wire format, no composer package and no
+`ext-protobuf`. Every message is a method named after its `.proto` message, and
+unknown fields are skipped rather than refused, so a newer collector talking to
+an older Bilis keeps working.
+
+Because it parses untrusted binary, it has an off switch:
+
+```bash
+BILIS_OTLP_PROTOBUF=false
+```
+
+With that set, a protobuf export answers `415` with the old hint, and only the
+JSON path is reachable:
 
 ```json
 {
@@ -71,7 +90,20 @@ the body:
 }
 ```
 
-Decoding protobuf would mean adding a dependency; v1 does not.
+**gRPC on port 4317 is still not supported** and will not be: PHP is a poor
+gRPC server, and a Collector already bridges that hop.
+
+### Compression
+
+Both endpoints inflate a body sent with `Content-Encoding: gzip` or `deflate` —
+which the Collector's `otlphttp` exporter does by default. Anything else
+(`zstd`, `snappy`, `lz4`, `br`) answers `415` naming what is supported, because
+no amount of retrying makes such a body readable; configure the exporter
+instead.
+
+A decompressed body is capped (`BILIS_INGEST_MAX_DECOMPRESSED_BYTES`, 32 MB by
+default) so a compression bomb cannot be traded for the server's memory. A body
+that hits the cap is discarded whole rather than half-parsed.
 
 ### Responses
 

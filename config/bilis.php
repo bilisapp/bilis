@@ -17,6 +17,32 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Ingest
+    |--------------------------------------------------------------------------
+    |
+    | `otlp_protobuf` decides whether `POST /api/v1/logs` accepts the protobuf
+    | encoding as well as JSON. It is decoded in pure PHP by
+    | App\Services\Ingest\Protobuf — no extension, no composer package — which
+    | is why it has an off switch: turn it off and a protobuf export answers
+    | 415 with the JSON hint again, exactly as it did before the decoder
+    | existed. Nothing else changes; the JSON path never touches it.
+    |
+    | `max_decompressed_bytes` caps what a gzip or deflate body may expand to,
+    | so a compression bomb cannot be traded for the process's memory. A body
+    | that hits the cap is discarded rather than half-read.
+    |
+    */
+
+    'ingest' => [
+
+        'otlp_protobuf' => (bool) env('BILIS_OTLP_PROTOBUF', true),
+
+        'max_decompressed_bytes' => (int) env('BILIS_INGEST_MAX_DECOMPRESSED_BYTES', 32 * 1024 * 1024),
+
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Analytics
     |--------------------------------------------------------------------------
     |

@@ -20,15 +20,19 @@ curl -X POST https://bilis.example.com/api/v1/ingest \
 
 ## OpenTelemetry SDKs
 
-Any OTLP exporter — Go, Python, Node, Java, .NET, the Collector — needs no code
-change, only configuration. Two things must be right: the **JSON** encoding, and
-an endpoint that resolves to `/api/v1/logs`.
+Any OTLP/HTTP exporter — Go, Python, Node, Java, .NET, Rust, the Collector —
+needs no code change, only configuration. One thing must be right: an endpoint
+that resolves to `/api/v1/logs`. Both HTTP encodings are accepted, so whichever
+one your SDK emits is fine:
 
 ```bash
-OTEL_EXPORTER_OTLP_PROTOCOL=http/json
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf   # or http/json
 OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.example.com/api/v1/logs
 OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer bilis_YOUR_API_KEY"
 ```
+
+Several SDKs — Go, Java, .NET, Rust — have no JSON option at all, which is why
+protobuf is decoded here rather than pushed onto a sidecar.
 
 `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` is used **verbatim**, which is why it names
 the full path. The signal-agnostic variable behaves differently — exporters
@@ -41,12 +45,16 @@ OTEL_EXPORTER_OTLP_ENDPOINT=https://bilis.example.com/api
 
 Set `OTEL_SERVICE_NAME` too — it becomes the service filter in the viewer.
 
-> **Note:** OTLP over **gRPC is not supported**, and neither is the protobuf
-> encoding over HTTP. Bilis is a PHP application, and PHP is a poor gRPC server;
-> protobuf would mean a new dependency for no gain over JSON at these volumes.
-> Many collectors and SDKs default to gRPC on port 4317, so an unconfigured
-> exporter will look like Bilis is down. A protobuf request over HTTP answers
-> `415` with the exact variable to change.
+> **Note:** OTLP over **gRPC is not supported**. Bilis is a PHP application and
+> PHP is a poor gRPC server; a Collector already bridges that hop for anything
+> that must speak gRPC. Many SDKs and collectors default to gRPC on port 4317,
+> so an unconfigured exporter will look like Bilis is down — set the protocol to
+> `http/protobuf` or `http/json`, and give it the full path above.
+>
+> Protobuf **over HTTP** is decoded in-process and can be turned off per
+> instance (`BILIS_OTLP_PROTOBUF=false`), in which case such a request answers
+> `415` with the variable to change. See
+> [Endpoints](/docs/ingestion/endpoints).
 
 ## Laravel
 
@@ -104,7 +112,7 @@ extensions:
 exporters:
     otlphttp/bilis:
         logs_endpoint: https://bilis.example.com/api/v1/logs
-        encoding: json
+        encoding: json # proto also works; gzip is understood either way
         headers:
             Authorization: Bearer bilis_YOUR_API_KEY
         sending_queue:

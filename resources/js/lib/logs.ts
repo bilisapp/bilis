@@ -319,6 +319,43 @@ export function timeZoneLabel(): string {
 }
 
 /**
+ * The offset in force for one specific instant: `+02:00`, or `UTC` at home.
+ *
+ * Per-instant rather than per-session, because a list of rows can straddle a
+ * DST switch: the rows before the change honestly wear a different offset
+ * than the rows after it.
+ */
+export function timeZoneOffset(timestamp: string): string {
+    const zone = browserTimeZone();
+
+    if (zone === 'UTC') {
+        return 'UTC';
+    }
+
+    const date = parseTimestamp(timestamp);
+
+    if (Number.isNaN(date.getTime())) {
+        return '';
+    }
+
+    try {
+        const parts = new Intl.DateTimeFormat('en-US', {
+            timeZone: zone,
+            timeZoneName: 'longOffset',
+        }).formatToParts(date);
+
+        const offset = parts.find(
+            (part) => part.type === 'timeZoneName',
+        )?.value;
+
+        // Intl says "GMT+02:00"; the row needs only the bare offset.
+        return offset ? offset.replace('GMT', '') || 'UTC' : '';
+    } catch {
+        return '';
+    }
+}
+
+/**
  * The one sentence every surface uses to state which clock it is showing.
  *
  * In UTC there is nothing to reconcile and nothing to hover for, so the

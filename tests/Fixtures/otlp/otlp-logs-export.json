@@ -1,0 +1,101 @@
+{
+    "resourceLogs": [
+        {
+            "resource": {
+                "attributes": [
+                    {
+                        "key": "deployment.generation",
+                        "value": {
+                            "intValue": "41"
+                        }
+                    },
+                    {
+                        "key": "service.canary",
+                        "value": {
+                            "boolValue": true
+                        }
+                    },
+                    {
+                        "key": "service.name",
+                        "value": {
+                            "stringValue": "checkout"
+                        }
+                    }
+                ]
+            },
+            "scopeLogs": [
+                {
+                    "logRecords": [
+                        {
+                            "attributes": [
+                                {
+                                    "key": "order.id",
+                                    "value": {
+                                        "stringValue": "41902"
+                                    }
+                                },
+                                {
+                                    "key": "attempt",
+                                    "value": {
+                                        "intValue": "3"
+                                    }
+                                },
+                                {
+                                    "key": "retryable",
+                                    "value": {
+                                        "boolValue": true
+                                    }
+                                },
+                                {
+                                    "key": "amount",
+                                    "value": {
+                                        "doubleValue": 19.5
+                                    }
+                                },
+                                {
+                                    "key": "tags",
+                                    "value": {
+                                        "arrayValue": {
+                                            "values": [
+                                                {
+                                                    "stringValue": "card"
+                                                },
+                                                {
+                                                    "stringValue": "declined"
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
+                            ],
+                            "body": {
+                                "stringValue": "Card declined for order 41902"
+                            },
+                            "eventName": "payment.declined",
+                            "flags": 1,
+                            "observedTimeUnixNano": "1756211401000000000",
+                            "severityNumber": 17,
+                            "severityText": "ERROR",
+                            "spanId": "eee19b7ec3c1b174",
+                            "timeUnixNano": "1756211400123456789",
+                            "traceId": "5b8efff798038103d269b633813fc60c"
+                        },
+                        {
+                            "body": {
+                                "stringValue": "Retrying in 8s"
+                            },
+                            "observedTimeUnixNano": "1787772963787058000",
+                            "severityNumber": 13,
+                            "severityText": "WARN",
+                            "timeUnixNano": "1756211402500000000"
+                        }
+                    ],
+                    "scope": {
+                        "name": "checkout.payments",
+                        "version": "1.4.0"
+                    }
+                }
+            ]
+        }
+    ]
+}

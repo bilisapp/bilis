@@ -7,6 +7,9 @@ use App\Http\Middleware\AuthenticateProjectApiKey;
 use App\Services\ClickHouse\ClickHouseException;
 use App\Services\Ingest\LogWriter;
 use App\Services\Ingest\OtlpLogMapper;
+use App\Services\Ingest\Protobuf\MalformedProtobufException;
+use App\Services\Ingest\Protobuf\OtlpProtobufDecoder;
+use App\Services\Ingest\RequestBody;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -36,6 +39,7 @@ class OtlpLogController extends Controller
     public function __construct(
         private readonly OtlpLogMapper $mapper,
         private readonly LogWriter $writer,
+        private readonly OtlpProtobufDecoder $protobuf,
     ) {}
 
     /**
@@ -43,10 +47,18 @@ class OtlpLogController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
-        if ($this->isProtobuf($request)) {
+        $protobuf = $this->isProtobuf($request);
+
+        if ($protobuf && ! $this->protobufIsEnabled()) {
             return new JsonResponse([
                 'message' => 'Only the OTLP JSON encoding is supported. Set OTEL_EXPORTER_OTLP_PROTOCOL=http/json and send Content-Type: application/json.',
             ], Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
+        }
+
+        $encoding = RequestBody::encoding($request);
+
+        if (! RequestBody::isSupportedEncoding($encoding)) {
+            return $this->unsupportedEncoding($encoding);
         }
 
         $project = AuthenticateProjectApiKey::project($request);
@@ -55,7 +67,7 @@ class OtlpLogController extends Controller
             return new JsonResponse(['message' => 'API key invalid.'], Response::HTTP_UNAUTHORIZED);
         }
 
-        $mapped = $this->mapper->map($this->decode($request), (string) $project->id);
+        $mapped = $this->mapper->map($this->decode($request, $protobuf), (string) $project->id);
 
         if ($mapped->rows !== []) {
             try {
@@ -78,13 +90,59 @@ class OtlpLogController extends Controller
     }
 
     /**
-     * Decode the request body, returning null when it is not valid JSON.
+     * Decode the request body into an OTLP export request array.
+     *
+     * Both encodings land on the same array shape, so the mapper never learns
+     * which one arrived. Anything unreadable — a truncated protobuf message,
+     * a body that is not JSON, a gzip stream that will not inflate — comes
+     * back as null, which the mapper reports as a rejected payload rather than
+     * a client error.
      */
-    private function decode(Request $request): mixed
+    private function decode(Request $request, bool $protobuf): mixed
     {
-        $decoded = json_decode($request->getContent(), true);
+        $body = RequestBody::read($request);
 
-        return json_last_error() === JSON_ERROR_NONE ? $decoded : null;
+        if ($body === null) {
+            return null;
+        }
+
+        if (! $protobuf) {
+            $decoded = json_decode($body, true);
+
+            return json_last_error() === JSON_ERROR_NONE ? $decoded : null;
+        }
+
+        try {
+            return $this->protobuf->decode($body);
+        } catch (MalformedProtobufException) {
+            /*
+             * Deliberately not logged: the answer already tells the client its
+             * body could not be read, and a log line per malformed request is
+             * a write amplifier anyone can pull on an ingest endpoint.
+             */
+            return null;
+        }
+    }
+
+    /**
+     * Whether the protobuf encoding is accepted by this instance.
+     */
+    private function protobufIsEnabled(): bool
+    {
+        return (bool) config('bilis.ingest.otlp_protobuf');
+    }
+
+    /**
+     * Refuse a compression this application cannot undo.
+     *
+     * Unlike a bad payload, this is worth a `4xx`: no amount of retrying makes
+     * a zstd body readable, and the exporter's own configuration is the fix.
+     */
+    private function unsupportedEncoding(string $encoding): JsonResponse
+    {
+        return new JsonResponse([
+            'message' => "Content-Encoding {$encoding} is not supported. Send the body uncompressed or with gzip or deflate.",
+        ], Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
     }
 
     /**

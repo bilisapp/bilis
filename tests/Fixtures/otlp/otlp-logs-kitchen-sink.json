@@ -1,0 +1,144 @@
+{
+    "resourceLogs": [
+        {
+            "resource": {
+                "attributes": [
+                    {
+                        "key": "service.name",
+                        "value": {
+                            "stringValue": "billing"
+                        }
+                    },
+                    {
+                        "key": "host.ids",
+                        "value": {
+                            "arrayValue": {
+                                "values": [
+                                    {
+                                        "intValue": "7"
+                                    },
+                                    {
+                                        "intValue": "9"
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                ]
+            },
+            "schemaUrl": "https://opentelemetry.io/schemas/1.30.0",
+            "scopeLogs": [
+                {
+                    "logRecords": [
+                        {
+                            "attributes": [
+                                {
+                                    "key": "issuer",
+                                    "value": {
+                                        "kvlistValue": {
+                                            "values": [
+                                                {
+                                                    "key": "code",
+                                                    "value": {
+                                                        "stringValue": "51"
+                                                    }
+                                                },
+                                                {
+                                                    "key": "latency_ms",
+                                                    "value": {
+                                                        "intValue": "240"
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    }
+                                },
+                                {
+                                    "key": "digest",
+                                    "value": {
+                                        "bytesValue": "3q2+7w=="
+                                    }
+                                },
+                                {
+                                    "key": "matrix",
+                                    "value": {
+                                        "arrayValue": {
+                                            "values": [
+                                                {
+                                                    "arrayValue": {
+                                                        "values": [
+                                                            {
+                                                                "intValue": "1"
+                                                            },
+                                                            {
+                                                                "intValue": "2"
+                                                            }
+                                                        ]
+                                                    }
+                                                },
+                                                {
+                                                    "arrayValue": {
+                                                        "values": [
+                                                            {
+                                                                "intValue": "3"
+                                                            }
+                                                        ]
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    }
+                                },
+                                {
+                                    "key": "note",
+                                    "value": {
+                                        "stringValue": "faktúra — zaplatená ✅"
+                                    }
+                                }
+                            ],
+                            "body": {
+                                "kvlistValue": {
+                                    "values": [
+                                        {
+                                            "key": "event",
+                                            "value": {
+                                                "stringValue": "invoice.sent"
+                                            }
+                                        },
+                                        {
+                                            "key": "invoice",
+                                            "value": {
+                                                "intValue": "9021"
+                                            }
+                                        }
+                                    ]
+                                }
+                            },
+                            "observedTimeUnixNano": "1756211400000000000",
+                            "severityNumber": 10,
+                            "severityText": "NOTICE"
+                        },
+                        {
+                            "severityNumber": 99,
+                            "severityText": "SPICY",
+                            "timeUnixNano": "1756211401000000000"
+                        }
+                    ],
+                    "schemaUrl": "https://opentelemetry.io/schemas/1.31.0",
+                    "scope": {
+                        "attributes": [
+                            {
+                                "key": "scope.owner",
+                                "value": {
+                                    "stringValue": "payments"
+                                }
+                            }
+                        ],
+                        "name": "billing.invoices",
+                        "version": "2.0.1"
+                    }
+                }
+            ]
+        }
+    ]
+}

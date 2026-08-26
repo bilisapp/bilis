@@ -1,18 +1,70 @@
 ---
 title: Go
-description: A slog handler that batches straight into the simple JSON endpoint, and what to do about the Go SDK's missing JSON encoding.
+description: otlploghttp pointed straight at Bilis, or a dependency-free slog handler that batches into the simple JSON endpoint.
 order: 5
 ---
 
-Go has two sensible routes into Bilis, and the obvious one is not the good one.
+Two routes, both good — pick by whether the service already speaks
+OpenTelemetry.
 
-- **`log/slog` → `/api/v1/ingest`.** No dependencies, about a hundred lines,
-  works with whatever logging you already do. This is the recommended path.
-- **OpenTelemetry SDK → Collector → Bilis.** Correct if you already run a
-  Collector, but the Go OTLP exporters cannot talk to Bilis directly — see
-  [Why not otlploghttp](#why-not-otlploghttp) below.
+- **`otlploghttp` → `/api/v1/logs`.** The standard exporter, no Collector in
+  between. Bilis decodes the protobuf encoding the Go SDK sends.
+- **`log/slog` → `/api/v1/ingest`.** No dependencies at all, about a hundred
+  lines, works with whatever logging you already do.
 
-## 1. slog handler
+## 1. OpenTelemetry: otlploghttp
+
+The Go OTLP exporters are protobuf-only — there is no `WithProtocol`, and
+`OTEL_EXPORTER_OTLP_PROTOCOL=http/json` is not a value they accept. Bilis
+decodes protobuf as well as JSON, so that is no longer a reason to run a
+Collector:
+
+```bash
+OTEL_SERVICE_NAME=checkout
+OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.example.com/api/v1/logs
+OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer bilis_YOUR_API_KEY"
+```
+
+Or in code, which is what the environment variables end up doing anyway:
+
+```go
+exporter, err := otlploghttp.New(ctx,
+	otlploghttp.WithEndpoint("bilis.example.com"),
+	otlploghttp.WithURLPath("/api/v1/logs"),
+	otlploghttp.WithHeaders(map[string]string{
+		"Authorization": "Bearer " + os.Getenv("BILIS_API_KEY"),
+	}),
+	otlploghttp.WithCompression(otlploghttp.GzipCompression),
+)
+if err != nil {
+	return err
+}
+
+provider := sdklog.NewLoggerProvider(
+	sdklog.WithResource(resource.NewSchemaless(
+		semconv.ServiceName("checkout"),
+	)),
+	sdklog.WithProcessor(sdklog.NewBatchProcessor(exporter)),
+)
+defer provider.Shutdown(ctx)
+```
+
+Things worth knowing about this path:
+
+- **`OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` is used verbatim**, which is why it names
+  the full path. The signal-agnostic `OTEL_EXPORTER_OTLP_ENDPOINT` has the
+  exporter append `/v1/logs`, so give that one the base only:
+  `https://bilis.example.com/api`.
+- **gzip is understood**, and worth turning on: log batches compress well.
+- **gRPC is not.** `otlploggrpc` on port 4317 has nothing to talk to; use a
+  Collector if you need gRPC on the application side.
+- **`Shutdown` is what flushes the batch.** Without it the last export dies with
+  the process, exactly as with the handler below.
+- To bridge `slog` onto this exporter rather than writing OTel calls, use
+  [otelslog](https://pkg.go.dev/go.opentelemetry.io/contrib/bridges/otelslog);
+  the handler in the next section is the alternative that costs no dependencies.
+
+## 2. slog handler
 
 Create a project and an API key in the app, then put them in the environment:
 
@@ -354,11 +406,12 @@ func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 }
 ```
 
-## 2. OpenTelemetry SDK, via a Collector
+## 3. With a Collector in front
 
-If the application already emits OTel logs, keep the SDK and put a Collector in
-front. The SDK exports protobuf to the Collector; the Collector re-encodes as
-JSON for Bilis.
+Bilis no longer needs a Collector to translate — but a Collector is still worth
+running for what it does either side of the wire: a **persistent queue** that
+survives a restart, retries, and a place to add or drop attributes without
+redeploying the service.
 
 ```bash
 # the Go application
@@ -406,20 +459,17 @@ Docker and simply writes to stdout, you can skip the SDK entirely and have the
 Collector tail the container log files instead — see
 [Linux host](/docs/ingestion/linux-host).
 
-## Why not otlploghttp
+## Which one
 
-The obvious thing — point `go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp`
-straight at Bilis — does not work, and the reason is worth stating plainly:
+- Already on the OpenTelemetry SDK → **`otlploghttp` straight at Bilis**. It is
+  the standard exporter and now needs nothing in between.
+- Plain `slog`, no OTel anywhere → **the handler above**. It costs no
+  dependencies and no container.
+- Need a queue that survives a restart, or per-host enrichment → **a
+  Collector**, with either of the above in front of it.
 
-**the Go OTLP exporters only speak protobuf.** `otlploghttp` transports OTLP
-protobuf payloads over HTTP, and unlike the JavaScript SDK it has no JSON
-option: no `WithProtocol`, and `OTEL_EXPORTER_OTLP_PROTOCOL=http/json` is not a
-value it accepts. Bilis is JSON-only in v1, so such an exporter gets:
-
-```http
-HTTP/1.1 415 Unsupported Media Type
-```
-
-There is no configuration on either side that fixes that. The choices are the
-slog handler above, a Collector in between, or a hand-rolled OTLP JSON exporter
-— and the first is less code than the third.
+> **Note:** the protobuf encoding is decoded by Bilis itself, in PHP, and can be
+> switched off per instance with `BILIS_OTLP_PROTOBUF=false` — after which an
+> `otlploghttp` exporter gets `415` again. If a self-hosted instance you do not
+> operate answers `415`, that is the setting to ask about. See
+> [Endpoints](/docs/ingestion/endpoints).

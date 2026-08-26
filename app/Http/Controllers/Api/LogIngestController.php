@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Middleware\AuthenticateProjectApiKey;
 use App\Services\ClickHouse\ClickHouseException;
 use App\Services\Ingest\LogWriter;
+use App\Services\Ingest\RequestBody;
 use App\Services\Ingest\SimpleLogMapper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -36,6 +37,14 @@ class LogIngestController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        $encoding = RequestBody::encoding($request);
+
+        if (! RequestBody::isSupportedEncoding($encoding)) {
+            return new JsonResponse([
+                'message' => "Content-Encoding {$encoding} is not supported. Send the body uncompressed or with gzip or deflate.",
+            ], Response::HTTP_UNSUPPORTED_MEDIA_TYPE);
+        }
+
         $project = AuthenticateProjectApiKey::project($request);
 
         if ($project === null) {
@@ -66,10 +75,19 @@ class LogIngestController extends Controller
 
     /**
      * Decode the request body, returning null when it is not valid JSON.
+     *
+     * A compressed body is inflated first: nothing in front of the application
+     * does that, and a shipper that gzips is not doing anything unusual.
      */
     private function decode(Request $request): mixed
     {
-        $decoded = json_decode($request->getContent(), true);
+        $body = RequestBody::read($request);
+
+        if ($body === null) {
+            return null;
+        }
+
+        $decoded = json_decode($body, true);
 
         return json_last_error() === JSON_ERROR_NONE ? $decoded : null;
     }

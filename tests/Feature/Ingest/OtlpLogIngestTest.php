@@ -207,7 +207,11 @@ test('an unparseable otlp body is accepted without a client error', function () 
     Http::assertNothingSent();
 });
 
-test('the protobuf encoding is rejected with a 415 and a json hint', function () {
+test('the protobuf encoding is rejected with a 415 and a json hint while the decoder is off', function () {
+    // Protobuf is decoded in-process by default now; this is the answer an
+    // instance that has switched it back off still gives.
+    config(['bilis.ingest.otlp_protobuf' => false]);
+
     Http::fake();
 
     $response = $this->call(
@@ -263,3 +267,28 @@ test('any other clickhouse failure also becomes a 503 rather than blaming the cl
         ->assertStatus(503)
         ->assertHeader('Retry-After', '5');
 });
+
+test('trace flags are read from the proto field name that real exporters send', function (string $field) {
+    Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
+
+    $this->withToken($this->plainTextKey)
+        ->postJson('/api/v1/logs', [
+            'resourceLogs' => [['scopeLogs' => [['logRecords' => [[
+                'body' => ['stringValue' => 'sampled'],
+                $field => 1,
+            ]]]]]],
+        ])
+        ->assertOk();
+
+    Http::assertSent(function (Request $request) {
+        expect(insertedRows($request)[0]['TraceFlags'])->toBe(1);
+
+        return true;
+    });
+})->with([
+    // `flags` is the OTLP/JSON spelling — the proto field is LogRecord.flags,
+    // and it is what a Collector and the protobuf decoder both produce.
+    'flags',
+    'traceFlags',
+    'trace_flags',
+]);

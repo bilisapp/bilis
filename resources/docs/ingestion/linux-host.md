@@ -324,7 +324,7 @@ exporters:
   otlphttp/bilis:
     logs_endpoint: https://bilis.app/api/v1/logs
     encoding: json
-    compression: none
+    compression: gzip # or none; both are understood
     headers:
       Authorization: Bearer ${env:BILIS_API_KEY}
 

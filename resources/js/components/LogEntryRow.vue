@@ -9,6 +9,7 @@ import {
     SEVERITY_ROW_CLASS,
     SEVERITY_TEXT_CLASS,
     severityLevelFor,
+    timeZoneOffset,
 } from '@/lib/logs';
 import { cn } from '@/lib/utils';
 import type { LogEntry } from '@/types';
@@ -80,6 +81,14 @@ const attributeGroups = computed(() => [
                 :title="formatUtcTimestamp(entry.timestamp)"
             >
                 {{ formatTimestamp(entry.timestamp) }}
+                <!--
+                  The row's own offset, softer than the time it qualifies.
+                  Per instant, not per session: rows straddling a DST switch
+                  wear the offset that was true for them.
+                -->
+                <span class="opacity-60">{{
+                    timeZoneOffset(entry.timestamp)
+                }}</span>
             </span>
 
             <span

@@ -143,7 +143,12 @@ class OtlpLogMapper
             is_string($severityText) ? $severityText : null,
         );
 
-        $traceFlags = $logRecord['traceFlags'] ?? $logRecord['trace_flags'] ?? 0;
+        /*
+         * The proto field is `flags`, so that is what OTLP/JSON and the
+         * protobuf decoder both spell it. `traceFlags` is accepted too because
+         * hand-written payloads and older docs use it.
+         */
+        $traceFlags = $logRecord['flags'] ?? $logRecord['traceFlags'] ?? $logRecord['trace_flags'] ?? 0;
 
         /*
          * Every column of the table is written explicitly, in schema order, with

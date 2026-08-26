@@ -39,7 +39,7 @@ it('renders the Go guide with both ingest routes', function () {
     get(route('docs.show', ['section' => 'ingestion', 'page' => 'go']))
         ->assertOk()
         ->assertSee('slog handler')
-        ->assertSee('Why not otlploghttp')
+        ->assertSee('otlploghttp')
         ->assertSee('/api/v1/ingest');
 });
 
