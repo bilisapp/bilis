@@ -6,4 +6,5 @@ Before planning or editing, find the row whose globs match the file's path and r
 | --- | --- |
 | app/Services/ClickHouse/** | .ai/rules/click-house.md |
 | app/Services/Ingest/** | .ai/rules/ingest.md |
+| resources/js/** | .ai/rules/js.md |
 | app/Services/Logs/** | .ai/rules/logs.md |

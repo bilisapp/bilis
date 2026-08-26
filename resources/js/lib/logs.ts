@@ -33,6 +33,21 @@ export const SEVERITY_DOT_CLASS: Record<SeverityLevel, string> = {
     fatal: 'bg-severity-fatal',
 };
 
+/**
+ * The CSS custom property holding each severity colour, defined in app.css.
+ *
+ * Charts cannot use the utility classes, so they read these variables off the
+ * root element instead — see `readChartTokens()` in resources/js/lib/echarts.ts.
+ */
+export const SEVERITY_CSS_VARIABLE: Record<SeverityLevel, string> = {
+    trace: '--severity-trace',
+    debug: '--severity-debug',
+    info: '--severity-info',
+    warn: '--severity-warn',
+    error: '--severity-error',
+    fatal: '--severity-fatal',
+};
+
 export const RANGE_PRESETS: {
     value: Exclude<LogRangePreset, 'custom'>;
     label: string;

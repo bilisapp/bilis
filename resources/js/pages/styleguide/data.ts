@@ -302,3 +302,71 @@ export function demoLogEntry(
         },
     };
 }
+
+/**
+ * Demo log volume for the charts section: the last seven days, bucketed by
+ * severity, roughly shaped like a real week of ingest (quiet weekend, a
+ * Thursday incident).
+ */
+export const CHART_VOLUME_DAYS: string[] = [
+    'Aug 20',
+    'Aug 21',
+    'Aug 22',
+    'Aug 23',
+    'Aug 24',
+    'Aug 25',
+    'Aug 26',
+];
+
+export const CHART_VOLUME_BY_SEVERITY: Record<SeverityLevel, number[]> = {
+    trace: [4200, 4400, 4100, 1800, 1600, 4600, 4900],
+    debug: [2600, 2700, 2500, 1100, 1000, 2900, 3100],
+    info: [8100, 8400, 7900, 3400, 3200, 8800, 9300],
+    warn: [420, 460, 1240, 380, 310, 520, 610],
+    error: [130, 150, 780, 90, 70, 180, 240],
+    fatal: [2, 1, 34, 0, 0, 3, 6],
+};
+
+/**
+ * Demo ingest rate for the charts section: accepted log records per second,
+ * per project, over a twelve hour window.
+ */
+export const CHART_INGEST_HOURS: string[] = [
+    '00:00',
+    '02:00',
+    '04:00',
+    '06:00',
+    '08:00',
+    '10:00',
+    '12:00',
+    '14:00',
+    '16:00',
+    '18:00',
+    '20:00',
+    '22:00',
+];
+
+export const CHART_INGEST_SERIES: { name: string; values: number[] }[] = [
+    {
+        name: 'checkout-api',
+        values: [180, 140, 120, 210, 640, 910, 980, 940, 870, 720, 480, 260],
+    },
+    {
+        name: 'billing-worker',
+        values: [90, 80, 70, 110, 240, 320, 360, 380, 340, 280, 190, 120],
+    },
+    {
+        name: 'edge-proxy',
+        values: [
+            420, 380, 350, 470, 820, 1120, 1180, 1150, 1040, 880, 640, 480,
+        ],
+    },
+    {
+        name: 'search-indexer',
+        values: [60, 55, 210, 240, 190, 160, 150, 320, 480, 260, 110, 70],
+    },
+    {
+        name: 'notifications',
+        values: [30, 25, 20, 45, 130, 210, 240, 230, 200, 170, 90, 50],
+    },
+];
