@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
-import { BookOpen, FolderGit2, LayoutGrid, ScrollText } from '@lucide/vue';
+import {
+    BookOpen,
+    FolderGit2,
+    LayoutGrid,
+    Palette,
+    ScrollText,
+} from '@lucide/vue';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
 import NavFooter from '@/components/NavFooter.vue';
@@ -16,11 +22,14 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { dashboard } from '@/routes';
+import { useCurrentUrl } from '@/composables/useCurrentUrl';
+import { dashboard, styleguide } from '@/routes';
 import { index as logsIndex } from '@/routes/logs';
 import type { NavItem } from '@/types';
 
 const page = usePage();
+
+const { isCurrentUrl } = useCurrentUrl();
 
 const dashboardUrl = computed(() =>
     page.props.currentTeam ? dashboard(page.props.currentTeam.slug).url : '/',
@@ -42,6 +51,14 @@ const mainNavItems = computed<NavItem[]>(() => [
         icon: ScrollText,
     },
 ]);
+
+const secondaryNavItems: NavItem[] = [
+    {
+        title: 'Styleguide',
+        href: styleguide(),
+        icon: Palette,
+    },
+];
 
 const footerNavItems: NavItem[] = [
     {
@@ -81,6 +98,24 @@ const footerNavItems: NavItem[] = [
         </SidebarContent>
 
         <SidebarFooter>
+            <SidebarMenu>
+                <SidebarMenuItem
+                    v-for="item in secondaryNavItems"
+                    :key="item.title"
+                >
+                    <SidebarMenuButton
+                        as-child
+                        :is-active="isCurrentUrl(item.href)"
+                        :tooltip="item.title"
+                    >
+                        <Link :href="item.href">
+                            <component :is="item.icon" />
+                            <span>{{ item.title }}</span>
+                        </Link>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
+            </SidebarMenu>
+
             <NavFooter :items="footerNavItems" />
             <NavUser />
         </SidebarFooter>
