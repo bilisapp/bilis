@@ -69,29 +69,44 @@ const resourceNavItems: NavItem[] = [
 
 <template>
     <Sidebar collapsible="icon" variant="inset">
-        <SidebarHeader>
+        <!--
+          The brand stands alone up here. It used to share the header with the
+          team switcher, which set the team name in a heavier style directly
+          under the product name — so the rail read as if the team were the
+          title and Bilis its caption.
+        -->
+        <SidebarHeader class="pb-1">
             <SidebarMenu>
                 <SidebarMenuItem>
-                    <SidebarMenuButton size="lg" as-child>
+                    <SidebarMenuButton
+                        size="lg"
+                        as-child
+                        class="hover:bg-sidebar-accent/60"
+                    >
                         <Link :href="dashboardUrl">
                             <AppLogo />
                         </Link>
                     </SidebarMenuButton>
                 </SidebarMenuItem>
             </SidebarMenu>
+        </SidebarHeader>
+
+        <SidebarContent class="gap-5">
+            <NavMain :items="mainNavItems" />
+            <NavMain label="Resources" :items="resourceNavItems" />
+        </SidebarContent>
+
+        <!--
+          Team and account belong together: both answer "who am I acting as",
+          and both are switched rarely. Pairing them at the foot also stops the
+          rail's lower half from reading as leftover space.
+        -->
+        <SidebarFooter class="gap-1 border-t border-sidebar-border/60 pt-2">
             <SidebarMenu>
                 <SidebarMenuItem>
                     <TeamSwitcher />
                 </SidebarMenuItem>
             </SidebarMenu>
-        </SidebarHeader>
-
-        <SidebarContent class="gap-4">
-            <NavMain :items="mainNavItems" />
-            <NavMain label="Resources" :items="resourceNavItems" />
-        </SidebarContent>
-
-        <SidebarFooter>
             <NavUser />
         </SidebarFooter>
     </Sidebar>

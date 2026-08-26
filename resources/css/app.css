@@ -108,6 +108,17 @@
     }
 }
 
+@layer base {
+    /*
+      The rail is espresso in every theme, so the mark takes its dark-surface
+      treatment there regardless of which mode the rest of the page is in.
+    */
+    [data-slot='sidebar'] {
+        --logo-body: var(--color-cream);
+        --logo-detail: var(--color-espresso);
+    }
+}
+
 @layer utilities {
     /*
       Overlay scrollbars (macOS, and any trackpad-only device) stay invisible
@@ -182,17 +193,27 @@
     --chart-4: hsl(354 64% 54%);
     --chart-5: hsl(30 27% 35%);
     --radius: 0.5rem;
-    --sidebar-background: hsl(44 26% 87%);
-    --sidebar-foreground: hsl(30 20% 25%);
-    --sidebar-primary: hsl(215 51% 25%);
-    --sidebar-primary-foreground: hsl(44 40% 95%);
-    --sidebar-accent: hsl(43 26% 81%);
-    --sidebar-accent-foreground: hsl(30 27% 20%);
-    --sidebar-border: hsl(42 18% 72%);
-    --sidebar-ring: hsl(215 51% 40%);
-    --sidebar: hsl(44 26% 87%);
+    /*
+      The rail is espresso in BOTH modes. Light mode used to sit the rail six
+      points of lightness below the page, which is not a surface change a reader
+      can see — the whole left side read as unclaimed margin. A dark rail framing
+      a cream work surface is one navigation identity across both themes.
+    */
+    --sidebar-background: hsl(28 24% 13%);
+    --sidebar-foreground: hsl(42 18% 78%);
+    /*
+      The active item is the work surface, cut into the rail: a reader can see
+      which page they are on from the shape alone, before reading a word.
+    */
+    --sidebar-primary: hsl(44 45% 96%);
+    --sidebar-primary-foreground: hsl(28 28% 14%);
+    --sidebar-accent: hsl(28 16% 21%);
+    --sidebar-accent-foreground: hsl(44 30% 93%);
+    --sidebar-border: hsl(28 14% 24%);
+    --sidebar-ring: hsl(45 85% 61%);
+    --sidebar: hsl(28 24% 13%);
 
-    /* Logo mark: navy fish with cream detailing on light surfaces. */
+    /* Logo mark: navy with cream detailing on light surfaces. */
     --logo-body: var(--color-navy);
     --logo-detail: var(--color-cream);
     --severity-trace: hsl(30 10% 55%);
@@ -230,10 +251,14 @@
     --chart-5: hsl(4 73% 83%);
     --sidebar-background: hsl(28 24% 7%);
     --sidebar-foreground: hsl(44 25% 85%);
-    --sidebar-primary: hsl(45 85% 61%);
-    --sidebar-primary-foreground: hsl(28 30% 12%);
-    --sidebar-accent: hsl(28 15% 16%);
-    --sidebar-accent-foreground: hsl(44 25% 88%);
+    /*
+      Dark mode cannot borrow light mode's cream pill — a bright slab is the
+      wrong instrument at 2am. The fill lifts, and gold carries the state.
+    */
+    --sidebar-primary: hsl(28 18% 22%);
+    --sidebar-primary-foreground: hsl(45 85% 61%);
+    --sidebar-accent: hsl(28 14% 15%);
+    --sidebar-accent-foreground: hsl(44 25% 90%);
     --sidebar-border: hsl(28 14% 20%);
     --sidebar-ring: hsl(45 85% 61%);
     --sidebar: hsl(28 24% 7%);
@@ -255,5 +280,176 @@
     }
     body {
         @apply bg-background text-foreground;
+    }
+}
+
+/*
+  Rendered markdown for the public docs (`resources/docs/**`). The HTML comes
+  out of CommonMark, so it cannot carry utility classes — these scoped rules
+  do the typography instead, on the same tokens the rest of the app uses.
+  Tables and code blocks scroll inside themselves; the page never does.
+*/
+@layer components {
+    .docs-prose {
+        color: var(--muted-foreground);
+        font-size: 0.875rem;
+        line-height: 1.75;
+    }
+
+    .docs-prose > * + * {
+        margin-top: 1rem;
+    }
+
+    .docs-prose h2,
+    .docs-prose h3,
+    .docs-prose h4 {
+        color: var(--foreground);
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        scroll-margin-top: 5rem;
+    }
+
+    .docs-prose > h2 {
+        margin-top: 3rem;
+        font-size: 1.25rem;
+    }
+
+    .docs-prose > h3 {
+        margin-top: 2rem;
+        font-size: 1rem;
+    }
+
+    .docs-prose > h4 {
+        margin-top: 1.5rem;
+        font-size: 0.875rem;
+    }
+
+    .docs-prose strong {
+        color: var(--foreground);
+        font-weight: 500;
+    }
+
+    .docs-prose a {
+        color: var(--foreground);
+        font-weight: 500;
+        text-decoration: underline;
+        text-underline-offset: 4px;
+        transition: color 150ms;
+    }
+
+    .docs-prose a:hover {
+        color: var(--primary);
+    }
+
+    /* The heading permalink: quiet until the heading is hovered or focused. */
+    .docs-prose .docs-anchor {
+        margin-left: 0.5rem;
+        color: var(--muted-foreground);
+        font-weight: 400;
+        text-decoration: none;
+        opacity: 0;
+        transition: opacity 150ms;
+    }
+
+    .docs-prose :is(h2, h3, h4):hover .docs-anchor,
+    .docs-prose .docs-anchor:focus-visible {
+        opacity: 1;
+    }
+
+    .docs-prose ul,
+    .docs-prose ol {
+        padding-left: 1.25rem;
+    }
+
+    .docs-prose ul {
+        list-style-type: disc;
+    }
+
+    .docs-prose ol {
+        list-style-type: decimal;
+    }
+
+    .docs-prose li + li {
+        margin-top: 0.5rem;
+    }
+
+    .docs-prose li > ul,
+    .docs-prose li > ol {
+        margin-top: 0.5rem;
+    }
+
+    .docs-prose li::marker {
+        color: var(--border);
+    }
+
+    /* Inline code reads as a chip on the card surface. */
+    .docs-prose :not(pre) > code {
+        border: 1px solid var(--border);
+        border-radius: calc(var(--radius) - 4px);
+        background-color: var(--muted);
+        padding: 0.1rem 0.3rem;
+        color: var(--foreground);
+        font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+        font-size: 0.8125em;
+        white-space: nowrap;
+    }
+
+    /* Code blocks are an espresso surface in both modes — a brand moment. */
+    .docs-prose pre {
+        overflow-x: auto;
+        border-radius: var(--radius);
+        background-color: var(--color-espresso);
+        padding: 1rem 1.25rem;
+        color: var(--color-cream);
+        font-size: 0.8125rem;
+        line-height: 1.65;
+        scrollbar-width: thin;
+        scrollbar-color: var(--border) transparent;
+    }
+
+    .docs-prose pre code {
+        font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+        white-space: pre;
+    }
+
+    /* Blockquotes double as callouts: `> **Note:** …`. */
+    .docs-prose blockquote {
+        border-left: 2px solid var(--color-gold);
+        border-radius: calc(var(--radius) - 4px);
+        background-color: var(--card);
+        padding: 0.75rem 1rem;
+    }
+
+    .docs-prose blockquote > * + * {
+        margin-top: 0.75rem;
+    }
+
+    /* `display: block` keeps a wide table scrolling inside its own box. */
+    .docs-prose table {
+        display: block;
+        max-width: 100%;
+        overflow-x: auto;
+        border-collapse: collapse;
+        text-align: left;
+        scrollbar-width: thin;
+    }
+
+    .docs-prose th {
+        border-bottom: 1px solid var(--border);
+        padding: 0 1rem 0.5rem 0;
+        color: var(--foreground);
+        font-weight: 500;
+        white-space: nowrap;
+    }
+
+    .docs-prose td {
+        border-bottom: 1px solid var(--border);
+        padding: 0.6rem 1rem 0.6rem 0;
+        vertical-align: top;
+    }
+
+    .docs-prose hr {
+        margin-block: 2.5rem;
+        border-color: var(--border);
     }
 }

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DocsController;
 use App\Http\Controllers\LogsController;
 use App\Http\Controllers\ProjectApiKeyController;
 use App\Http\Controllers\ProjectController;
@@ -12,6 +13,13 @@ use Illuminate\Support\Facades\Route;
 Route::view('/', 'marketing.home')->name('home');
 Route::view('terms', 'marketing.terms')->name('terms');
 Route::view('privacy', 'marketing.privacy')->name('privacy');
+
+/**
+ * Public documentation, rendered from `resources/docs/{section}/{page}.md`.
+ * Blade only — these pages must read without JavaScript and be indexable.
+ */
+Route::get('docs', [DocsController::class, 'index'])->name('docs.index');
+Route::get('docs/{section}/{page}', [DocsController::class, 'show'])->name('docs.show');
 
 /**
  * Machine-readable pointer to the disclosure policy, per RFC 9116. Rendered
