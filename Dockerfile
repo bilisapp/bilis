@@ -3,6 +3,8 @@
 ARG PHP_VERSION=8.4
 ARG NODE_VERSION=24
 
+FROM node:${NODE_VERSION}-bookworm-slim AS node-base
+
 FROM dunglas/frankenphp:1-php${PHP_VERSION}-bookworm AS php-base
 
 WORKDIR /app
@@ -64,19 +66,17 @@ RUN composer dump-autoload --no-dev --optimize \
     && php artisan package:discover --ansi \
     && php artisan wayfinder:generate --with-form --no-interaction
 
-FROM node:${NODE_VERSION}-bookworm-slim AS assets
+FROM php-base AS assets
 
-WORKDIR /app
+COPY --from=node-base /usr/local/bin/node /usr/local/bin/node
+COPY --from=node-base /usr/local/bin/npm /usr/local/bin/npm
+COPY --from=node-base /usr/local/bin/npx /usr/local/bin/npx
+COPY --from=node-base /usr/local/lib/node_modules /usr/local/lib/node_modules
 
 COPY package.json package-lock.json ./
 RUN npm ci
 
-COPY --from=app-source /app/components.json ./components.json
-COPY --from=app-source /app/public ./public
-COPY --from=app-source /app/resources ./resources
-COPY --from=app-source /app/tsconfig.json ./tsconfig.json
-COPY --from=app-source /app/vendor ./vendor
-COPY --from=app-source /app/vite.config.ts ./vite.config.ts
+COPY --from=app-source /app ./
 
 RUN npm run build
 
@@ -89,6 +89,7 @@ ENV PORT=8080 \
 COPY . .
 COPY --from=php-deps /app/vendor ./vendor
 COPY --from=assets /app/public/build ./public/build
+COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/bilis-entrypoint
 
 RUN { \
         echo '{'; \
@@ -130,4 +131,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD php -r '$port = getenv("PORT") ?: "8080"; exit(@file_get_contents("http://127.0.0.1:".$port."/up") === false ? 1 : 0);'
 
-CMD ["sh", "-lc", "set -e; if [ \"${DB_CONNECTION:-sqlite}\" = \"sqlite\" ]; then db=\"${DB_DATABASE:-/app/database/database.sqlite}\"; mkdir -p \"$(dirname \"$db\")\"; touch \"$db\"; fi; if [ \"${BILIS_OPTIMIZE_ON_STARTUP:-true}\" = \"true\" ]; then php artisan optimize; fi; if [ \"${BILIS_MIGRATE_ON_STARTUP:-false}\" = \"true\" ]; then php artisan migrate --force; php artisan clickhouse:migrate --no-interaction; fi; exec frankenphp run --config /etc/caddy/Caddyfile"]
+ENTRYPOINT ["bilis-entrypoint"]
+CMD ["web"]

@@ -27,6 +27,8 @@ vendor
 public/build
 public/hot
 public/storage
+bootstrap/cache/*.php
+!bootstrap/cache/.gitignore
 bootstrap/ssr
 storage/*.key
 storage/logs/*

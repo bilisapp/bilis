@@ -3,6 +3,8 @@
 use App\Models\TeamInvitation;
 use Illuminate\Support\Facades\Schedule;
 
+Schedule::command('horizon:snapshot')->everyFiveMinutes()->description('Record Horizon queue metrics');
+
 Schedule::call(function () {
     TeamInvitation::query()
         ->whereNotNull('expires_at')
