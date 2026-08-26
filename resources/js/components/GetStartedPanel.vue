@@ -82,11 +82,17 @@ const snippets = computed<Record<TabId, string>>(() => {
         otel: `OTEL_EXPORTER_OTLP_PROTOCOL=http/json
 OTEL_EXPORTER_OTLP_ENDPOINT=${url}/api/v1
 OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer <YOUR_API_KEY>"`,
-        laravel: `// config/logging.php
+        laravel: `// .env
+BILIS_ENDPOINT=${url}/api/v1/ingest
+BILIS_API_KEY=<YOUR_API_KEY>
+
+// config/logging.php
 'bilis' => [
     'driver' => 'custom',
     'via' => App\\Logging\\BilisLogger::class,
-    'level' => 'debug',
+    'endpoint' => env('BILIS_ENDPOINT'),
+    'api_key' => env('BILIS_API_KEY'),
+    'level' => env('LOG_LEVEL', 'debug'),
 ],
 
 // app/Logging/BilisLogger.php
@@ -95,8 +101,8 @@ class BilisLogger
     public function __invoke(array $config): Logger
     {
         return new Logger('bilis', [new BilisHandler(
-            endpoint: '${url}/api/v1/ingest',
-            apiKey: '<YOUR_API_KEY>',
+            endpoint: $config['endpoint'],
+            apiKey: $config['api_key'],
         )]);
     }
 }
