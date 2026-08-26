@@ -24,3 +24,15 @@ Column names and types are the collector exporter's (R1) and are not ours to ren
 `ProjectId` is `LowCardinality(String) DEFAULT ''`. The `DEFAULT` exists only so a stock exporter INSERT is *valid* — Bilis always writes the column explicitly (R2). It is clustering, never isolation (R3): do not describe the sort key as a tenancy boundary.
 
 There is no production data yet, so the DDL file is edited in place and the operator drops the dev table before re-running `clickhouse:migrate`. That stops being true the moment anything real is stored.
+
+## Timezone: every request pins session_timezone=UTC
+
+DateTime64 columns carry no timezone; ClickHouse parses timestamp strings in
+the session timezone, which defaults to the SERVER timezone. The app formats
+and parses all timestamps as naive UTC (the frontend appends `Z`), so
+`ClickHouseClient::send()` pins `session_timezone=UTC` on every request.
+Never remove it, and never format a timestamp for ClickHouse in any zone but
+UTC. The Timestamp column is additionally declared `DateTime64(9, 'UTC')`
+because session_timezone governs parsing and now() but NOT the rendering of a
+naive DateTime64 column — without the column timezone, SELECTs return strings
+in the server's timezone (verified on 26.9). Test: "every request pins the session timezone to UTC".

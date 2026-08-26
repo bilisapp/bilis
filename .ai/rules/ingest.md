@@ -16,3 +16,13 @@ The insert names its columns, so a mapper row must contain all of them, in schem
 OTLP mapping: `resourceLogs[].schemaUrl` -> ResourceSchemaUrl, `scopeLogs[].schemaUrl` -> ScopeSchemaUrl, `scope.attributes` -> ScopeAttributes, `logRecord.eventName` -> EventName. The simple format has no equivalents, so those are `''`/`[]` (EventName may come from an `event` field). There is **no ObservedTimestamp column** (R6): the observed time is still parsed, but only as the fallback for a record with no event time.
 
 Protobuf OTLP is intentionally unsupported (would need a new dependency): content-type application/x-protobuf returns 415 with a JSON hint.
+
+## Map columns must serialize as JSON objects
+
+Empty PHP arrays encode as `[]`, but ClickHouse JSONEachRow requires `{}` for
+Map columns — and with `wait_for_async_insert=0` the server acks first and
+discards the unparseable row silently. `LogWriter::write()` normalises the
+three Map columns (`ResourceAttributes`, `ScopeAttributes`, `LogAttributes`)
+to `stdClass` when empty; any new Map column must be added to
+`LogWriter::MAP_COLUMNS`. Regression test: "empty attribute maps are
+serialized as JSON objects" in `SimpleLogIngestTest`.
