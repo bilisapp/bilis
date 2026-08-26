@@ -19,6 +19,7 @@
         "infer-conventions",
         "fortify-development",
         "laravel-best-practices",
+        "configuring-horizon",
         "wayfinder-development",
         "pest-testing",
         "inertia-vue-development",
