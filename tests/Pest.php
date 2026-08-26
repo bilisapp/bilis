@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
 use Tests\TestCase;
 
 /*
@@ -47,4 +48,22 @@ expect()->extend('toBeOne', function () {
 function something()
 {
     // ..
+}
+
+/**
+ * Decode the rows of a JSONEachRow body sent to the ClickHouse HTTP interface.
+ *
+ * @return array<int, array<string, mixed>>
+ */
+function insertedRows(Request $request): array
+{
+    $lines = array_filter(
+        explode("\n", trim($request->body())),
+        fn (string $line): bool => trim($line) !== '',
+    );
+
+    return array_map(
+        fn (string $line): array => json_decode($line, true),
+        array_values($lines),
+    );
 }
