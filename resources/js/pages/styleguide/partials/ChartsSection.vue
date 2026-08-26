@@ -62,6 +62,7 @@ const volumeOption = computed<BilisChartOption>(() => ({
         stack: 'volume',
         barMaxWidth: 40,
         itemStyle: { color: tokens.value.severity[level] },
+        emphasis: { focus: 'series' },
         data: CHART_VOLUME_BY_SEVERITY[level],
     })),
 }));
@@ -102,6 +103,7 @@ const ingestOption = computed<BilisChartOption>(() => ({
         smooth: true,
         showSymbol: false,
         lineStyle: { width: 2 },
+        emphasis: { focus: 'series' },
         data: series.values,
     })),
 }));

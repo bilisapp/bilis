@@ -201,6 +201,13 @@ function buildChartTheme(tokens: ChartTokens): Record<string, unknown> {
             borderColor: tokens.border,
             textStyle: { color: tokens.cardForeground },
             axisPointer: {
+                /*
+                 * With trigger:'axis' the pointer would otherwise emphasise
+                 * every series at once; combined with emphasis.focus:'series'
+                 * they all blur each other and the chart fades out. Direct
+                 * hover on a series or legend item still triggers emphasis.
+                 */
+                triggerEmphasis: false,
                 lineStyle: { color: tokens.border },
                 crossStyle: { color: tokens.border },
                 label: {
