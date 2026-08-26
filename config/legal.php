@@ -93,6 +93,33 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Payments
+    |--------------------------------------------------------------------------
+    |
+    | The hosted service sells through Stripe Managed Payments, so Stripe is
+    | the merchant of record - not us. Stripe calculates, collects, files and
+    | remits sales tax, VAT and GST in the countries it covers, issues the
+    | receipt or invoice, and handles disputes and transaction-level support.
+    | Customers see the sale as "Sold through Link" and manage orders and
+    | subscriptions at link.com.
+    |
+    | This is why `operator.vat_id` is empty: under a merchant-of-record
+    | arrangement we are not the party charging the customer VAT.
+    |
+    | https://docs.stripe.com/payments/managed-payments/how-it-works
+    |
+    */
+
+    'payments' => [
+        'merchant_of_record' => env('LEGAL_MERCHANT_OF_RECORD', 'Stripe'),
+        'customer_facing_brand' => env('LEGAL_PAYMENTS_BRAND', 'Link'),
+        'order_management_url' => env('LEGAL_PAYMENTS_ORDERS_URL', 'https://link.com'),
+        'support_url' => env('LEGAL_PAYMENTS_SUPPORT_URL', 'https://support.link.com/topics/sold-through-link'),
+        'statement_descriptor_prefix' => env('LEGAL_PAYMENTS_STATEMENT_PREFIX', 'LINK.COM*'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Sub-processors
     |--------------------------------------------------------------------------
     |
@@ -108,6 +135,12 @@ return [
             'purpose' => 'Server hosting, storage and network for the entire service',
             'location' => 'France (EU)',
             'url' => 'https://www.ovhcloud.com/en/personal-data-protection/',
+        ],
+        [
+            'name' => 'Stripe, Inc. and Stripe Technology Europe, Limited',
+            'purpose' => 'Merchant of record for the hosted service: checkout, payment processing, tax, invoicing, refunds, disputes and transaction support',
+            'location' => 'Ireland (EU) and United States',
+            'url' => 'https://stripe.com/privacy',
         ],
         [
             'name' => 'TODO email provider',
