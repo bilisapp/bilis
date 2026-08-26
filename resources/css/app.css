@@ -153,6 +153,10 @@
     --sidebar-border: hsl(42 18% 72%);
     --sidebar-ring: hsl(215 51% 40%);
     --sidebar: hsl(44 26% 87%);
+
+    /* Logo mark: navy fish with cream detailing on light surfaces. */
+    --logo-body: var(--color-navy);
+    --logo-detail: var(--color-cream);
     --severity-trace: hsl(30 10% 55%);
     --severity-debug: hsl(166 25% 42%);
     --severity-info: hsl(215 51% 38%);
@@ -195,6 +199,10 @@
     --sidebar-border: hsl(28 14% 20%);
     --sidebar-ring: hsl(45 85% 61%);
     --sidebar: hsl(28 24% 7%);
+
+    /* Logo mark: inverted so the fish stays legible on espresso. */
+    --logo-body: var(--color-cream);
+    --logo-detail: var(--color-espresso);
     --severity-trace: hsl(40 10% 55%);
     --severity-debug: hsl(166 35% 55%);
     --severity-info: hsl(215 55% 65%);
