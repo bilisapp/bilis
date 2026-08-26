@@ -122,8 +122,32 @@ export function readChartTokens(): ChartTokens {
     }
 
     const styles = getComputedStyle(document.documentElement);
-    const token = (name: string, fallback = 'currentColor'): string =>
-        styles.getPropertyValue(name).trim() || fallback;
+
+    /**
+     * The tokens are authored in modern space-syntax HSL (`hsl(44 33% 93%)`).
+     * Canvas accepts that when painting, but zrender's own colour parser —
+     * used to derive hover/emphasis colours — only understands comma syntax,
+     * so emphasised shapes silently get no fill and vanish on hover. Round-
+     * tripping through a canvas fillStyle normalises any CSS colour to
+     * hex/rgba, which zrender parses.
+     */
+    const scratch = document.createElement('canvas').getContext('2d');
+    const normalizeColor = (value: string): string => {
+        if (!scratch) {
+            return value;
+        }
+
+        scratch.fillStyle = '#000';
+        scratch.fillStyle = value;
+
+        return scratch.fillStyle;
+    };
+
+    const token = (name: string, fallback = 'currentColor'): string => {
+        const value = styles.getPropertyValue(name).trim();
+
+        return value ? normalizeColor(value) : fallback;
+    };
 
     return {
         palette: [1, 2, 3, 4, 5].map((index) => token(`--chart-${index}`)),
@@ -139,7 +163,9 @@ export function readChartTokens(): ChartTokens {
         card: token('--card', 'transparent'),
         cardForeground: token('--card-foreground'),
         background: token('--background', 'transparent'),
-        fontFamily: token('--font-sans', FALLBACK_FONT_FAMILY),
+        fontFamily:
+            styles.getPropertyValue('--font-sans').trim() ||
+            FALLBACK_FONT_FAMILY,
     };
 }
 
