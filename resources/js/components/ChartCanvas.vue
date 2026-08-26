@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { init } from 'echarts/core';
 import type { EChartsType } from 'echarts/core';
-import { computed, onBeforeUnmount, onMounted, shallowRef, watch } from 'vue';
+import {
+    computed,
+    onBeforeUnmount,
+    onMounted,
+    shallowRef,
+    toRaw,
+    watch,
+} from 'vue';
 import { useChartTokens } from '@/composables/useChartTokens';
 import { registerChartTheme } from '@/lib/echarts';
 import type { BilisChartOption } from '@/lib/echarts';
@@ -38,6 +45,35 @@ const resolvedHeight = computed(() =>
 
 let resizeObserver: ResizeObserver | null = null;
 
+/**
+ * ECharts mutates the option object it is given (axis-pointer state on hover,
+ * normalisation, …). Handing it the reactive prop directly makes those internal
+ * writes trip the deep watcher below, which re-runs setOption mid-hover and
+ * blanks the chart. Cloning isolates ECharts from the watched object; functions
+ * (formatters) and non-plain values are passed through by reference.
+ */
+function cloneOption<T>(value: T): T {
+    if (Array.isArray(value)) {
+        return value.map((entry) => cloneOption(entry)) as T;
+    }
+
+    if (
+        value !== null &&
+        typeof value === 'object' &&
+        (value.constructor === Object || value.constructor === undefined)
+    ) {
+        const clone: Record<string, unknown> = {};
+
+        for (const [key, entry] of Object.entries(value)) {
+            clone[key] = cloneOption(entry);
+        }
+
+        return clone as T;
+    }
+
+    return value;
+}
+
 function renderChart() {
     if (!container.value) {
         return;
@@ -47,7 +83,7 @@ function renderChart() {
 
     chart.value?.dispose();
     chart.value = init(container.value, theme, { renderer: 'canvas' });
-    chart.value.setOption(props.option, { notMerge: true });
+    chart.value.setOption(cloneOption(toRaw(props.option)), { notMerge: true });
 }
 
 onMounted(() => {
@@ -72,7 +108,9 @@ watch(appearance, () => renderChart());
 watch(
     () => props.option,
     (option) => {
-        chart.value?.setOption(option, { notMerge: props.notMerge });
+        chart.value?.setOption(cloneOption(toRaw(option)), {
+            notMerge: props.notMerge,
+        });
     },
     { deep: true },
 );
