@@ -93,6 +93,16 @@ class ClickHouseClient
      */
     private function send(string $body, array $query, string $statement, bool $withDatabase = true): Response
     {
+        /*
+         * DateTime64 columns carry no timezone, so ClickHouse interprets
+         * timestamp strings in the session timezone — which defaults to the
+         * SERVER's timezone. The app formats and parses everything as UTC,
+         * so every request pins the session to UTC; otherwise a server in
+         * another timezone silently skews stored epochs, TTL expiry and
+         * partition boundaries.
+         */
+        $query = ['session_timezone' => 'UTC', ...$query];
+
         if ($withDatabase) {
             $query = ['database' => $this->database(), ...$query];
         }
