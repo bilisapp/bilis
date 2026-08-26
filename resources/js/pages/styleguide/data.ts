@@ -25,6 +25,7 @@ export const STYLEGUIDE_SECTIONS: StyleguideSection[] = [
     { id: 'tokens', title: 'Semantic tokens' },
     { id: 'severity', title: 'Severity scale' },
     { id: 'typography', title: 'Typography' },
+    { id: 'fonts', title: 'Fonts' },
     { id: 'components', title: 'Components' },
     { id: 'app-components', title: 'App components' },
     { id: 'charts', title: 'Charts' },

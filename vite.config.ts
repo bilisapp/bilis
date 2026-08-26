@@ -15,6 +15,13 @@ export default defineConfig({
                 bunny('Instrument Sans', {
                     weights: [400, 500, 600],
                 }),
+                // Candidates under evaluation on /styleguide — drop the loser.
+                bunny('IBM Plex Sans', {
+                    weights: [400, 500, 600],
+                }),
+                bunny('IBM Plex Mono', {
+                    weights: [400, 500],
+                }),
             ],
         }),
         inertia(),
