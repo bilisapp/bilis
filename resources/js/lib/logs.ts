@@ -172,3 +172,27 @@ export function formatTimestamp(timestamp: string): string {
 
     return date.toISOString().replace('T', ' ').replace('Z', '');
 }
+
+/**
+ * Render a byte count the way humans read disk usage (1024-based).
+ */
+export function formatBytes(bytes: number): string {
+    if (!Number.isFinite(bytes) || bytes < 0) {
+        return '0 B';
+    }
+
+    if (bytes < 1024) {
+        return `${Math.round(bytes)} B`;
+    }
+
+    const units = ['KB', 'MB', 'GB', 'TB', 'PB'];
+    let value = bytes;
+    let unit = -1;
+
+    while (value >= 1024 && unit < units.length - 1) {
+        value /= 1024;
+        unit += 1;
+    }
+
+    return `${value >= 100 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
+}

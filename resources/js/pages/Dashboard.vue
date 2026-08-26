@@ -2,6 +2,7 @@
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import {
     ArrowRight,
+    Database,
     FolderKanban,
     KeyRound,
     Plus,
@@ -21,10 +22,13 @@ import {
 import { dashboard } from '@/routes';
 import { index as logsIndex } from '@/routes/logs';
 import { index as projectsIndex, show as projectShow } from '@/routes/projects';
+import { formatBytes } from '@/lib/logs';
 import type {
     DashboardInvitation,
     LogOnboarding,
     LogProject,
+    LogStorageProject,
+    LogStorageSummary,
     Team,
 } from '@/types';
 
@@ -32,6 +36,7 @@ const props = defineProps<{
     pendingInvitations?: DashboardInvitation[];
     onboarding: LogOnboarding;
     firstProject: LogProject | null;
+    storage: LogStorageSummary | null;
 }>();
 
 defineOptions({
@@ -52,6 +57,18 @@ const page = usePage();
 const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
 
 const stage = computed(() => props.onboarding.stage);
+
+/**
+ * A project's bar as a share of the whole table, floored so the smallest
+ * project with any data still shows a visible sliver.
+ */
+function storageBarWidth(project: LogStorageProject): number {
+    if (!props.storage || props.storage.totalBytes <= 0 || project.bytes <= 0) {
+        return 0;
+    }
+
+    return Math.max(2, (project.bytes / props.storage.totalBytes) * 100);
+}
 </script>
 
 <template>
@@ -158,6 +175,87 @@ const stage = computed(() => props.onboarding.stage);
                         </Link>
                     </Button>
                 </template>
+            </CardContent>
+        </Card>
+
+        <!--
+          Storage only appears once logs are flowing: during onboarding a card
+          full of zeroes would just be noise next to the setup steps.
+        -->
+        <Card
+            v-if="storage && stage === 'ready'"
+            class="max-w-2xl"
+            data-test="dashboard-storage"
+        >
+            <CardHeader>
+                <CardTitle class="flex items-center justify-between gap-2">
+                    <span class="flex items-center gap-2">
+                        <span
+                            class="flex size-8 items-center justify-center rounded-full bg-muted text-muted-foreground"
+                        >
+                            <Database class="size-4" />
+                        </span>
+                        Storage
+                    </span>
+                    <span
+                        v-if="!storage.unavailable"
+                        class="font-mono text-sm text-muted-foreground"
+                        data-test="dashboard-storage-total"
+                    >
+                        {{ formatBytes(storage.totalBytes) }}
+                    </span>
+                </CardTitle>
+
+                <CardDescription>
+                    Compressed bytes on disk across the 30-day retention
+                    window. The per-project split is an estimate.
+                </CardDescription>
+            </CardHeader>
+
+            <CardContent>
+                <p
+                    v-if="storage.unavailable"
+                    class="text-sm text-muted-foreground"
+                >
+                    Storage numbers are momentarily unavailable while the log
+                    store is busy. They will be back on the next visit.
+                </p>
+
+                <ul v-else class="flex flex-col gap-3">
+                    <li
+                        v-for="project in storage.projects"
+                        :key="project.slug"
+                        class="flex flex-col gap-1"
+                    >
+                        <div
+                            class="flex items-baseline justify-between gap-2 text-sm"
+                        >
+                            <Link
+                                :href="projectShow([teamSlug, project.slug])"
+                                class="truncate font-medium hover:underline"
+                            >
+                                {{ project.name }}
+                            </Link>
+                            <span
+                                class="shrink-0 font-mono text-xs text-muted-foreground"
+                            >
+                                {{ project.rows.toLocaleString() }} logs ·
+                                {{ formatBytes(project.bytes) }}
+                            </span>
+                        </div>
+                        <div
+                            class="h-1.5 overflow-hidden rounded-full bg-muted"
+                            role="presentation"
+                        >
+                            <div
+                                class="h-full rounded-full bg-foreground/60"
+                                :style="{
+                                    width: `${storageBarWidth(project)}%`,
+                                }"
+                            />
+                        </div>
+                    </li>
+                </ul>
             </CardContent>
         </Card>
     </div>

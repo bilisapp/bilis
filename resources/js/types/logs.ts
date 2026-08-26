@@ -54,6 +54,22 @@ export type LogHistogram = {
     unavailable: boolean;
 };
 
+export type LogStorageProject = {
+    name: string;
+    slug: string;
+    rows: number;
+    /** Estimated compressed bytes on disk — the table total apportioned by uncompressed share. */
+    bytes: number;
+};
+
+export type LogStorageSummary = {
+    /** Exact compressed bytes the logs table occupies on disk. */
+    totalBytes: number;
+    unavailable: boolean;
+    /** Largest first. */
+    projects: LogStorageProject[];
+};
+
 /**
  * Which onboarding step the current team is standing on.
  *
