@@ -66,12 +66,11 @@ RUN composer dump-autoload --no-dev --optimize \
     && php artisan package:discover --ansi \
     && php artisan wayfinder:generate --with-form --no-interaction
 
-FROM php-base AS assets
+FROM node-base AS assets
 
-COPY --from=node-base /usr/local/bin/node /usr/local/bin/node
-COPY --from=node-base /usr/local/bin/npm /usr/local/bin/npm
-COPY --from=node-base /usr/local/bin/npx /usr/local/bin/npx
-COPY --from=node-base /usr/local/lib/node_modules /usr/local/lib/node_modules
+WORKDIR /app
+
+ENV WAYFINDER_COMMAND=true
 
 COPY package.json package-lock.json ./
 RUN npm ci
