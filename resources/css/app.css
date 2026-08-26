@@ -109,6 +109,44 @@
 }
 
 @layer utilities {
+    /*
+      Overlay scrollbars (macOS, and any trackpad-only device) stay invisible
+      until they move, which makes a long log stream look like it ends at the
+      fold. This paints a persistent hairline thumb from the border token so a
+      scrollable region always shows that it is scrollable, and how much is
+      left. Both tokens are per-mode, so the thumb follows the theme.
+    */
+    .scrollbar-stream {
+        scrollbar-width: thin;
+        scrollbar-color: var(--border) transparent;
+    }
+
+    .scrollbar-stream::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+
+    .scrollbar-stream::-webkit-scrollbar-track {
+        background-color: transparent;
+    }
+
+    .scrollbar-stream::-webkit-scrollbar-thumb {
+        border: 3px solid transparent;
+        border-radius: 9999px;
+        background-color: var(--border);
+        background-clip: content-box;
+    }
+
+    .scrollbar-stream::-webkit-scrollbar-thumb:hover {
+        background-color: var(--input);
+    }
+
+    .scrollbar-stream::-webkit-scrollbar-corner {
+        background-color: transparent;
+    }
+}
+
+@layer utilities {
     body,
     html {
         --font-sans:

@@ -18,7 +18,12 @@ const isOpen = usePage().props.sidebarOpen;
     <div v-if="variant === 'header'" class="flex min-h-screen w-full flex-col">
         <slot />
     </div>
-    <SidebarProvider v-else :default-open="isOpen">
+    <!--
+      h-svh, not just the provider's own min-h-svh: a min-height leaves the
+      shell's height indefinite, so every `flex-1 min-h-0` beneath it collapses
+      to auto and inner scroll areas grow the document instead of scrolling.
+    -->
+    <SidebarProvider v-else :default-open="isOpen" class="h-svh">
         <slot />
     </SidebarProvider>
 </template>

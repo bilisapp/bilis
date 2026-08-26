@@ -191,7 +191,7 @@ function fromLocalInput(value: string, fallback: string): string {
                         "
                     />
                 </span>
-                {{ liveTail ? 'Live' : 'Live tail' }}
+                Live
             </Button>
         </div>
 

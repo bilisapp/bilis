@@ -516,7 +516,7 @@ const activeFilterCount = computed(
 <template>
     <Head title="Logs" />
 
-    <div class="flex h-full flex-1 flex-col gap-4 p-4">
+    <div class="flex min-h-0 flex-1 flex-col gap-4 p-4">
         <GetStartedPanel
             v-if="onboarding"
             :stage="props.onboarding.stage"
@@ -613,7 +613,10 @@ const activeFilterCount = computed(
                     </p>
                 </header>
 
-                <div class="min-h-0 flex-1 overflow-y-auto" @scroll="onScroll">
+                <div
+                    class="scrollbar-stream min-h-0 flex-1 overflow-auto"
+                    @scroll="onScroll"
+                >
                     <!--
                   The skeleton mirrors the real row: timestamp, severity,
                   service, body. A row-shaped wait reads as "logs are coming"
