@@ -16,6 +16,7 @@ Self-hostable log storage and search. **v1 scope is exactly this — nothing els
 | ClickHouse DDL (idempotent, filename order) | `database/clickhouse/*.sql`, applied by `php artisan clickhouse:migrate` |
 | Ingest endpoints (OTLP JSON + simple JSON) | `routes/api.php`, `app/Http/Controllers/Api/`, mappers in `app/Services/Ingest/` |
 | API-key auth (key -> project) | `App\Http\Middleware\AuthenticateProjectApiKey`, alias `project.api-key`; keys are `bilis_`-prefixed, only sha256 hash stored (`App\Models\ProjectApiKey`) |
+| Monolog shipper (in-app) | `app/Logging/BilisLogger.php` (custom-driver factory) + `BilisHandler.php`; buffered batch POST to the simple ingest endpoint, flushed on `terminating()`/`close()`/full buffer. Channel `bilis` in `config/logging.php`, off unless `LOG_STACK` names it; inert without `BILIS_ENDPOINT`/`BILIS_API_KEY` |
 | Log querying for the UI | `app/Services/Logs/` (LogQuery, LogFilters, SeverityLevel) |
 | Log viewer page | `LogsController`, `resources/js/pages/logs/`, `LogsToolbar.vue`, `LogEntryRow.vue`, `resources/js/lib/logs.ts` |
 | Projects (team-scoped, slug route key) | `App\Models\Project`, belongs to existing Teams system |

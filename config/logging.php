@@ -1,5 +1,6 @@
 <?php
 
+use App\Logging\BilisLogger;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
@@ -124,6 +125,21 @@ return [
             'driver' => 'errorlog',
             'level' => env('LOG_LEVEL', 'debug'),
             'replace_placeholders' => true,
+        ],
+
+        /*
+         * Bilis' own log shipper: a buffered Monolog handler that POSTs a
+         * batch to a Bilis ingest endpoint after the response has been sent.
+         * Available but unused by default — opt in per install with
+         * LOG_STACK=single,bilis. With BILIS_ENDPOINT or BILIS_API_KEY unset
+         * the channel is inert, so it is safe to leave in a stack anywhere.
+         */
+        'bilis' => [
+            'driver' => 'custom',
+            'via' => BilisLogger::class,
+            'endpoint' => env('BILIS_ENDPOINT'),
+            'api_key' => env('BILIS_API_KEY'),
+            'level' => env('BILIS_LOG_LEVEL', 'debug'),
         ],
 
         'null' => [

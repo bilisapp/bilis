@@ -8,4 +8,5 @@ Before planning or editing, find the row whose globs match the file's path and r
 | resources/css/app.css | .ai/rules/css.md |
 | app/Services/Ingest/** | .ai/rules/ingest.md |
 | resources/js/** | .ai/rules/js.md |
+| app/Logging/** | .ai/rules/logging.md |
 | app/Services/Logs/** | .ai/rules/logs.md |

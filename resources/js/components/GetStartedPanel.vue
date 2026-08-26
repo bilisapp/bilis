@@ -92,8 +92,10 @@ BILIS_API_KEY=<YOUR_API_KEY>
     'via' => App\\Logging\\BilisLogger::class,
     'endpoint' => env('BILIS_ENDPOINT'),
     'api_key' => env('BILIS_API_KEY'),
-    'level' => env('LOG_LEVEL', 'debug'),
+    'level' => env('BILIS_LOG_LEVEL', 'debug'),
 ],
+
+// Then opt the channel into your stack: LOG_STACK=single,bilis
 
 // app/Logging/BilisLogger.php
 class BilisLogger
@@ -107,13 +109,15 @@ class BilisLogger
     }
 }
 
-// The handler posts one record per write:
-// Http::withToken($this->apiKey)->post($this->endpoint, [
+// The handler buffers records and posts one array per flush —
+// on close(), on terminate(), or when the buffer fills up:
+// Http::withToken($this->apiKey)->timeout(2)->post($this->endpoint, [[
 //     'message' => $record->message,
-//     'level' => $record->level->getName(),
-//     'timestamp' => $record->datetime->format(DATE_RFC3339_EXTENDED),
+//     'level' => strtolower($record->level->getName()),
+//     'timestamp' => $record->datetime->format('Y-m-d\\TH:i:s.uP'),
+//     'service' => config('app.name'),
 //     'context' => $record->context,
-// ]);`,
+// ]]);`,
     };
 });
 
