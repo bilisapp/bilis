@@ -530,19 +530,31 @@ function storageBarWidth(project: LogStorageProject): number {
                                     :key="service.name"
                                     :data-quiet="service.quiet"
                                 >
+                                    <!--
+                                      A fixed column template, identical on
+                                      every row, so the charts share one
+                                      x-origin and one right edge: the rows
+                                      become comparable little histograms
+                                      instead of ragged decorations. Every
+                                      cell is always rendered — the status
+                                      cell reserves its width even when the
+                                      service is healthy — so nothing shifts
+                                      when a row gains or loses the pill.
+                                    -->
                                     <Link
                                         :href="serviceLink(service.name)"
-                                        class="flex items-center justify-between gap-3 text-sm hover:underline"
+                                        class="grid grid-cols-[7.5rem_minmax(4rem,1fr)_3.5rem_4.25rem] items-center gap-3 text-sm hover:underline"
                                         :title="`Show the last 7 days of ${service.name}`"
                                         data-test="dashboard-digest-service-link"
                                     >
                                         <span
-                                            class="max-w-[40%] min-w-0 shrink truncate font-mono text-xs"
+                                            class="min-w-0 truncate font-mono text-xs"
                                             :class="
                                                 service.quiet
                                                     ? 'text-muted-foreground'
                                                     : ''
                                             "
+                                            :title="service.name"
                                         >
                                             {{ service.name }}
                                         </span>
@@ -554,7 +566,7 @@ function storageBarWidth(project: LogStorageProject): number {
                                           rather than merely labelled.
                                         -->
                                         <span
-                                            class="min-w-16 flex-1"
+                                            class="min-w-0"
                                             data-test="dashboard-digest-service-series"
                                         >
                                             <DitherSparkline
@@ -570,12 +582,7 @@ function storageBarWidth(project: LogStorageProject): number {
                                             />
                                         </span>
                                         <span
-                                            class="flex shrink-0 items-center gap-2 text-xs text-muted-foreground"
-                                            :title="
-                                                formatUtcTimestamp(
-                                                    service.lastSeen,
-                                                )
-                                            "
+                                            class="flex justify-center text-xs text-muted-foreground"
                                         >
                                             <span
                                                 v-if="service.quiet"
@@ -583,6 +590,15 @@ function storageBarWidth(project: LogStorageProject): number {
                                             >
                                                 quiet
                                             </span>
+                                        </span>
+                                        <span
+                                            class="text-right text-xs text-muted-foreground tabular-nums"
+                                            :title="
+                                                formatUtcTimestamp(
+                                                    service.lastSeen,
+                                                )
+                                            "
+                                        >
                                             {{
                                                 formatRelativeTime(
                                                     service.lastSeen,

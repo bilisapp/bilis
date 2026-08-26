@@ -200,18 +200,25 @@ const SPARKLINE_SERVICES = [
             description="A service row on the dashboard: pass errorValues alongside values and a second dithered line is drawn on top in --severity-error, so one glance answers both how much a shipper logged and how much of it broke. Errors are a subset of the totals, so the overlay shares the primary series' scale — no second axis, no stacking. The tooltip names both, and stays quiet about errors in the hours that had none."
         >
             <ul class="flex flex-col gap-2 rounded-lg border bg-card p-4">
+                <!--
+                  The dashboard's fixed column template: identical on every
+                  row so the charts share one x-origin and right edge, with
+                  the status cell always rendered to keep the layout stable
+                  whether or not a row wears the quiet pill.
+                -->
                 <li
                     v-for="service in SPARKLINE_SERVICES"
                     :key="service.name"
-                    class="flex items-center justify-between gap-3 text-sm"
+                    class="grid grid-cols-[7.5rem_minmax(4rem,1fr)_3.5rem_4.25rem] items-center gap-3 text-sm"
                 >
                     <span
-                        class="max-w-[40%] min-w-0 shrink truncate font-mono text-xs"
+                        class="min-w-0 truncate font-mono text-xs"
                         :class="service.quiet ? 'text-muted-foreground' : ''"
+                        :title="service.name"
                     >
                         {{ service.name }}
                     </span>
-                    <span class="min-w-16 flex-1">
+                    <span class="min-w-0">
                         <DitherSparkline
                             :values="service.values"
                             :error-values="service.errors"
@@ -223,7 +230,7 @@ const SPARKLINE_SERVICES = [
                         />
                     </span>
                     <span
-                        class="flex shrink-0 items-center gap-2 text-xs text-muted-foreground"
+                        class="flex justify-center text-xs text-muted-foreground"
                     >
                         <span
                             v-if="service.quiet"
@@ -231,6 +238,10 @@ const SPARKLINE_SERVICES = [
                         >
                             quiet
                         </span>
+                    </span>
+                    <span
+                        class="text-right text-xs text-muted-foreground tabular-nums"
+                    >
                         {{ service.lastSeen }}
                     </span>
                 </li>
