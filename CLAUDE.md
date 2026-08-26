@@ -21,7 +21,7 @@ Self-hostable log storage and search. **v1 scope is exactly this — nothing els
 | Log viewer page | `LogsController`, `resources/js/pages/logs/`, `LogsToolbar.vue`, `LogEntryRow.vue`, `resources/js/lib/logs.ts` |
 | Projects (team-scoped, slug route key) | `App\Models\Project`, belongs to existing Teams system |
 | Projects & API keys UI | `ProjectController`, `ProjectApiKeyController`, `resources/js/pages/projects/`, project/API-key modals in `resources/js/components/`; `{project}` / `{apiKey}` route bindings are team-scoped in `AppServiceProvider` |
-| Contextual onboarding (no projects -> no logs -> ready) | `App\Services\Logs\LogOnboarding` + `LogQuery::hasAnyLogs()`; `onboarding` prop from `LogsController` and `DashboardController`; `GetStartedPanel.vue` renders both steps on the logs page, `Dashboard.vue` echoes them |
+| Contextual onboarding (no projects -> no logs -> ready) | `App\Services\Logs\LogOnboarding` + `LogQuery::hasAnyLogs()`; `onboarding` prop from `LogsController` and `DashboardController`; `GetStartedPanel.vue` renders both steps on the logs page and the dashboard (until `ready`) |
 | Left navigation | `AppSidebar.vue` (Platform: Dashboard, Logs, Projects; Resources: Styleguide), groups rendered by `NavMain.vue` (`label` prop); active state matches nested URLs via `isCurrentOrParentUrl` |
 | Styleguide / component showcase | `/styleguide` route, `resources/js/pages/styleguide/` |
 | Marketing pages (public, Blade only) | `resources/views/marketing/`, layout `resources/views/components/layouts/marketing.blade.php` |
@@ -59,7 +59,7 @@ Self-hostable log storage and search. **v1 scope is exactly this — nothing els
 
 Both are drawn from the Bilis mark's tail (`--color-mark-{gold,teal,crimson,navy}`), which is the palette's origin and is never used for chrome. `destructive` is the single stated exception, because it warns about an action rather than describing data.
 
-Dark is the designed-for mode; light is authored separately, never derived. Font: **Geist** for the interface, **Geist Mono** for log data — self-hosted via the Vite font plugin. Wordmark: "Bilis" with the mark (`AppLogo.vue` / `AppLogoIcon.vue`), which keeps its tail colours. Living reference: the `/styleguide` page. Full system: `DESIGN.md`.
+Dark is the designed-for mode; light is authored separately, never derived. Font: **Geist** for the interface, **Geist Mono** for log data — self-hosted via the Vite font plugin. IBM Plex Mono is available as a per-account alternate (Settings -> Appearance). Wordmark: "Bilis" with the mark (`AppLogo.vue` / `AppLogoIcon.vue`), which keeps its tail colours. Living reference: the `/styleguide` page. Full system: `DESIGN.md`.
 
 ## Commands
 

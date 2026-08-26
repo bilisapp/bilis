@@ -47,6 +47,24 @@ class LogsController extends Controller
     }
 
     /**
+     * Return the page of logs older than the cursor, for the "load older" button.
+     *
+     * The same query the page renders with, asked over XHR instead of an
+     * Inertia visit: the viewer appends the rows to the ones it already shows,
+     * so reading further back never costs the reader their scroll position.
+     */
+    public function older(Request $request, LogQuery $logQuery): JsonResponse
+    {
+        $team = $this->team($request);
+        $filters = LogFilters::fromRequest($request);
+        $projects = $this->projects($team);
+
+        return response()->json(
+            $logQuery->search($this->projectIds($projects, $filters->project), $filters),
+        );
+    }
+
+    /**
      * Return the logs recorded after the given timestamp, for live tailing.
      */
     public function tail(Request $request, LogQuery $logQuery): JsonResponse

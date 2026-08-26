@@ -49,6 +49,8 @@
 
         {{-- Documentation is Blade only: the stylesheet, never the Inertia bundle. --}}
         @vite('resources/css/app.css')
+
+        <script defer src="https://umami.lsd.sk/script.js" data-website-id="a44fb3bb-e339-4c3e-aa58-997ea902e51e"></script>
     </head>
     <body class="min-h-dvh bg-background font-sans text-foreground antialiased">
         <header class="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur">

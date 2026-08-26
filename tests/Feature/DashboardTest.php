@@ -5,6 +5,7 @@ use App\Models\Project;
 use App\Models\Team;
 use App\Models\TeamInvitation;
 use App\Models\User;
+use GuzzleHttp\Promise\PromiseInterface;
 use Illuminate\Http\Client\Request;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -137,9 +138,11 @@ test('dashboard does not include or delete other users invitations', function ()
 });
 
 /**
- * Build a dashboard team with two projects and fake the three ClickHouse
- * calls the page makes: hasAnyLogs, the per-project byte scan, and the
- * system.parts total.
+ * Build a dashboard team with two projects.
+ *
+ * The page issues five ClickHouse statements: hasAnyLogs, the system.parts
+ * total, the per-project byte scan, and the digest's counts, top errors and
+ * service liveness. Every test that renders it has to answer all five.
  *
  * @return array{0: User, 1: Team, 2: Project, 3: Project}
  */
@@ -178,7 +181,7 @@ test('dashboard reports storage per project, largest first', function () {
             );
         }
 
-        return Http::response(json_encode(['Present' => 1])."\n");
+        return digestResponse($body);
     });
 
     $response = $this
@@ -247,5 +250,204 @@ test('an overloaded clickhouse marks storage unavailable without failing the pag
         ->where('storage.unavailable', true)
         ->where('storage.totalBytes', 0)
         ->has('storage.projects', 0),
+    );
+});
+
+/**
+ * Answer the digest statements — and hasAnyLogs — from one fake.
+ *
+ * Matched on substrings unique to each statement so a test that only cares
+ * about storage still gets a coherent digest rendered alongside it.
+ */
+function digestResponse(string $body, ?string $lastSeen = null): PromiseInterface
+{
+    if (str_contains($body, 'toStartOfInterval')) {
+        /*
+         * Two hours of the last 24, deliberately non-adjacent: everything in
+         * between has to come back as a filled zero rather than a gap.
+         */
+        $hour = now()->utc()->startOfHour();
+
+        return Http::response(
+            json_encode([
+                'Bucket' => $hour->clone()->subHours(5)->format('Y-m-d H:i:s.u'),
+                'Total' => '40',
+                'Errors' => '4',
+            ])."\n"
+            .json_encode([
+                'Bucket' => $hour->format('Y-m-d H:i:s.u'),
+                'Total' => '60',
+                'Errors' => '2',
+            ])."\n",
+        );
+    }
+
+    if (str_contains($body, 'countIf')) {
+        return Http::response(json_encode([
+            'Total' => '150',
+            'Current' => '100',
+            'ErrorTotal' => '12',
+            'ErrorCurrent' => '8',
+        ])."\n");
+    }
+
+    if (str_contains($body, 'GROUP BY Body')) {
+        return Http::response(
+            json_encode(['Body' => 'Connection refused', 'Total' => '5'])."\n"
+            .json_encode(['Body' => 'Timeout talking to redis', 'Total' => '3'])."\n",
+        );
+    }
+
+    if (str_contains($body, 'max(Timestamp)')) {
+        $fresh = $lastSeen ?? now()->utc()->subMinutes(2)->format('Y-m-d H:i:s.u');
+
+        return Http::response(
+            json_encode([
+                'ServiceName' => 'worker',
+                'LastSeen' => now()->utc()->subHours(6)->format('Y-m-d H:i:s.u'),
+            ])."\n"
+            .json_encode(['ServiceName' => 'api', 'LastSeen' => $fresh])."\n",
+        );
+    }
+
+    return Http::response(json_encode(['Present' => 1])."\n");
+}
+
+test('dashboard digest summarises the last 24 hours', function () {
+    [$user, $team] = storageTeam();
+
+    Http::fake(fn (Request $request) => digestResponse($request->body()));
+
+    $response = $this
+        ->actingAs($user)
+        ->get(route('dashboard', ['current_team' => $team->slug]));
+
+    $response->assertOk();
+    $response->assertInertia(fn (Assert $page) => $page
+        ->component('Dashboard')
+        ->where('digest.unavailable', false)
+        ->where('digest.logs.current', 100)
+        ->where('digest.logs.previous', 50)
+        ->where('digest.logs.deltaPercent', 100)
+        ->where('digest.errors.current', 8)
+        ->where('digest.errors.previous', 4)
+        ->where('digest.errors.deltaPercent', 100)
+        ->has('digest.topErrors', 2)
+        ->where('digest.topErrors.0.body', 'Connection refused')
+        ->where('digest.topErrors.0.total', 5)
+        ->has('digest.services', 2)
+        ->where('digest.services.0.name', 'worker')
+        ->where('digest.services.0.quiet', true)
+        ->where('digest.services.1.name', 'api')
+        ->where('digest.services.1.quiet', false)
+        ->has('digest.series', 24),
+    );
+
+    Http::assertSent(function (Request $request) {
+        if (! str_contains($request->body(), 'countIf')) {
+            return false;
+        }
+
+        $query = [];
+        parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+
+        return str_contains($request->body(), 'ProjectId IN {projectIds:Array(String)}')
+            && str_contains($request->body(), 'Timestamp >= {from:DateTime64(9)}')
+            && str_contains($request->body(), 'countIf(Timestamp >= {mid:DateTime64(9)})')
+            && isset($query['param_projectIds'], $query['param_from'], $query['param_mid']);
+    });
+});
+
+test('the digest series is a dense 24 hour trend, oldest hour first', function () {
+    [$user, $team] = storageTeam();
+
+    Http::fake(fn (Request $request) => digestResponse($request->body()));
+
+    $response = $this
+        ->actingAs($user)
+        ->get(route('dashboard', ['current_team' => $team->slug]));
+
+    $response->assertOk();
+
+    $series = $response->viewData('page')['props']['digest']['series'];
+
+    expect($series)->toHaveCount(24);
+
+    $buckets = array_column($series, 'bucket');
+
+    expect($buckets)->toBe(array_values(collect(range(0, 23))
+        ->map(fn (int $hour): string => now()
+            ->utc()
+            ->startOfHour()
+            ->subHours(23 - $hour)
+            ->format('Y-m-d H:i:s.u'))
+        ->all()));
+
+    // The two hours the fake answered, cast to ints.
+    expect($series[18])->toBe(['bucket' => $buckets[18], 'total' => 40, 'errors' => 4]);
+    expect($series[23])->toBe(['bucket' => $buckets[23], 'total' => 60, 'errors' => 2]);
+
+    // Every other hour is a filled zero, not a missing entry.
+    foreach ([0, 5, 17, 19, 22] as $index) {
+        expect($series[$index]['total'])->toBe(0)
+            ->and($series[$index]['errors'])->toBe(0);
+    }
+
+    Http::assertSent(function (Request $request) {
+        if (! str_contains($request->body(), 'toStartOfInterval')) {
+            return false;
+        }
+
+        $query = [];
+        parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+
+        return str_contains($request->body(), 'ProjectId IN {projectIds:Array(String)}')
+            && str_contains($request->body(), 'Timestamp >= {from:DateTime64(9)}')
+            && str_contains($request->body(), 'Timestamp <= {to:DateTime64(9)}')
+            && ! str_contains($request->body(), 'toStartOfInterval(Timestamp, toIntervalHour(1)) >=')
+            && str_contains($request->body(), 'GROUP BY Bucket ORDER BY Bucket ASC')
+            && isset($query['param_projectIds'], $query['param_from'], $query['param_to']);
+    });
+});
+
+test('dashboard digest is null for a team with no projects', function () {
+    Http::fake();
+
+    $user = User::factory()->create();
+
+    $response = $this
+        ->actingAs($user)
+        ->get(route('dashboard'));
+
+    $response->assertOk();
+    $response->assertInertia(fn (Assert $page) => $page
+        ->component('Dashboard')
+        ->where('digest', null),
+    );
+
+    Http::assertNothingSent();
+});
+
+test('an overloaded clickhouse marks the digest unavailable without failing the page', function () {
+    [$user, $team] = storageTeam();
+
+    Http::fake([
+        '127.0.0.1:8123/*' => Http::response('Code: 202. Too many simultaneous queries', 503),
+    ]);
+
+    $response = $this
+        ->actingAs($user)
+        ->get(route('dashboard', ['current_team' => $team->slug]));
+
+    $response->assertOk();
+    $response->assertInertia(fn (Assert $page) => $page
+        ->component('Dashboard')
+        ->where('digest.unavailable', true)
+        ->where('digest.logs.current', 0)
+        ->where('digest.errors.current', 0)
+        ->has('digest.topErrors', 0)
+        ->has('digest.services', 0)
+        ->has('digest.series', 24)
+        ->where('digest.series.0.total', 0),
     );
 });

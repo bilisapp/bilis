@@ -70,6 +70,49 @@ export type LogStorageSummary = {
     projects: LogStorageProject[];
 };
 
+export type LogDigestCounts = {
+    /** The last 24 hours. */
+    current: number;
+    /** The 24 hours before that. */
+    previous: number;
+    /** Whole-percent change vs the prior day, or null when there is no prior data. */
+    deltaPercent: number | null;
+};
+
+export type LogDigestError = {
+    /** The error body, already truncated on the server. */
+    body: string;
+    total: number;
+};
+
+export type LogDigestService = {
+    name: string;
+    /** The service's newest log line, as a naive UTC ClickHouse timestamp. */
+    lastSeen: string;
+    /** Nothing logged for over an hour — a dead shipper, not a healthy silence. */
+    quiet: boolean;
+};
+
+/** One hour of the digest's 24 hour trend, dense: a gap is a zero, not a hole. */
+export type LogDigestPoint = {
+    /** The top of the hour, as a naive UTC ClickHouse timestamp. */
+    bucket: string;
+    total: number;
+    errors: number;
+};
+
+export type LogDigest = {
+    logs: LogDigestCounts;
+    errors: LogDigestCounts;
+    /** Up to three recurring error bodies from the last 24 hours. */
+    topErrors: LogDigestError[];
+    /** Quietest first. */
+    services: LogDigestService[];
+    /** Exactly 24 hourly points, oldest first — the tiles' sparklines. */
+    series: LogDigestPoint[];
+    unavailable: boolean;
+};
+
 /**
  * Which onboarding step the current team is standing on.
  *

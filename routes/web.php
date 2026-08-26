@@ -44,6 +44,7 @@ Route::prefix('{current_team}')
         Route::get('dashboard', DashboardController::class)->name('dashboard');
         Route::get('logs', [LogsController::class, 'index'])->name('logs.index');
         Route::get('logs/tail', [LogsController::class, 'tail'])->name('logs.tail');
+        Route::get('logs/older', [LogsController::class, 'older'])->name('logs.older');
 
         Route::get('projects', [ProjectController::class, 'index'])->name('projects.index');
         Route::post('projects', [ProjectController::class, 'store'])->name('projects.store');

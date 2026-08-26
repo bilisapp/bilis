@@ -421,3 +421,20 @@ export const CHART_INGEST_SERIES: { name: string; values: number[] }[] = [
         values: [30, 25, 20, 45, 130, 210, 240, 230, 200, 170, 90, 50],
     },
 ];
+
+/**
+ * A bursty 24 hour ingest curve for the sparkline demo: quiet overnight, a
+ * deploy spike mid-morning, the usual afternoon plateau.
+ */
+export const SPARKLINE_VOLUME_24H: number[] = [
+    1420, 1180, 960, 820, 760, 910, 1640, 3280, 5120, 9840, 7260, 6180, 6640,
+    7120, 6980, 7340, 6820, 5940, 4680, 3520, 2840, 2260, 1880, 1540,
+];
+
+/**
+ * The matching error curve — flat for most of the day, then a burst that
+ * lines up with the deploy spike above.
+ */
+export const SPARKLINE_ERRORS_24H: number[] = [
+    0, 0, 2, 0, 0, 1, 0, 4, 18, 96, 74, 31, 12, 6, 3, 2, 9, 4, 1, 0, 0, 2, 0, 0,
+];

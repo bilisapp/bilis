@@ -201,7 +201,7 @@ test('the dashboard mirrors the no projects state', function () {
         ->assertInertia(fn (Assert $page) => $page
             ->component('Dashboard')
             ->where('onboarding.stage', 'no-projects')
-            ->where('firstProject', null),
+            ->where('projects', []),
         );
 });
 
@@ -215,8 +215,8 @@ test('the dashboard mirrors the no logs state and names the first project', func
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->where('onboarding.stage', 'no-logs')
-            ->where('firstProject.slug', 'checkout')
-            ->where('firstProject.name', 'Checkout'),
+            ->where('projects.0.slug', 'checkout')
+            ->where('projects.0.name', 'Checkout'),
         );
 });
 

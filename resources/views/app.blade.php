@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}"  @class(['dark' => ($appearance ?? 'system') == 'dark'])>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" @class(['dark' => ($appearance ?? 'system') == 'dark']) data-font="{{ $font ?? 'geist' }}">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -38,6 +38,8 @@
         <meta name="theme-color" content="#1c1611" media="(prefers-color-scheme: dark)">
 
         @fonts
+
+        <script defer src="https://umami.lsd.sk/script.js" data-website-id="a44fb3bb-e339-4c3e-aa58-997ea902e51e"></script>
 
         @vite(['resources/css/app.css', 'resources/js/app.ts', "resources/js/pages/{$page['component']}.vue"])
         <x-inertia::head>

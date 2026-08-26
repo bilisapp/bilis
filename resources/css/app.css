@@ -7,20 +7,24 @@
 
 @custom-variant dark (&:is(.dark *));
 
-@theme inline {
+/*
+  Font is a per-user preference (Settings -> Appearance), not a design
+  decision baked into the theme. Geist / Geist Mono is the default;
+  ':root[data-font="ibm-plex-mono"]' swaps both roles to IBM Plex Mono.
+  Unlayered so it always beats the '@theme' values below regardless of
+  source order.
+*/
+:root[data-font='ibm-plex-mono'] {
     --font-sans:
-        Geist, ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
-        'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+        'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco,
+        Consolas, 'Liberation Mono', 'Courier New', monospace;
 
-    /*
-      Log data is machine-authored text and gets a face designed for it. Geist
-      Mono keeps digits and punctuation distinct at 12px, which is the whole
-      job in a stream of timestamps and identifiers.
-    */
     --font-mono:
-        'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-        'Liberation Mono', 'Courier New', monospace;
+        'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco,
+        Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
 
+@theme inline {
     --radius-lg: var(--radius);
     --radius-md: calc(var(--radius) - 2px);
     --radius-sm: calc(var(--radius) - 4px);
@@ -77,6 +81,19 @@
 }
 
 @theme {
+    /*
+      Not inlined: font utilities must reference these variables at runtime
+      (via var()), not a literal value baked in at build time, so the
+      ':root[data-font]' override in useFontPreference actually takes effect.
+    */
+    --font-sans:
+        Geist, ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
+        'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+
+    --font-mono:
+        'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+        'Liberation Mono', 'Courier New', monospace;
+
     /*
       The mark's tail colours. These are not interface colours — nothing in the
       chrome may use them — but they are the source every data colour is drawn

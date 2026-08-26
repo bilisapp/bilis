@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Project;
 use App\Models\Team;
 use App\Models\TeamInvitation;
+use App\Services\Logs\LogDigest;
 use App\Services\Logs\LogOnboarding;
 use App\Services\Logs\LogStorage;
 use Illuminate\Database\Eloquent\Collection;
@@ -14,7 +15,7 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function __invoke(Request $request, LogOnboarding $onboarding, LogStorage $storage): Response
+    public function __invoke(Request $request, LogOnboarding $onboarding, LogStorage $storage, LogDigest $digest): Response
     {
         $email = strtolower($request->user()->email);
 
@@ -38,16 +39,24 @@ class DashboardController extends Controller
 
         $team = $this->team($request);
         $projects = $team->projects()->orderBy('name')->get();
-        $firstProject = $projects->first();
         $projectIds = array_values($projects->map(fn (Project $project): string => (string) $project->id)->all());
 
         return Inertia::render('Dashboard', [
             'pendingInvitations' => $pendingInvitations,
             'onboarding' => $onboarding->state($team, $projectIds),
             'storage' => $this->storage($storage, $projects, $projectIds),
-            'firstProject' => $firstProject instanceof Project
-                ? ['name' => $firstProject->name, 'slug' => $firstProject->slug]
-                : null,
+            'digest' => $this->digest($digest, $projectIds),
+            /*
+             * The onboarding panel's project picker needs the same name/slug
+             * list the logs page hands it; when the team is ready the panel
+             * is gone and the list is simply small enough not to matter.
+             */
+            'projects' => $projects
+                ->map(fn (Project $project): array => [
+                    'name' => $project->name,
+                    'slug' => $project->slug,
+                ])
+                ->values(),
         ]);
     }
 
@@ -94,6 +103,58 @@ class DashboardController extends Controller
             'unavailable' => $usage['unavailable'],
             'projects' => $rows,
         ];
+    }
+
+    /**
+     * The system health digest: volume, errors, recurring failures, liveness,
+     * and the dense hourly series the tiles sparkline.
+     *
+     * Null when the team has no projects — there is nothing to be healthy yet,
+     * and the section stays out of the way of the onboarding steps.
+     *
+     * @param  list<string>  $projectIds
+     * @return array{logs: array{current: int, previous: int, deltaPercent: int|null}, errors: array{current: int, previous: int, deltaPercent: int|null}, topErrors: list<array{body: string, total: int}>, services: list<array{name: string, lastSeen: string, quiet: bool}>, series: list<array{bucket: string, total: int, errors: int}>, unavailable: bool}|null
+     */
+    private function digest(LogDigest $digest, array $projectIds): ?array
+    {
+        if ($projectIds === []) {
+            return null;
+        }
+
+        $overview = $digest->overview($projectIds);
+
+        return [
+            'logs' => [
+                'current' => $overview['logs']['current'],
+                'previous' => $overview['logs']['previous'],
+                'deltaPercent' => $this->deltaPercent($overview['logs']['current'], $overview['logs']['previous']),
+            ],
+            'errors' => [
+                'current' => $overview['errors']['current'],
+                'previous' => $overview['errors']['previous'],
+                'deltaPercent' => $this->deltaPercent($overview['errors']['current'], $overview['errors']['previous']),
+            ],
+            'topErrors' => $overview['topErrors'],
+            'services' => $overview['services'],
+            'series' => $overview['series'],
+            'unavailable' => $overview['unavailable'],
+        ];
+    }
+
+    /**
+     * The change from the prior day as a whole percentage.
+     *
+     * Null when there is no prior day to compare against: a percentage of zero
+     * is not a large increase, it is an unanswerable question, and the UI says
+     * so rather than rendering an infinity.
+     */
+    private function deltaPercent(int $current, int $previous): ?int
+    {
+        if ($previous <= 0) {
+            return null;
+        }
+
+        return (int) round((($current - $previous) / $previous) * 100);
     }
 
     /**

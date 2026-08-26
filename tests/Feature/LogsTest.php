@@ -470,3 +470,40 @@ test('the service picker degrades to an empty list when clickhouse is overloaded
             fn (Assert $reload) => $reload->has('services', 0),
         ));
 });
+
+test('the older endpoint returns the page behind the cursor as json', function () {
+    Http::fake(['127.0.0.1:8123/*' => Http::response(logRowsResponse('older'))]);
+
+    [$user, $team, $project] = logTeam();
+
+    $this->actingAs($user)
+        ->getJson(route('logs.older', [
+            'current_team' => $team->slug,
+            'project' => 'checkout',
+            'service' => 'api',
+            'cursor' => '2026-08-26T09:30:00Z',
+            'from' => '2026-08-26T09:00:00Z',
+            'to' => '2026-08-26T10:00:00Z',
+        ]))
+        ->assertOk()
+        ->assertJsonPath('unavailable', false)
+        ->assertJsonPath('rows.0.body', 'older');
+
+    Http::assertSent(function (Request $request) use ($project) {
+        $query = clickHouseQuery($request);
+
+        return str_contains($request->body(), 'Timestamp < {cursor:DateTime64(9)}')
+            && str_contains($request->body(), 'ORDER BY Timestamp DESC')
+            && str_contains($request->body(), 'ServiceName = {service:String}')
+            && $query['param_cursor'] === '2026-08-26 09:30:00.000000'
+            && $query['param_projectIds'] === "['".$project->id."']";
+    });
+});
+
+test('the older endpoint is forbidden for non members', function () {
+    [, $team] = logTeam();
+
+    $this->actingAs(User::factory()->create())
+        ->getJson(route('logs.older', ['current_team' => $team->slug]))
+        ->assertForbidden();
+});

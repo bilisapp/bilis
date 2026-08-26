@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import ChartCanvas from '@/components/ChartCanvas.vue';
+import DitherSparkline from '@/components/DitherSparkline.vue';
 import { useChartTokens } from '@/composables/useChartTokens';
 import type { BilisChartOption } from '@/lib/echarts';
 import { SEVERITY_LEVELS } from '@/lib/logs';
@@ -10,6 +11,8 @@ import {
     CHART_SWATCHES,
     CHART_VOLUME_BY_SEVERITY,
     CHART_VOLUME_DAYS,
+    SPARKLINE_ERRORS_24H,
+    SPARKLINE_VOLUME_24H,
 } from '@/pages/styleguide/data';
 import DemoBlock from './DemoBlock.vue';
 import SectionShell from './SectionShell.vue';
@@ -129,6 +132,37 @@ const ingestOption = computed<BilisChartOption>(() => ({
             description="Accepted ingest rate per project over 12 hours. No colours are set on the series at all — they take --chart-1 through --chart-5 from the theme, in order."
         >
             <ChartCanvas :option="ingestOption" height="18rem" />
+        </DemoBlock>
+
+        <DemoBlock
+            title="DitherSparkline"
+            description="A trend small enough to sit inside a stat tile. The fill is a 4x4 Bayer ordered dither painted onto a repeating canvas tile — the 1-bit halftone, scaled by the device pixel ratio so the dots stay hard-edged. Tone picks the token family: volume is chart data (--chart-1), errors are severity data (--severity-error)."
+        >
+            <div class="grid gap-4 sm:grid-cols-2">
+                <div class="space-y-2 rounded-lg border bg-card p-4">
+                    <p class="text-xs text-muted-foreground">Logs · 24h</p>
+                    <p class="font-mono text-2xl">94,318</p>
+                    <DitherSparkline
+                        :values="SPARKLINE_VOLUME_24H"
+                        tone="volume"
+                    />
+                    <p class="text-xs text-muted-foreground">
+                        +38% vs prior day
+                    </p>
+                </div>
+
+                <div class="space-y-2 rounded-lg border bg-card p-4">
+                    <p class="text-xs text-muted-foreground">Errors · 24h</p>
+                    <p class="font-mono text-2xl text-severity-error">265</p>
+                    <DitherSparkline
+                        :values="SPARKLINE_ERRORS_24H"
+                        tone="error"
+                    />
+                    <p class="text-xs text-muted-foreground">
+                        +212% vs prior day
+                    </p>
+                </div>
+            </div>
         </DemoBlock>
 
         <div class="space-y-2 rounded-lg border bg-card p-4 text-sm">

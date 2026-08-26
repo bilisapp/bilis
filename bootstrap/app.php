@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\AuthenticateProjectApiKey;
 use App\Http\Middleware\HandleAppearance;
+use App\Http\Middleware\HandleFontPreference;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\SetTeamUrlDefaults;
 use Illuminate\Foundation\Application;
@@ -26,10 +27,11 @@ return Application::configure(basePath: dirname(__DIR__))
                 | Request::HEADER_X_FORWARDED_PROTO,
         );
 
-        $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
+        $middleware->encryptCookies(except: ['appearance', 'font', 'sidebar_state']);
 
         $middleware->web(append: [
             HandleAppearance::class,
+            HandleFontPreference::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
             SetTeamUrlDefaults::class,

@@ -260,6 +260,8 @@ Both are self-hosted through the Vite font plugin (`bunny()` in `vite.config.ts`
 
 **Character:** One family, two voices. Geist is a workhorse UI face that stays even and legible at 12px, which is where most of this product lives. Geist Mono is drawn for exactly this job — digits, identifiers and punctuation that must stay distinct in a stream of timestamps. The split between them is the whole type system.
 
+**User preference.** Font is a per-account setting (Settings -> Appearance), not fixed by the theme: IBM Plex Mono is available as an alternate face for both roles, self-hosted alongside Geist. Geist / Geist Mono remains the default.
+
 ### Hierarchy
 
 - **Display** (600, `1.875rem`/`2.25rem`, `-0.025em`): page-level titles. One per page at most.

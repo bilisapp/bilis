@@ -196,3 +196,40 @@ export function formatBytes(bytes: number): string {
 
     return `${value >= 100 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
 }
+
+/**
+ * Render how long ago a timestamp was, in the coarsest unit that still reads
+ * as an answer ("4m ago", "3h ago"). Used for service liveness, where the
+ * question is "is it still shipping", not "at which millisecond".
+ */
+export function formatRelativeTime(timestamp: string): string {
+    const date = parseTimestamp(timestamp);
+
+    if (Number.isNaN(date.getTime())) {
+        return timestamp;
+    }
+
+    const seconds = Math.round((Date.now() - date.getTime()) / 1000);
+
+    if (seconds < 0) {
+        return 'just now';
+    }
+
+    if (seconds < 60) {
+        return `${seconds}s ago`;
+    }
+
+    const minutes = Math.floor(seconds / 60);
+
+    if (minutes < 60) {
+        return `${minutes}m ago`;
+    }
+
+    const hours = Math.floor(minutes / 60);
+
+    if (hours < 24) {
+        return `${hours}h ago`;
+    }
+
+    return `${Math.floor(hours / 24)}d ago`;
+}

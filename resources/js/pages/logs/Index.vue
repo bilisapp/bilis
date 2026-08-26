@@ -9,6 +9,7 @@ import LogsShortcutsDialog from '@/components/LogsShortcutsDialog.vue';
 import LogsToolbar from '@/components/LogsToolbar.vue';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Spinner } from '@/components/ui/spinner';
 import { useLogKeyboard } from '@/composables/useLogKeyboard';
 import { useTailStatus } from '@/composables/useTailStatus';
 import { useTailTabBadge } from '@/composables/useTailTabBadge';
@@ -19,7 +20,11 @@ import {
     SEVERITY_DOT_CLASS,
 } from '@/lib/logs';
 import { cn } from '@/lib/utils';
-import { index as logsIndex, tail as logsTail } from '@/routes/logs';
+import {
+    index as logsIndex,
+    older as logsOlder,
+    tail as logsTail,
+} from '@/routes/logs';
 import type {
     LogEntry,
     LogFilters,
@@ -129,6 +134,8 @@ watch(
         to.value = filters.to;
         range.value = presetForRange(filters.from, filters.to);
         tailRows.value = [];
+        olderRows.value = [];
+        olderCursor.value = null;
     },
 );
 
@@ -152,7 +159,6 @@ const resolvedWindow = (): { from: string; to: string } => {
 
 const filterQuery = (
     window: { from: string; to: string },
-    cursor: string | null = null,
 ): Record<string, string | string[]> => {
     const query: Record<string, string | string[]> = {
         from: window.from,
@@ -175,17 +181,13 @@ const filterQuery = (
         query.search = search.value;
     }
 
-    if (cursor) {
-        query.cursor = cursor;
-    }
-
     return query;
 };
 
-const applyFilters = (cursor: string | null = null) => {
+const applyFilters = () => {
     const window = resolvedWindow();
 
-    router.get(logsIndex(teamSlug.value).url, filterQuery(window, cursor), {
+    router.get(logsIndex(teamSlug.value).url, filterQuery(window), {
         preserveState: true,
         preserveScroll: true,
         replace: true,
@@ -419,6 +421,21 @@ watch(liveTail, (enabled) => {
     tailingStatus.value = enabled;
 });
 const tailRows = ref<LogEntry[]>([]);
+
+/**
+ * The pages read backwards from the first one, in the order they were asked
+ * for. They are kept here rather than in the Inertia prop because reading
+ * further back must not re-render the page: an Inertia visit would replace the
+ * stream and take the reader's scroll position with it.
+ */
+const olderRows = ref<LogEntry[]>([]);
+
+/**
+ * Where the *next* older page starts. Null until one has been loaded, at which
+ * point it supersedes the cursor the server sent with the first page.
+ */
+const olderCursor = ref<string | null>(null);
+
 const scrolledDown = ref(false);
 
 const entryKey = (entry: LogEntry, index: number) =>
@@ -450,6 +467,7 @@ const markFresh = (entries: LogEntry[]) => {
 const rows = computed<LogEntry[]>(() => [
     ...tailRows.value,
     ...(props.logs?.rows ?? []),
+    ...olderRows.value,
 ]);
 
 const unavailable = computed(() => props.logs?.unavailable === true);
@@ -486,6 +504,49 @@ const fetchTail = async () => {
         }
     } catch {
         liveTail.value = false;
+    }
+};
+
+/**
+ * Where the stream continues once the reader reaches the end of what is loaded.
+ * The locally tracked cursor wins as soon as one older page has been read.
+ */
+const nextCursor = computed(
+    () => olderCursor.value ?? props.logs?.nextCursor ?? null,
+);
+
+const olderRequest = useHttp<{ cursor: string }, LogResult>({ cursor: '' });
+
+/**
+ * Read one more page backwards and append it in place.
+ *
+ * Deliberately not an Inertia visit: the older page is added to the stream the
+ * reader is already looking at, so the scroll position, the expanded row and
+ * the tail buffer all survive.
+ */
+const loadOlder = async () => {
+    const cursor = nextCursor.value;
+
+    if (cursor === null || olderRequest.processing) {
+        return;
+    }
+
+    olderRequest.cursor = cursor;
+
+    try {
+        const result = await olderRequest.get(
+            logsOlder(teamSlug.value, {
+                query: filterQuery({ from: from.value, to: to.value }),
+            }).url,
+        );
+
+        if (result?.rows?.length) {
+            olderRows.value = [...olderRows.value, ...result.rows];
+        }
+
+        olderCursor.value = result?.nextCursor ?? null;
+    } catch {
+        // The cursor is left where it was, so the button is still a retry.
     }
 };
 
@@ -862,15 +923,24 @@ const activeFilterCount = computed(
                             @toggle="toggleExpanded(entryKey(entry, index))"
                         />
 
-                        <div v-if="logs.nextCursor" class="p-3 text-center">
+                        <div v-if="nextCursor" class="p-3 text-center">
                             <Button
                                 type="button"
                                 variant="outline"
                                 size="sm"
                                 data-test="logs-load-older"
-                                @click="applyFilters(logs.nextCursor)"
+                                :disabled="olderRequest.processing"
+                                @click="loadOlder"
                             >
-                                Load older logs
+                                <Spinner
+                                    v-if="olderRequest.processing"
+                                    class="size-4"
+                                />
+                                {{
+                                    olderRequest.processing
+                                        ? 'Loading older logs…'
+                                        : 'Load older logs'
+                                }}
                             </Button>
                         </div>
                     </template>
