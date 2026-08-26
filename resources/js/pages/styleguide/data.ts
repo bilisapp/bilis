@@ -117,7 +117,7 @@ export const TOKEN_SWATCHES: Swatch[] = [
         className: 'bg-card text-card-foreground',
         label: 'bg-card text-card-foreground',
         preview: 'Aa',
-        note: 'Panels lifted a shade off the page in both modes.',
+        note: 'Near-white paper in light mode, lifted off the espresso page in dark. Toolbars, cards and the log list all sit on it.',
     },
     {
         name: 'Primary',
@@ -131,7 +131,7 @@ export const TOKEN_SWATCHES: Swatch[] = [
         className: 'bg-secondary text-secondary-foreground',
         label: 'bg-secondary text-secondary-foreground',
         preview: 'Aa',
-        note: 'Greige chips and quiet buttons.',
+        note: 'Greige chips and quiet buttons, and the fill of an active severity chip.',
     },
     {
         name: 'Muted',
@@ -145,7 +145,7 @@ export const TOKEN_SWATCHES: Swatch[] = [
         className: 'bg-accent text-accent-foreground',
         label: 'bg-accent text-accent-foreground',
         preview: 'Aa',
-        note: 'Hover and active states for rows, menus and severity chips.',
+        note: 'Hover and active states for rows and menus.',
     },
     {
         name: 'Destructive',
@@ -166,14 +166,14 @@ export const TOKEN_SWATCHES: Swatch[] = [
         className: 'border-8 border-border bg-card text-card-foreground',
         label: 'border-border',
         preview: 'Aa',
-        note: 'Hairlines between log rows, cards and toolbars.',
+        note: 'Hairlines between log rows, cards and toolbars — clearly darker than any surface.',
     },
     {
         name: 'Input',
         className: 'border-8 border-input bg-card text-card-foreground',
         label: 'border-input',
         preview: 'Aa',
-        note: 'Field outlines, a touch darker than the plain border.',
+        note: 'Field outlines, a step darker than the plain border so inputs read as inputs on a card.',
     },
     {
         name: 'Ring',
@@ -187,7 +187,7 @@ export const TOKEN_SWATCHES: Swatch[] = [
         className: 'bg-sidebar text-sidebar-foreground',
         label: 'bg-sidebar text-sidebar-foreground',
         preview: 'Aa',
-        note: 'The navigation rail, one step deeper than the page.',
+        note: 'The navigation rail, a shade deeper than the page so the rail separates from the content.',
     },
 ];
 

@@ -2,7 +2,6 @@
 import { Head, router, useHttp, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import AlertError from '@/components/AlertError.vue';
-import Heading from '@/components/Heading.vue';
 import LogEntryRow from '@/components/LogEntryRow.vue';
 import LogsToolbar from '@/components/LogsToolbar.vue';
 import { Button } from '@/components/ui/button';
@@ -247,12 +246,6 @@ const toggleExpanded = (key: string) => {
     <Head title="Logs" />
 
     <div class="flex h-full flex-1 flex-col gap-4 p-4">
-        <Heading
-            variant="small"
-            title="Logs"
-            description="Search and tail the logs your projects have sent."
-        />
-
         <LogsToolbar
             :projects="projects"
             :project="project"
@@ -291,7 +284,7 @@ const toggleExpanded = (key: string) => {
         </p>
 
         <div
-            class="flex min-h-0 flex-1 flex-col overflow-y-auto rounded-xl border"
+            class="flex min-h-0 flex-1 flex-col overflow-y-auto rounded-xl border bg-card shadow-sm"
             data-test="logs-list"
             @scroll="onScroll"
         >

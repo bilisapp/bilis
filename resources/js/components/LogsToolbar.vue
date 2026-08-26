@@ -131,10 +131,15 @@ function fromLocalInput(value: string, fallback: string): string {
 </script>
 
 <template>
-    <div class="flex flex-col gap-3 rounded-xl border p-3">
-        <div class="flex flex-wrap items-end gap-3">
+    <div
+        class="flex flex-col gap-3 rounded-xl border bg-card p-3 shadow-sm"
+        data-test="logs-toolbar"
+    >
+        <div class="flex flex-wrap items-end gap-x-3 gap-y-2">
             <div class="grid gap-1.5">
-                <Label class="text-xs" for="logs-range">Time range</Label>
+                <Label class="text-xs text-muted-foreground" for="logs-range">
+                    Time range
+                </Label>
                 <Select v-model="rangeValue">
                     <SelectTrigger id="logs-range" class="w-44">
                         <SelectValue placeholder="Time range" />
@@ -154,7 +159,12 @@ function fromLocalInput(value: string, fallback: string): string {
 
             <template v-if="range === 'custom'">
                 <div class="grid gap-1.5">
-                    <Label class="text-xs" for="logs-from">From</Label>
+                    <Label
+                        class="text-xs text-muted-foreground"
+                        for="logs-from"
+                    >
+                        From
+                    </Label>
                     <Input
                         id="logs-from"
                         v-model="customFrom"
@@ -163,7 +173,9 @@ function fromLocalInput(value: string, fallback: string): string {
                     />
                 </div>
                 <div class="grid gap-1.5">
-                    <Label class="text-xs" for="logs-to">To</Label>
+                    <Label class="text-xs text-muted-foreground" for="logs-to">
+                        To
+                    </Label>
                     <Input
                         id="logs-to"
                         v-model="customTo"
@@ -174,7 +186,9 @@ function fromLocalInput(value: string, fallback: string): string {
             </template>
 
             <div class="grid gap-1.5">
-                <Label class="text-xs" for="logs-project">Project</Label>
+                <Label class="text-xs text-muted-foreground" for="logs-project">
+                    Project
+                </Label>
                 <Select v-model="projectValue">
                     <SelectTrigger id="logs-project" class="w-48">
                         <SelectValue placeholder="All projects" />
@@ -195,7 +209,9 @@ function fromLocalInput(value: string, fallback: string): string {
             </div>
 
             <div class="grid gap-1.5">
-                <Label class="text-xs" for="logs-service">Service</Label>
+                <Label class="text-xs text-muted-foreground" for="logs-service">
+                    Service
+                </Label>
                 <Input
                     id="logs-service"
                     v-model="serviceTerm"
@@ -207,7 +223,9 @@ function fromLocalInput(value: string, fallback: string): string {
             </div>
 
             <div class="grid flex-1 gap-1.5">
-                <Label class="text-xs" for="logs-search">Search</Label>
+                <Label class="text-xs text-muted-foreground" for="logs-search">
+                    Search
+                </Label>
                 <div class="relative">
                     <Search
                         class="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
@@ -234,31 +252,50 @@ function fromLocalInput(value: string, fallback: string): string {
             </Button>
         </div>
 
-        <div class="flex flex-wrap items-center gap-2">
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-2 border-t pt-3">
             <span class="text-xs text-muted-foreground">Severity</span>
-            <button
-                v-for="level in SEVERITY_LEVELS"
-                :key="level"
-                type="button"
-                :data-test="`logs-severity-${level}`"
-                :aria-pressed="isSeverityActive(level)"
-                :class="
-                    cn(
-                        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium capitalize transition-colors',
-                        isSeverityActive(level)
-                            ? 'border-foreground/30 bg-accent text-accent-foreground'
-                            : 'border-transparent text-muted-foreground hover:bg-accent/50',
-                    )
-                "
-                @click="toggleSeverity(level)"
-            >
-                <span
+            <div class="flex flex-wrap items-center gap-1.5">
+                <button
+                    v-for="level in SEVERITY_LEVELS"
+                    :key="level"
+                    type="button"
+                    :data-test="`logs-severity-${level}`"
+                    :aria-pressed="isSeverityActive(level)"
                     :class="
-                        cn('size-2 rounded-full', SEVERITY_DOT_CLASS[level])
+                        cn(
+                            'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs capitalize transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+                            isSeverityActive(level)
+                                ? 'border-foreground/25 bg-secondary font-semibold text-secondary-foreground shadow-xs'
+                                : 'border-border bg-background font-medium text-muted-foreground hover:border-foreground/20 hover:text-foreground',
+                        )
                     "
-                />
-                {{ level }}
-            </button>
+                    @click="toggleSeverity(level)"
+                >
+                    <span
+                        :class="
+                            cn(
+                                'size-2 rounded-full transition-opacity',
+                                SEVERITY_DOT_CLASS[level],
+                                isSeverityActive(level)
+                                    ? 'opacity-100'
+                                    : 'opacity-40',
+                            )
+                        "
+                    />
+                    {{ level }}
+                </button>
+            </div>
+
+            <span
+                v-if="severity.length > 0"
+                class="ml-auto text-xs text-muted-foreground"
+            >
+                Showing {{ severity.length }} of
+                {{ SEVERITY_LEVELS.length }} levels
+            </span>
+            <span v-else class="ml-auto text-xs text-muted-foreground">
+                All severities
+            </span>
         </div>
     </div>
 </template>

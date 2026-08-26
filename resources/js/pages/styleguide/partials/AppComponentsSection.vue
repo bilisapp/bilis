@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import AlertError from '@/components/AlertError.vue';
+import AppLogo from '@/components/AppLogo.vue';
 import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
 import LogEntryRow from '@/components/LogEntryRow.vue';
@@ -63,7 +64,7 @@ const toolbarLiveTail = ref(true);
 
         <DemoBlock
             title="LogsToolbar"
-            description="wired to local refs, so the controls move but nothing is fetched"
+            description="wired to local refs, so the controls move but nothing is fetched. Warn, error and fatal are toggled on — active severity chips fill with the secondary tint, a solid dot and semibold copy, inactive ones stay outlined and muted with a faded dot."
         >
             <LogsToolbar
                 :projects="demoProjects"
@@ -143,6 +144,15 @@ const toolbarLiveTail = ref(true);
                 </div>
             </DemoBlock>
         </div>
+
+        <DemoBlock
+            title="AppLogo"
+            description="the sidebar wordmark: navy tile in light mode, gold in dark, with the three offset stripes from the brand artwork"
+        >
+            <div class="flex items-center">
+                <AppLogo />
+            </div>
+        </DemoBlock>
 
         <DemoBlock
             title="PlaceholderPattern"

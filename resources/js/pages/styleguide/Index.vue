@@ -27,10 +27,7 @@ defineOptions({
     <Head title="Styleguide" />
 
     <div class="px-4 py-6">
-        <header class="mb-2 space-y-1">
-            <h1 class="text-2xl font-semibold tracking-tight">
-                Bilis styleguide
-            </h1>
+        <header class="mb-2">
             <p class="max-w-3xl text-sm text-muted-foreground">
                 The brand palette, the semantic tokens built on top of it, and
                 every component the app ships. Flip the appearance toggle in the
