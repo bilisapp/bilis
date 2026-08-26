@@ -62,7 +62,7 @@ it('lists every section and page in front matter order', function () {
 
     expect($pages)->toBe([
         'getting-started' => ['overview', 'quickstart'],
-        'ingestion' => ['endpoints', 'timestamps', 'severity', 'shippers'],
+        'ingestion' => ['endpoints', 'timestamps', 'severity', 'shippers', 'linux-host'],
         'reference' => ['limits-and-behavior'],
     ]);
 });
