@@ -59,6 +59,26 @@
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
+
+    --color-severity-trace: var(--severity-trace);
+    --color-severity-debug: var(--severity-debug);
+    --color-severity-info: var(--severity-info);
+    --color-severity-warn: var(--severity-warn);
+    --color-severity-error: var(--severity-error);
+    --color-severity-fatal: var(--severity-fatal);
+}
+
+@theme {
+    /* Bilis brand palette */
+    --color-cream: #f3f0e7;
+    --color-greige: #dbd5c3;
+    --color-espresso: #463828;
+    --color-navy: #1f3a5f;
+    --color-gold: #f3c440;
+    --color-crimson: #d8394a;
+    --color-teal: #45bfa6;
+    --color-aqua: #abdcd2;
+    --color-blush: #f3b9b3;
 }
 
 /*
@@ -90,76 +110,88 @@
 }
 
 :root {
-    --background: hsl(0 0% 100%);
-    --foreground: hsl(0 0% 3.9%);
-    --card: hsl(0 0% 100%);
-    --card-foreground: hsl(0 0% 3.9%);
-    --popover: hsl(0 0% 100%);
-    --popover-foreground: hsl(0 0% 3.9%);
-    --primary: hsl(0 0% 9%);
-    --primary-foreground: hsl(0 0% 98%);
-    --secondary: hsl(0 0% 92.1%);
-    --secondary-foreground: hsl(0 0% 9%);
-    --muted: hsl(0 0% 96.1%);
-    --muted-foreground: hsl(0 0% 45.1%);
-    --accent: hsl(0 0% 96.1%);
-    --accent-foreground: hsl(0 0% 9%);
-    --destructive: hsl(0 84.2% 60.2%);
-    --destructive-foreground: hsl(0 0% 98%);
-    --border: hsl(0 0% 92.8%);
-    --input: hsl(0 0% 89.8%);
-    --ring: hsl(0 0% 3.9%);
-    --chart-1: hsl(12 76% 61%);
-    --chart-2: hsl(173 58% 39%);
-    --chart-3: hsl(197 37% 24%);
-    --chart-4: hsl(43 74% 66%);
-    --chart-5: hsl(27 87% 67%);
+    --background: hsl(44 33% 93%);
+    --foreground: hsl(30 27% 17%);
+    --card: hsl(44 40% 96%);
+    --card-foreground: hsl(30 27% 17%);
+    --popover: hsl(44 40% 96%);
+    --popover-foreground: hsl(30 27% 17%);
+    --primary: hsl(215 51% 25%);
+    --primary-foreground: hsl(44 40% 95%);
+    --secondary: hsl(43 25% 81%);
+    --secondary-foreground: hsl(30 27% 17%);
+    --muted: hsl(44 26% 87%);
+    --muted-foreground: hsl(30 12% 40%);
+    --accent: hsl(45 74% 86%);
+    --accent-foreground: hsl(30 27% 17%);
+    --destructive: hsl(354 64% 51%);
+    --destructive-foreground: hsl(44 40% 96%);
+    --border: hsl(42 20% 79%);
+    --input: hsl(42 20% 75%);
+    --ring: hsl(215 51% 25%);
+    --chart-1: hsl(45 87% 54%);
+    --chart-2: hsl(166 48% 45%);
+    --chart-3: hsl(215 51% 30%);
+    --chart-4: hsl(354 64% 54%);
+    --chart-5: hsl(30 27% 35%);
     --radius: 0.5rem;
-    --sidebar-background: hsl(0 0% 98%);
-    --sidebar-foreground: hsl(240 5.3% 26.1%);
-    --sidebar-primary: hsl(0 0% 10%);
-    --sidebar-primary-foreground: hsl(0 0% 98%);
-    --sidebar-accent: hsl(0 0% 94%);
-    --sidebar-accent-foreground: hsl(0 0% 30%);
-    --sidebar-border: hsl(0 0% 91%);
-    --sidebar-ring: hsl(217.2 91.2% 59.8%);
-    --sidebar: hsl(0 0% 98%);
+    --sidebar-background: hsl(44 28% 89%);
+    --sidebar-foreground: hsl(30 20% 25%);
+    --sidebar-primary: hsl(215 51% 25%);
+    --sidebar-primary-foreground: hsl(44 40% 95%);
+    --sidebar-accent: hsl(43 24% 83%);
+    --sidebar-accent-foreground: hsl(30 27% 20%);
+    --sidebar-border: hsl(42 20% 80%);
+    --sidebar-ring: hsl(215 51% 40%);
+    --sidebar: hsl(44 28% 89%);
+    --severity-trace: hsl(30 10% 55%);
+    --severity-debug: hsl(166 25% 42%);
+    --severity-info: hsl(215 51% 38%);
+    --severity-warn: hsl(42 90% 40%);
+    --severity-error: hsl(354 64% 48%);
+    --severity-fatal: hsl(354 75% 32%);
 }
 
 .dark {
-    --background: hsl(0 0% 3.9%);
-    --foreground: hsl(0 0% 98%);
-    --card: hsl(0 0% 3.9%);
-    --card-foreground: hsl(0 0% 98%);
-    --popover: hsl(0 0% 3.9%);
-    --popover-foreground: hsl(0 0% 98%);
-    --primary: hsl(0 0% 98%);
-    --primary-foreground: hsl(0 0% 9%);
-    --secondary: hsl(0 0% 14.9%);
-    --secondary-foreground: hsl(0 0% 98%);
-    --muted: hsl(0 0% 16.08%);
-    --muted-foreground: hsl(0 0% 63.9%);
-    --accent: hsl(0 0% 14.9%);
-    --accent-foreground: hsl(0 0% 98%);
-    --destructive: hsl(0 84% 60%);
-    --destructive-foreground: hsl(0 0% 98%);
-    --border: hsl(0 0% 14.9%);
-    --input: hsl(0 0% 14.9%);
-    --ring: hsl(0 0% 83.1%);
-    --chart-1: hsl(220 70% 50%);
-    --chart-2: hsl(160 60% 45%);
-    --chart-3: hsl(30 80% 55%);
-    --chart-4: hsl(280 65% 60%);
-    --chart-5: hsl(340 75% 55%);
-    --sidebar-background: hsl(0 0% 7%);
-    --sidebar-foreground: hsl(0 0% 95.9%);
-    --sidebar-primary: hsl(360, 100%, 100%);
-    --sidebar-primary-foreground: hsl(0 0% 100%);
-    --sidebar-accent: hsl(0 0% 15.9%);
-    --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
-    --sidebar-border: hsl(0 0% 15.9%);
-    --sidebar-ring: hsl(217.2 91.2% 59.8%);
-    --sidebar: hsl(240 5.9% 10%);
+    --background: hsl(28 22% 9%);
+    --foreground: hsl(44 30% 90%);
+    --card: hsl(28 20% 12%);
+    --card-foreground: hsl(44 30% 90%);
+    --popover: hsl(28 20% 12%);
+    --popover-foreground: hsl(44 30% 90%);
+    --primary: hsl(45 85% 61%);
+    --primary-foreground: hsl(28 30% 12%);
+    --secondary: hsl(28 15% 19%);
+    --secondary-foreground: hsl(44 30% 90%);
+    --muted: hsl(28 15% 17%);
+    --muted-foreground: hsl(40 15% 63%);
+    --accent: hsl(28 15% 22%);
+    --accent-foreground: hsl(44 30% 92%);
+    --destructive: hsl(354 70% 58%);
+    --destructive-foreground: hsl(44 40% 96%);
+    --border: hsl(28 14% 21%);
+    --input: hsl(28 14% 24%);
+    --ring: hsl(45 85% 61%);
+    --chart-1: hsl(45 85% 61%);
+    --chart-2: hsl(166 48% 51%);
+    --chart-3: hsl(215 48% 60%);
+    --chart-4: hsl(354 70% 62%);
+    --chart-5: hsl(4 73% 83%);
+    --sidebar-background: hsl(28 24% 7%);
+    --sidebar-foreground: hsl(44 25% 85%);
+    --sidebar-primary: hsl(45 85% 61%);
+    --sidebar-primary-foreground: hsl(28 30% 12%);
+    --sidebar-accent: hsl(28 15% 16%);
+    --sidebar-accent-foreground: hsl(44 25% 88%);
+    --sidebar-border: hsl(28 14% 18%);
+    --sidebar-ring: hsl(45 85% 61%);
+    --sidebar: hsl(28 24% 7%);
+    --severity-trace: hsl(40 10% 55%);
+    --severity-debug: hsl(166 35% 55%);
+    --severity-info: hsl(215 55% 65%);
+    --severity-warn: hsl(45 85% 61%);
+    --severity-error: hsl(354 75% 63%);
+    --severity-fatal: hsl(354 85% 72%);
 }
 
 @layer base {
