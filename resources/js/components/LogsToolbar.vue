@@ -194,7 +194,9 @@ function fromLocalInput(value: string, fallback: string): string {
         <div
             class="flex flex-wrap items-center gap-x-2 gap-y-2 border-t px-3 py-2"
         >
-            <div class="flex min-w-0 flex-1 items-center gap-2 sm:flex-none">
+            <div
+                class="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto"
+            >
                 <Label
                     class="shrink-0 text-xs font-medium text-muted-foreground"
                     for="logs-project"
@@ -204,7 +206,7 @@ function fromLocalInput(value: string, fallback: string): string {
                 <Select v-model="projectValue">
                     <SelectTrigger
                         id="logs-project"
-                        class="h-8 w-full min-w-0 sm:w-44"
+                        class="h-8 min-w-40 flex-1 sm:w-44 sm:flex-none"
                     >
                         <SelectValue placeholder="All projects" />
                     </SelectTrigger>
@@ -227,7 +229,7 @@ function fromLocalInput(value: string, fallback: string): string {
                     v-model="serviceTerm"
                     data-test="logs-service"
                     placeholder="All services"
-                    class="h-8 w-full min-w-0 sm:w-44"
+                    class="h-8 min-w-40 flex-1 sm:w-44 sm:flex-none"
                     @input="emitService"
                 />
             </div>
@@ -238,7 +240,7 @@ function fromLocalInput(value: string, fallback: string): string {
             />
 
             <div
-                class="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:flex-none"
+                class="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto"
             >
                 <Label
                     class="shrink-0 text-xs font-medium text-muted-foreground"
@@ -249,7 +251,7 @@ function fromLocalInput(value: string, fallback: string): string {
                 <Select v-model="rangeValue">
                     <SelectTrigger
                         id="logs-range"
-                        class="h-8 w-full min-w-0 sm:w-40"
+                        class="h-8 min-w-40 flex-1 sm:w-40 sm:flex-none"
                     >
                         <SelectValue placeholder="Time range" />
                     </SelectTrigger>
@@ -271,7 +273,7 @@ function fromLocalInput(value: string, fallback: string): string {
                         id="logs-from"
                         v-model="customFrom"
                         type="datetime-local"
-                        class="h-8 w-full min-w-0 sm:w-52"
+                        class="h-8 min-w-52 flex-1 sm:w-52 sm:flex-none"
                     />
                     <span class="text-xs text-muted-foreground">to</span>
                     <Label class="sr-only" for="logs-to">To</Label>
@@ -279,7 +281,7 @@ function fromLocalInput(value: string, fallback: string): string {
                         id="logs-to"
                         v-model="customTo"
                         type="datetime-local"
-                        class="h-8 w-full min-w-0 sm:w-52"
+                        class="h-8 min-w-52 flex-1 sm:w-52 sm:flex-none"
                     />
                 </template>
             </div>

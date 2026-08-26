@@ -111,6 +111,39 @@ class LogQuery
     }
 
     /**
+     * Whether any of the given projects has ever received a single log line.
+     *
+     * This is the cheapest question the viewer asks: it exists only to decide
+     * whether to show onboarding, so it stops at the first matching row and
+     * ignores every filter the user has set. A busy ClickHouse answers "yes",
+     * because an overloaded database must never make an established team look
+     * like a brand new one.
+     *
+     * @param  list<int>  $projectIds
+     */
+    public function hasAnyLogs(array $projectIds): bool
+    {
+        if ($projectIds === []) {
+            return false;
+        }
+
+        $sql = 'SELECT 1 AS Present FROM otel_logs WHERE ProjectId IN {projectIds:Array(UInt64)} LIMIT 1';
+        $params = ['projectIds' => '['.implode(',', $projectIds).']'];
+
+        try {
+            return $this->client->select($sql, $params) !== [];
+        } catch (ClickHouseException $exception) {
+            if (! $exception->isOverload()) {
+                throw $exception;
+            }
+
+            report($exception);
+
+            return true;
+        }
+    }
+
+    /**
      * Count logs per time bucket and severity across the selected window.
      *
      * The bucket width is derived from the window on the server, so the chart

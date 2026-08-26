@@ -88,7 +88,7 @@
     </section>
 
     {{-- Ingest --}}
-    <section id="ingest" class="border-y border-border bg-card/40">
+    <section id="ingest" class="border-y border-border bg-card">
         <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
             <h2 class="text-xl font-semibold tracking-tight">Point anything that speaks OTLP at it</h2>
             <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
@@ -97,7 +97,7 @@
                 a plain JSON endpoint that takes one record or a list of them.
             </p>
 
-            <div class="mt-8 overflow-x-auto rounded-xl border border-border bg-card p-4">
+            <div class="mt-8 overflow-x-auto rounded-xl border border-border bg-background p-4">
                 <pre class="font-mono text-xs leading-relaxed"><span class="text-muted-foreground"># One log line, no collector, no SDK.</span>
 curl -X POST https://logs.example.com/api/v1/ingest \
   -H <span class="text-severity-debug">"Authorization: Bearer bilis_&hellip;"</span> \
@@ -178,7 +178,7 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://logs.example.com/api/v1/logs</pre>
     </section>
 
     {{-- Closing --}}
-    <section class="border-t border-border bg-card/40">
+    <section class="border-t border-border bg-card">
         <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
             <h2 class="text-xl font-semibold tracking-tight">Bilis is early</h2>
             <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">

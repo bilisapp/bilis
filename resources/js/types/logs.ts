@@ -53,3 +53,15 @@ export type LogHistogram = {
     total: number;
     unavailable: boolean;
 };
+
+/**
+ * Which onboarding step the current team is standing on.
+ *
+ * Derived from real state on the server — projects the team owns, and whether
+ * a single line has ever been received — never from the active filters.
+ */
+export type LogOnboardingStage = 'no-projects' | 'no-logs' | 'ready';
+
+export type LogOnboarding = {
+    stage: LogOnboardingStage;
+};

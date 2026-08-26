@@ -193,7 +193,13 @@ test('a project outside the team is never queried', function () {
 
     expect($otherProject->id)->toBeGreaterThan(0);
 
-    Http::assertNotSent(fn (Request $request) => str_contains($request->url(), ':8123'));
+    // The onboarding existence check still runs, but nothing goes looking for
+    // rows: the foreign slug resolves to an empty id list and short-circuits.
+    Http::assertNotSent(fn (Request $request) => str_contains($request->body(), 'ORDER BY Timestamp DESC'));
+    Http::assertNotSent(fn (Request $request) => str_contains(
+        (string) parse_url($request->url(), PHP_URL_QUERY),
+        (string) $otherProject->id,
+    ));
 });
 
 test('an overloaded clickhouse renders the page with an unavailable flag', function () {
@@ -367,7 +373,7 @@ test('a project outside the team is never counted', function () {
 
     [$user, $team] = logTeam();
 
-    Project::factory()->create(['slug' => 'not-mine']);
+    $otherProject = Project::factory()->create(['slug' => 'not-mine']);
 
     $this->actingAs($user)
         ->get(route('logs.index', [
@@ -381,5 +387,11 @@ test('a project outside the team is never counted', function () {
                 ->where('histogram.unavailable', false),
         ));
 
-    Http::assertNotSent(fn (Request $request) => str_contains($request->url(), ':8123'));
+    // Only the onboarding existence check may talk to ClickHouse here: no
+    // aggregate is run, and the foreign project id is never bound.
+    Http::assertNotSent(fn (Request $request) => str_contains($request->body(), 'GROUP BY Bucket, Level'));
+    Http::assertNotSent(fn (Request $request) => str_contains(
+        (string) parse_url($request->url(), PHP_URL_QUERY),
+        (string) $otherProject->id,
+    ));
 });

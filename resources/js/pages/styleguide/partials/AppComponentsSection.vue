@@ -5,6 +5,7 @@ import ApiKeyCreatedDialog from '@/components/ApiKeyCreatedDialog.vue';
 import AppLogo from '@/components/AppLogo.vue';
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import AppLogoMark from '@/components/AppLogoMark.vue';
+import GetStartedPanel from '@/components/GetStartedPanel.vue';
 import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
 import LogEntryRow from '@/components/LogEntryRow.vue';
@@ -113,6 +114,29 @@ const onHistogramZoom = (window: { from: string; to: string }) => {
                     total: 0,
                     unavailable: false,
                 }"
+            />
+        </DemoBlock>
+
+        <DemoBlock
+            title="GetStartedPanel — no projects"
+            description="contextual onboarding, step one. A team with nowhere to send logs is told to make somewhere first; no snippets appear until a project exists, because a curl line without a key behind it is a dead end."
+        >
+            <GetStartedPanel
+                stage="no-projects"
+                team-slug="bilis"
+                origin="https://logs.example.com"
+            />
+        </DemoBlock>
+
+        <DemoBlock
+            title="GetStartedPanel — no logs yet"
+            description="step two: the project exists and has never received a line. The ingest host is read off the current origin so a copied snippet always points at this install, the key stays a placeholder (Bilis only ever shows a key once, at creation), and the logs page polls behind this panel so it flips to the stream on its own."
+        >
+            <GetStartedPanel
+                stage="no-logs"
+                :projects="demoProjects"
+                team-slug="bilis"
+                origin="https://logs.example.com"
             />
         </DemoBlock>
 

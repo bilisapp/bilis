@@ -56,4 +56,10 @@ The design system — palette, tokens, severity colours, every component — liv
 
 ## License
 
-MIT
+[Functional Source License, Version 1.1, ALv2 Future License](LICENSE.md) (`FSL-1.1-ALv2`).
+
+In plain terms: **self-host Bilis freely** — for your company's internal use, for education, for research, and as part of professional services you provide to someone else running it. The one thing you may not do is offer Bilis (or a substantially similar log-search product built from it) to others as a commercial product or hosted service.
+
+Every release converts to the **Apache License 2.0 two years after it is published**, so this code becomes fully open source on a rolling schedule.
+
+Bilis is *source available*, not OSI open source. Contributions are welcome under the same terms.

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Project;
 use App\Models\Team;
 use App\Services\Logs\LogFilters;
+use App\Services\Logs\LogOnboarding;
 use App\Services\Logs\LogQuery;
 use App\Services\Logs\SeverityLevel;
 use Illuminate\Database\Eloquent\Collection;
@@ -19,7 +20,7 @@ class LogsController extends Controller
     /**
      * Show the log viewer for the current team.
      */
-    public function index(Request $request, LogQuery $logQuery): Response
+    public function index(Request $request, LogQuery $logQuery, LogOnboarding $onboarding): Response
     {
         $team = $this->team($request);
         $filters = LogFilters::fromRequest($request);
@@ -27,6 +28,7 @@ class LogsController extends Controller
         $projectIds = $this->projectIds($projects, $filters->project);
 
         return Inertia::render('logs/Index', [
+            'onboarding' => $onboarding->state($team, $this->projectIds($projects, null)),
             'projects' => $projects
                 ->map(fn (Project $project): array => [
                     'name' => $project->name,

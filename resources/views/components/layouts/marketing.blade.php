@@ -44,27 +44,36 @@
     </head>
     <body class="min-h-dvh bg-background font-sans text-foreground antialiased">
         <header class="border-b border-border">
-            <div class="mx-auto flex max-w-5xl items-center justify-between gap-4 px-6 py-4">
-                <a href="{{ route('home') }}" class="flex items-center gap-2.5">
-                    <img src="/logo-mark.svg" alt="" class="h-7 w-auto" width="20790" height="4080">
+            <div class="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+                <a href="{{ route('home') }}" class="flex shrink-0 items-center gap-2.5">
+                    {{-- The wide mark where there is room to run; the square mark where there is not. --}}
+                    <img src="/logo-mark.svg" alt="" class="hidden h-7 w-auto sm:block" width="20790" height="4080">
+                    <img src="/logo-icon.svg" alt="" class="size-7 sm:hidden" width="17586" height="17586">
                     <span class="text-lg font-semibold tracking-tight">{{ config('app.name', 'Bilis') }}</span>
                 </a>
 
-                <nav class="flex items-center gap-1 text-sm font-medium">
+                <nav class="flex shrink-0 items-center gap-1 text-sm font-medium whitespace-nowrap">
+                    <a href="{{ config('bilis.github_url') }}"
+                       class="hidden items-center gap-1.5 rounded-md px-3 py-2 transition-colors hover:bg-accent hover:text-accent-foreground sm:flex"
+                       target="_blank" rel="noopener noreferrer">
+                        <x-icons.github class="size-4" />
+                        Source
+                    </a>
+
                     @auth
                         @if ($team = auth()->user()->currentTeam)
                             <a href="{{ route('dashboard', $team) }}"
-                               class="rounded-md bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90">
+                               class="rounded-md bg-primary px-3 py-2 text-primary-foreground transition-colors hover:bg-primary/90 sm:px-4">
                                 Dashboard
                             </a>
                         @endif
                     @else
                         <a href="{{ route('login') }}"
-                           class="rounded-md px-4 py-2 transition-colors hover:bg-accent hover:text-accent-foreground">
+                           class="rounded-md px-3 py-2 transition-colors hover:bg-accent hover:text-accent-foreground sm:px-4">
                             Log in
                         </a>
                         <a href="{{ route('register') }}"
-                           class="rounded-md bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90">
+                           class="rounded-md bg-primary px-3 py-2 text-primary-foreground transition-colors hover:bg-primary/90 sm:px-4">
                             Get started
                         </a>
                     @endauth
@@ -82,7 +91,15 @@
                     <img src="/logo-mark.svg" alt="" class="h-5 w-auto" width="20790" height="4080">
                     <span>{{ config('app.name', 'Bilis') }} — self-hosted log storage and search.</span>
                 </div>
-                <span>Logs only. That is the whole product.</span>
+                <div class="flex items-center gap-4">
+                    <a href="{{ config('bilis.github_url') }}"
+                       class="flex items-center gap-1.5 transition-colors hover:text-foreground"
+                       target="_blank" rel="noopener noreferrer">
+                        <x-icons.github class="size-4" />
+                        Source on GitHub
+                    </a>
+                    <span>Logs only. That is the whole product.</span>
+                </div>
             </div>
         </footer>
     </body>

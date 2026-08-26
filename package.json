@@ -1,6 +1,7 @@
 {
     "$schema": "https://www.schemastore.org/package.json",
     "private": true,
+    "license": "SEE LICENSE IN LICENSE.md",
     "type": "module",
     "scripts": {
         "build": "vite build",
