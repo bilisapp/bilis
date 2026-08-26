@@ -1,3 +1,56 @@
+# Bilis
+
+Self-hostable log storage and search. **v1 scope is exactly this — nothing else**: one OTLP/HTTP ingest endpoint (+ simple JSON fallback), OTel-compatible ClickHouse logs table, and a log viewer UI (time range, project/service/severity filters, full-text search, live tail). Explicitly *not* in v1: traces, metrics, alerting, dashboards, saved searches, eBPF, S3 tiering, replication, billing. Push back on scope creep.
+
+## Stack
+
+- Laravel 13 (PHP 8.4) + Inertia v3 + Vue 3 + Tailwind v4 (shadcn-vue), Pest, SQLite app DB.
+- **ClickHouse** stores the logs — accessed over its HTTP interface via `App\Services\ClickHouse\ClickHouseClient` (Laravel `Http` facade, **no ClickHouse composer package — keep it that way**). Config: `config/clickhouse.php` / `CLICKHOUSE_*` env vars.
+- Deploy target: Traefik via Coolify on one OVH dedicated box, Octane/FrankenPHP.
+
+## Architecture map
+
+| Area | Where |
+| --- | --- |
+| ClickHouse client + exceptions | `app/Services/ClickHouse/` |
+| ClickHouse DDL (idempotent, filename order) | `database/clickhouse/*.sql`, applied by `php artisan clickhouse:migrate` |
+| Ingest endpoints (OTLP JSON + simple JSON) | `routes/api.php`, `app/Http/Controllers/Api/`, mappers in `app/Services/Ingest/` |
+| API-key auth (key -> project) | `App\Http\Middleware\AuthenticateProjectApiKey`, alias `project.api-key`; keys are `bilis_`-prefixed, only sha256 hash stored (`App\Models\ProjectApiKey`) |
+| Log querying for the UI | `app/Services/Logs/` (LogQuery, LogFilters, SeverityLevel) |
+| Log viewer page | `LogsController`, `resources/js/pages/logs/`, `LogsToolbar.vue`, `LogEntryRow.vue`, `resources/js/lib/logs.ts` |
+| Projects (team-scoped, slug route key) | `App\Models\Project`, belongs to existing Teams system |
+| Styleguide / component showcase | `/styleguide` route, `resources/js/pages/styleguide/` |
+| Charts (Apache ECharts) | `ChartCanvas.vue` wrapper; register chart types in `resources/js/lib/echarts.ts`; theme comes from CSS tokens via `useChartTokens` — never hardcode chart colours |
+
+## Invariants (do not break)
+
+- **Ingest never returns 400.** Malformed records are skipped best-effort with counts (`partialSuccess` for OTLP). ClickHouse failure -> 503 + `Retry-After`. The client is never blamed.
+- **ProjectId comes only from the authenticated API key** (ingest) or the current team's projects (UI). Never from the payload or from a slug reaching SQL.
+- **All ClickHouse SQL is parameterized** with `{name:Type}` server-side placeholders — never string-interpolate values.
+- Inserts use `async_insert=1` / `wait_for_async_insert=0` — success means *queued*, not durable.
+- OTLP protobuf content-type -> 415 (JSON encoding only in v1; adding a protobuf dep requires approval).
+
+## Frontend conventions
+
+- **Every new reusable Vue component must be added to the `/styleguide` showcase** (`resources/js/pages/styleguide/`) in the same change — add it to the matching section (or a new one) with realistic Bilis-flavored demo content. A component that isn't in the styleguide isn't done.
+- **Charting: use Apache ECharts** (`echarts`) for all charts — not chart.js, not hand-rolled SVG. Not yet installed; add it (prefer tree-shakeable `echarts/core` imports) the first time a chart is built, wrap it in a reusable component themed via the CSS `--chart-1..5` / semantic tokens, and showcase it in the styleguide's Charts section.
+
+## Branding
+
+Palette from a mid-century stripes artwork, defined in `resources/css/app.css`: brand utilities `cream, greige, espresso, navy, gold, crimson, teal, aqua, blush`; semantic shadcn tokens (light = navy on cream, dark = gold on espresso); log severity utilities `text-severity-{trace,debug,info,warn,error,fatal}` (per-mode). Light mode keeps a strict three-level surface hierarchy — cream page < near-white cards < darker border/input hairlines (see `.ai/rules/css.md`); a bordered panel needs `bg-card` to read as a surface. Wordmark: "Bilis" with the three-stripes mark (`AppLogo.vue`/`AppLogoIcon.vue`). Font: Instrument Sans (IBM Plex Sans/Mono are loaded as candidates for evaluation on `/styleguide` — remove the losers once decided). Use semantic tokens in components; raw brand colors only for deliberate brand moments. Living reference: the `/styleguide` page.
+
+## Commands
+
+```bash
+composer run dev              # app + vite + queue + pail
+php artisan test --compact    # Pest (use --filter/paths for speed)
+vendor/bin/pint --dirty --format agent
+vendor/bin/phpstan analyse    # larastan level per phpstan.neon — keep it clean
+php artisan clickhouse:migrate
+npm run build                 # must pass (vue-tsc + vite)
+php artisan wayfinder:generate --with-form   # ALWAYS --with-form; without it .form() is stripped from every generated route and ~19 files break
+```
+
 <laravel-boost-guidelines>
 === foundation rules ===
 
