@@ -18,8 +18,10 @@ const props = withDefaults(
         expanded: boolean;
         /** Arrived in the last live-tail poll; announces itself once. */
         fresh?: boolean;
+        /** The row the keyboard is currently on. */
+        cursor?: boolean;
     }>(),
-    { fresh: false },
+    { fresh: false, cursor: false },
 );
 
 const emit = defineEmits<{
@@ -47,6 +49,11 @@ const attributeGroups = computed(() => [
                 SEVERITY_ROW_CLASS[level],
                 fresh &&
                     'animate-in duration-300 ease-out fade-in slide-in-from-top-1 motion-reduce:animate-none',
+                // The keyboard cursor reads as a held row: the severity edge
+                // at full weight, plus a ring that carries the state without
+                // depending on colour.
+                cursor &&
+                    'border-l-[3px] bg-accent/70 ring-1 ring-ring/60 ring-inset',
             )
         "
         :data-severity="level"

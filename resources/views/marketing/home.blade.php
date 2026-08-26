@@ -1,18 +1,3 @@
-@php
-    /**
-     * A still frame of the log viewer, drawn with the same tokens and column
-     * widths the real stream uses. Illustrative lines — Bilis is pre-launch.
-     */
-    $stream = [
-        ['14:02:11.418', 'error', 'text-severity-error', 'bg-severity-error', 'billing', 'Stripe webhook timed out after 30s (event evt_1P9xQ2)'],
-        ['14:02:11.402', 'warn', 'text-severity-warn', 'bg-severity-warn', 'billing', 'Retry 3/5 for webhook delivery, backing off 8s'],
-        ['14:02:09.771', 'info', 'text-severity-info', 'bg-severity-info', 'api', 'POST /v1/subscriptions 201 in 84ms'],
-        ['14:02:09.688', 'debug', 'text-severity-debug', 'bg-severity-debug', 'api', 'Cache miss for plan:pro — reading from SQLite'],
-        ['14:02:08.230', 'info', 'text-severity-info', 'bg-severity-info', 'worker', 'Processed 1 job in 12ms'],
-        ['14:02:07.915', 'trace', 'text-severity-trace', 'bg-severity-trace', 'worker', 'Heartbeat ok, queue depth 0'],
-    ];
-@endphp
-
 <x-layouts.marketing>
     {{-- Hero --}}
     <section class="mx-auto max-w-5xl px-6 pt-16 pb-12 sm:pt-24">
@@ -55,35 +40,14 @@
     {{-- The viewer --}}
     <section class="mx-auto max-w-5xl px-6 pb-16 sm:pb-24">
         <div class="overflow-hidden rounded-xl border border-border bg-card">
-            <div class="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
-                <span class="rounded-md border border-border px-2.5 py-1 text-xs font-medium">Last 15 minutes</span>
-                <span class="rounded-md border border-border px-2.5 py-1 text-xs font-medium">billing</span>
-                <span class="rounded-md bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
-                    error + warn
-                </span>
-                <span class="ml-auto text-xs text-muted-foreground">Live tail</span>
-                <span class="size-2 rounded-full bg-severity-info"></span>
-            </div>
-
-            <div class="overflow-x-auto">
-                <div class="min-w-2xl">
-                    @foreach ($stream as [$time, $severity, $textClass, $dotClass, $service, $message])
-                        <div class="flex items-baseline gap-3 border-b border-border/60 px-3 py-1.5 last:border-b-0">
-                            <span class="font-mono text-xs tabular-nums text-muted-foreground">{{ $time }}</span>
-                            <span class="flex w-16 shrink-0 items-center gap-1.5">
-                                <span class="size-2 shrink-0 rounded-full {{ $dotClass }}"></span>
-                                <span class="text-xs font-medium {{ $textClass }}">{{ $severity }}</span>
-                            </span>
-                            <span class="w-40 shrink-0 truncate font-mono text-xs text-muted-foreground">{{ $service }}</span>
-                            <span class="flex-1 truncate font-mono text-xs">{{ $message }}</span>
-                        </div>
-                    @endforeach
-                </div>
-            </div>
+            <picture>
+                <source media="(prefers-color-scheme: dark)" srcset="/screenshot-logs-dark.png">
+                <img src="/screenshot-logs-light.png" alt="The Bilis log viewer: a live tail with time-range, project, service and severity filters above a scrolling stream of timestamped, severity-coloured log lines." width="1440" height="900" loading="lazy">
+            </picture>
         </div>
 
         <p class="mt-3 text-xs text-muted-foreground">
-            Time range, project, service and severity filters, full-text search, and a live tail you can leave open during a deploy.
+            Time range, project, service and severity filters, full-text search, and a live tail you can leave open during a deploy. Log lines shown are illustrative — Bilis is pre-launch.
         </p>
     </section>
 
@@ -112,6 +76,17 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs</pre>
                 Ingest never blames the client: malformed records are skipped with a count rather than
                 failing the batch. Writes are queued asynchronously, so a success means accepted, not yet durable.
             </p>
+
+            <p class="mt-8 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                The key comes from a project in the app — one key, one project, revocable any time:
+            </p>
+
+            <div class="mt-4 max-w-2xl overflow-hidden rounded-xl border border-border bg-background">
+                <picture>
+                    <source media="(prefers-color-scheme: dark)" srcset="/screenshot-project-dark.png">
+                    <img src="/screenshot-project-light.png" alt="A Bilis project's API keys panel, showing three issued keys with their creation and last-used dates." width="1440" height="900" loading="lazy">
+                </picture>
+            </div>
         </div>
     </section>
 

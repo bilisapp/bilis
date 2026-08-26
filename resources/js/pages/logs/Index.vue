@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import { Head, router, useHttp, usePage, usePoll } from '@inertiajs/vue3';
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import AlertError from '@/components/AlertError.vue';
 import GetStartedPanel from '@/components/GetStartedPanel.vue';
 import LogEntryRow from '@/components/LogEntryRow.vue';
 import LogsHistogram from '@/components/LogsHistogram.vue';
+import LogsShortcutsDialog from '@/components/LogsShortcutsDialog.vue';
 import LogsToolbar from '@/components/LogsToolbar.vue';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useLogKeyboard } from '@/composables/useLogKeyboard';
+import { useTailStatus } from '@/composables/useTailStatus';
+import { useTailTabBadge } from '@/composables/useTailTabBadge';
 import {
     DEFAULT_RANGE_PRESET,
     presetForRange,
@@ -71,9 +75,17 @@ const { start: startOnboardingPoll, stop: stopOnboardingPoll } = usePoll(
     { autoStart: false },
 );
 
+/**
+ * The one milestone in this product: a project that has never received a line
+ * receives its first. It happens once and never again, so it gets marked.
+ */
+const firstLineLanded = ref(false);
+
+let firstLineTimer: ReturnType<typeof setTimeout> | null = null;
+
 watch(
     () => props.onboarding.stage,
-    (stage) => {
+    (stage, previous) => {
         if (stage === 'no-logs') {
             startOnboardingPoll();
 
@@ -81,6 +93,15 @@ watch(
         }
 
         stopOnboardingPoll();
+
+        if (previous === 'no-logs' && stage === 'ready') {
+            firstLineLanded.value = true;
+
+            firstLineTimer = setTimeout(() => {
+                firstLineLanded.value = false;
+                firstLineTimer = null;
+            }, 12_000);
+        }
     },
     { immediate: true },
 );
@@ -383,6 +404,18 @@ const onSearch = (value: string | null) => {
 
 const expandedKey = ref<string | null>(null);
 const liveTail = ref(false);
+
+/**
+ * The sidebar mark and the browser tab both report on tailing, so the state is
+ * shared rather than local to this page.
+ */
+const { tailing: tailingStatus, noteUnseen } = useTailStatus();
+
+useTailTabBadge();
+
+watch(liveTail, (enabled) => {
+    tailingStatus.value = enabled;
+});
 const tailRows = ref<LogEntry[]>([]);
 const scrolledDown = ref(false);
 
@@ -444,6 +477,10 @@ const fetchTail = async () => {
         if (result?.rows?.length) {
             tailRows.value = [...result.rows, ...tailRows.value].slice(0, 500);
             markFresh(result.rows);
+
+            if (document.visibilityState === 'hidden') {
+                noteUnseen(result.rows);
+            }
         }
     } catch {
         liveTail.value = false;
@@ -464,6 +501,13 @@ const stopTail = () => {
     }
 };
 
+const stopFirstLineTimer = () => {
+    if (firstLineTimer !== null) {
+        clearTimeout(firstLineTimer);
+        firstLineTimer = null;
+    }
+};
+
 watch(liveTail, (enabled) => {
     stopTail();
 
@@ -481,7 +525,11 @@ watch(expandedKey, (value) => {
     void fetchTail();
 });
 
-onBeforeUnmount(stopTail);
+onBeforeUnmount(() => {
+    stopTail();
+    stopFirstLineTimer();
+    tailingStatus.value = false;
+});
 
 const onScroll = (event: Event) => {
     scrolledDown.value = (event.target as HTMLElement).scrollTop > 32;
@@ -490,6 +538,61 @@ const onScroll = (event: Event) => {
 const toggleExpanded = (key: string) => {
     expandedKey.value = expandedKey.value === key ? null : key;
 };
+
+const shortcutsOpen = ref(false);
+
+/**
+ * `less`-style keys over the stream. Every one of them has a pointer
+ * equivalent; this is a faster route, never the only one.
+ */
+const { cursor, reset: resetCursor } = useLogKeyboard({
+    count: () => rows.value.length,
+    toggle: (index) => {
+        const entry = rows.value[index];
+
+        if (entry) {
+            toggleExpanded(entryKey(entry, index));
+        }
+    },
+    collapse: () => {
+        if (expandedKey.value === null) {
+            return false;
+        }
+
+        expandedKey.value = null;
+
+        return true;
+    },
+    focusSearch: () => {
+        const field = document.querySelector<HTMLInputElement>(
+            "[data-test='logs-search']",
+        );
+
+        field?.focus();
+        field?.select();
+    },
+    openShortcuts: () => {
+        shortcutsOpen.value = true;
+    },
+});
+
+// A new result set invalidates the row the cursor was holding.
+watch(() => props.filters, resetCursor);
+
+/**
+ * Keep the cursor row on screen when it moves off the top or bottom edge.
+ */
+watch(cursor, (index) => {
+    if (index === null) {
+        return;
+    }
+
+    void nextTick(() => {
+        document
+            .querySelector(`[data-log-index='${index}']`)
+            ?.scrollIntoView({ block: 'nearest' });
+    });
+});
 
 /**
  * Clicking a histogram bar narrows the viewer to that bucket.
@@ -515,6 +618,8 @@ const activeFilterCount = computed(
 
 <template>
     <Head title="Logs" />
+
+    <LogsShortcutsDialog v-model:open="shortcutsOpen" />
 
     <div class="flex min-h-0 flex-1 flex-col gap-4 p-4">
         <GetStartedPanel
@@ -551,9 +656,9 @@ const activeFilterCount = computed(
 
             <AlertError
                 v-if="unavailable"
-                title="Log storage is busy"
+                title="ClickHouse is thinking"
                 :errors="[
-                    'ClickHouse could not answer this query right now. Narrow the time range or try again in a moment.',
+                    'It could not answer this query in time. Narrow the window, or try again in a moment — nothing was lost.',
                 ]"
             />
 
@@ -589,8 +694,17 @@ const activeFilterCount = computed(
                     <p v-else class="text-muted-foreground">Loading lines…</p>
 
                     <p
+                        v-if="firstLineLanded"
+                        class="inline-flex animate-in items-center gap-1.5 font-medium text-severity-info duration-500 fade-in slide-in-from-left-2 motion-reduce:animate-none"
+                        data-test="logs-first-line"
+                    >
+                        <span class="size-1.5 rounded-full bg-current" />
+                        First line received. The pipe works.
+                    </p>
+
+                    <p
                         v-if="liveTail && tailPaused"
-                        class="ml-auto inline-flex items-center gap-1.5 rounded-full border border-severity-warn/40 bg-severity-warn/10 px-2 py-0.5 font-medium text-severity-warn"
+                        class="inline-flex items-center gap-1.5 rounded-full border border-severity-warn/40 bg-severity-warn/10 px-2 py-0.5 font-medium text-severity-warn"
                         data-test="logs-tail-paused"
                     >
                         <span class="size-1.5 rounded-full bg-current" />
@@ -598,7 +712,7 @@ const activeFilterCount = computed(
                     </p>
                     <p
                         v-else-if="liveTail"
-                        class="ml-auto inline-flex items-center gap-1.5 font-medium text-severity-info"
+                        class="inline-flex items-center gap-1.5 font-medium text-severity-info"
                         data-test="logs-tail-live"
                     >
                         <span class="relative flex size-1.5">
@@ -611,6 +725,20 @@ const activeFilterCount = computed(
                         </span>
                         Tailing
                     </p>
+
+                    <button
+                        type="button"
+                        class="ml-auto hidden items-center gap-1.5 rounded px-1.5 py-0.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none sm:inline-flex"
+                        data-test="logs-shortcuts-open"
+                        @click="shortcutsOpen = true"
+                    >
+                        <kbd
+                            class="inline-flex h-5 min-w-5 items-center justify-center rounded border border-input px-1 font-mono text-xs"
+                        >
+                            ?
+                        </kbd>
+                        Keyboard
+                    </button>
                 </header>
 
                 <div
@@ -724,8 +852,10 @@ const activeFilterCount = computed(
                             v-for="(entry, index) in rows"
                             :key="entryKey(entry, index)"
                             :entry="entry"
+                            :data-log-index="index"
                             :expanded="expandedKey === entryKey(entry, index)"
                             :fresh="freshKeys.has(freshId(entry))"
+                            :cursor="cursor === index"
                             @toggle="toggleExpanded(entryKey(entry, index))"
                         />
 

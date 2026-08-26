@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue';
 import type { ComputedRef, Ref } from 'vue';
-import type { LogEntry, SeverityLevel } from '@/types';
 import { severityLevelFor } from '@/lib/logs';
+import type { LogEntry, SeverityLevel } from '@/types';
 
 /**
  * Live-tail state shared between the log viewer and the app chrome.

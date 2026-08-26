@@ -10,6 +10,7 @@ import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
 import LogEntryRow from '@/components/LogEntryRow.vue';
 import LogsHistogram from '@/components/LogsHistogram.vue';
+import LogsShortcutsDialog from '@/components/LogsShortcutsDialog.vue';
 import LogsToolbar from '@/components/LogsToolbar.vue';
 import PlaceholderPattern from '@/components/PlaceholderPattern.vue';
 import TextLink from '@/components/TextLink.vue';
@@ -113,6 +114,8 @@ const demoApiKey = {
     key: 'bilis_9fZ1qPdK3sWmXbT7vRcYhN2eJgL4uA6oQ8iM0zSr',
 };
 
+const shortcutsOpen = ref(false);
+
 const histogram = demoHistogram();
 const histogramSeverity = ref<SeverityLevel[]>([]);
 const histogramZoom = ref<string | null>(null);
@@ -198,6 +201,17 @@ const onHistogramZoom = (window: { from: string; to: string }) => {
                 team-slug="bilis"
                 origin="https://bilis.app"
             />
+        </DemoBlock>
+
+        <DemoBlock
+            title="LogsShortcutsDialog"
+            description="the sheet behind ? in the log viewer. The stream answers to the same keys as less — j/k to walk lines, o to expand, / to search, g/G for the ends — because the people who self-host a log viewer already have that muscle memory. Every shortcut has a pointer equivalent; none of them is the only way to do anything."
+        >
+            <Button variant="secondary" @click="shortcutsOpen = true">
+                Show the sheet
+            </Button>
+
+            <LogsShortcutsDialog v-model:open="shortcutsOpen" />
         </DemoBlock>
 
         <DemoBlock

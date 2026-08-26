@@ -23,6 +23,15 @@
 
 ---
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="public/screenshot-logs-dark.png">
+    <img src="public/screenshot-logs-light.png" alt="The Bilis log viewer: time range, project, service and severity filters above a live-tailing stream of severity-coloured log lines" width="820">
+  </picture>
+  <br>
+  <sub>Log lines shown are illustrative — Bilis is pre-launch.</sub>
+</p>
+
 **v1 is exactly that — nothing else.** No traces, metrics, alerting, dashboards, saved searches, or billing.
 
 ## How it works

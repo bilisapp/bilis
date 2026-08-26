@@ -110,6 +110,49 @@
 
 @layer utilities {
     /*
+      The mark's tail as the live-tail indicator.
+
+      The three stripes are where the data palette comes from, so while the
+      stream is running they light in sequence — one slow pass, not a spinner.
+      It is the quietest possible way for the chrome to say the pipe is open,
+      and it stops dead the moment tailing stops.
+    */
+    @keyframes mark-tail {
+        0%,
+        70%,
+        100% {
+            opacity: 0.35;
+        }
+        18% {
+            opacity: 1;
+        }
+    }
+
+    .mark-live [data-mark-stripe] {
+        animation: mark-tail 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    }
+
+    .mark-live [data-mark-stripe='1'] {
+        animation-delay: 0ms;
+    }
+
+    .mark-live [data-mark-stripe='2'] {
+        animation-delay: 220ms;
+    }
+
+    .mark-live [data-mark-stripe='3'] {
+        animation-delay: 440ms;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .mark-live [data-mark-stripe] {
+            animation: none;
+        }
+    }
+}
+
+@layer utilities {
+    /*
       Overlay scrollbars (macOS, and any trackpad-only device) stay invisible
       until they move, which makes a long log stream look like it ends at the
       fold. This paints a persistent hairline thumb from the border token so a
