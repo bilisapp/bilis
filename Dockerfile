@@ -1,0 +1,133 @@
+# syntax=docker/dockerfile:1.7
+
+ARG PHP_VERSION=8.4
+ARG NODE_VERSION=24
+
+FROM dunglas/frankenphp:1-php${PHP_VERSION}-bookworm AS php-base
+
+WORKDIR /app
+
+ENV APP_ENV=production \
+    APP_DEBUG=false \
+    COMPOSER_ALLOW_SUPERUSER=1 \
+    LOG_CHANNEL=stderr
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        curl \
+        git \
+        unzip \
+    && install-php-extensions \
+        bcmath \
+        intl \
+        opcache \
+        pcntl \
+        pdo_mysql \
+        pdo_pgsql \
+        pdo_sqlite \
+        redis \
+        zip \
+    && cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
+    && { \
+        echo 'opcache.enable=1'; \
+        echo 'opcache.enable_cli=1'; \
+        echo 'opcache.validate_timestamps=0'; \
+        echo 'opcache.jit=tracing'; \
+        echo 'opcache.jit_buffer_size=128M'; \
+        echo 'realpath_cache_size=4096K'; \
+        echo 'realpath_cache_ttl=600'; \
+        echo 'upload_max_filesize=16M'; \
+        echo 'post_max_size=16M'; \
+    } > "$PHP_INI_DIR/conf.d/zz-bilis-production.ini" \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+FROM php-base AS php-deps
+
+COPY composer.json composer.lock ./
+
+RUN composer install \
+    --no-dev \
+    --prefer-dist \
+    --no-interaction \
+    --no-progress \
+    --no-scripts \
+    --optimize-autoloader
+
+FROM php-base AS app-source
+
+COPY . .
+COPY --from=php-deps /app/vendor ./vendor
+
+RUN composer dump-autoload --no-dev --optimize \
+    && php artisan package:discover --ansi \
+    && php artisan wayfinder:generate --with-form --no-interaction
+
+FROM node:${NODE_VERSION}-bookworm-slim AS assets
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY --from=app-source /app/components.json ./components.json
+COPY --from=app-source /app/public ./public
+COPY --from=app-source /app/resources ./resources
+COPY --from=app-source /app/tsconfig.json ./tsconfig.json
+COPY --from=app-source /app/vendor ./vendor
+COPY --from=app-source /app/vite.config.ts ./vite.config.ts
+
+RUN npm run build
+
+FROM php-base AS production
+
+ENV PORT=8080 \
+    BILIS_OPTIMIZE_ON_STARTUP=true \
+    BILIS_MIGRATE_ON_STARTUP=false
+
+COPY . .
+COPY --from=php-deps /app/vendor ./vendor
+COPY --from=assets /app/public/build ./public/build
+
+RUN { \
+        echo '{'; \
+        echo '    admin off'; \
+        echo '    frankenphp'; \
+        echo '}'; \
+        echo; \
+        echo ':{$PORT:8080} {'; \
+        echo '    root * /app/public'; \
+        echo '    encode zstd br gzip'; \
+        echo; \
+        echo '    php_server'; \
+        echo '}'; \
+    } > /etc/caddy/Caddyfile \
+    && mkdir -p \
+        /config/caddy \
+        /data/caddy \
+        storage/app/private \
+        storage/app/public \
+        storage/framework/cache/data \
+        storage/framework/sessions \
+        storage/framework/testing \
+        storage/framework/views \
+        storage/logs \
+        bootstrap/cache \
+        database \
+    && touch database/database.sqlite \
+    && composer dump-autoload --no-dev --optimize \
+    && php artisan package:discover --ansi \
+    && chown -R www-data:www-data \
+        /app \
+        /config/caddy \
+        /data/caddy
+
+USER www-data
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD php -r '$port = getenv("PORT") ?: "8080"; exit(@file_get_contents("http://127.0.0.1:".$port."/up") === false ? 1 : 0);'
+
+CMD ["sh", "-lc", "set -e; if [ \"${DB_CONNECTION:-sqlite}\" = \"sqlite\" ]; then db=\"${DB_DATABASE:-/app/database/database.sqlite}\"; mkdir -p \"$(dirname \"$db\")\"; touch \"$db\"; fi; if [ \"${BILIS_OPTIMIZE_ON_STARTUP:-true}\" = \"true\" ]; then php artisan optimize; fi; if [ \"${BILIS_MIGRATE_ON_STARTUP:-false}\" = \"true\" ]; then php artisan migrate --force; php artisan clickhouse:migrate --no-interaction; fi; exec frankenphp run --config /etc/caddy/Caddyfile"]
