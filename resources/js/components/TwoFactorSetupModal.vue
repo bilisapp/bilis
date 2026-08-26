@@ -34,7 +34,7 @@ const { resolvedAppearance } = useAppearance();
 const props = defineProps<Props>();
 const isOpen = defineModel<boolean>('isOpen');
 
-const { copy, copied } = useClipboard();
+const { copy, copied } = useClipboard({ legacy: true });
 const { qrCodeSvg, manualSetupKey, clearSetupData, fetchSetupData, errors } =
     useTwoFactorAuth();
 

@@ -23,7 +23,7 @@ const emit = defineEmits<{
     'update:open': [value: boolean];
 }>();
 
-const { copy, copied } = useClipboard();
+const { copy, copied } = useClipboard({ legacy: true });
 </script>
 
 <template>

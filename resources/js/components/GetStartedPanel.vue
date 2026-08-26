@@ -131,6 +131,9 @@ const {
     text: copiedText,
 } = useClipboard({
     copiedDuring: 1_500,
+    // navigator.clipboard needs a secure context; self-hosted installs often
+    // run plain http, so fall back to the legacy execCommand path there.
+    legacy: true,
 });
 </script>
 
