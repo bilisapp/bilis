@@ -10,9 +10,9 @@ use Monolog\Logger;
 /**
  * The `custom` driver factory behind the `bilis` log channel.
  *
- * Builds a Monolog logger that ships to a Bilis ingest endpoint, or an inert
- * one when the endpoint or the API key is missing — the channel is then safe
- * to leave in a stack on a machine that has no Bilis configured.
+ * Builds a Monolog logger that ships to a Bilis instance, or an inert one when
+ * the endpoint or the API key is missing — the channel is then safe to leave in
+ * a stack on a machine that has no Bilis configured.
  */
 class BilisLogger
 {
@@ -31,7 +31,7 @@ class BilisLogger
         $service = $config['service'] ?? null;
 
         $handler = new BilisHandler(
-            endpoint: $endpoint,
+            endpoint: $this->ingestEndpoint($endpoint),
             apiKey: $apiKey,
             level: $this->level($config['level'] ?? null),
             timeout: (float) ($config['timeout'] ?? 2.0),
@@ -52,6 +52,23 @@ class BilisLogger
          * that pair of braces.
          */
         return new Logger('bilis', [new WhatFailureGroupHandler([$handler])]);
+    }
+
+    /**
+     * Resolve the simple JSON ingest URL from the configured Bilis base URL.
+     *
+     * Existing installs that still point directly at the v1 ingest route are
+     * accepted as-is, but new configuration should only store the origin.
+     */
+    private function ingestEndpoint(string $endpoint): string
+    {
+        $endpoint = rtrim($endpoint, '/');
+
+        if (str_ends_with($endpoint, '/api/v1/ingest')) {
+            return $endpoint;
+        }
+
+        return $endpoint.'/api/v1/ingest';
     }
 
     /**

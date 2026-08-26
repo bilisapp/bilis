@@ -129,15 +129,17 @@ return [
 
         /*
          * Bilis' own log shipper: a buffered Monolog handler that POSTs a
-         * batch to a Bilis ingest endpoint after the response has been sent.
-         * Available but unused by default — opt in per install with
-         * LOG_STACK=single,bilis. With BILIS_ENDPOINT or BILIS_API_KEY unset
-         * the channel is inert, so it is safe to leave in a stack anywhere.
+         * batch to this Bilis instance's simple ingest route after the response
+         * has been sent. Available but unused by default — opt in per install
+         * with LOG_STACK=single,bilis. With BILIS_ENDPOINT or BILIS_API_KEY
+         * unset the channel is inert, so it is safe to leave in a stack
+         * anywhere. BILIS_ENDPOINT is the Bilis origin only, e.g.
+         * https://bilis.app; the route is chosen by the handler.
          */
         'bilis' => [
             'driver' => 'custom',
             'via' => BilisLogger::class,
-            'endpoint' => env('BILIS_ENDPOINT'),
+            'endpoint' => env('BILIS_ENDPOINT', 'https://bilis.app'),
             'api_key' => env('BILIS_API_KEY'),
             'level' => env('BILIS_LOG_LEVEL', 'debug'),
         ],

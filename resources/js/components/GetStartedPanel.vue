@@ -97,7 +97,7 @@ const snippets = computed<Record<TabId, string>>(() => {
 OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=${url}/api/v1/logs
 OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer <YOUR_API_KEY>"`,
         laravel: `// .env
-BILIS_ENDPOINT=${url}/api/v1/ingest
+BILIS_ENDPOINT=${url}
 BILIS_API_KEY=<YOUR_API_KEY>
 LOG_STACK=single,bilis
 
@@ -105,6 +105,7 @@ LOG_STACK=single,bilis
 'bilis' => [
     'driver' => 'custom',
     'via' => App\\Logging\\BilisLogger::class,
+    // BILIS_ENDPOINT is the Bilis origin; the handler appends /api/v1/ingest.
     'endpoint' => env('BILIS_ENDPOINT'),
     'api_key' => env('BILIS_API_KEY'),
     'level' => env('BILIS_LOG_LEVEL', 'debug'),
