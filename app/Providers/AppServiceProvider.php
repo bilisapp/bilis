@@ -2,12 +2,16 @@
 
 namespace App\Providers;
 
+use App\Http\Middleware\AuthenticateProjectApiKey;
 use App\Models\Project;
 use App\Models\ProjectApiKey;
 use Carbon\CarbonImmutable;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Routing\Route as RouteElement;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
@@ -29,6 +33,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureDefaults();
         $this->configureRouteBindings();
+        $this->configureRateLimiting();
     }
 
     /**
@@ -55,6 +60,46 @@ class AppServiceProvider extends ServiceProvider
 
             return $project->apiKeys()->whereKey($id)->firstOrFail();
         });
+    }
+
+    /**
+     * Rate limit the ingest endpoints, per API key.
+     *
+     * A rejection is a 429 with `Retry-After`, which every OTLP exporter and
+     * the Bilis shipper already treat as retryable — the limiter shapes an
+     * abusive or runaway client, it does not blame a well-behaved one. Keys
+     * are counted individually so one noisy project cannot starve another.
+     */
+    protected function configureRateLimiting(): void
+    {
+        RateLimiter::for('ingest', function (Request $request): Limit {
+            $key = AuthenticateProjectApiKey::keyFromRequest($request);
+
+            // The throttle sorts ahead of the API-key middleware, so the key is
+            // read from the request and hashed rather than looked up: a bucket
+            // per credential, without a database round trip on every POST.
+            if ($key === null) {
+                return $this->limit(
+                    (int) config('security.ingest_rate_limit_unauthenticated'),
+                    'ingest:ip:'.$request->ip(),
+                );
+            }
+
+            return $this->limit(
+                (int) config('security.ingest_rate_limit'),
+                'ingest:key:'.hash('sha256', $key),
+            );
+        });
+    }
+
+    /**
+     * A per-minute limit on the given bucket, or none when it is not positive.
+     */
+    protected function limit(int $perMinute, string $bucket): Limit
+    {
+        return $perMinute > 0
+            ? Limit::perMinute($perMinute)->by($bucket)
+            : Limit::none();
     }
 
     /**

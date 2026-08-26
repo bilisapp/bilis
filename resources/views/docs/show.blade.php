@@ -7,9 +7,13 @@
 >
     <article class="max-w-3xl">
         <header>
-            <p class="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                {{ collect($sections)->firstWhere('slug', $page->section)?->title }}
-            </p>
+            <div class="flex items-start justify-between gap-4">
+                <p class="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                    {{ collect($sections)->firstWhere('slug', $page->section)?->title }}
+                </p>
+
+                <x-docs.copy-markdown :url="$page->markdownUrl()" />
+            </div>
 
             <h1 class="mt-2 text-3xl font-semibold tracking-tight">{{ $page->title }}</h1>
 
@@ -17,6 +21,10 @@
                 <p class="mt-3 text-base leading-relaxed text-muted-foreground">{{ $page->description }}</p>
             @endif
         </header>
+
+        @if ($needsApiKey)
+            <x-docs.api-key-panel :projects="$projects" />
+        @endif
 
         <div class="docs-prose mt-10">
             {!! $rendered->html !!}

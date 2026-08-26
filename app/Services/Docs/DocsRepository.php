@@ -179,6 +179,31 @@ class DocsRepository
     }
 
     /**
+     * The page as portable markdown: a title, the description, the canonical
+     * URL, then the body with its front matter block removed.
+     *
+     * This is what the "Copy as Markdown" button copies and what
+     * `/docs/{section}/{page}.md` serves, so a page can be pasted into an
+     * editor or a model without the reader having to scrape the HTML.
+     */
+    public function markdown(DocsPage $page): string
+    {
+        $body = trim(FrontMatter::parse(File::get($page->path))['body']);
+
+        $header = ['# '.$page->title, ''];
+
+        if ($page->description !== null) {
+            $header[] = '> '.$page->description;
+            $header[] = '';
+        }
+
+        $header[] = 'Source: '.$page->url();
+        $header[] = '';
+
+        return implode("\n", $header)."\n".$body."\n";
+    }
+
+    /**
      * Walk the docs directory and build the section tree.
      *
      * @return array<int, DocsSection>

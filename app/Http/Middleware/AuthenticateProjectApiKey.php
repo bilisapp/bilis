@@ -33,7 +33,7 @@ class AuthenticateProjectApiKey
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $plainTextKey = $this->keyFromRequest($request);
+        $plainTextKey = self::keyFromRequest($request);
 
         if ($plainTextKey === null) {
             return $this->unauthorized('API key missing.');
@@ -75,8 +75,11 @@ class AuthenticateProjectApiKey
 
     /**
      * Read the plaintext API key from the request headers.
+     *
+     * Public and static because the ingest rate limiter needs the key before
+     * this middleware has run — `ThrottleRequests` sorts ahead of it.
      */
-    protected function keyFromRequest(Request $request): ?string
+    public static function keyFromRequest(Request $request): ?string
     {
         $key = $request->bearerToken() ?? $request->header(self::KEY_HEADER);
 

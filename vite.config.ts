@@ -39,6 +39,10 @@ export default defineConfig({
         }),
     ],
     server: {
+        // Named rather than left to resolve to an IPv6 literal: a CSP
+        // host-source has no form for `[::1]`, so a dev server that binds
+        // there cannot be allowed by the app's Content-Security-Policy.
+        host: 'localhost',
         watch: {
             ignored: [
                 '**/.agents/**',

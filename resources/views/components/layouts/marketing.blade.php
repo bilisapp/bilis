@@ -13,14 +13,14 @@
         <meta name="description" content="{{ $description }}">
 
         {{-- Public pages follow the operating system only; the appearance toggle lives in the app. --}}
-        <script>
+        <script nonce="{{ $cspNonce ?? '' }}">
             if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
                 document.documentElement.classList.add('dark');
             }
         </script>
 
         {{-- Paint the page ground before the stylesheet lands, so there is no flash. --}}
-        <style>
+        <style nonce="{{ $cspNonce ?? '' }}">
             html {
                 background-color: hsl(44 33% 93%);
             }
@@ -42,7 +42,11 @@
         {{-- Marketing pages are Blade only: the stylesheet, never the Inertia bundle. --}}
         @vite('resources/css/app.css')
 
-        <script defer src="https://umami.lsd.sk/script.js" data-website-id="a44fb3bb-e339-4c3e-aa58-997ea902e51e"></script>
+        @if (config('bilis.analytics.script_url'))
+            <script defer nonce="{{ $cspNonce ?? '' }}"
+                    src="{{ config('bilis.analytics.script_url') }}"
+                    data-website-id="{{ config('bilis.analytics.website_id') }}"></script>
+        @endif
     </head>
     <body class="min-h-dvh bg-background font-sans text-foreground antialiased">
         <header class="border-b border-border">

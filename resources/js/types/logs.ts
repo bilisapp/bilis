@@ -98,6 +98,12 @@ export type LogDigestService = {
      * not a missing series.
      */
     series: number[];
+    /**
+     * The error-severity share of those same hours, drawn over `series` as
+     * the severity-hued overlay. Always the same length, and always a subset
+     * of the totals.
+     */
+    errorSeries: number[];
 };
 
 /** One hour of the digest's 24 hour trend, dense: a gap is a zero, not a hole. */

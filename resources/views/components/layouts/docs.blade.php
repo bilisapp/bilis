@@ -20,15 +20,20 @@
         <title>{{ $title ? $title.' — '.config('app.name', 'Bilis').' docs' : config('app.name', 'Bilis').' documentation' }}</title>
         <meta name="description" content="{{ $description }}">
 
+        @if ($current)
+            {{-- The same page as raw markdown, for anything reading without a browser. --}}
+            <link rel="alternate" type="text/markdown" href="{{ $current->markdownUrl() }}">
+        @endif
+
         {{-- Public pages follow the operating system only; the appearance toggle lives in the app. --}}
-        <script>
+        <script nonce="{{ $cspNonce ?? '' }}">
             if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
                 document.documentElement.classList.add('dark');
             }
         </script>
 
         {{-- Paint the page ground before the stylesheet lands, so there is no flash. --}}
-        <style>
+        <style nonce="{{ $cspNonce ?? '' }}">
             html {
                 background-color: hsl(44 33% 93%);
             }
@@ -50,7 +55,11 @@
         {{-- Documentation is Blade only: the stylesheet, never the Inertia bundle. --}}
         @vite('resources/css/app.css')
 
-        <script defer src="https://umami.lsd.sk/script.js" data-website-id="a44fb3bb-e339-4c3e-aa58-997ea902e51e"></script>
+        @if (config('bilis.analytics.script_url'))
+            <script defer nonce="{{ $cspNonce ?? '' }}"
+                    src="{{ config('bilis.analytics.script_url') }}"
+                    data-website-id="{{ config('bilis.analytics.website_id') }}"></script>
+        @endif
     </head>
     <body class="min-h-dvh bg-background font-sans text-foreground antialiased">
         <header class="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur">

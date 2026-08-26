@@ -13,6 +13,9 @@ import {
     CHART_VOLUME_DAYS,
     SPARKLINE_ERRORS_24H,
     SPARKLINE_HOUR_LABELS,
+    SPARKLINE_UTC_HOUR_LABELS,
+    SPARKLINE_SERVICE_24H,
+    SPARKLINE_SERVICE_ERRORS_24H,
     SPARKLINE_VOLUME_24H,
 } from '@/pages/styleguide/data';
 import DemoBlock from './DemoBlock.vue';
@@ -111,6 +114,26 @@ const ingestOption = computed<BilisChartOption>(() => ({
         data: series.values,
     })),
 }));
+/**
+ * Two liveness rows: a busy shipper having a bad afternoon, and one that
+ * stopped talking — the flatline is what "quiet" looks like.
+ */
+const SPARKLINE_SERVICES = [
+    {
+        name: 'checkout-api',
+        values: SPARKLINE_SERVICE_24H,
+        errors: SPARKLINE_SERVICE_ERRORS_24H,
+        lastSeen: '2m ago',
+        quiet: false,
+    },
+    {
+        name: 'invoice-worker',
+        values: Array.from({ length: 24 }, () => 0),
+        errors: Array.from({ length: 24 }, () => 0),
+        lastSeen: '9h ago',
+        quiet: true,
+    },
+];
 </script>
 
 <template>
@@ -137,7 +160,7 @@ const ingestOption = computed<BilisChartOption>(() => ({
 
         <DemoBlock
             title="DitherSparkline"
-            description="A trend small enough to sit inside a stat tile. The fill is a 4x4 Bayer ordered dither painted onto a repeating canvas tile — the 1-bit halftone, scaled by the device pixel ratio so the dots stay hard-edged. Tone picks the token family: volume is chart data (--chart-1), errors are severity data (--severity-error). Pass labels — one per value — to make it hoverable: the tooltip reads the label and the value, with the noun set by unit. Without labels the chart stays silent."
+            description="A trend small enough to sit inside a stat tile. The fill is a 4x4 Bayer ordered dither painted onto a repeating canvas tile — the 1-bit halftone, scaled by the device pixel ratio so the dots stay hard-edged. Tone picks the token family: volume is chart data (--chart-1), errors are severity data (--severity-error). Pass labels — one per value — to make it hoverable: the tooltip reads the label and the value, with the noun set by unit, and utcLabels adds the same bucket in UTC beside it, since labels themselves are drawn on the reader's clock. Without labels the chart stays silent."
         >
             <div class="grid gap-4 sm:grid-cols-2">
                 <div class="space-y-2 rounded-lg border bg-card p-4">
@@ -146,6 +169,7 @@ const ingestOption = computed<BilisChartOption>(() => ({
                     <DitherSparkline
                         :values="SPARKLINE_VOLUME_24H"
                         :labels="SPARKLINE_HOUR_LABELS"
+                        :utc-labels="SPARKLINE_UTC_HOUR_LABELS"
                         tone="volume"
                         unit="logs"
                     />
@@ -160,6 +184,7 @@ const ingestOption = computed<BilisChartOption>(() => ({
                     <DitherSparkline
                         :values="SPARKLINE_ERRORS_24H"
                         :labels="SPARKLINE_HOUR_LABELS"
+                        :utc-labels="SPARKLINE_UTC_HOUR_LABELS"
                         tone="error"
                         unit="errors"
                     />
@@ -168,6 +193,48 @@ const ingestOption = computed<BilisChartOption>(() => ({
                     </p>
                 </div>
             </div>
+        </DemoBlock>
+
+        <DemoBlock
+            title="DitherSparkline — error overlay"
+            description="A service row on the dashboard: pass errorValues alongside values and a second dithered line is drawn on top in --severity-error, so one glance answers both how much a shipper logged and how much of it broke. Errors are a subset of the totals, so the overlay shares the primary series' scale — no second axis, no stacking. The tooltip names both, and stays quiet about errors in the hours that had none."
+        >
+            <ul class="flex flex-col gap-2 rounded-lg border bg-card p-4">
+                <li
+                    v-for="service in SPARKLINE_SERVICES"
+                    :key="service.name"
+                    class="flex items-center justify-between gap-3 text-sm"
+                >
+                    <span
+                        class="max-w-[40%] min-w-0 shrink truncate font-mono text-xs"
+                        :class="service.quiet ? 'text-muted-foreground' : ''"
+                    >
+                        {{ service.name }}
+                    </span>
+                    <span class="min-w-16 flex-1">
+                        <DitherSparkline
+                            :values="service.values"
+                            :error-values="service.errors"
+                            :labels="SPARKLINE_HOUR_LABELS"
+                            :utc-labels="SPARKLINE_UTC_HOUR_LABELS"
+                            :height="32"
+                            tone="volume"
+                            unit="logs"
+                        />
+                    </span>
+                    <span
+                        class="flex shrink-0 items-center gap-2 text-xs text-muted-foreground"
+                    >
+                        <span
+                            v-if="service.quiet"
+                            class="rounded-full border border-border px-1.5 py-0.5 text-xs tracking-wide uppercase"
+                        >
+                            quiet
+                        </span>
+                        {{ service.lastSeen }}
+                    </span>
+                </li>
+            </ul>
         </DemoBlock>
 
         <div class="space-y-2 rounded-lg border bg-card p-4 text-sm">

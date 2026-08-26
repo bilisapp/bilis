@@ -440,10 +440,33 @@ export const SPARKLINE_ERRORS_24H: number[] = [
 ];
 
 /**
+ * A single service's 24 hours for the overlay demo: a steady shipper whose
+ * afternoon goes wrong, plus the error share of those same hours.
+ */
+export const SPARKLINE_SERVICE_24H: number[] = [
+    620, 580, 540, 500, 470, 520, 880, 1640, 2180, 2040, 1960, 2100, 2260, 2180,
+    1940, 1880, 2240, 2380, 1720, 1280, 1040, 900, 780, 660,
+];
+
+export const SPARKLINE_SERVICE_ERRORS_24H: number[] = [
+    2, 0, 1, 0, 0, 3, 4, 9, 12, 6, 8, 5, 7, 4, 6, 210, 640, 880, 410, 120, 40,
+    12, 6, 3,
+];
+
+/**
  * The hour each sparkline point covers, UTC — what a DitherSparkline needs
  * before it will show a tooltip on hover.
  */
 export const SPARKLINE_HOUR_LABELS: string[] = Array.from(
     { length: 24 },
     (_, hour) => `${String(hour).padStart(2, '0')}:00`,
+);
+
+/**
+ * The same buckets on the other clock — what the tooltip prints beside the
+ * local label. Two hours behind, so the demo shows the pair doing its job.
+ */
+export const SPARKLINE_UTC_HOUR_LABELS: string[] = Array.from(
+    { length: 24 },
+    (_, hour) => `${String((hour + 22) % 24).padStart(2, '0')}:00 UTC`,
 );

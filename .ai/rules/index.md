@@ -12,3 +12,5 @@ Before planning or editing, find the row whose globs match the file's path and r
 | resources/js/** | .ai/rules/js.md |
 | app/Logging/** | .ai/rules/logging.md |
 | app/Services/Logs/** | .ai/rules/logs.md |
+| app/Http/Middleware/SecurityHeaders.php | .ai/rules/middleware.md |
+| routes/api.php | .ai/rules/routes.md |

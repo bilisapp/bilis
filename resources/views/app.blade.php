@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
         {{-- Inline script to detect system dark mode preference and apply it immediately --}}
-        <script>
+        <script nonce="{{ $cspNonce ?? '' }}">
             (function() {
                 const appearance = '{{ $appearance ?? "system" }}';
 
@@ -20,7 +20,7 @@
         </script>
 
         {{-- Inline style to set the HTML background color based on our theme in app.css --}}
-        <style>
+        <style nonce="{{ $cspNonce ?? '' }}">
             html {
                 background-color: hsl(44 33% 93%);
             }
@@ -39,7 +39,11 @@
 
         @fonts
 
-        <script defer src="https://umami.lsd.sk/script.js" data-website-id="a44fb3bb-e339-4c3e-aa58-997ea902e51e"></script>
+        @if (config('bilis.analytics.script_url'))
+            <script defer nonce="{{ $cspNonce ?? '' }}"
+                    src="{{ config('bilis.analytics.script_url') }}"
+                    data-website-id="{{ config('bilis.analytics.website_id') }}"></script>
+        @endif
 
         @vite(['resources/css/app.css', 'resources/js/app.ts', "resources/js/pages/{$page['component']}.vue"])
         <x-inertia::head>

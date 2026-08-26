@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DocsApiKeyController;
 use App\Http\Controllers\DocsController;
 use App\Http\Controllers\LogsController;
 use App\Http\Controllers\ProjectApiKeyController;
@@ -19,7 +20,25 @@ Route::view('privacy', 'marketing.privacy')->name('privacy');
  * Blade only — these pages must read without JavaScript and be indexable.
  */
 Route::get('docs', [DocsController::class, 'index'])->name('docs.index');
+
+/*
+ * The raw markdown of a page, for the "Copy as Markdown" button and for
+ * anything reading the docs without a browser. Declared before `docs.show` so
+ * the `.md` suffix wins over a page slug ending in those characters.
+ */
+Route::get('docs/{section}/{page}.md', [DocsController::class, 'markdown'])
+    ->where(['section' => '[A-Za-z0-9-]+', 'page' => '[A-Za-z0-9-]+'])
+    ->name('docs.markdown');
+
 Route::get('docs/{section}/{page}', [DocsController::class, 'show'])->name('docs.show');
+
+/*
+ * Issue a project API key from a documentation page, so the placeholders in
+ * the code samples can be filled in without leaving the page.
+ */
+Route::post('docs/api-key', DocsApiKeyController::class)
+    ->middleware(['auth', 'verified', 'throttle:10,1'])
+    ->name('docs.api-key');
 
 /**
  * Machine-readable pointer to the disclosure policy, per RFC 9116. Rendered

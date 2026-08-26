@@ -35,6 +35,40 @@ it('renders the sidebar nav and the on-this-page list around the content', funct
         ->assertSee(route('docs.show', ['section' => 'ingestion', 'page' => 'timestamps']), false);
 });
 
+it('renders the Go guide with both ingest routes', function () {
+    get(route('docs.show', ['section' => 'ingestion', 'page' => 'go']))
+        ->assertOk()
+        ->assertSee('slog handler')
+        ->assertSee('Why not otlploghttp')
+        ->assertSee('/api/v1/ingest');
+});
+
+it('serves a page as raw markdown, without its front matter', function () {
+    $response = get(route('docs.markdown', ['section' => 'ingestion', 'page' => 'severity']))->assertOk();
+
+    $response->assertHeader('Content-Type', 'text/markdown; charset=utf-8');
+
+    $body = $response->getContent();
+
+    expect($body)->toStartWith('# Severity')
+        ->toContain('Source: '.route('docs.show', ['section' => 'ingestion', 'page' => 'severity']))
+        ->toContain('## The levels')
+        ->not->toContain('order: 3')
+        ->not->toContain('title: Severity');
+});
+
+it('404s for a markdown request for an unknown page', function () {
+    get('/docs/ingestion/nope.md')->assertNotFound();
+});
+
+it('offers the page as markdown from the rendered page', function () {
+    get(route('docs.show', ['section' => 'ingestion', 'page' => 'severity']))
+        ->assertOk()
+        ->assertSee('Copy as Markdown')
+        ->assertSee('rel="alternate" type="text/markdown"', false)
+        ->assertSee(route('docs.markdown', ['section' => 'ingestion', 'page' => 'severity']), false);
+});
+
 it('404s for an unknown page or an unknown section', function () {
     get('/docs/ingestion/nope')->assertNotFound();
     get('/docs/nope/endpoints')->assertNotFound();
@@ -62,7 +96,7 @@ it('lists every section and page in front matter order', function () {
 
     expect($pages)->toBe([
         'getting-started' => ['overview', 'quickstart'],
-        'ingestion' => ['endpoints', 'timestamps', 'severity', 'shippers', 'linux-host'],
+        'ingestion' => ['endpoints', 'timestamps', 'severity', 'shippers', 'go', 'linux-host'],
         'reference' => ['limits-and-behavior'],
     ]);
 });

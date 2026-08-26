@@ -23,7 +23,8 @@ use Illuminate\Support\Carbon;
  *
  * @phpstan-type DigestCounts array{current: int, previous: int}
  * @phpstan-type DigestError array{body: string, total: int}
- * @phpstan-type DigestService array{name: string, lastSeen: string, quiet: bool, series: list<int>}
+ * @phpstan-type DigestService array{name: string, lastSeen: string, quiet: bool, series: list<int>, errorSeries: list<int>}
+ * @phpstan-type DigestServiceTrend array{series: list<int>, errors: list<int>}
  * @phpstan-type DigestPoint array{bucket: string, total: int, errors: int}
  * @phpstan-type DigestResult array{logs: DigestCounts, errors: DigestCounts, topErrors: list<DigestError>, services: list<DigestService>, series: list<DigestPoint>, generatedAt: string, unavailable: bool}
  */
@@ -112,9 +113,10 @@ class LogDigest
          * here has grown a field, and a warm cache from the previous shape
          * must never be served back as a digest missing `series` — or, at
          * v3, missing the `generatedAt` the page states its age from, or, at
-         * v4, missing the per-service trend each liveness row draws.
+         * v4, missing the per-service trend each liveness row draws, or, at
+         * v5, missing the error overlay drawn over that trend.
          */
-        $key = 'logs.digest.v4.'.sha1(implode(',', $projectIds));
+        $key = 'logs.digest.v5.'.sha1(implode(',', $projectIds));
 
         /** @var DigestResult|null $cached */
         $cached = $this->cache->get($key);
@@ -255,7 +257,7 @@ class LogDigest
      * notice it.
      *
      * @param  list<string>  $projectIds
-     * @param  array<string, list<int>>  $series  The 24 hour trend per service, from serviceSeries().
+     * @param  array<string, DigestServiceTrend>  $series  The 24 hour trends per service, from serviceSeries().
      * @return list<DigestService>
      */
     private function services(array $projectIds, Carbon $now, array $series): array
@@ -298,7 +300,8 @@ class LogDigest
                 'name' => $name,
                 'lastSeen' => $lastSeen,
                 'quiet' => Carbon::parse($lastSeen, 'UTC')->lessThan($quietBefore),
-                'series' => $series[$name] ?? $flat,
+                'series' => $series[$name]['series'] ?? $flat,
+                'errorSeries' => $series[$name]['errors'] ?? $flat,
             ];
         }
 
@@ -374,11 +377,16 @@ class LogDigest
      *
      * A second aggregate over the window `series()` already reads rather than
      * a fan-out of one query per service: one scan answers every row of the
-     * liveness list. `toStartOfInterval` lives in SELECT/GROUP BY only — the
-     * WHERE stays the plain range `conditions()` builds (R4).
+     * liveness list, volume and errors together. `toStartOfInterval` lives in
+     * SELECT/GROUP BY only — the WHERE stays the plain range `conditions()`
+     * builds (R4).
+     *
+     * Volume and errors come back as two parallel dense arrays rather than a
+     * point per hour: the row draws two line series, and an array of pairs
+     * would only cost payload to be unpacked again on arrival.
      *
      * @param  list<string>  $projectIds
-     * @return array<string, list<int>>
+     * @return array<string, DigestServiceTrend>
      */
     private function serviceSeries(array $projectIds, Carbon $now): array
     {
@@ -387,16 +395,21 @@ class LogDigest
         [$conditions, $params] = $this->conditions($projectIds, $start, $now);
 
         $conditions[] = "ServiceName != ''";
+        $params['errorSeverity'] = self::ERROR_SEVERITY_NUMBER;
 
         $sql = sprintf(
             'SELECT ServiceName, toStartOfInterval(Timestamp, toIntervalHour(1)) AS Bucket, '
-            .'count() AS Total FROM otel_logs WHERE %s '
+            .'count() AS Total, countIf(SeverityNumber >= {errorSeverity:UInt8}) AS Errors '
+            .'FROM otel_logs WHERE %s '
             .'GROUP BY ServiceName, Bucket ORDER BY Bucket ASC',
             implode(' AND ', $conditions),
         );
 
-        /** @var array<string, array<int, int>> $counts */
-        $counts = [];
+        /** @var array<string, array<int, int>> $totals */
+        $totals = [];
+
+        /** @var array<string, array<int, int>> $errors */
+        $errors = [];
 
         foreach ($this->client->select($sql, $params) as $row) {
             $name = (string) ($row['ServiceName'] ?? '');
@@ -406,13 +419,19 @@ class LogDigest
                 continue;
             }
 
-            $counts[$name][Carbon::parse($bucket, 'UTC')->getTimestamp()] = (int) ($row['Total'] ?? 0);
+            $at = Carbon::parse($bucket, 'UTC')->getTimestamp();
+
+            $totals[$name][$at] = (int) ($row['Total'] ?? 0);
+            $errors[$name][$at] = (int) ($row['Errors'] ?? 0);
         }
 
         $series = [];
 
-        foreach ($counts as $name => $byBucket) {
-            $series[$name] = $this->fillHours($byBucket, $start);
+        foreach ($totals as $name => $byBucket) {
+            $series[$name] = [
+                'series' => $this->fillHours($byBucket, $start),
+                'errors' => $this->fillHours($errors[$name] ?? [], $start),
+            ];
         }
 
         return $series;

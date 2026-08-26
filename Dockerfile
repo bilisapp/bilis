@@ -40,6 +40,12 @@ RUN apt-get update \
         echo 'realpath_cache_ttl=600'; \
         echo 'upload_max_filesize=16M'; \
         echo 'post_max_size=16M'; \
+        echo 'expose_php=Off'; \
+        echo 'display_errors=Off'; \
+        echo 'display_startup_errors=Off'; \
+        echo 'session.cookie_httponly=1'; \
+        echo 'session.cookie_samesite=Lax'; \
+        echo 'session.use_strict_mode=1'; \
     } > "$PHP_INI_DIR/conf.d/zz-bilis-production.ini" \
     && rm -rf /var/lib/apt/lists/*
 
@@ -94,11 +100,35 @@ RUN { \
         echo '{'; \
         echo '    admin off'; \
         echo '    frankenphp'; \
+        echo '    servers {'; \
+        echo '        trusted_proxies static private_ranges'; \
+        echo '        client_ip_headers X-Forwarded-For'; \
+        echo '    }'; \
         echo '}'; \
         echo; \
         echo ':{$PORT:8080} {'; \
         echo '    root * /app/public'; \
         echo '    encode zstd br gzip'; \
+        echo; \
+        echo '    # The application owns its security headers; the server owns'; \
+        echo '    # its own fingerprint. Neither should advertise a version.'; \
+        echo '    header {'; \
+        echo '        -Server'; \
+        echo '        -X-Powered-By'; \
+        echo '    }'; \
+        echo; \
+        echo '    # Refuse oversized bodies at the edge, matching post_max_size,'; \
+        echo '    # so a runaway exporter never reaches PHP.'; \
+        echo '    request_body {'; \
+        echo '        max_size 16MB'; \
+        echo '    }'; \
+        echo; \
+        echo '    # Nothing dot-prefixed is ever a real file under public/.'; \
+        echo '    @dotfiles path_regexp /\.[^/]+$'; \
+        echo '    respond @dotfiles 404'; \
+        echo; \
+        echo '    @assets path /build/*'; \
+        echo '    header @assets Cache-Control "public, max-age=31536000, immutable"'; \
         echo; \
         echo '    php_server'; \
         echo '}'; \
@@ -119,7 +149,9 @@ RUN { \
     && composer dump-autoload --no-dev --optimize \
     && php artisan package:discover --ansi \
     && chown -R www-data:www-data \
-        /app \
+        storage \
+        bootstrap/cache \
+        database \
         /config/caddy \
         /data/caddy
 

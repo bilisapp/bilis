@@ -20,6 +20,14 @@ const props = withDefaults(
         /** Which token family the series is drawn from. */
         tone?: 'volume' | 'error';
         /**
+         * An error count per bucket, drawn over `values` in the severity hue.
+         *
+         * Errors are a subset of the totals, so the overlay always fits under
+         * the primary series' scale — the pair reads as "how much, and how
+         * much of it was broken" without a second axis.
+         */
+        errorValues?: number[];
+        /**
          * One label per value, oldest first — the hour each point covers.
          *
          * Supplying them turns the sparkline from decoration into something
@@ -27,6 +35,14 @@ const props = withDefaults(
          * silent, exactly as it was.
          */
         labels?: string[];
+        /**
+         * The same buckets in UTC, one per label.
+         *
+         * Labels read in the reader's timezone; the wire — and everything a
+         * reader might paste into a filter — is naive UTC, so the tooltip
+         * carries both rather than making them convert.
+         */
+        utcLabels?: string[];
         /** What the values count, for the tooltip's prose. */
         unit?: string;
         /** CSS height of the sparkline; a number is treated as pixels. */
@@ -34,7 +50,9 @@ const props = withDefaults(
     }>(),
     {
         tone: 'volume',
+        errorValues: undefined,
         labels: undefined,
+        utcLabels: undefined,
         unit: 'logs',
         height: 40,
     },
@@ -46,6 +64,16 @@ const color = computed(() =>
     props.tone === 'error'
         ? tokens.value.severity.error
         : (tokens.value.palette[0] ?? tokens.value.foreground),
+);
+
+/** The overlay is severity data and takes the severity token, never a literal. */
+const errorColor = computed(() => tokens.value.severity.error);
+
+/** The overlay is opt-in, and only drawn when it lines up with the primary series. */
+const hasErrorValues = computed(
+    () =>
+        (props.errorValues?.length ?? 0) === props.values.length &&
+        props.values.length > 0,
 );
 
 /**
@@ -120,6 +148,11 @@ function ditherPattern(fill: string): HTMLCanvasElement | null {
  */
 const pattern = computed(() => ditherPattern(color.value));
 
+/** The overlay's own tile, in the severity hue. */
+const errorPattern = computed(() =>
+    hasErrorValues.value ? ditherPattern(errorColor.value) : null,
+);
+
 const hasValues = computed(() => props.values.length > 0);
 
 /** Tooltips are opt-in: no labels, no hover behaviour. */
@@ -142,8 +175,27 @@ function tooltipFormatter(params: unknown): string {
     const index = point?.dataIndex ?? 0;
     const label = props.labels?.[index] ?? '';
     const value = typeof point?.value === 'number' ? point.value : 0;
+    const errors = props.errorValues?.[index] ?? 0;
 
-    return `${label} · ${value.toLocaleString()} ${props.unit}`;
+    const utcLabel = props.utcLabels?.[index] ?? '';
+
+    const parts = [label];
+
+    if (utcLabel) {
+        parts.push(utcLabel);
+    }
+
+    parts.push(`${value.toLocaleString()} ${props.unit}`);
+
+    /*
+     * A healthy hour says nothing about errors. Printing "0 errors" on every
+     * one of the twenty-four would bury the hours that do have some.
+     */
+    if (hasErrorValues.value && errors > 0) {
+        parts.push(`${errors.toLocaleString()} errors`);
+    }
+
+    return parts.join(' · ');
 }
 
 /** True while nothing has been logged: the baseline stays flat, not rescaled. */
@@ -192,6 +244,29 @@ const option = computed<BilisChartOption>(() => ({
                 : { color: color.value, opacity: 0.15 },
             data: props.values,
         },
+        /*
+         * Drawn last so it sits on top of the volume it is a share of — the
+         * red is the part of the shape that broke, not a separate chart.
+         */
+        ...(hasErrorValues.value
+            ? [
+                  {
+                      type: 'line' as const,
+                      symbol: 'none' as const,
+                      silent: !hasLabels.value,
+                      lineStyle: { width: 1, color: errorColor.value },
+                      areaStyle: errorPattern.value
+                          ? {
+                                color: {
+                                    image: errorPattern.value,
+                                    repeat: 'repeat' as const,
+                                },
+                            }
+                          : { color: errorColor.value, opacity: 0.2 },
+                      data: props.errorValues ?? [],
+                  },
+              ]
+            : []),
     ],
 }));
 </script>

@@ -13,7 +13,15 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
-import { formatBytes, formatRelativeTime, parseTimestamp } from '@/lib/logs';
+import {
+    formatBytes,
+    formatHourLabel,
+    formatRelativeTime,
+    formatUtcHourLabel,
+    formatUtcTimestamp,
+    parseTimestamp,
+    timeZoneNotice,
+} from '@/lib/logs';
 import { dashboard } from '@/routes';
 import { index as logsIndex } from '@/routes/logs';
 import { show as projectShow } from '@/routes/projects';
@@ -64,25 +72,30 @@ const errorsSeries = computed(() =>
     (props.digest?.series ?? []).map((point) => point.errors),
 );
 
-const pad = (value: number): string => String(value).padStart(2, '0');
-
 /**
- * One `HH:MM` label per hourly point, in UTC — the same clock the log
- * viewer's histogram axis is labelled with, so a time read on the dashboard
- * means the same thing one click later.
+ * One `HH:MM` label per hourly point, in the reader's timezone — the same
+ * clock the log viewer's histogram axis and rows are labelled with, so a time
+ * read on the dashboard means the same thing one click later.
  *
  * Shared by both tiles and by every service row: all of them are drawn over
  * the digest's single set of buckets.
  */
 const hourLabels = computed(() =>
-    (props.digest?.series ?? []).map((point) => {
-        const date = parseTimestamp(point.bucket);
-
-        return Number.isNaN(date.getTime())
-            ? ''
-            : `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
-    }),
+    (props.digest?.series ?? []).map((point) => formatHourLabel(point.bucket)),
 );
+
+/** The same buckets in UTC, for the second half of each tooltip line. */
+const utcHourLabels = computed(() =>
+    (props.digest?.series ?? []).map((point) =>
+        formatUtcHourLabel(point.bucket),
+    ),
+);
+
+/**
+ * Which clock the section is showing, said once beside the heading rather
+ * than on each of the numbers below it.
+ */
+const timeZone = timeZoneNotice();
 
 const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
@@ -315,6 +328,16 @@ function storageBarWidth(project: LogStorageProject): number {
                         >
                             as of {{ measuredAgo }}
                         </span>
+                        <!--
+                          Every chart below is labelled on the reader's clock;
+                          this is where the page admits which one that is.
+                        -->
+                        <span
+                            class="hidden text-xs font-normal text-muted-foreground sm:inline"
+                            data-test="dashboard-timezone"
+                        >
+                            · {{ timeZone }}
+                        </span>
                     </h2>
 
                     <Button
@@ -363,6 +386,7 @@ function storageBarWidth(project: LogStorageProject): number {
                                     <DitherSparkline
                                         :values="logsSeries"
                                         :labels="hourLabels"
+                                        :utc-labels="utcHourLabels"
                                         tone="volume"
                                         unit="logs"
                                     />
@@ -409,6 +433,7 @@ function storageBarWidth(project: LogStorageProject): number {
                                     <DitherSparkline
                                         :values="errorsSeries"
                                         :labels="hourLabels"
+                                        :utc-labels="utcHourLabels"
                                         tone="error"
                                         unit="errors"
                                     />
@@ -512,7 +537,7 @@ function storageBarWidth(project: LogStorageProject): number {
                                         data-test="dashboard-digest-service-link"
                                     >
                                         <span
-                                            class="min-w-0 truncate font-mono text-xs"
+                                            class="max-w-[40%] min-w-0 shrink truncate font-mono text-xs"
                                             :class="
                                                 service.quiet
                                                     ? 'text-muted-foreground'
@@ -529,19 +554,28 @@ function storageBarWidth(project: LogStorageProject): number {
                                           rather than merely labelled.
                                         -->
                                         <span
-                                            class="ml-auto w-24 shrink-0"
+                                            class="min-w-16 flex-1"
                                             data-test="dashboard-digest-service-series"
                                         >
                                             <DitherSparkline
                                                 :values="service.series"
+                                                :error-values="
+                                                    service.errorSeries
+                                                "
                                                 :labels="hourLabels"
-                                                :height="20"
+                                                :utc-labels="utcHourLabels"
+                                                :height="32"
                                                 tone="volume"
                                                 unit="logs"
                                             />
                                         </span>
                                         <span
                                             class="flex shrink-0 items-center gap-2 text-xs text-muted-foreground"
+                                            :title="
+                                                formatUtcTimestamp(
+                                                    service.lastSeen,
+                                                )
+                                            "
                                         >
                                             <span
                                                 v-if="service.quiet"

@@ -274,11 +274,13 @@ function digestResponse(string $body, ?string $lastSeen = null): PromiseInterfac
                 'ServiceName' => 'api',
                 'Bucket' => $hour->clone()->subHours(5)->format('Y-m-d H:i:s.u'),
                 'Total' => '40',
+                'Errors' => '4',
             ])."\n"
             .json_encode([
                 'ServiceName' => 'api',
                 'Bucket' => $hour->format('Y-m-d H:i:s.u'),
                 'Total' => '60',
+                'Errors' => '9',
             ])."\n",
         );
     }
@@ -364,7 +366,9 @@ test('dashboard digest summarises the last 24 hours', function () {
         ->where('digest.services.1.name', 'api')
         ->where('digest.services.1.quiet', false)
         ->has('digest.services.0.series', 24)
+        ->has('digest.services.0.errorSeries', 24)
         ->has('digest.services.1.series', 24)
+        ->has('digest.services.1.errorSeries', 24)
         ->has('digest.series', 24),
     );
 
@@ -505,8 +509,22 @@ test('each service carries its own dense 24 hour trend', function () {
         expect($api[$index])->toBe(0);
     }
 
+    $apiErrors = $services['api']['errorSeries'];
+
+    expect($apiErrors)->toHaveCount(24);
+
+    // The error overlay lands on the same hours, dense and zero-filled between them.
+    expect($apiErrors[18])->toBe(4)
+        ->and($apiErrors[23])->toBe(9)
+        ->and(array_sum($apiErrors))->toBe(13);
+
+    foreach ([0, 5, 17, 19, 22] as $index) {
+        expect($apiErrors[$index])->toBe(0);
+    }
+
     // Present in the 7 day liveness list, silent for the last 24: a flatline, not a gap.
-    expect($services['worker']['series'])->toBe(array_fill(0, 24, 0));
+    expect($services['worker']['series'])->toBe(array_fill(0, 24, 0))
+        ->and($services['worker']['errorSeries'])->toBe(array_fill(0, 24, 0));
 
     Http::assertSent(function (Request $request) {
         if (! str_contains($request->body(), 'GROUP BY ServiceName, Bucket')) {
@@ -519,7 +537,8 @@ test('each service carries its own dense 24 hour trend', function () {
         return str_contains($request->body(), 'ProjectId IN {projectIds:Array(String)}')
             && str_contains($request->body(), 'Timestamp >= {from:DateTime64(9)}')
             && str_contains($request->body(), 'Timestamp <= {to:DateTime64(9)}')
+            && str_contains($request->body(), 'countIf(SeverityNumber >= {errorSeverity:UInt8}) AS Errors')
             && ! str_contains($request->body(), 'toStartOfInterval(Timestamp, toIntervalHour(1)) >=')
-            && isset($query['param_projectIds'], $query['param_from'], $query['param_to']);
+            && isset($query['param_projectIds'], $query['param_from'], $query['param_to'], $query['param_errorSeverity']);
     });
 });

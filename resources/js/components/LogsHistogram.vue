@@ -35,8 +35,9 @@ const activeLevels = computed<SeverityLevel[]>(() =>
 );
 
 /**
- * Bucket starts as UTC dates — the log rows are rendered in UTC, so the axis
- * has to be too, or a spike would not line up with the lines it came from.
+ * Bucket starts as instants. They are labelled in the reader's timezone, the
+ * same clock `formatTimestamp()` puts on every row, so a spike lines up with
+ * the lines it came from; the tooltip carries the UTC value alongside.
  */
 const bucketDates = computed(() =>
     buckets.value.map((entry) => parseTimestamp(entry.bucket)),
@@ -61,24 +62,73 @@ const MONTHS = [
 
 /**
  * Label a bucket at the coarsest precision that still tells buckets apart.
+ *
+ * `utc` picks which clock reads the instant. The local branch uses the Date's
+ * own getters, which resolve the zone — and its DST rules — for that instant
+ * rather than applying a single offset to the whole window.
  */
-const labelFor = (date: Date): string => {
+const labelFor = (date: Date, utc = false): string => {
     if (Number.isNaN(date.getTime())) {
         return '';
     }
 
+    const month = utc ? date.getUTCMonth() : date.getMonth();
+    const day = utc ? date.getUTCDate() : date.getDate();
+    const hours = utc ? date.getUTCHours() : date.getHours();
+    const minutes = utc ? date.getUTCMinutes() : date.getMinutes();
+    const seconds = utc ? date.getUTCSeconds() : date.getSeconds();
+
     if (intervalSeconds.value >= 86_400) {
-        return `${MONTHS[date.getUTCMonth()]} ${date.getUTCDate()}`;
+        return `${MONTHS[month]} ${day}`;
     }
 
     if (intervalSeconds.value >= 60) {
-        return `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
+        return `${pad(hours)}:${pad(minutes)}`;
     }
 
-    return `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}`;
+    return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 };
 
-const categories = computed(() => bucketDates.value.map(labelFor));
+/**
+ * The hovered bucket, on both clocks, above the severity breakdown.
+ *
+ * The default axis tooltip would print the local axis label alone; a reader
+ * comparing a spike against a UTC timestamp elsewhere needs the other value
+ * without leaving the chart.
+ */
+const tooltipFormatter = (params: unknown): string => {
+    const items = (Array.isArray(params) ? params : [params]) as {
+        marker?: string;
+        seriesName?: string;
+        value?: unknown;
+        dataIndex?: number;
+    }[];
+
+    const index = items[0]?.dataIndex ?? 0;
+    const date = bucketDates.value[index];
+
+    if (!date || Number.isNaN(date.getTime())) {
+        return '';
+    }
+
+    const header = `${labelFor(date)} · ${labelFor(date, true)} UTC`;
+
+    const lines = items.map((item) => {
+        const value = typeof item.value === 'number' ? item.value : 0;
+
+        return `${item.marker ?? ''}${item.seriesName ?? ''} ${value.toLocaleString()}`;
+    });
+
+    return [header, ...lines].join('<br/>');
+};
+
+/*
+ * Wrapped rather than passed by reference: `map` would hand the index in as
+ * the `utc` flag and label every bucket but the first in the wrong zone.
+ */
+const categories = computed(() =>
+    bucketDates.value.map((date) => labelFor(date)),
+);
 
 const total = computed(() => props.histogram?.total ?? 0);
 
@@ -135,6 +185,7 @@ const option = computed<BilisChartOption>(() => ({
         axisPointer: { type: 'shadow' },
         confine: true,
         textStyle: { fontSize: 12 },
+        formatter: tooltipFormatter,
     },
     series: activeLevels.value.map((level) => ({
         type: 'bar' as const,

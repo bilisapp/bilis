@@ -97,6 +97,15 @@ releases, or subscribe to advisories, to hear about security releases.
 - Project scoping is derived from the authenticated API key on ingest and from
   the current team on read. A project identifier from a request payload never
   reaches a query.
+- Every response carries a nonce-based Content Security Policy with
+  `strict-dynamic`, no `unsafe-inline` or `unsafe-eval` for script, and
+  `object-src`/`frame-ancestors` set to `none`. HSTS, `nosniff`,
+  `Referrer-Policy`, `Permissions-Policy` and the cross-origin isolation
+  headers are sent alongside it.
+- CORS is enabled on the ingest endpoints only, without credentials, because
+  ingest authorises on the API key header and never on a session cookie.
+- The ingest endpoints are rate limited per API key, and rejections are
+  retryable 429s rather than lost logs.
 - Dependencies are monitored for known vulnerabilities and updated on a regular
   cadence.
 

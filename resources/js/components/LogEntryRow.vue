@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight } from '@lucide/vue';
 import { computed } from 'vue';
 import {
     formatTimestamp,
+    formatUtcTimestamp,
     SEVERITY_DOT_CLASS,
     SEVERITY_EDGE_CLASS,
     SEVERITY_ROW_CLASS,
@@ -70,7 +71,14 @@ const attributeGroups = computed(() => [
                 class="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
             />
 
-            <span class="shrink-0 text-muted-foreground tabular-nums">
+            <!--
+              Local time to read against, UTC one hover away: the stored value
+              is naive UTC, and that is what a reader pastes into a query.
+            -->
+            <span
+                class="shrink-0 text-muted-foreground tabular-nums"
+                :title="formatUtcTimestamp(entry.timestamp)"
+            >
                 {{ formatTimestamp(entry.timestamp) }}
             </span>
 

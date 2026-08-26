@@ -18,6 +18,7 @@ import {
     presetForRange,
     RANGE_PRESETS,
     SEVERITY_DOT_CLASS,
+    timeZoneNotice,
 } from '@/lib/logs';
 import { cn } from '@/lib/utils';
 import {
@@ -64,6 +65,14 @@ defineOptions({
 const page = usePage();
 
 const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
+
+/**
+ * Which clock the page is showing, said once.
+ *
+ * Per row it would be noise; here it is the one line that makes every
+ * timestamp below unambiguous — and points at the hover that carries UTC.
+ */
+const timeZone = timeZoneNotice();
 
 /**
  * Onboarding is a fact about the team, not about the current window: it is
@@ -790,9 +799,16 @@ const activeFilterCount = computed(
                         Tailing
                     </p>
 
+                    <p
+                        class="ml-auto hidden text-muted-foreground sm:block"
+                        data-test="logs-timezone"
+                    >
+                        {{ timeZone }}
+                    </p>
+
                     <button
                         type="button"
-                        class="ml-auto hidden items-center gap-1.5 rounded px-1.5 py-0.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none sm:inline-flex"
+                        class="hidden items-center gap-1.5 rounded px-1.5 py-0.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none sm:inline-flex"
                         data-test="logs-shortcuts-open"
                         @click="shortcutsOpen = true"
                     >

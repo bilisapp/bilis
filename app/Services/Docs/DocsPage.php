@@ -25,6 +25,14 @@ class DocsPage
     }
 
     /**
+     * The URL serving this page as raw markdown.
+     */
+    public function markdownUrl(): string
+    {
+        return route('docs.markdown', ['section' => $this->section, 'page' => $this->slug]);
+    }
+
+    /**
      * Whether this page is the one currently being rendered.
      */
     public function is(?self $other): bool
