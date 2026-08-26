@@ -4,6 +4,7 @@ namespace App\Services\Logs;
 
 use App\Services\ClickHouse\ClickHouseClient;
 use App\Services\ClickHouse\ClickHouseException;
+use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Illuminate\Support\Carbon;
 
 /**
@@ -56,7 +57,32 @@ class LogQuery
      */
     private const MAX_BUCKETS = 240;
 
-    public function __construct(private readonly ClickHouseClient $client) {}
+    /**
+     * How far back the service list looks when the selected window is shorter.
+     *
+     * The list answers "what does this project run?", which a fifteen minute
+     * window cannot: a service that logged an hour ago still belongs in it.
+     */
+    private const SERVICE_LOOKBACK_DAYS = 7;
+
+    /**
+     * The most service names the picker will ever be handed.
+     */
+    private const SERVICE_LIMIT = 200;
+
+    /**
+     * How long a resolved service list is reused.
+     *
+     * Every filter change is a fresh visit, so without this the picker would
+     * re-run a DISTINCT scan on every keystroke. A service that starts logging
+     * shows up a minute late, which is the right trade for a list of names.
+     */
+    private const SERVICE_CACHE_SECONDS = 60;
+
+    public function __construct(
+        private readonly ClickHouseClient $client,
+        private readonly CacheRepository $cache,
+    ) {}
 
     /**
      * Fetch a page of logs, newest first.
@@ -127,6 +153,84 @@ class LogQuery
         }
 
         return ['rows' => $rows, 'nextCursor' => null, 'unavailable' => false];
+    }
+
+    /**
+     * The distinct service names seen for the given projects, alphabetically.
+     *
+     * This feeds the service picker, so it deliberately ignores the service,
+     * severity and search filters — narrowing to one service must not collapse
+     * the list of services you can switch to. The window is the selected one
+     * widened to at least the last week, because "which services do we have"
+     * is a question about the project, not about the current fifteen minutes.
+     *
+     * An overloaded ClickHouse yields an empty list: the picker degrades to
+     * "all services" rather than taking the page down with it.
+     *
+     * @param  list<string>  $projectIds
+     * @return list<string>
+     */
+    public function services(array $projectIds, LogFilters $filters): array
+    {
+        if ($projectIds === []) {
+            return [];
+        }
+
+        [$conditions, $params] = $this->conditions(
+            $projectIds,
+            $filters,
+            withTimeWindow: false,
+            withUserFilters: false,
+        );
+
+        /*
+         * Both bounds are snapped to the minute so the same window keeps the
+         * same cache key for a whole minute — a "last 7 days" lower bound that
+         * moved with every request would never hit the cache.
+         */
+        $now = Carbon::now();
+        $from = $filters->from->clone()->min($now->clone()->subDays(self::SERVICE_LOOKBACK_DAYS))->startOfMinute();
+        $to = $filters->to->clone()->max($now)->startOfMinute()->addMinute();
+
+        $conditions[] = 'Timestamp >= {from:DateTime64(9)}';
+        $conditions[] = 'Timestamp <= {to:DateTime64(9)}';
+        $conditions[] = "ServiceName != ''";
+        $params['from'] = $this->formatTimestamp($from);
+        $params['to'] = $this->formatTimestamp($to);
+        $params['rowLimit'] = self::SERVICE_LIMIT;
+
+        $sql = sprintf(
+            'SELECT DISTINCT ServiceName FROM otel_logs WHERE %s ORDER BY ServiceName ASC LIMIT {rowLimit:UInt32}',
+            implode(' AND ', $conditions),
+        );
+
+        $key = 'logs.services.'.sha1(implode(',', $projectIds).'|'.$params['from'].'|'.$params['to']);
+
+        /** @var list<string> $services */
+        $services = $this->cache->remember(
+            $key,
+            self::SERVICE_CACHE_SECONDS,
+            function () use ($sql, $params): array {
+                try {
+                    $rows = $this->client->select($sql, $params);
+                } catch (ClickHouseException $exception) {
+                    if (! $exception->isOverload()) {
+                        throw $exception;
+                    }
+
+                    report($exception);
+
+                    return [];
+                }
+
+                return array_values(array_filter(array_map(
+                    fn (array $row): string => (string) ($row['ServiceName'] ?? ''),
+                    $rows,
+                ), fn (string $name): bool => $name !== ''));
+            },
+        );
+
+        return $services;
     }
 
     /**
@@ -351,9 +455,10 @@ class LogQuery
      * predicate it starts with.
      *
      * @param  list<string>  $projectIds
+     * @param  bool  $withUserFilters  whether the service, severity and search filters apply
      * @return array{0: list<string>, 1: array<string, scalar|null>}
      */
-    private function conditions(array $projectIds, LogFilters $filters, bool $withTimeWindow = true): array
+    private function conditions(array $projectIds, LogFilters $filters, bool $withTimeWindow = true, bool $withUserFilters = true): array
     {
         $conditions = ['ProjectId IN {projectIds:Array(String)}'];
         $params = ['projectIds' => $this->projectIdsParameter($projectIds)];
@@ -369,6 +474,10 @@ class LogQuery
             $conditions[] = 'Timestamp <= {to:DateTime64(9)}';
             $params['from'] = $this->formatTimestamp($filters->from);
             $params['to'] = $this->formatTimestamp($filters->to);
+        }
+
+        if (! $withUserFilters) {
+            return [$conditions, $params];
         }
 
         if ($filters->service !== null) {

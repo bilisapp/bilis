@@ -37,6 +37,8 @@ const props = defineProps<{
     projects: LogProject[];
     filters: LogFilters;
     severityLevels: SeverityLevel[];
+    /** Deferred: the service names seen for the projects in scope. */
+    services?: string[];
     logs?: LogResult;
     histogram?: LogHistogram;
 }>();
@@ -632,6 +634,7 @@ const activeFilterCount = computed(
         <template v-else>
             <LogsToolbar
                 :projects="projects"
+                :services="services"
                 :project="project"
                 :service="service"
                 :severity="severity"

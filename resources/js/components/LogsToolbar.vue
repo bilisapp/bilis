@@ -18,6 +18,8 @@ import type { LogProject, LogRangePreset, SeverityLevel } from '@/types';
 
 const props = defineProps<{
     projects: LogProject[];
+    /** The service names seen for the projects in scope; deferred, so it can arrive late. */
+    services?: string[];
     project: string | null;
     service: string | null;
     severity: SeverityLevel[];
@@ -48,9 +50,9 @@ const emit = defineEmits<{
 }>();
 
 const ALL_PROJECTS = '__all__';
+const ALL_SERVICES = '__all__';
 
 const searchTerm = ref(props.search ?? '');
-const serviceTerm = ref(props.service ?? '');
 
 watch(
     () => props.search,
@@ -59,25 +61,37 @@ watch(
     },
 );
 
-watch(
-    () => props.service,
-    (value) => {
-        serviceTerm.value = value ?? '';
-    },
-);
-
 const emitSearch = useDebounceFn(() => {
     emit('update:search', searchTerm.value.trim() || null);
-}, 350);
-
-const emitService = useDebounceFn(() => {
-    emit('update:service', serviceTerm.value.trim() || null);
 }, 350);
 
 const projectValue = computed({
     get: () => props.project ?? ALL_PROJECTS,
     set: (value: string) =>
         emit('update:project', value === ALL_PROJECTS ? null : value),
+});
+
+/**
+ * The options the picker offers.
+ *
+ * A service the reader arrived with — from a shared link, or one that has gone
+ * quiet since — is kept in the list, so the control never shows a value it
+ * cannot explain.
+ */
+const serviceOptions = computed(() => {
+    const names = new Set(props.services ?? []);
+
+    if (props.service) {
+        names.add(props.service);
+    }
+
+    return [...names].sort((a, b) => a.localeCompare(b));
+});
+
+const serviceValue = computed({
+    get: () => props.service ?? ALL_SERVICES,
+    set: (value: string) =>
+        emit('update:service', value === ALL_SERVICES ? null : value),
 });
 
 const rangeValue = computed({
@@ -232,14 +246,27 @@ function fromLocalInput(value: string, fallback: string): string {
                     </SelectContent>
                 </Select>
                 <Label class="sr-only" for="logs-service">Service</Label>
-                <Input
-                    id="logs-service"
-                    v-model="serviceTerm"
-                    data-test="logs-service"
-                    placeholder="All services"
-                    class="h-8 min-w-40 flex-1 sm:w-44 sm:flex-none"
-                    @input="emitService"
-                />
+                <Select v-model="serviceValue">
+                    <SelectTrigger
+                        id="logs-service"
+                        data-test="logs-service"
+                        class="h-8 min-w-40 flex-1 sm:w-44 sm:flex-none"
+                    >
+                        <SelectValue placeholder="All services" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem :value="ALL_SERVICES">
+                            All services
+                        </SelectItem>
+                        <SelectItem
+                            v-for="name in serviceOptions"
+                            :key="name"
+                            :value="name"
+                        >
+                            {{ name }}
+                        </SelectItem>
+                    </SelectContent>
+                </Select>
             </div>
 
             <div

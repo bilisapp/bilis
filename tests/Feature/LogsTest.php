@@ -402,3 +402,71 @@ test('a project outside the team is never counted', function () {
         (string) $otherProject->id,
     ));
 });
+
+test('the service picker is filled from the services seen in scope', function () {
+    Http::fake(function (Request $request) {
+        if (str_contains((string) $request->body(), 'SELECT DISTINCT ServiceName')) {
+            return Http::response(
+                json_encode(['ServiceName' => 'api'])."\n"
+                .json_encode(['ServiceName' => 'worker'])."\n"
+            );
+        }
+
+        return Http::response(logRowsResponse());
+    });
+
+    [$user, $team, $project] = logTeam();
+
+    $this->actingAs($user)
+        ->get(route('logs.index', [
+            'current_team' => $team->slug,
+            'service' => 'api',
+            'severity' => ['error'],
+            'search' => 'timeout',
+        ]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->missing('services')
+            ->loadDeferredProps(fn (Assert $reload) => $reload
+                ->has('services', 2)
+                ->where('services.0', 'api')
+                ->where('services.1', 'worker'),
+            ),
+        );
+
+    Http::assertSent(function (Request $request) use ($project) {
+        if (! str_contains((string) $request->body(), 'SELECT DISTINCT ServiceName')) {
+            return false;
+        }
+
+        $query = clickHouseQuery($request);
+
+        return str_contains((string) $request->body(), 'ProjectId IN {projectIds:Array(String)}')
+            && str_contains((string) $request->body(), 'ORDER BY ServiceName ASC')
+            // The list is what you can switch *to*, so the active service,
+            // severity and search filters must not narrow it.
+            && ! str_contains((string) $request->body(), 'ServiceName = {service:String}')
+            && ! str_contains((string) $request->body(), 'SeverityNumber')
+            && ! str_contains((string) $request->body(), 'Body')
+            && $query['param_projectIds'] === "['".$project->id."']";
+    });
+});
+
+test('the service picker degrades to an empty list when clickhouse is overloaded', function () {
+    Http::fake(function (Request $request) {
+        if (str_contains((string) $request->body(), 'SELECT DISTINCT ServiceName')) {
+            return Http::response('Too many simultaneous queries', 503);
+        }
+
+        return Http::response(logRowsResponse());
+    });
+
+    [$user, $team] = logTeam();
+
+    $this->actingAs($user)
+        ->get(route('logs.index', ['current_team' => $team->slug]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->loadDeferredProps(
+            fn (Assert $reload) => $reload->has('services', 0),
+        ));
+});

@@ -40,6 +40,13 @@ const demoProjects: LogProject[] = [
     { name: 'bilis-ingest', slug: 'bilis-ingest' },
 ];
 
+const demoServices: string[] = [
+    'checkout-web',
+    'checkout-worker',
+    'otlp-collector',
+    'payments-gateway',
+];
+
 const toolbarProject = ref<string | null>('checkout-api');
 const toolbarService = ref<string | null>(null);
 const toolbarSeverity = ref<SeverityLevel[]>(['warn', 'error', 'fatal']);
@@ -216,10 +223,11 @@ const onHistogramZoom = (window: { from: string; to: string }) => {
 
         <DemoBlock
             title="LogsToolbar"
-            description="wired to local refs, so the controls move but nothing is fetched. Three tiers, hairline-separated: search plus live tail on top because those are the two ways you reach a line, then scope and window plus the history controls, then severity. Step back walks the filter history the log page keeps in local state; Reset returns every filter to its default, and both go disabled rather than disappearing when there is nothing to do. Warn, error and fatal are toggled on — active severity chips fill with the secondary tint, a solid dot and semibold copy, inactive ones stay outlined and muted with a faded dot."
+            description="wired to local refs, so the controls move but nothing is fetched. Three tiers, hairline-separated: search plus live tail on top because those are the two ways you reach a line, then scope and window plus the history controls, then severity. Step back walks the filter history the log page keeps in local state; Reset returns every filter to its default, and both go disabled rather than disappearing when there is nothing to do. The service picker is filled from the services the projects in scope have actually logged, so nobody has to remember a name; it defaults to all of them. Warn, error and fatal are toggled on — active severity chips fill with the secondary tint, a solid dot and semibold copy, inactive ones stay outlined and muted with a faded dot."
         >
             <LogsToolbar
                 :projects="demoProjects"
+                :services="demoServices"
                 :project="toolbarProject"
                 :service="toolbarService"
                 :severity="toolbarSeverity"
