@@ -34,12 +34,7 @@ import {
     streamToken,
 } from '@/routes/autofix';
 import { index as logsIndex } from '@/routes/logs';
-import type {
-    FixJobDetail,
-    FixJobEvent,
-    FixJobStream,
-    Team,
-} from '@/types';
+import type { FixJobDetail, FixJobEvent, FixJobStream, Team } from '@/types';
 
 const props = defineProps<{
     teamSlug: string;

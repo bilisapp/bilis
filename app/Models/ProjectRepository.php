@@ -9,10 +9,17 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 
 /**
  * The repository an autofix attempt for a project is allowed to work on.
+ *
+ * Disconnecting soft deletes the row rather than removing it. `fix_jobs`
+ * cascades from here, and the jobs already raised are both the history of what
+ * was attempted and the fingerprint cooldown the scan reads — a disconnect may
+ * not destroy either. Every "is this project connected?" query therefore reads
+ * the default scope, and `FixJob::repository()` reaches past it.
  *
  * @property int $id
  * @property int $project_id
@@ -25,6 +32,7 @@ use Illuminate\Support\Carbon;
  * @property int $daily_budget
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
  * @property-read Project $project
  * @property-read GitHubInstallation $installation
  * @property-read Collection<int, FixJob> $fixJobs
@@ -42,7 +50,7 @@ use Illuminate\Support\Carbon;
 class ProjectRepository extends Model
 {
     /** @use HasFactory<ProjectRepositoryFactory> */
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     /**
      * Get the project the repository is connected to.

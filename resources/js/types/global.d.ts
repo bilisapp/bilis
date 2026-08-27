@@ -28,6 +28,7 @@ declare module '@inertiajs/core' {
             sidebarOpen: boolean;
             currentTeam: Team | null;
             teams: Team[];
+            autofix: { enabled: boolean };
             [key: string]: unknown;
         };
     }

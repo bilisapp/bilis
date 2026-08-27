@@ -167,11 +167,12 @@ class AyosClient
     /**
      * POST a signed request to Ayos.
      *
-     * The signature covers the raw body — the same scheme, byte for byte, that
-     * `VerifyAyosSignature` checks on Ayos's callbacks — so the body is encoded
-     * once here and sent verbatim: re-encoding it inside the HTTP client would
-     * sign one string and transmit another. The timestamp travels alongside it
-     * so the receiver can bound the replay window.
+     * The signature covers `{timestamp}.{raw body}` — the same scheme, byte for
+     * byte, that `VerifyAyosSignature` checks on Ayos's callbacks — so the body
+     * is encoded once here and sent verbatim: re-encoding it inside the HTTP
+     * client would sign one string and transmit another. Binding the timestamp
+     * into the digest is what bounds the replay window: it cannot be replaced
+     * with a fresh one without invalidating the signature.
      *
      * @param  array<string, mixed>  $payload
      *
@@ -187,7 +188,7 @@ class AyosClient
             $response = $this->request()
                 ->withHeaders([
                     VerifyAyosSignature::TIMESTAMP_HEADER => $timestamp,
-                    VerifyAyosSignature::SIGNATURE_HEADER => VerifyAyosSignature::signature($body, $this->sharedSecret()),
+                    VerifyAyosSignature::SIGNATURE_HEADER => VerifyAyosSignature::signature($timestamp, $body, $this->sharedSecret()),
                     'Content-Type' => 'application/json',
                 ])
                 ->withBody($body, 'application/json')

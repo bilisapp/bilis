@@ -107,11 +107,15 @@ class FixJob extends Model
     /**
      * Get the repository the fix job works on.
      *
+     * Trashed repositories included: a disconnected repository still has to
+     * name itself on every job it ever ran, and the job list would otherwise
+     * fail to render the moment someone disconnects.
+     *
      * @return BelongsTo<ProjectRepository, $this>
      */
     public function repository(): BelongsTo
     {
-        return $this->belongsTo(ProjectRepository::class, 'project_repository_id');
+        return $this->belongsTo(ProjectRepository::class, 'project_repository_id')->withTrashed();
     }
 
     /**

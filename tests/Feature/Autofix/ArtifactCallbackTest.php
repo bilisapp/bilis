@@ -18,9 +18,9 @@ function postArtifact(array $payload, ?string $secret = 'shared-secret', ?int $t
     $body = (string) json_encode($payload);
 
     /*
-     * The signature covers the body exactly as it goes over the wire, so the
-     * request is built from that raw string rather than from an array the test
-     * client would re-encode.
+     * The signature covers the timestamp and the body exactly as they go over
+     * the wire, so the request is built from that raw string rather than from
+     * an array the test client would re-encode.
      */
     $server = [
         'CONTENT_TYPE' => 'application/json',
@@ -28,8 +28,10 @@ function postArtifact(array $payload, ?string $secret = 'shared-secret', ?int $t
     ];
 
     if ($secret !== null) {
-        $server['HTTP_X_AYOS_TIMESTAMP'] = (string) ($timestamp ?? now()->getTimestamp());
-        $server['HTTP_X_AYOS_SIGNATURE'] = VerifyAyosSignature::signature($body, $secret);
+        $signedAt = (string) ($timestamp ?? now()->getTimestamp());
+
+        $server['HTTP_X_AYOS_TIMESTAMP'] = $signedAt;
+        $server['HTTP_X_AYOS_SIGNATURE'] = VerifyAyosSignature::signature($signedAt, $body, $secret);
     }
 
     return test()->call('POST', route('api.internal.autofix.artifacts'), [], [], [], $server, $body);

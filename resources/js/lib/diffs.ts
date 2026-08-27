@@ -146,9 +146,11 @@ export async function ensureDiffTheme(
     let registration = themeRegistrations.get(name);
 
     if (!registration) {
-        registration = loadDiffs().then(({ registerCustomCSSVariableTheme }) => {
-            registerCustomCSSVariableTheme(name, variables);
-        });
+        registration = loadDiffs().then(
+            ({ registerCustomCSSVariableTheme }) => {
+                registerCustomCSSVariableTheme(name, variables);
+            },
+        );
         registration.catch(() => themeRegistrations.delete(name));
         themeRegistrations.set(name, registration);
     }

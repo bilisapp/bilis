@@ -6,6 +6,7 @@ use App\Http\Requests\Autofix\ConnectProjectRepositoryRequest;
 use App\Http\Requests\Autofix\SaveProjectRepositoryRequest;
 use App\Models\GitHubInstallation;
 use App\Models\Project;
+use App\Models\ProjectRepository;
 use App\Models\Team;
 use App\Services\Autofix\GitHubAppException;
 use App\Services\Autofix\GitHubInstallationClient;
@@ -13,6 +14,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 /**
@@ -94,15 +96,49 @@ class ProjectRepositoryController extends Controller
             return back();
         }
 
-        $project->repository()->updateOrCreate([], [
-            'github_installation_id' => $installation->getKey(),
-            'repo_full_name' => $granted['full_name'],
-            'default_branch' => $granted['default_branch'],
-        ]);
+        $this->connect($project, $installation, (string) $granted['full_name'], (string) $granted['default_branch']);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Repository connected.')]);
 
         return back();
+    }
+
+    /**
+     * Point the project at a repository without rewriting its history.
+     *
+     * The row is never repointed in place: jobs belong to a repository, so
+     * mutating `repo_full_name` under them would silently re-file finished
+     * work — and any in-flight job — against a codebase it never touched.
+     * Connecting a different repository retires the old row (soft deleted, so
+     * its jobs survive) and takes a fresh one; reconnecting a repository this
+     * project had before restores that row and the jobs already under it.
+     */
+    private function connect(Project $project, GitHubInstallation $installation, string $repoFullName, string $defaultBranch): void
+    {
+        DB::transaction(function () use ($project, $installation, $repoFullName, $defaultBranch): void {
+            $current = $project->repository()->first();
+
+            if ($current !== null && $current->repo_full_name !== $repoFullName) {
+                $current->update(['autofix_enabled' => false]);
+                $current->delete();
+                $current = null;
+            }
+
+            $repository = $current ?? ProjectRepository::withTrashed()->firstOrNew([
+                'project_id' => $project->getKey(),
+                'repo_full_name' => $repoFullName,
+            ]);
+
+            $repository->fill([
+                'github_installation_id' => $installation->getKey(),
+                'default_branch' => $defaultBranch,
+            ]);
+
+            $repository->deleted_at = null;
+            $repository->save();
+        });
+
+        $project->unsetRelation('repository');
     }
 
     /**
@@ -133,6 +169,9 @@ class ProjectRepositoryController extends Controller
 
         abort_if($repository === null, 404);
 
+        // Soft deleted: `fix_jobs` cascades from this row, and disconnecting
+        // must not take the transcripts, pull requests and fingerprint
+        // cooldowns of everything already attempted with it.
         $repository->update(['autofix_enabled' => false]);
         $repository->delete();
 

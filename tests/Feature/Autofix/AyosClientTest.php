@@ -41,10 +41,12 @@ test('dispatch pins the base sha, signs the body and marks the job dispatched', 
         $body = (string) $request->body();
         $payload = json_decode($body, true);
 
-        expect($request->header('X-Ayos-Signature')[0])
-            ->toBe(VerifyAyosSignature::signature($body, 'shared-secret'));
+        $timestamp = $request->header('X-Ayos-Timestamp')[0];
 
-        expect((int) $request->header('X-Ayos-Timestamp')[0])->toBeGreaterThan(time() - 5);
+        expect($request->header('X-Ayos-Signature')[0])
+            ->toBe(VerifyAyosSignature::signature($timestamp, $body, 'shared-secret'));
+
+        expect((int) $timestamp)->toBeGreaterThan(time() - 5);
 
         expect($payload['repo'])->toBe('acme/app')
             ->and($payload['base_ref'])->toBe('main')
@@ -159,7 +161,7 @@ test('cancel posts a signed request to the job cancel endpoint', function () {
         }
 
         expect($request->header('X-Ayos-Signature')[0])
-            ->toBe(VerifyAyosSignature::signature((string) $request->body(), 'shared-secret'));
+            ->toBe(VerifyAyosSignature::signature($request->header('X-Ayos-Timestamp')[0], (string) $request->body(), 'shared-secret'));
 
         return true;
     });

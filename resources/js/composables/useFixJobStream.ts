@@ -269,11 +269,13 @@ export function useFixJobStream(
 
         stream.onopen = onOpen;
         stream.onmessage = (message) => append(String(message.data));
+
         for (const type of SSE_EVENT_TYPES) {
             stream.addEventListener(type, (message) =>
                 append(String((message as MessageEvent).data)),
             );
         }
+
         stream.onerror = onFailure;
         source.value = stream;
     }

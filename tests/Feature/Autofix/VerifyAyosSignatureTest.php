@@ -38,9 +38,11 @@ function ayosServer(array $headers): array
  */
 function ayosHeaders(string $body, ?string $secret = null, ?int $timestamp = null): array
 {
+    $timestamp = (string) ($timestamp ?? now()->getTimestamp());
+
     return [
-        VerifyAyosSignature::SIGNATURE_HEADER => VerifyAyosSignature::signature($body, $secret ?? 'shared-secret'),
-        VerifyAyosSignature::TIMESTAMP_HEADER => (string) ($timestamp ?? now()->getTimestamp()),
+        VerifyAyosSignature::SIGNATURE_HEADER => VerifyAyosSignature::signature($timestamp, $body, $secret ?? 'shared-secret'),
+        VerifyAyosSignature::TIMESTAMP_HEADER => $timestamp,
     ];
 }
 
@@ -101,7 +103,7 @@ test('a signature without the sha256 prefix is rejected', function () {
     $body = '{}';
 
     $headers = ayosHeaders($body);
-    $headers[VerifyAyosSignature::SIGNATURE_HEADER] = hash_hmac('sha256', $body, 'shared-secret');
+    $headers[VerifyAyosSignature::SIGNATURE_HEADER] = hash_hmac('sha256', $headers[VerifyAyosSignature::TIMESTAMP_HEADER].'.'.$body, 'shared-secret');
 
     $this->call('POST', $url, [], [], [], ayosServer($headers), $body)
         ->assertUnauthorized();
@@ -119,6 +121,19 @@ test('a stale timestamp is rejected', function (int $offset) {
     'far in the past' => -(VerifyAyosSignature::TOLERANCE_SECONDS + 60),
     'far in the future' => VerifyAyosSignature::TOLERANCE_SECONDS + 60,
 ]);
+
+test('a captured signature cannot be replayed under a fresh timestamp', function () {
+    $url = ayosSignedRoute();
+    $body = '{}';
+
+    // What an attacker holds: a body and the signature that was valid for it
+    // an hour ago. Only the timestamp is theirs to choose.
+    $captured = ayosHeaders($body, timestamp: now()->subHour()->getTimestamp());
+    $captured[VerifyAyosSignature::TIMESTAMP_HEADER] = (string) now()->getTimestamp();
+
+    $this->call('POST', $url, [], [], [], ayosServer($captured), $body)
+        ->assertUnauthorized();
+});
 
 test('a timestamp inside the window is accepted in either direction', function (int $offset) {
     $url = ayosSignedRoute();

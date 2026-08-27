@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\TeamRole;
+use App\Models\FixJob;
 use App\Models\GitHubInstallation;
 use App\Models\Project;
 use App\Models\ProjectRepository;
@@ -240,6 +241,8 @@ test('a repository can be disconnected without losing the job history', function
         ->autofixEnabled()
         ->create();
 
+    $job = FixJob::factory()->forRepository($repository)->create();
+
     $this->actingAs($user)
         ->from(route('projects.show', ['current_team' => $team->slug, 'project' => $project->slug]))
         ->delete(route('projects.repository.destroy', [
@@ -248,7 +251,84 @@ test('a repository can be disconnected without losing the job history', function
         ]))
         ->assertRedirect();
 
-    $this->assertDatabaseMissing('project_repositories', ['id' => $repository->id]);
+    // The project reads as disconnected, autofix is off, and every job raised
+    // against the repository — the history and the cooldown state both — is
+    // still there, still able to name the repository it ran in.
+    expect($project->fresh()->repository)->toBeNull()
+        ->and($repository->fresh()->autofix_enabled)->toBeFalse()
+        ->and($job->fresh())->not->toBeNull()
+        ->and($job->fresh()->repository->repo_full_name)->toBe($repository->repo_full_name);
+
+    $this->assertDatabaseHas('fix_jobs', ['id' => $job->id]);
+    $this->assertSoftDeleted('project_repositories', ['id' => $repository->id]);
+});
+
+test('reconnecting the same repository restores it and the jobs under it', function () {
+    [$user, $team, $project, $installation] = projectRepositoryTeam();
+
+    $repository = ProjectRepository::factory()
+        ->forProject($project)
+        ->forInstallation($installation)
+        ->create(['repo_full_name' => 'acme/checkout', 'default_branch' => 'main']);
+
+    $job = FixJob::factory()->forRepository($repository)->create();
+
+    $repository->delete();
+
+    fakeGrantedGitHubRepositories([
+        ['full_name' => 'acme/checkout', 'default_branch' => 'main', 'private' => true],
+    ]);
+
+    $this->actingAs($user)
+        ->from(route('projects.show', ['current_team' => $team->slug, 'project' => $project->slug]))
+        ->post(route('projects.repository.store', [
+            'current_team' => $team->slug,
+            'project' => $project->slug,
+        ]), [
+            'installation_id' => $installation->installation_id,
+            'repo_full_name' => 'acme/checkout',
+        ])
+        ->assertRedirect();
+
+    expect($project->fresh()->repository?->id)->toBe($repository->id)
+        ->and($job->fresh()->project_repository_id)->toBe($repository->id);
+});
+
+test('connecting a different repository retires the old row instead of repointing it', function () {
+    [$user, $team, $project, $installation] = projectRepositoryTeam();
+
+    $repository = ProjectRepository::factory()
+        ->forProject($project)
+        ->forInstallation($installation)
+        ->create(['repo_full_name' => 'acme/checkout', 'default_branch' => 'main']);
+
+    $job = FixJob::factory()->forRepository($repository)->create();
+
+    fakeGrantedGitHubRepositories([
+        ['full_name' => 'acme/billing', 'default_branch' => 'trunk', 'private' => true],
+    ]);
+
+    $this->actingAs($user)
+        ->from(route('projects.show', ['current_team' => $team->slug, 'project' => $project->slug]))
+        ->post(route('projects.repository.store', [
+            'current_team' => $team->slug,
+            'project' => $project->slug,
+        ]), [
+            'installation_id' => $installation->installation_id,
+            'repo_full_name' => 'acme/billing',
+        ])
+        ->assertRedirect();
+
+    $connected = $project->fresh()->repository;
+
+    // The job keeps pointing at the codebase it actually ran against.
+    expect($connected?->repo_full_name)->toBe('acme/billing')
+        ->and($connected?->default_branch)->toBe('trunk')
+        ->and($connected?->id)->not->toBe($repository->id)
+        ->and($job->fresh()->project_repository_id)->toBe($repository->id)
+        ->and($job->fresh()->repository->repo_full_name)->toBe('acme/checkout');
+
+    $this->assertSoftDeleted('project_repositories', ['id' => $repository->id]);
 });
 
 test('a member of another team cannot manage a project repository', function () {

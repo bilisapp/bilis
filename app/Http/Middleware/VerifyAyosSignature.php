@@ -11,9 +11,11 @@ use Symfony\Component\HttpFoundation\Response;
  * Authenticates a callback from Ayos.
  *
  * Ayos holds no session and no API key: both directions of the control plane
- * are authenticated with one shared secret, an HMAC-SHA256 over the raw body
- * in `X-Ayos-Signature` and an `X-Ayos-Timestamp` inside a ±5 minute window so
- * a captured request cannot be replayed indefinitely.
+ * are authenticated with one shared secret, an HMAC-SHA256 in
+ * `X-Ayos-Signature` over `{timestamp}.{raw body}` and an `X-Ayos-Timestamp`
+ * inside a ±5 minute window. The timestamp is inside the signed string on
+ * purpose: signing the body alone would let a captured body and signature be
+ * replayed forever under a freshly minted timestamp.
  */
 class VerifyAyosSignature
 {
@@ -58,7 +60,7 @@ class VerifyAyosSignature
 
         $signature = $request->header(self::SIGNATURE_HEADER);
 
-        if (! is_string($signature) || ! $this->matches($signature, $request->getContent(), $secret)) {
+        if (! is_string($signature) || ! $this->matches($signature, $timestamp, $request->getContent(), $secret)) {
             return $this->unauthorized();
         }
 
@@ -66,17 +68,20 @@ class VerifyAyosSignature
     }
 
     /**
-     * Sign a body the way Ayos is expected to, for outgoing requests and tests.
+     * Sign a request the way Ayos is expected to, for outgoing calls and tests.
+     *
+     * The signed string is the timestamp, a dot, then the raw body — the
+     * timestamp is bound to the digest so it cannot be swapped for a fresh one.
      */
-    public static function signature(string $body, string $secret): string
+    public static function signature(string $timestamp, string $body, string $secret): string
     {
-        return self::SIGNATURE_PREFIX.hash_hmac('sha256', $body, $secret);
+        return self::SIGNATURE_PREFIX.hash_hmac('sha256', trim($timestamp).'.'.$body, $secret);
     }
 
     /**
-     * Determine whether the signature header matches the body.
+     * Determine whether the signature header matches the timestamp and body.
      */
-    protected function matches(string $signature, string $body, string $secret): bool
+    protected function matches(string $signature, string $timestamp, string $body, string $secret): bool
     {
         $signature = trim($signature);
 
@@ -84,7 +89,7 @@ class VerifyAyosSignature
             return false;
         }
 
-        return hash_equals(self::signature($body, $secret), $signature);
+        return hash_equals(self::signature($timestamp, $body, $secret), $signature);
     }
 
     /**

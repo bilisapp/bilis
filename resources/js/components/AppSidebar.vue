@@ -71,11 +71,18 @@ const mainNavItems = computed<NavItem[]>(() => [
         href: projectsUrl.value,
         icon: FolderKanban,
     },
-    {
-        title: 'Autofix',
-        href: autofixUrl.value,
-        icon: Wrench,
-    },
+    // Autofix is off for a deployment that has no control plane configured,
+    // and its endpoints 404 there — so the rail leaves it out entirely rather
+    // than pointing at a page that cannot answer.
+    ...(page.props.autofix?.enabled
+        ? [
+              {
+                  title: 'Autofix',
+                  href: autofixUrl.value,
+                  icon: Wrench,
+              },
+          ]
+        : []),
 ]);
 
 const resourceNavItems: NavItem[] = [

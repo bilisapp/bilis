@@ -609,7 +609,9 @@ export const demoFixJobEvents: FixJobEvent[] = [
         type: 'tool_call',
         data: {
             title: 'bash',
-            input: { command: 'php artisan test --compact --filter=ChargeOrder' },
+            input: {
+                command: 'php artisan test --compact --filter=ChargeOrder',
+            },
         },
     },
     {

@@ -46,6 +46,8 @@ function customJobUrl(Team $team): string
 }
 
 beforeEach(function () {
+    config()->set('autofix.enabled', true);
+
     Queue::fake();
 });
 
@@ -70,6 +72,32 @@ test('a team member can spawn a custom job against a connected repository', func
         ->and($job->project_repository_id)->toBe($repository->id);
 
     Queue::assertPushed(DispatchFixJob::class, fn (DispatchFixJob $queued): bool => $queued->uuid === $job->uuid);
+});
+
+test('no job is spawned while autofix is switched off for the deployment', function () {
+    config()->set('autofix.enabled', false);
+
+    [$user, $team] = customJobTeam();
+
+    // The repository row still says it opted in — the deployment-wide switch
+    // is not something a row gets a second opinion about.
+    $this->actingAs($user)
+        ->post(customJobUrl($team), ['project' => 'checkout', 'instructions' => 'Bump the guzzle dependency.'])
+        ->assertNotFound();
+
+    expect(FixJob::query()->count())->toBe(0);
+
+    Queue::assertNothingPushed();
+});
+
+test('the picker offers no project while autofix is switched off', function () {
+    config()->set('autofix.enabled', false);
+
+    [$user, $team] = customJobTeam();
+
+    $this->actingAs($user)
+        ->get(route('autofix.index', ['current_team' => $team->slug]))
+        ->assertInertia(fn (Assert $page) => $page->where('autofixProjects', []));
 });
 
 test('the redirect lands on the new job so the run can be watched', function () {

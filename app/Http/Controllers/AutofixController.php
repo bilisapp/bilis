@@ -75,9 +75,10 @@ class AutofixController extends Controller
             /*
              * Only projects whose repository has opted in can be given work by
              * hand — the same gate the endpoint enforces, so the picker never
-             * offers a choice the server would refuse.
+             * offers a choice the server would refuse. With the whole feature
+             * switched off there is no such project, whatever the rows say.
              */
-            'autofixProjects' => $this->autofixProjects($team),
+            'autofixProjects' => $this->enabled() ? $this->autofixProjects($team) : [],
         ]);
     }
 
@@ -92,6 +93,14 @@ class AutofixController extends Controller
      */
     public function store(CreateFixJobRequest $request, FixJobBudget $budgets, string $current_team): RedirectResponse
     {
+        /*
+         * `AUTOFIX_ENABLED` is the deployment-wide switch the scan and the
+         * verifier already honour. A repository row saying `autofix_enabled`
+         * is not a second opinion about it: with the feature off, nothing is
+         * dispatched, by hand or otherwise.
+         */
+        abort_unless($this->enabled(), 404);
+
         $repository = $request->repository();
 
         abort_if($repository === null, 404);
@@ -150,6 +159,14 @@ class AutofixController extends Controller
             'stream' => $stream,
             'canCancel' => $request->user()?->can('cancel', $fixJob) ?? false,
         ]);
+    }
+
+    /**
+     * Whether the autofix control plane is switched on for this deployment.
+     */
+    private function enabled(): bool
+    {
+        return config('autofix.enabled') === true;
     }
 
     /**
