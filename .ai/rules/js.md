@@ -16,3 +16,6 @@ Never hardcode chart colours. The ECharts theme is built from the CSS custom pro
 Inertia renders authenticated, in-app surfaces. Public marketing pages are Blade (`resources/views/marketing/`, `<x-layouts.marketing>`) and never boot the Inertia bundle — that is what lets SSR stay disabled.
 
 Inertia SSR is off in both places that matter: `config/inertia.php` (`ssr.enabled => false`) and `inertia({ ssr: false })` in `vite.config.ts`. There is no `ssr.ts` entry and no `build:ssr` script. Don't reintroduce them — put the page in Blade instead.
+
+## Code and diff rendering uses @pierre/diffs
+All code visualization in the app — diffs (autofix job diffs, PR previews) and any rendered source files — uses the @pierre/diffs library (diffs.com) via its **vanilla JS API** (FileDiff / CodeView / File; docs: https://diffs.com/docs#vanilla-js-api), wrapped in a reusable Vue component. Do not hand-roll diff HTML and do not use react-diff-view/diff2html/etc. It is Shiki-based: theme it from the app's CSS tokens / dark-light modes like ChartCanvas does for ECharts — no hardcoded highlight themes that ignore the mode.

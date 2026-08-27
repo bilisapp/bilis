@@ -6,7 +6,9 @@ namespace App\Enums;
  * The lifecycle of a single autofix attempt.
  *
  * `pending → dispatched → running → validating → pr_opened` is the happy path;
- * `merged`, `rejected`, `failed`, `cancelled` and `timeout` are terminal.
+ * `merged`, `no_change`, `rejected`, `failed`, `cancelled` and `timeout` are
+ * terminal. `no_change` is the agent finishing cleanly without touching the
+ * tree — an answer, not a failure.
  */
 enum FixJobStatus: string
 {
@@ -16,6 +18,7 @@ enum FixJobStatus: string
     case Validating = 'validating';
     case PrOpened = 'pr_opened';
     case Merged = 'merged';
+    case NoChange = 'no_change';
     case Rejected = 'rejected';
     case Failed = 'failed';
     case Cancelled = 'cancelled';
@@ -64,6 +67,7 @@ enum FixJobStatus: string
     {
         return match ($this) {
             self::PrOpened => 'PR opened',
+            self::NoChange => 'No change',
             default => ucfirst($this->value),
         };
     }

@@ -128,6 +128,24 @@ test('dispatch refuses to run without a configured ayos url', function () {
         ->toThrow(AyosException::class, 'autofix.ayos.url');
 });
 
+test('cancel treats an ayos 404 as already gone', function () {
+    fakeAyos(404, '{"error":"unknown job"}');
+
+    $job = ayosJob();
+
+    app(AyosClient::class)->cancel($job);
+
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://ayos.test/jobs/'.$job->uuid.'/cancel');
+});
+
+test('cancel still throws on other ayos failures', function () {
+    fakeAyos(500, '{"error":"boom"}');
+
+    $job = ayosJob();
+
+    app(AyosClient::class)->cancel($job);
+})->throws(AyosException::class);
+
 test('cancel posts a signed request to the job cancel endpoint', function () {
     fakeAyos();
 

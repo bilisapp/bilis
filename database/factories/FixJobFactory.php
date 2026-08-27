@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Enums\FixJobStatus;
+use App\Enums\FixJobType;
 use App\Models\FixJob;
 use App\Models\Project;
 use App\Models\ProjectRepository;
@@ -25,6 +26,7 @@ class FixJobFactory extends Factory
             'project_id' => fn (array $attributes): int => ProjectRepository::query()
                 ->whereKey($attributes['project_repository_id'])
                 ->value('project_id'),
+            'type' => FixJobType::Error,
             'fingerprint' => hash('sha256', fake()->unique()->sentence()),
             'error_context' => [
                 'service_name' => 'checkout',
@@ -32,17 +34,36 @@ class FixJobFactory extends Factory
                 'message' => 'Undefined array key "total"',
                 'count' => 12,
             ],
+            'instructions' => null,
             'base_sha' => fake()->sha1(),
             'status' => FixJobStatus::Pending,
             'diff' => null,
             'report' => null,
             'events' => null,
+            'verification' => null,
             'pr_number' => null,
             'pr_url' => null,
             'failure_reason' => null,
             'dispatched_at' => null,
             'completed_at' => null,
+            'verified_at' => null,
         ];
+    }
+
+    /**
+     * Indicate that the job was spawned by a person rather than by the scan.
+     *
+     * A custom job has no fingerprint and no error context — the request is
+     * the whole of what it knows.
+     */
+    public function custom(?string $instructions = null): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'type' => FixJobType::Custom,
+            'fingerprint' => null,
+            'error_context' => null,
+            'instructions' => $instructions ?? 'Upgrade the guzzlehttp/guzzle dependency to the latest 7.x release and make sure the test suite still passes.',
+        ]);
     }
 
     /**
@@ -112,6 +133,25 @@ class FixJobFactory extends Factory
     {
         return $this->prOpened()->state(fn (array $attributes) => [
             'status' => FixJobStatus::Merged,
+        ]);
+    }
+
+    /**
+     * Indicate that the merged fix was checked and the error stopped recurring.
+     */
+    public function verified(): static
+    {
+        return $this->merged()->state(fn (array $attributes) => [
+            'verified_at' => now(),
+            'verification' => [
+                'outcome' => 'verified',
+                'checked_at' => now()->utc()->toIso8601ZuluString(),
+                'window' => [
+                    'from' => now()->subHours(3)->utc()->toIso8601ZuluString(),
+                    'to' => now()->utc()->toIso8601ZuluString(),
+                ],
+                'occurrences' => 0,
+            ],
         ]);
     }
 

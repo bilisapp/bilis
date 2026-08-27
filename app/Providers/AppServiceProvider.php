@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Http\Middleware\AuthenticateProjectApiKey;
+use App\Models\FixJob;
 use App\Models\Project;
 use App\Models\ProjectApiKey;
 use App\Services\Ingest\IngestRateUsage;
@@ -42,6 +43,7 @@ class AppServiceProvider extends ServiceProvider
      *
      * Slugs are only unique per team, so a project is always looked up through
      * the team in the route; a project from another team resolves to a 404.
+     * Fix jobs reach their team the same way, through their project.
      */
     protected function configureRouteBindings(): void
     {
@@ -51,6 +53,15 @@ class AppServiceProvider extends ServiceProvider
             return Project::query()
                 ->where('slug', $slug)
                 ->whereHas('team', fn ($query) => $query->where('slug', is_string($teamSlug) ? $teamSlug : null))
+                ->firstOrFail();
+        });
+
+        Route::bind('fixJob', function (string $uuid, RouteElement $route): FixJob {
+            $teamSlug = $route->parameter('current_team');
+
+            return FixJob::query()
+                ->where('uuid', $uuid)
+                ->whereHas('project.team', fn ($query) => $query->where('slug', is_string($teamSlug) ? $teamSlug : null))
                 ->firstOrFail();
         });
 

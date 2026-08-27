@@ -65,6 +65,8 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::loginView(fn (Request $request) => Inertia::render('auth/Login', [
             'canResetPassword' => Features::enabled(Features::resetPasswords()),
             'status' => $request->session()->get('status'),
+            'error' => $request->session()->get('error'),
+            'github' => $this->githubEnabled(),
             'teamInvitation' => $this->teamInvitation($request),
         ]));
 
@@ -82,6 +84,7 @@ class FortifyServiceProvider extends ServiceProvider
         ]));
 
         Fortify::registerView(fn (Request $request) => Inertia::render('auth/Register', [
+            'github' => $this->githubEnabled(),
             'teamInvitation' => $this->teamInvitation($request),
         ]));
 
@@ -112,6 +115,16 @@ class FortifyServiceProvider extends ServiceProvider
                 ($credentialId ?: $request->session()->getId()).'|'.$request->ip(),
             );
         });
+    }
+
+    /**
+     * Whether this instance has GitHub OAuth credentials, and can therefore
+     * offer "Continue with GitHub" at all.
+     */
+    private function githubEnabled(): bool
+    {
+        return filled(config('services.github.client_id'))
+            && filled(config('services.github.client_secret'));
     }
 
     /**

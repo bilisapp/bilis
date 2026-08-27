@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\FixJobStatus;
+use App\Enums\FixJobType;
 use App\Jobs\DispatchFixJob;
 use App\Models\FixJob;
 use App\Models\Project;
@@ -263,4 +264,58 @@ test('the scan command does nothing while autofix is disabled', function () {
     $this->artisan('autofix:scan')
         ->expectsOutputToContain('Autofix is disabled')
         ->assertSuccessful();
+});
+
+test('a custom job in flight consumes a concurrency slot the scan wanted', function () {
+    fakeClickHouse(triggerRows(6, triggerStack()));
+
+    $repository = autofixRepository(['max_concurrent' => 1]);
+
+    FixJob::factory()->forRepository($repository)->custom()->running()->create();
+
+    expect(app(FixTriggerService::class)->scan())->toBe([]);
+    Http::assertNothingSent();
+});
+
+test('a custom job raised today spends the daily budget the scan draws from', function () {
+    fakeClickHouse(triggerRows(6, triggerStack()));
+
+    $repository = autofixRepository(['max_concurrent' => 10, 'daily_budget' => 1]);
+
+    FixJob::factory()->forRepository($repository)->custom()->merged()->create(['created_at' => now()->subHour()]);
+
+    expect(app(FixTriggerService::class)->scan())->toBe([]);
+    Http::assertNothingSent();
+});
+
+test('a settled custom job never puts a fingerprint into cooldown', function () {
+    fakeClickHouse(triggerRows(6, triggerStack()));
+
+    $repository = autofixRepository(['max_concurrent' => 10, 'daily_budget' => 10]);
+
+    /*
+     * A custom job has no fingerprint at all. It must not be mistaken for the
+     * latest attempt at the error being scanned for, whatever SQL makes of a
+     * null comparison.
+     */
+    FixJob::factory()->forRepository($repository)->custom()->rejected()->create([
+        'completed_at' => now()->subMinutes(5),
+    ]);
+
+    $created = app(FixTriggerService::class)->scan();
+
+    expect($created)->toHaveCount(1)
+        ->and($created[0]->type)->toBe(FixJobType::Error)
+        ->and($created[0]->fingerprint)->not->toBeNull();
+});
+
+test('a raised job is typed as an error', function () {
+    fakeClickHouse(triggerRows(6, triggerStack()));
+
+    autofixRepository();
+
+    $created = app(FixTriggerService::class)->scan();
+
+    expect($created[0]->type)->toBe(FixJobType::Error)
+        ->and($created[0]->instructions)->toBeNull();
 });

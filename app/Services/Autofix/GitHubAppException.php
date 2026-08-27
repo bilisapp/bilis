@@ -84,6 +84,47 @@ class GitHubAppException extends RuntimeException
     }
 
     /**
+     * Build an exception from any other failed GitHub API call.
+     *
+     * The token exchange is not the only thing the autofix path asks GitHub
+     * for — the write path reads trees and blobs and creates commits, refs and
+     * pull requests, and every one of those failures is the same kind of
+     * problem.
+     */
+    public static function fromApiResponse(Response $response, string $operation): self
+    {
+        return new self(
+            sprintf(
+                'GitHub refused %s with status %d: %s',
+                $operation,
+                $response->status(),
+                trim(mb_substr($response->body(), 0, 500)),
+            ),
+            statusCode: $response->status(),
+        );
+    }
+
+    /**
+     * Build an exception from a transport level failure on an API call.
+     */
+    public static function fromApiConnectionException(ConnectionException $exception, string $operation): self
+    {
+        return new self(
+            sprintf('Could not reach GitHub for %s: %s', $operation, $exception->getMessage()),
+            connectionFailed: true,
+            previous: $exception,
+        );
+    }
+
+    /**
+     * Build an exception for an API response that is not shaped as expected.
+     */
+    public static function fromUnexpectedPayload(string $operation): self
+    {
+        return new self(sprintf('GitHub answered %s with an unexpected payload.', $operation));
+    }
+
+    /**
      * Determine whether the failure is worth retrying later.
      */
     public function isTransient(): bool

@@ -1,15 +1,33 @@
 <?php
 
+use App\Http\Controllers\Auth\GitHubLoginController;
+use App\Http\Controllers\Autofix\FixJobCancelController;
+use App\Http\Controllers\Autofix\FixJobStreamTokenController;
+use App\Http\Controllers\AutofixController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocsApiKeyController;
 use App\Http\Controllers\DocsController;
 use App\Http\Controllers\LogsController;
 use App\Http\Controllers\ProjectApiKeyController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\ProjectRepositoryController;
+use App\Http\Controllers\Settings\GitHubInstallationController;
 use App\Http\Controllers\StyleguideController;
 use App\Http\Controllers\Teams\TeamInvitationController;
+use App\Http\Controllers\Webhooks\GitHubWebhookController;
 use App\Http\Middleware\EnsureTeamMembership;
 use Illuminate\Support\Facades\Route;
+
+/*
+ * The GitHub App's webhook. It lives here rather than in `routes/api.php`
+ * because GitHub is configured with one absolute URL per App and the spec
+ * pins it at `/webhooks/github`, which the `api` prefix would move. It is
+ * unauthenticated apart from `github.signature`, and CSRF-exempt in
+ * `bootstrap/app.php` for the same reason.
+ */
+Route::post('webhooks/github', GitHubWebhookController::class)
+    ->middleware('github.signature')
+    ->name('webhooks.github');
 
 Route::view('/', 'marketing.home')->name('home');
 Route::view('terms', 'marketing.terms')->name('terms');
@@ -73,7 +91,67 @@ Route::prefix('{current_team}')
 
         Route::post('projects/{project}/api-keys', [ProjectApiKeyController::class, 'store'])->name('projects.api-keys.store');
         Route::delete('projects/{project}/api-keys/{apiKey}', [ProjectApiKeyController::class, 'destroy'])->name('projects.api-keys.destroy');
+
+        /*
+         * The repository one project's autofix attempts may touch. `available`
+         * is a live GitHub call answered as JSON, so a slow or broken GitHub
+         * degrades the picker instead of the settings page around it.
+         */
+        Route::get('projects/{project}/repository/available', [ProjectRepositoryController::class, 'available'])->name('projects.repository.available');
+        Route::post('projects/{project}/repository', [ProjectRepositoryController::class, 'store'])->name('projects.repository.store');
+        Route::patch('projects/{project}/repository', [ProjectRepositoryController::class, 'update'])->name('projects.repository.update');
+        Route::delete('projects/{project}/repository', [ProjectRepositoryController::class, 'destroy'])->name('projects.repository.destroy');
+
+        /*
+         * Autofix. `{fixJob}` is bound through its project's team in
+         * `AppServiceProvider`, so a job from another team is a 404 before any
+         * policy runs; `FixJobPolicy` then answers the same question from the
+         * model rather than from the URL.
+         */
+        Route::get('autofix', [AutofixController::class, 'index'])->name('autofix.index');
+
+        /*
+         * A job spawned by a person rather than by the scan. It sits above the
+         * `{fixJob}` routes because `jobs` would otherwise be read as a uuid,
+         * and it is throttled: an agent run is expensive, and the budgets that
+         * bound it are per repository rather than per person.
+         */
+        Route::post('autofix/jobs', [AutofixController::class, 'store'])
+            ->middleware('throttle:20,1')
+            ->name('autofix.store');
+
+        Route::get('autofix/{fixJob}', [AutofixController::class, 'show'])->name('autofix.show');
+        Route::post('autofix/{fixJob}/stream-token', FixJobStreamTokenController::class)
+            ->middleware('throttle:30,1')
+            ->name('autofix.stream-token');
+        Route::post('autofix/{fixJob}/cancel', FixJobCancelController::class)->name('autofix.cancel');
+
+        /*
+         * Start of the GitHub App install round trip. The other half — the
+         * App's Setup URL — cannot live under the team prefix, because GitHub
+         * holds exactly one absolute URL for the whole App.
+         */
+        Route::get('settings/github/connect', [GitHubInstallationController::class, 'connect'])->name('github.installations.connect');
     });
+
+/*
+ * The GitHub App's Setup URL. GitHub sends every team here with no team in the
+ * path, so the team is carried in the signed `state` blob the connect route
+ * minted — see `App\Services\Autofix\GitHubInstallState`.
+ */
+Route::get('settings/github/setup', [GitHubInstallationController::class, 'setup'])
+    ->middleware(['auth', 'verified'])
+    ->name('github.installations.setup');
+
+/*
+ * "Continue with GitHub". The callback links the GitHub identity to an
+ * existing account by its verified primary email, or registers a new one with
+ * its personal team, and is the only place `github_id` is ever written.
+ */
+Route::middleware('guest')->group(function () {
+    Route::get('auth/github/redirect', [GitHubLoginController::class, 'redirect'])->name('github.redirect');
+    Route::get('auth/github/callback', [GitHubLoginController::class, 'callback'])->name('github.callback');
+});
 
 Route::middleware(['auth'])->group(function () {
     Route::get('styleguide', StyleguideController::class)->name('styleguide');

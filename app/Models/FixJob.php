@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\FixJobStatus;
+use App\Enums\FixJobType;
 use Database\Factories\FixJobFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -12,7 +13,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
- * One attempt to fix one error fingerprint.
+ * One attempt at one unit of work in a repository.
+ *
+ * Two things raise one. An `error` job comes from the scheduled scan and
+ * carries the fingerprint and error context that justified it. A `custom` job
+ * comes from a person and carries their `instructions` instead — no
+ * fingerprint, no error context. Everything after dispatch is the same.
  *
  * The `uuid` is both the route key and the idempotency key Ayos is dispatched
  * with, so the callback can find the row without a database id leaking out.
@@ -21,18 +27,23 @@ use Illuminate\Support\Carbon;
  * @property string $uuid
  * @property int $project_id
  * @property int $project_repository_id
- * @property string $fingerprint
- * @property array<string, mixed> $error_context
+ * @property FixJobType $type
+ * @property string|null $fingerprint
+ * @property array<string, mixed>|null $error_context
+ * @property string|null $instructions
  * @property string $base_sha
+ * @property int $redispatch_count
  * @property FixJobStatus $status
  * @property string|null $diff
  * @property array<string, mixed>|null $report
  * @property array<int, array<string, mixed>>|null $events
+ * @property array<string, mixed>|null $verification
  * @property int|null $pr_number
  * @property string|null $pr_url
  * @property string|null $failure_reason
  * @property Carbon|null $dispatched_at
  * @property Carbon|null $completed_at
+ * @property Carbon|null $verified_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read Project $project
@@ -42,18 +53,23 @@ use Illuminate\Support\Carbon;
     'uuid',
     'project_id',
     'project_repository_id',
+    'type',
     'fingerprint',
     'error_context',
+    'instructions',
     'base_sha',
+    'redispatch_count',
     'status',
     'diff',
     'report',
     'events',
+    'verification',
     'pr_number',
     'pr_url',
     'failure_reason',
     'dispatched_at',
     'completed_at',
+    'verified_at',
 ])]
 class FixJob extends Model
 {
@@ -109,10 +125,14 @@ class FixJob extends Model
             'error_context' => 'array',
             'report' => 'array',
             'events' => 'array',
+            'verification' => 'array',
             'status' => FixJobStatus::class,
+            'type' => FixJobType::class,
             'pr_number' => 'integer',
+            'redispatch_count' => 'integer',
             'dispatched_at' => 'datetime',
             'completed_at' => 'datetime',
+            'verified_at' => 'datetime',
         ];
     }
 }

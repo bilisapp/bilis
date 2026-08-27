@@ -84,7 +84,18 @@ class AyosClient
      */
     public function cancel(FixJob $job): void
     {
-        $this->send(sprintf('/jobs/%s/cancel', $job->uuid), ['job_id' => $job->uuid]);
+        try {
+            $this->send(sprintf('/jobs/%s/cancel', $job->uuid), ['job_id' => $job->uuid]);
+        } catch (AyosException $exception) {
+            /*
+             * A 404 means Ayos no longer knows the job — its in-process state
+             * was lost (restart) or already disposed. Nothing is left to
+             * abort, so cancellation has effectively succeeded.
+             */
+            if ($exception->statusCode() !== 404) {
+                throw $exception;
+            }
+        }
     }
 
     /**

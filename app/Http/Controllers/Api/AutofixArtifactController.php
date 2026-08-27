@@ -114,6 +114,14 @@ class AutofixArtifactController extends Controller
      */
     private function failureReason(FixJobStatus $status, ?array $report): string
     {
+        // Ayos separates the failure itself from the agent's narration; the
+        // banner should name the failure, not the last thing the agent said.
+        $error = $report['error'] ?? null;
+
+        if (is_string($error) && trim($error) !== '') {
+            return mb_substr(trim($error), 0, 1000);
+        }
+
         $summary = $report['summary'] ?? null;
 
         if (is_string($summary) && trim($summary) !== '') {

@@ -26,6 +26,7 @@ use Illuminate\Support\Carbon;
  * @property-read Collection<int, Membership> $memberships
  * @property-read Collection<int, User> $members
  * @property-read Collection<int, Project> $projects
+ * @property-read Collection<int, GitHubInstallation> $githubInstallations
  */
 #[Fillable(['name', 'slug', 'is_personal'])]
 class Team extends Model
@@ -94,6 +95,16 @@ class Team extends Model
     public function projects(): HasMany
     {
         return $this->hasMany(Project::class);
+    }
+
+    /**
+     * Get the GitHub App installations connected to this team.
+     *
+     * @return HasMany<GitHubInstallation, $this>
+     */
+    public function githubInstallations(): HasMany
+    {
+        return $this->hasMany(GitHubInstallation::class);
     }
 
     /**

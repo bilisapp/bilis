@@ -5,6 +5,7 @@ import { computed, ref, watch } from 'vue';
 import ApiKeyCreatedDialog from '@/components/ApiKeyCreatedDialog.vue';
 import CreateApiKeyModal from '@/components/CreateApiKeyModal.vue';
 import DeleteProjectModal from '@/components/DeleteProjectModal.vue';
+import ProjectRepositoryCard from '@/components/ProjectRepositoryCard.vue';
 import RenameProjectModal from '@/components/RenameProjectModal.vue';
 import RevokeApiKeyModal from '@/components/RevokeApiKeyModal.vue';
 import { Badge } from '@/components/ui/badge';
@@ -26,9 +27,12 @@ import {
 import { formatDate, maskedKey } from '@/lib/projects';
 import { index as projectsIndex, show as projectShow } from '@/routes/projects';
 import type {
+    GitHubInstallationSummary,
     NewProjectApiKey,
     ProjectApiKey,
+    ProjectAutofixConfig,
     ProjectDetail,
+    ProjectRepository,
     Team,
 } from '@/types';
 
@@ -36,6 +40,9 @@ const props = defineProps<{
     project: ProjectDetail;
     apiKeys: ProjectApiKey[];
     teamSlug: string;
+    repository: ProjectRepository | null;
+    installations: GitHubInstallationSummary[];
+    autofix: ProjectAutofixConfig;
 }>();
 
 defineOptions({
@@ -251,6 +258,14 @@ const openRevokeDialog = (apiKey: ProjectApiKey) => {
                 </div>
             </CardContent>
         </Card>
+
+        <ProjectRepositoryCard
+            :team-slug="teamSlug"
+            :project="project"
+            :repository="repository"
+            :installations="installations"
+            :autofix="autofix"
+        />
     </div>
 
     <RenameProjectModal

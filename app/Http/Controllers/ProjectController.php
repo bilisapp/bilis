@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\Projects\SaveProjectRequest;
+use App\Models\GitHubInstallation;
 use App\Models\Project;
 use App\Models\Team;
 use Illuminate\Http\RedirectResponse;
@@ -76,7 +77,47 @@ class ProjectController extends Controller
                 ])
                 ->values(),
             'teamSlug' => $current_team,
+            'repository' => $this->repository($project),
+            'installations' => $project->team->githubInstallations()
+                ->orderBy('account_login')
+                ->get()
+                ->map(fn (GitHubInstallation $installation): array => [
+                    'id' => $installation->installation_id,
+                    'accountLogin' => $installation->account_login,
+                    'accountType' => $installation->account_type,
+                ])
+                ->values(),
+            'autofix' => [
+                'enabled' => (bool) config('autofix.enabled'),
+                'githubConfigured' => is_string(config('autofix.github.slug'))
+                    && trim((string) config('autofix.github.slug')) !== '',
+            ],
         ]);
+    }
+
+    /**
+     * The project's connected repository, as the settings card renders it.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function repository(Project $project): ?array
+    {
+        $repository = $project->repository()->with('installation')->first();
+
+        if ($repository === null) {
+            return null;
+        }
+
+        return [
+            'id' => $repository->id,
+            'repoFullName' => $repository->repo_full_name,
+            'defaultBranch' => $repository->default_branch,
+            'autofixEnabled' => $repository->autofix_enabled,
+            'testCmd' => $repository->test_cmd,
+            'maxConcurrent' => $repository->max_concurrent,
+            'dailyBudget' => $repository->daily_budget,
+            'accountLogin' => $repository->installation->account_login,
+        ];
     }
 
     /**

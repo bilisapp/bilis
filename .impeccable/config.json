@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "resources/js/pages/autofix/Index.vue"
+        ],
+        "createdAt": "2026-08-27T11:44:44.103Z",
+        "reason": "model triage: matches app's designed compact data-dense idiom — logs surface uses same sm/xs scale, hierarchy via weight/color per DESIGN.md; h1 xl vs body sm ratio is 1.43 (>1.25)"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "resources/js/pages/autofix/Show.vue"
+        ],
+        "createdAt": "2026-08-27T11:44:44.132Z",
+        "reason": "model triage: same designed compact idiom as logs surface; hierarchy via weight/color per DESIGN.md"
+      }
+    ]
+  }
+}

@@ -2,24 +2,27 @@
 
 namespace App\Jobs;
 
+use App\Enums\FixJobStatus;
 use App\Models\FixJob;
+use App\Services\Autofix\DiffValidator;
+use App\Services\Autofix\GitHubAppException;
+use App\Services\Autofix\PullRequestPublisher;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
-use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Validates the diff Ayos produced and, if it holds up, opens the pull request.
  *
- * TODO: phase 3 of specs/autofix-laravel.md. This job is the seam the artifact
- * callback dispatches into; the work itself — `DiffValidator` (empty diff,
- * clean apply against the current default branch head, denylisted paths,
- * `max_diff_lines`, failing tests, binary files) and `PullRequestPublisher`
- * (the only holder of write tokens) — is explicitly out of scope for the
- * dispatch path and lands with the write path.
+ * This is the only path from an artifact to a GitHub write, and it is ordered
+ * so that no write can happen on an unchecked diff: `DiffValidator` runs first
+ * and applies the patch in memory against the current default branch head,
+ * `PullRequestPublisher` commits exactly what came out of that.
  *
- * Until then the job is a no-op that records the arrival: a job sits in
- * `validating` and waits for the phase 3 implementation rather than moving on
- * to a GitHub write that nothing has validated.
+ * Three things make it safe to run twice, which the queue will eventually do:
+ * only a job still sitting in `validating` is touched at all, a transient
+ * GitHub failure releases the job rather than failing it, and a diff that no
+ * longer applies buys one re-dispatch before it is rejected for good.
  */
 class ValidateAndPublishFix implements ShouldQueue
 {
@@ -30,12 +33,82 @@ class ValidateAndPublishFix implements ShouldQueue
      */
     public int $tries = 3;
 
+    /**
+     * The delay, in seconds, before each successive attempt.
+     *
+     * @return list<int>
+     */
+    public function backoff(): array
+    {
+        return [30, 120, 300];
+    }
+
     public function __construct(public readonly string $uuid) {}
 
     /**
-     * Note that a diff is waiting to be validated.
+     * Validate the diff and publish it.
      */
-    public function handle(): void
+    public function handle(DiffValidator $validator, PullRequestPublisher $publisher): void
+    {
+        $job = FixJob::query()->where('uuid', $this->uuid)->first();
+
+        /*
+         * Anything that is not `validating` has already been decided — by an
+         * earlier run of this job, by the webhook, or by a cancellation — and
+         * must not be validated or published a second time.
+         */
+        if ($job === null || $job->status !== FixJobStatus::Validating) {
+            return;
+        }
+
+        try {
+            $result = $validator->validate($job);
+
+            if ($result->isRejected()) {
+                if ($result->reason === 'empty_diff') {
+                    $this->recordNoChange($job);
+
+                    return;
+                }
+
+                $this->reject($job, (string) $result->reason);
+
+                return;
+            }
+
+            if ($result->isRedispatch()) {
+                $this->redispatch($job, (string) $result->reason);
+
+                return;
+            }
+
+            $applied = $result->applied();
+
+            if ($applied === null) {
+                $this->recordNoChange($job);
+
+                return;
+            }
+
+            $publisher->publish($job, $applied);
+        } catch (GitHubAppException $exception) {
+            if ($exception->isTransient()) {
+                report($exception);
+
+                $this->release($this->delayForAttempt());
+
+                return;
+            }
+
+            $this->markFailed($job, $exception->getMessage());
+            $this->fail($exception);
+        }
+    }
+
+    /**
+     * Record the failure once the queue has given up on the job.
+     */
+    public function failed(?Throwable $exception): void
     {
         $job = FixJob::query()->where('uuid', $this->uuid)->first();
 
@@ -43,10 +116,83 @@ class ValidateAndPublishFix implements ShouldQueue
             return;
         }
 
-        Log::info('Autofix artifact awaiting validation.', [
-            'fix_job' => $job->uuid,
-            'fingerprint' => $job->fingerprint,
-            'diff_lines' => $job->diff === null ? 0 : substr_count($job->diff, "\n"),
-        ]);
+        $this->markFailed(
+            $job,
+            $exception?->getMessage() ?? 'The diff could not be validated within the retry budget.',
+        );
+    }
+
+    /**
+     * The agent finished without touching the tree. That is an answer, not a
+     * failure: its reasoning is in the transcript, and there is nothing to
+     * publish.
+     */
+    protected function recordNoChange(FixJob $job): void
+    {
+        $job->forceFill([
+            'status' => FixJobStatus::NoChange,
+            'failure_reason' => null,
+            'completed_at' => now(),
+        ])->save();
+    }
+
+    /**
+     * Refuse the diff. No GitHub write has happened and none will.
+     */
+    protected function reject(FixJob $job, string $reason): void
+    {
+        $job->forceFill([
+            'status' => FixJobStatus::Rejected,
+            'failure_reason' => mb_substr($reason, 0, 1000),
+            'completed_at' => now(),
+        ])->save();
+    }
+
+    /**
+     * Send the job back around once, against a fresh base commit.
+     *
+     * The diff and the transcript are cleared: the next run produces its own,
+     * and keeping the stale patch on the row would only invite someone to
+     * publish it later.
+     */
+    protected function redispatch(FixJob $job, string $reason): void
+    {
+        $job->forceFill([
+            'status' => FixJobStatus::Pending,
+            'redispatch_count' => $job->redispatch_count + 1,
+            'diff' => null,
+            'report' => null,
+            'failure_reason' => mb_substr($reason, 0, 1000),
+            'dispatched_at' => null,
+        ])->save();
+
+        DispatchFixJob::dispatch($job->uuid);
+    }
+
+    /**
+     * Move the fix job to its failed terminal state, once.
+     */
+    protected function markFailed(FixJob $job, string $reason): void
+    {
+        if ($job->status !== FixJobStatus::Validating) {
+            return;
+        }
+
+        $job->forceFill([
+            'status' => FixJobStatus::Failed,
+            'failure_reason' => mb_substr($reason, 0, 1000),
+            'completed_at' => now(),
+        ])->save();
+    }
+
+    /**
+     * The backoff delay for the attempt that has just been made.
+     */
+    protected function delayForAttempt(): int
+    {
+        $backoff = $this->backoff();
+        $index = max(0, $this->attempts() - 1);
+
+        return $backoff[min($index, count($backoff) - 1)];
     }
 }

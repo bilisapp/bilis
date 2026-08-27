@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\FixJob;
 use App\Services\Autofix\FixTriggerService;
+use App\Services\Autofix\StaleFixJobReaper;
 use Illuminate\Console\Command;
 
 /**
@@ -32,12 +33,22 @@ class AutofixScanCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle(FixTriggerService $trigger): int
+    public function handle(FixTriggerService $trigger, StaleFixJobReaper $reaper): int
     {
         if (config('autofix.enabled') !== true) {
             $this->components->info('Autofix is disabled; nothing was scanned.');
 
             return self::SUCCESS;
+        }
+
+        $reaped = $reaper->reap();
+
+        if ($reaped !== []) {
+            $this->components->warn(sprintf(
+                'Declared %d unanswered job%s lost.',
+                count($reaped),
+                count($reaped) === 1 ? '' : 's',
+            ));
         }
 
         $created = $trigger->scan();
@@ -51,7 +62,7 @@ class AutofixScanCommand extends Command
         foreach ($created as $job) {
             $this->components->twoColumnDetail(
                 $this->label($job),
-                substr($job->fingerprint, 0, 12),
+                substr((string) $job->fingerprint, 0, 12),
             );
         }
 
@@ -65,7 +76,7 @@ class AutofixScanCommand extends Command
      */
     private function label(FixJob $job): string
     {
-        $context = $job->error_context;
+        $context = $job->error_context ?? [];
         $exception = $context['exception'] ?? '';
 
         return is_string($exception) && $exception !== '' ? $exception : $job->uuid;

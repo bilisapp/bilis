@@ -7,6 +7,8 @@ use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SetTeamUrlDefaults;
 use App\Http\Middleware\TrustProxies;
+use App\Http\Middleware\VerifyAyosSignature;
+use App\Http\Middleware\VerifyGitHubSignature;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -52,6 +54,18 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'project.api-key' => AuthenticateProjectApiKey::class,
+            'ayos.signature' => VerifyAyosSignature::class,
+            'github.signature' => VerifyGitHubSignature::class,
+        ]);
+
+        /*
+         * GitHub signs its webhook bodies with the App's webhook secret and
+         * carries no session, so the CSRF token it cannot have is not asked
+         * for. `github.signature` is the only thing standing in front of the
+         * route, and it verifies the raw body before the controller sees it.
+         */
+        $middleware->preventRequestForgery(except: [
+            'webhooks/github',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

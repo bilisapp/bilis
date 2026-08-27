@@ -3,6 +3,7 @@
 namespace App\Services\Autofix;
 
 use App\Enums\FixJobStatus;
+use App\Enums\FixJobType;
 use App\Jobs\DispatchFixJob;
 use App\Models\FixJob;
 use App\Models\ProjectRepository;
@@ -46,6 +47,7 @@ class FixTriggerService
     public function __construct(
         private readonly LogQuery $logQuery,
         private readonly ErrorFingerprinter $fingerprinter,
+        private readonly FixJobBudget $budgets,
     ) {}
 
     /**
@@ -85,8 +87,12 @@ class FixTriggerService
     {
         $now = ($now ?? Carbon::now())->clone();
 
-        $slots = $this->availableSlots($repository);
-        $budget = $this->remainingBudget($repository, $now);
+        /*
+         * Both budgets are shared with the custom jobs people spawn by hand:
+         * what is being rationed is agent runs against one codebase.
+         */
+        $slots = $this->budgets->availableSlots($repository);
+        $budget = $this->budgets->remainingBudget($repository, $now);
 
         if ($slots <= 0 || $budget <= 0) {
             return [];
@@ -202,8 +208,14 @@ class FixTriggerService
      */
     protected function shouldTrigger(ProjectRepository $repository, array $group, Carbon $now): bool
     {
+        /*
+         * Only error jobs carry a fingerprint at all; a custom job's is null
+         * and it has no cooldown to be part of. Naming the type says so
+         * rather than leaving it to SQL's treatment of NULL comparison.
+         */
         $latest = FixJob::query()
             ->where('project_repository_id', $repository->id)
+            ->where('type', FixJobType::Error)
             ->where('fingerprint', $group['fingerprint'])
             ->orderByDesc('id')
             ->first();
@@ -246,6 +258,7 @@ class FixTriggerService
         $job = FixJob::query()->create([
             'project_id' => $repository->project_id,
             'project_repository_id' => $repository->id,
+            'type' => FixJobType::Error,
             'fingerprint' => $group['fingerprint'],
             'error_context' => $this->errorContext($group, $from, $to),
             'base_sha' => '',
@@ -287,32 +300,6 @@ class FixTriggerService
                 'to' => $to->clone()->utc()->toIso8601ZuluString(),
             ],
         ];
-    }
-
-    /**
-     * How many more jobs this repository may have in flight.
-     */
-    protected function availableSlots(ProjectRepository $repository): int
-    {
-        $active = FixJob::query()
-            ->where('project_repository_id', $repository->id)
-            ->whereIn('status', array_map(fn (FixJobStatus $status): string => $status->value, FixJobStatus::active()))
-            ->count();
-
-        return max(0, $repository->max_concurrent - $active);
-    }
-
-    /**
-     * How many more jobs this repository may raise today.
-     */
-    protected function remainingBudget(ProjectRepository $repository, Carbon $now): int
-    {
-        $spent = FixJob::query()
-            ->where('project_repository_id', $repository->id)
-            ->where('created_at', '>=', $now->clone()->startOfDay())
-            ->count();
-
-        return max(0, $repository->daily_budget - $spent);
     }
 
     /**

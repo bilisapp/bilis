@@ -4,6 +4,7 @@ use App\Enums\FixJobStatus;
 use App\Http\Middleware\VerifyAyosSignature;
 use App\Jobs\ValidateAndPublishFix;
 use App\Models\FixJob;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Testing\TestResponse;
 
@@ -134,6 +135,17 @@ test('a terminal artifact prefers the agent summary as its reason', function () 
     expect($job->fresh()->failure_reason)->toBe('Guarded the missing total.');
 });
 
+test('a terminal artifact prefers the reported error over the agent summary', function () {
+    $job = FixJob::factory()->running()->create();
+
+    $artifact = artifact($job, 'failed');
+    $artifact['report']['error'] = 'diff exceeds max_diff_lines (1072791 > 800)';
+
+    postArtifact($artifact);
+
+    expect($job->fresh()->failure_reason)->toBe('diff exceeds max_diff_lines (1072791 > 800)');
+});
+
 test('a redelivered artifact is a no-op', function () {
     $job = FixJob::factory()->dispatched()->create();
 
@@ -175,14 +187,18 @@ test('an artifact without a job id is refused', function () {
     postArtifact(['status' => 'done'])->assertStatus(422);
 });
 
-test('the validation job is a no-op until the write path lands', function () {
-    $job = FixJob::factory()->create(['status' => FixJobStatus::Validating, 'diff' => "--- a\n+++ b\n"]);
+test('the validation job leaves a job it no longer owns alone', function () {
+    Http::fake();
 
-    (new ValidateAndPublishFix($job->uuid))->handle();
+    $job = FixJob::factory()->prOpened()->create();
 
-    expect($job->fresh()->status)->toBe(FixJobStatus::Validating);
+    app()->call([new ValidateAndPublishFix($job->uuid), 'handle']);
+
+    expect($job->fresh()->status)->toBe(FixJobStatus::PrOpened);
+
+    Http::assertNothingSent();
 });
 
 test('the validation job tolerates a job that has been deleted', function () {
-    (new ValidateAndPublishFix('gone'))->handle();
+    app()->call([new ValidateAndPublishFix('gone'), 'handle']);
 })->throwsNoExceptions();

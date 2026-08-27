@@ -24,10 +24,17 @@ return [
         'shared_secret' => env('AUTOFIX_SHARED_SECRET'),
     ],
 
+    /*
+    | One GitHub App serves the whole product: its OAuth client credentials
+    | power "Continue with GitHub" (config/services.php), and the keys below
+    | power repository access — installation tokens and webhooks — once a
+    | team installs the App to enable autofix.
+    */
     'github' => [
-        'app_id' => env('AUTOFIX_GITHUB_APP_ID'),
-        'private_key' => env('AUTOFIX_GITHUB_PRIVATE_KEY'),
-        'webhook_secret' => env('AUTOFIX_GITHUB_WEBHOOK_SECRET'),
+        'app_id' => env('GITHUB_APP_ID'),
+        'slug' => env('GITHUB_APP_SLUG'),
+        'private_key' => env('GITHUB_APP_PRIVATE_KEY'),
+        'webhook_secret' => env('GITHUB_APP_WEBHOOK_SECRET'),
     ],
 
     'stream_jwt' => [
@@ -44,6 +51,8 @@ return [
         'max_diff_lines' => 800,
         'min_error_count' => 5,
         'cooldown_days' => 7,
+        'verify_after_hours' => 2,
+        'verify_fail_after_hours' => 24,
         'path_denylist' => ['.github/**', '.env*'],
     ],
 
