@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Project;
+use App\Models\ProjectApiKey;
 use App\Models\Team;
 use App\Models\TeamInvitation;
+use App\Services\Ingest\IngestRateUsage;
 use App\Services\Logs\LogDigest;
 use App\Services\Logs\LogOnboarding;
 use App\Services\Logs\LogStorage;
@@ -15,7 +17,7 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function __invoke(Request $request, LogOnboarding $onboarding, LogStorage $storage, LogDigest $digest): Response
+    public function __invoke(Request $request, LogOnboarding $onboarding, LogStorage $storage, LogDigest $digest, IngestRateUsage $ingestRate): Response
     {
         $email = strtolower($request->user()->email);
 
@@ -46,6 +48,7 @@ class DashboardController extends Controller
             'onboarding' => $onboarding->state($team, $projectIds),
             'storage' => $this->storage($storage, $projects, $projectIds),
             'digest' => $this->digest($digest, $projectIds),
+            'ingestRate' => $this->ingestRate($ingestRate, $projects),
             /*
              * The onboarding panel's project picker needs the same name/slug
              * list the logs page hands it; when the team is ready the panel
@@ -140,6 +143,35 @@ class DashboardController extends Controller
             'generatedAt' => $overview['generatedAt'],
             'unavailable' => $overview['unavailable'],
         ];
+    }
+
+    /**
+     * The ingest throttle's live per-key counters for the current minute.
+     *
+     * Null when the team has no projects — there is no key to spend a budget
+     * yet, so the card stays out of the onboarding steps' way. A team with
+     * projects but no keys still gets the card, which then says so.
+     *
+     * The counters are the limiter's own rolling minute: ephemeral by design,
+     * labelled "this minute", and never charted over time.
+     *
+     * @param  Collection<int, Project>  $projects
+     * @return array{limit: int, disabled: bool, keys: list<array{project: string, projectSlug: string, name: string, keyPrefix: string, attempts: int, remaining: int}>}|null
+     */
+    private function ingestRate(IngestRateUsage $ingestRate, $projects): ?array
+    {
+        if ($projects->isEmpty()) {
+            return null;
+        }
+
+        $apiKeys = ProjectApiKey::query()
+            ->whereIn('project_id', $projects->modelKeys())
+            ->with('project')
+            ->orderBy('project_id')
+            ->orderBy('name')
+            ->get();
+
+        return $ingestRate->forKeys($apiKeys);
     }
 
     /**

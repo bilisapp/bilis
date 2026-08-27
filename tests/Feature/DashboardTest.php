@@ -2,6 +2,7 @@
 
 use App\Enums\TeamRole;
 use App\Models\Project;
+use App\Models\ProjectApiKey;
 use App\Models\Team;
 use App\Models\TeamInvitation;
 use App\Models\User;
@@ -479,6 +480,111 @@ test('an overloaded clickhouse marks the digest unavailable without failing the 
         ->has('digest.services', 0)
         ->has('digest.series', 24)
         ->where('digest.series.0.total', 0),
+    );
+});
+
+test('dashboard reports the ingest limiter usage of every key in the team', function () {
+    [$user, $team, $api, $worker] = storageTeam();
+
+    $apiPlainKey = 'bilis_'.str_repeat('a', 40);
+
+    ProjectApiKey::factory()
+        ->forProject($api)
+        ->withPlainKey($apiPlainKey)
+        ->create(['name' => 'Production collector']);
+
+    ProjectApiKey::factory()
+        ->forProject($worker)
+        ->withPlainKey('bilis_'.str_repeat('b', 40))
+        ->create(['name' => 'Worker collector']);
+
+    config(['security.ingest_rate_limit' => 1200]);
+
+    Http::fake(fn (Request $request) => str_contains($request->body(), 'INSERT')
+        ? Http::response('')
+        : digestResponse($request->body()));
+
+    // Spend two of the Api key's requests through the real throttle stack.
+    $this->withToken($apiPlainKey)->postJson('/api/v1/ingest', ['message' => 'hello'])->assertStatus(202);
+    $this->withToken($apiPlainKey)->postJson('/api/v1/ingest', ['message' => 'hello'])->assertStatus(202);
+
+    $response = $this
+        ->actingAs($user)
+        ->get(route('dashboard', ['current_team' => $team->slug]));
+
+    $response->assertOk();
+    $response->assertInertia(fn (Assert $page) => $page
+        ->component('Dashboard')
+        ->where('ingestRate.limit', 1200)
+        ->where('ingestRate.disabled', false)
+        ->has('ingestRate.keys', 2)
+        ->where('ingestRate.keys.0.project', 'Api')
+        ->where('ingestRate.keys.0.projectSlug', 'api')
+        ->where('ingestRate.keys.0.name', 'Production collector')
+        ->where('ingestRate.keys.0.attempts', 2)
+        ->where('ingestRate.keys.0.remaining', 1198)
+        ->where('ingestRate.keys.1.name', 'Worker collector')
+        ->where('ingestRate.keys.1.attempts', 0)
+        ->where('ingestRate.keys.1.remaining', 1200)
+        // Only the hash is ever stored, and only the display prefix is shown.
+        ->missing('ingestRate.keys.0.keyHash'),
+    );
+});
+
+test('dashboard ingest usage is null for a team with no projects', function () {
+    Http::fake();
+
+    $user = User::factory()->create();
+
+    $response = $this
+        ->actingAs($user)
+        ->get(route('dashboard'));
+
+    $response->assertOk();
+    $response->assertInertia(fn (Assert $page) => $page
+        ->component('Dashboard')
+        ->where('ingestRate', null),
+    );
+});
+
+test('dashboard ingest usage lists no keys for a team that has not created one', function () {
+    [$user, $team] = storageTeam();
+
+    Http::fake(fn (Request $request) => digestResponse($request->body()));
+
+    $response = $this
+        ->actingAs($user)
+        ->get(route('dashboard', ['current_team' => $team->slug]));
+
+    $response->assertOk();
+    $response->assertInertia(fn (Assert $page) => $page
+        ->component('Dashboard')
+        ->has('ingestRate.keys', 0),
+    );
+});
+
+test('a disabled ingest limiter is reported as disabled rather than as zero usage', function () {
+    [$user, $team, $api] = storageTeam();
+
+    ProjectApiKey::factory()
+        ->forProject($api)
+        ->withPlainKey('bilis_'.str_repeat('c', 40))
+        ->create(['name' => 'Production collector']);
+
+    config(['security.ingest_rate_limit' => 0]);
+
+    Http::fake(fn (Request $request) => digestResponse($request->body()));
+
+    $response = $this
+        ->actingAs($user)
+        ->get(route('dashboard', ['current_team' => $team->slug]));
+
+    $response->assertOk();
+    $response->assertInertia(fn (Assert $page) => $page
+        ->component('Dashboard')
+        ->where('ingestRate.disabled', true)
+        ->where('ingestRate.limit', 0)
+        ->where('ingestRate.keys.0.attempts', 0),
     );
 });
 

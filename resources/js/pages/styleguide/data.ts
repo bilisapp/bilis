@@ -1,4 +1,9 @@
-import type { LogEntry, LogHistogram, SeverityLevel } from '@/types';
+import type {
+    IngestRateUsage,
+    LogEntry,
+    LogHistogram,
+    SeverityLevel,
+} from '@/types';
 
 export type Swatch = {
     /** Human readable name of the colour or token. */
@@ -470,3 +475,61 @@ export const SPARKLINE_UTC_HOUR_LABELS: string[] = Array.from(
     { length: 24 },
     (_, hour) => `${String((hour + 22) % 24).padStart(2, '0')}:00 UTC`,
 );
+
+/**
+ * Four API keys across three projects, spanning every state the bar has: a
+ * quiet shipper, a busy one, one leaning on the ceiling, and one that has
+ * reached it and is being answered with 429s.
+ */
+export const demoIngestRate: IngestRateUsage = {
+    limit: 1200,
+    disabled: false,
+    keys: [
+        {
+            project: 'checkout-api',
+            projectSlug: 'checkout-api',
+            name: 'Production collector',
+            keyPrefix: 'bilis_9fZ1qP',
+            attempts: 1200,
+            remaining: 0,
+        },
+        {
+            project: 'checkout-api',
+            projectSlug: 'checkout-api',
+            name: 'Staging collector',
+            keyPrefix: 'bilis_2kMv8L',
+            attempts: 1010,
+            remaining: 190,
+        },
+        {
+            project: 'bilis-ingest',
+            projectSlug: 'bilis-ingest',
+            name: 'otlp-collector',
+            keyPrefix: 'bilis_7hQr4T',
+            attempts: 348,
+            remaining: 852,
+        },
+        {
+            project: 'payments-gateway',
+            projectSlug: 'payments-gateway',
+            name: 'Nightly batch',
+            keyPrefix: 'bilis_5xBn1W',
+            attempts: 3,
+            remaining: 1197,
+        },
+    ],
+};
+
+/**
+ * The same keys with BILIS_INGEST_RATE_LIMIT=0: nothing is counted, so every
+ * bar rests and the row reads "no limit" instead of a fraction.
+ */
+export const demoIngestRateDisabled: IngestRateUsage = {
+    limit: 0,
+    disabled: true,
+    keys: demoIngestRate.keys.map((key) => ({
+        ...key,
+        attempts: 0,
+        remaining: 0,
+    })),
+};

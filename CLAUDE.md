@@ -1,6 +1,6 @@
 # Bilis
 
-Self-hostable log storage and search. **v1 scope is exactly this — nothing else**: one OTLP/HTTP ingest endpoint (+ simple JSON fallback), OTel-compatible ClickHouse logs table, and a log viewer UI (time range, project/service/severity filters, full-text search, live tail). Explicitly *not* in v1: traces, metrics, alerting, dashboards, saved searches, eBPF, S3 tiering, replication, billing. Push back on scope creep.
+Self-hostable log storage and search. **v1 is feature-complete and shipped**: OTLP/HTTP ingest (JSON + protobuf, plus a simple JSON fallback endpoint), OTel-compatible ClickHouse logs table, a log viewer UI (time range, project/service/severity filters, full-text search, live tail), and a built-in overview dashboard. Work now is refinement of these surfaces, not new ones. Still explicitly out of scope: traces, metrics, alerting, user-defined dashboards, saved searches, eBPF, S3 tiering, replication, billing. Push back on scope creep.
 
 ## Stack
 

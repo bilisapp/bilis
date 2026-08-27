@@ -70,6 +70,27 @@ export type LogStorageSummary = {
     projects: LogStorageProject[];
 };
 
+export type IngestRateKey = {
+    project: string;
+    projectSlug: string;
+    /** The key's own name, as it was created. */
+    name: string;
+    /** The first characters of the plaintext key — all Bilis ever stores. */
+    keyPrefix: string;
+    /** Ingest requests this key has spent in the limiter's current minute. */
+    attempts: number;
+    /** What is left of the per-minute budget; 0 when the limiter is disabled. */
+    remaining: number;
+};
+
+export type IngestRateUsage = {
+    /** Requests per minute, per key. */
+    limit: number;
+    /** The limiter is off (limit 0), so nothing is being counted. */
+    disabled: boolean;
+    keys: IngestRateKey[];
+};
+
 export type LogDigestCounts = {
     /** The last 24 hours. */
     current: number;

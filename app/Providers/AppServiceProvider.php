@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Http\Middleware\AuthenticateProjectApiKey;
 use App\Models\Project;
 use App\Models\ProjectApiKey;
+use App\Services\Ingest\IngestRateUsage;
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -81,13 +82,13 @@ class AppServiceProvider extends ServiceProvider
             if ($key === null) {
                 return $this->limit(
                     (int) config('security.ingest_rate_limit_unauthenticated'),
-                    'ingest:ip:'.$request->ip(),
+                    IngestRateUsage::bucketForIp($request->ip()),
                 );
             }
 
             return $this->limit(
                 (int) config('security.ingest_rate_limit'),
-                'ingest:key:'.hash('sha256', $key),
+                IngestRateUsage::bucketForKeyHash(ProjectApiKey::hashKey($key)),
             );
         });
     }

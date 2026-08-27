@@ -38,3 +38,6 @@ three Map columns (`ResourceAttributes`, `ScopeAttributes`, `LogAttributes`)
 to `stdClass` when empty; any new Map column must be added to
 `LogWriter::MAP_COLUMNS`. Regression test: "empty attribute maps are
 serialized as JSON objects" in `SimpleLogIngestTest`.
+
+## Reading the ingest throttle's counters back
+`ThrottleRequests::handleRequestUsingNamedLimiter()` does not hand the limiter's bucket to `RateLimiter` as written: it stores the counter under `md5($limiterName.$limit->key)` (`$shouldHashKeys` is true by default). So the dashboard reads `RateLimiter::attempts(md5('ingest'.'ingest:key:'.$keyHash))` — `IngestRateUsage::counterKey()`/`bucketForKeyHash()`. AppServiceProvider builds the same bucket through those helpers so the two can never drift; get it wrong and the panel silently reports 0 forever instead of failing. `ProjectApiKey::key_hash` *is* the sha256 the limiter buckets on, so usage is readable without the plaintext key. Covered by tests/Feature/Ingest/IngestRateUsageTest.php, which posts through the real throttle stack.

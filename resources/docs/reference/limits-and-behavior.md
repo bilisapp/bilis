@@ -62,7 +62,60 @@ than trusting a tier label.
 > down with it. Alert on disk at 70% — that will prevent more downtime than any
 > amount of replication.
 
-## Other v1 limits
+## Rate limits
+
+Ingest is throttled per API key, so one runaway client cannot starve the
+others:
+
+| Requests | Limit | Counted per |
+| --- | --- | --- |
+| With a valid `Authorization` header | **1,200 requests/minute** | API key |
+| Without one | **60 requests/minute** | client IP |
+
+Two things worth being precise about:
+
+- **The limit counts HTTP requests, not log lines.** A batch of 500 lines in
+  one POST is one request. If you are anywhere near the limit, the fix is
+  almost always batching — every OTLP exporter and the Bilis shipper batch by
+  default, so hitting it usually means something is misconfigured to send one
+  line per request.
+- **A rejection is a `429` with `Retry-After`, never silent.** OTLP exporters
+  treat it as retryable and back off, so a brief burst over the limit delays
+  delivery rather than losing it. A client that ignores `Retry-After` and keeps
+  hammering will lose whatever it fails to retry — that is the client's bug,
+  not a Bilis behavior.
+
+Self-hosted installs can change both knobs, `0` disables a limit entirely:
+
+```bash
+BILIS_INGEST_RATE_LIMIT=1200
+BILIS_INGEST_RATE_LIMIT_UNAUTHENTICATED=60
+```
+
+The rate limit shapes *request rate*; it does not cap *stored volume*. A
+well-batched client can fill the disk without ever seeing a `429` — see the
+sizing table above, and the quota note below.
+
+## Volume control belongs to the sender
+
+Bilis stores what arrives. There is no server-side sampling, no
+ingest-side downsampling, and none is planned: dropping data you deliberately
+sent would be a surprising way to protect a disk you own.
+
+That makes volume control your job, and the right place for it is *before* the
+log leaves your infrastructure — in the SDK or collector, where the decision is
+cheap and nothing is transmitted just to be thrown away:
+
+- **Don't ship what you won't read.** Raising the minimum severity for shipping
+  (while keeping debug in local files) is the single highest-leverage knob.
+- **Filter in the collector.** The OpenTelemetry Collector's `filter` processor
+  drops records by severity, body match or attribute before export.
+- **Sample the repetitive stuff.** Health-check hits and other high-frequency,
+  low-information lines can be probabilistically sampled at the collector; keep
+  errors at 100%.
+
+If a collector-side rule sampled your logs, the counts you see in Bilis are
+counts of what was shipped — Bilis does not extrapolate.
 
 - **One node.** Plain `MergeTree`, no replication. Replication needs Keeper, and
   a replicated table with unreachable Keeper goes read-only — on a single box
@@ -71,8 +124,9 @@ than trusting a tier label.
   from day one; it is the only thing that protects against a bad `ALTER`.
 - **Full-text search is token-based** over the log body, backed by a token bloom
   filter index. It matches whole tokens, case-insensitively — not substrings.
-- **No per-project ingest quota yet.** Nothing stops one noisy project from
-  filling the disk.
+- **No per-project ingest quota yet.** The per-key rate limit shapes request
+  rate, but nothing caps how much a well-batched project can store — a noisy
+  project can still fill the disk.
 
 ## Self-hosting
 

@@ -4,6 +4,7 @@ import { Activity, ArrowRight, Database } from '@lucide/vue';
 import { computed } from 'vue';
 import DitherSparkline from '@/components/DitherSparkline.vue';
 import GetStartedPanel from '@/components/GetStartedPanel.vue';
+import IngestRateCard from '@/components/IngestRateCard.vue';
 import PendingInvitationsModal from '@/components/PendingInvitationsModal.vue';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,6 +28,7 @@ import { index as logsIndex } from '@/routes/logs';
 import { show as projectShow } from '@/routes/projects';
 import type {
     DashboardInvitation,
+    IngestRateUsage,
     LogDigest,
     LogDigestCounts,
     LogOnboarding,
@@ -42,6 +44,7 @@ const props = defineProps<{
     projects: LogProject[];
     storage: LogStorageSummary | null;
     digest: LogDigest | null;
+    ingestRate: IngestRateUsage | null;
 }>();
 
 defineOptions({
@@ -696,6 +699,14 @@ function storageBarWidth(project: LogStorageProject): number {
                     </ul>
                 </CardContent>
             </Card>
+
+            <!--
+              The other half of "is ingest healthy": storage says what arrived,
+              this says how close the shippers are to being turned away. A
+              live per-minute reading, so it sits beside storage rather than
+              inside the 24 hour digest above.
+            -->
+            <IngestRateCard v-if="ingestRate" :usage="ingestRate" />
         </div>
     </div>
 </template>

@@ -7,6 +7,7 @@ import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import AppLogoMark from '@/components/AppLogoMark.vue';
 import GetStartedPanel from '@/components/GetStartedPanel.vue';
 import Heading from '@/components/Heading.vue';
+import IngestRateCard from '@/components/IngestRateCard.vue';
 import InputError from '@/components/InputError.vue';
 import LogEntryRow from '@/components/LogEntryRow.vue';
 import LogsHistogram from '@/components/LogsHistogram.vue';
@@ -18,7 +19,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DEFAULT_RANGE_PRESET, SEVERITY_LEVELS } from '@/lib/logs';
-import { demoHistogram, demoLogEntry } from '@/pages/styleguide/data';
+import {
+    demoHistogram,
+    demoIngestRate,
+    demoIngestRateDisabled,
+    demoLogEntry,
+} from '@/pages/styleguide/data';
 import { styleguide } from '@/routes';
 import type { LogProject, LogRangePreset, SeverityLevel } from '@/types';
 import DemoBlock from './DemoBlock.vue';
@@ -257,6 +263,23 @@ const onHistogramZoom = (window: { from: string; to: string }) => {
                     recordToolbarChange(() => (toolbarRange = $event))
                 "
                 @update:live-tail="toolbarLiveTail = $event"
+            />
+        </DemoBlock>
+
+        <DemoBlock
+            title="IngestRateCard"
+            description="the dashboard's live throughput card: what each API key has spent of its per-minute ingest budget. The counter is the throttle's own rolling minute, so the card says &quot;this minute&quot; and never charts it. A resting bar is chart data (teal); at 80% it takes the warn hue and at the ceiling the error hue, because a key at its limit is being answered with 429s."
+        >
+            <IngestRateCard :usage="demoIngestRate" />
+        </DemoBlock>
+
+        <DemoBlock
+            title="IngestRateCard — limiter off, and no keys yet"
+            description="BILIS_INGEST_RATE_LIMIT=0 turns the limiter off entirely: the keys are still listed, but nothing is counted and no bar can fill. A team whose projects have no keys gets the third state instead."
+        >
+            <IngestRateCard :usage="demoIngestRateDisabled" />
+            <IngestRateCard
+                :usage="{ limit: 1200, disabled: false, keys: [] }"
             />
         </DemoBlock>
 
