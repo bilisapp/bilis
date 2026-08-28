@@ -163,4 +163,9 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD php -r '$port = getenv("PORT") ?: "8080"; exit(@file_get_contents("http://127.0.0.1:".$port."/up") === false ? 1 : 0);'
 
 ENTRYPOINT ["bilis-entrypoint"]
-CMD ["web"]
+
+# Deliberately empty rather than ["web"]. The entrypoint falls back to
+# BILIS_ROLE when argv carries no role, and a CMD would occupy that slot on
+# every run — making the environment variable dead on any platform that does
+# not let you override the command, which is the case it exists for.
+CMD []
