@@ -22,7 +22,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { store } from '@/routes/autofix';
-import type { LogProject } from '@/types';
+import type { LogProject, TeamLlmCredential } from '@/types';
 
 /**
  * Ask the agent for something that is not a production error.
@@ -36,6 +36,13 @@ import type { LogProject } from '@/types';
 const props = defineProps<{
     teamSlug: string;
     projects: LogProject[];
+    /**
+     * The team's model API keys. The run is billed to whichever one is picked,
+     * so it is offered rather than assumed — but only when there is a genuine
+     * choice: one key, or none, and the server's default is the right answer
+     * and the field would be noise.
+     */
+    credentials?: TeamLlmCredential[];
 }>();
 
 /** Kept in step with `CreateFixJobRequest`. */
@@ -44,9 +51,21 @@ const MAX_LENGTH = 10000;
 
 const open = ref(false);
 
+const credentials = computed(() => props.credentials ?? []);
+const showCredentialPicker = computed(() => credentials.value.length > 1);
+
+/** The team's default key, which is the one the server would pick anyway. */
+const defaultCredentialId = computed(
+    () =>
+        credentials.value.find((credential) => credential.isDefault)?.id ??
+        credentials.value[0]?.id ??
+        null,
+);
+
 const form = useForm({
     project: props.projects.length === 1 ? props.projects[0].slug : '',
     instructions: '',
+    credential: defaultCredentialId.value,
 });
 
 const remaining = computed(() => MAX_LENGTH - form.instructions.length);
@@ -70,6 +89,7 @@ watch(open, (value) => {
         form.clearErrors();
         form.project =
             props.projects.length === 1 ? props.projects[0].slug : '';
+        form.credential = defaultCredentialId.value;
     }
 });
 
@@ -122,6 +142,35 @@ function submit() {
                         </SelectContent>
                     </Select>
                     <InputError :message="form.errors.project" />
+                </div>
+
+                <div v-if="showCredentialPicker" class="grid gap-2">
+                    <Label for="fix-job-credential">Model API key</Label>
+                    <Select v-model="form.credential">
+                        <SelectTrigger
+                            id="fix-job-credential"
+                            class="w-full"
+                            data-test="create-fix-job-credential"
+                        >
+                            <SelectValue placeholder="Pick a key" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem
+                                v-for="credential in credentials"
+                                :key="credential.id"
+                                :value="credential.id"
+                            >
+                                {{ credential.label }} ·
+                                {{ credential.providerLabel }} ·
+                                {{ credential.hint }}
+                            </SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <p class="text-xs text-muted-foreground">
+                        This run is billed to the key you pick, at that
+                        provider.
+                    </p>
+                    <InputError :message="form.errors.credential" />
                 </div>
 
                 <div class="grid gap-2">

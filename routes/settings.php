@@ -4,6 +4,7 @@ use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SecurityController;
 use App\Http\Controllers\Teams\TeamController;
 use App\Http\Controllers\Teams\TeamInvitationController;
+use App\Http\Controllers\Teams\TeamLlmCredentialController;
 use App\Http\Controllers\Teams\TeamMemberController;
 use App\Http\Middleware\EnsureTeamMembership;
 use Illuminate\Auth\Middleware\RequirePassword;
@@ -35,6 +36,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware(EnsureTeamMembership::class)->group(function () {
         Route::get('settings/teams/{team}', [TeamController::class, 'edit'])->name('teams.edit');
         Route::patch('settings/teams/{team}', [TeamController::class, 'update'])->name('teams.update');
+
+        /*
+         * The team's own model API keys, one row each. Separate endpoints from
+         * the general team update because these values are credentials: never
+         * returned to the browser, never mass-assignable, and written through
+         * one method that also records the masked hint.
+         */
+        Route::post('settings/teams/{team}/llm-credentials', [TeamLlmCredentialController::class, 'store'])
+            ->name('teams.llm-credentials.store');
+        Route::patch('settings/teams/{team}/llm-credentials/{credential}', [TeamLlmCredentialController::class, 'update'])
+            ->name('teams.llm-credentials.update');
+        Route::delete('settings/teams/{team}/llm-credentials/{credential}', [TeamLlmCredentialController::class, 'destroy'])
+            ->name('teams.llm-credentials.destroy');
         Route::delete('settings/teams/{team}', [TeamController::class, 'destroy'])->name('teams.destroy');
         Route::post('settings/teams/{team}/switch', [TeamController::class, 'switch'])->name('teams.switch');
         Route::delete('settings/teams/{team}/leave', [TeamController::class, 'leave'])->name('teams.leave');

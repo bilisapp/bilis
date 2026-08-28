@@ -2,10 +2,12 @@
 
 use App\Enums\FixJobStatus;
 use App\Enums\FixJobType;
+use App\Enums\LlmProvider;
 use App\Jobs\DispatchFixJob;
 use App\Models\FixJob;
 use App\Models\Project;
 use App\Models\ProjectRepository;
+use App\Models\TeamLlmCredential;
 use App\Services\Autofix\ErrorFingerprinter;
 use App\Services\Autofix\FixTriggerService;
 use Illuminate\Support\Carbon;
@@ -108,6 +110,37 @@ test('an unseen fingerprint above the threshold raises a fix job', function () {
         ->and($job->error_context['first_seen'])->toBe('2026-08-27 09:59:00.000000000');
 
     Queue::assertPushed(DispatchFixJob::class, fn (DispatchFixJob $queued): bool => $queued->uuid === $job->uuid);
+});
+
+/*
+ * Nobody is here to pick a key, so the scan pins the team's default — the same
+ * thing the new-job dialog does when the person leaves the picker alone. A job
+ * raised with no credential at all would resolve one at dispatch instead, which
+ * is a different key if settings changed in between.
+ */
+test('a scheduled job pins the team default credential', function () {
+    fakeClickHouse(triggerRows(6, triggerStack()));
+
+    $repository = autofixRepository();
+    $team = $repository->project->team;
+
+    TeamLlmCredential::add($team, LlmProvider::OpenAi, 'Not the default', 'sk-openai-not-the-default-22');
+    $default = TeamLlmCredential::add($team, LlmProvider::Anthropic, 'Default', 'sk-ant-the-team-default-1111');
+    $default->makeDefault();
+
+    app(FixTriggerService::class)->scan();
+
+    expect(FixJob::query()->sole()->team_llm_credential_id)->toBe($default->id);
+});
+
+test('a scheduled job for a team with no key of its own pins nothing', function () {
+    fakeClickHouse(triggerRows(6, triggerStack()));
+
+    autofixRepository();
+
+    app(FixTriggerService::class)->scan();
+
+    expect(FixJob::query()->sole()->team_llm_credential_id)->toBeNull();
 });
 
 test('an error below the minimum count is left alone', function () {

@@ -56,13 +56,20 @@ class GitHubAppTokenService
      * Read-only scopes are cached; anything that can write is fetched fresh so
      * a write token never outlives the operation that asked for it.
      *
+     * `$fresh` bypasses the cache for a read token too, and exists for exactly
+     * one caller. Ayos now runs in the same container as the agent, so it
+     * revokes its clone token the moment the clone finishes — which makes that
+     * token single-use. Serving the next job a cached copy would dispatch it
+     * with a credential the previous run had already destroyed, and the failure
+     * would look like a permissions problem rather than a caching one.
+     *
      * @param  array<string, string>  $permissions
      *
      * @throws GitHubAppException
      */
-    public function installationToken(GitHubInstallation $installation, string $repo, array $permissions): string
+    public function installationToken(GitHubInstallation $installation, string $repo, array $permissions, bool $fresh = false): string
     {
-        if (! $this->isReadOnly($permissions)) {
+        if ($fresh || ! $this->isReadOnly($permissions)) {
             return $this->requestToken($installation, $repo, $permissions);
         }
 

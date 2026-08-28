@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import CodeCanvas from '@/components/CodeCanvas.vue';
 import CreateFixJobModal from '@/components/CreateFixJobModal.vue';
+import DeleteLlmCredentialModal from '@/components/DeleteLlmCredentialModal.vue';
 import FixJobEventRow from '@/components/FixJobEventRow.vue';
 import FixJobStatusBadge from '@/components/FixJobStatusBadge.vue';
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,7 @@ import {
     demoFixExcerpt,
     demoFixJobEvents,
     demoFixJobStatuses,
+    demoLlmCredentials,
 } from '@/pages/styleguide/data';
 import DemoBlock from './DemoBlock.vue';
 import SectionShell from './SectionShell.vue';
@@ -24,6 +26,8 @@ const demoAutofixProjects = [
     { name: 'Checkout API', slug: 'checkout-api' },
     { name: 'Ingest Gateway', slug: 'ingest-gateway' },
 ];
+
+const deleteCredentialOpen = ref(false);
 </script>
 
 <template>
@@ -53,9 +57,29 @@ const demoAutofixProjects = [
             <CreateFixJobModal
                 :team-slug="teamSlug"
                 :projects="demoAutofixProjects"
+                :credentials="demoLlmCredentials"
             >
                 <Button size="sm">New job</Button>
             </CreateFixJobModal>
+        </DemoBlock>
+
+        <DemoBlock
+            title="DeleteLlmCredentialModal"
+            description="Removing one of a team's model API keys. The copy is careful about what it does and does not do: no new job can run on the key, jobs that already did keep their history, and the key is NOT revoked at the provider — a customer who assumes otherwise leaves a live credential behind."
+        >
+            <Button
+                size="sm"
+                variant="secondary"
+                @click="deleteCredentialOpen = true"
+            >
+                Remove key
+            </Button>
+
+            <DeleteLlmCredentialModal
+                v-model:open="deleteCredentialOpen"
+                :team-slug="teamSlug"
+                :credential="demoLlmCredentials[0]"
+            />
         </DemoBlock>
 
         <DemoBlock

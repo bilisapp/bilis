@@ -150,7 +150,7 @@ test('a fix job from another team is a 404', function () {
         ->assertNotFound();
 });
 
-test('the autofix config carries the ayos and github credentials and defaults', function () {
+test('the autofix config carries the runner, github credentials and defaults', function () {
     expect(config('autofix.defaults.timeout_s'))->toBe(900)
         ->and(config('autofix.defaults.max_diff_lines'))->toBe(800)
         ->and(config('autofix.defaults.min_error_count'))->toBe(5)
@@ -158,9 +158,9 @@ test('the autofix config carries the ayos and github credentials and defaults', 
         ->and(config('autofix.defaults.path_denylist'))->toBe(['.github/**', '.env*'])
         ->and(config('autofix.stream_jwt.ttl_minutes'))->toBe(10)
         ->and(config()->has('autofix.enabled'))->toBeTrue()
-        ->and(config()->has('autofix.ayos.url'))->toBeTrue()
-        ->and(config()->has('autofix.ayos.stream_url'))->toBeTrue()
-        ->and(config()->has('autofix.ayos.shared_secret'))->toBeTrue()
+        ->and(config()->has('autofix.runner.driver'))->toBeTrue()
+        ->and(config()->has('autofix.runner.local.entrypoint'))->toBeTrue()
+        ->and(config()->has('autofix.runner.scaleway.job_definition_id'))->toBeTrue()
         ->and(config()->has('autofix.github.app_id'))->toBeTrue()
         ->and(config()->has('autofix.github.private_key'))->toBeTrue()
         ->and(config()->has('autofix.github.webhook_secret'))->toBeTrue()

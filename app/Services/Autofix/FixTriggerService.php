@@ -258,6 +258,12 @@ class FixTriggerService
         $job = FixJob::query()->create([
             'project_id' => $repository->project_id,
             'project_repository_id' => $repository->id,
+            /*
+             * Nobody is here to pick a key, so the scan takes the team's
+             * default and pins it — the same thing the new-job dialog does
+             * when the person leaves the picker alone.
+             */
+            'team_llm_credential_id' => $repository->project->team->defaultLlmCredential()?->getKey(),
             'type' => FixJobType::Error,
             'fingerprint' => $group['fingerprint'],
             'error_context' => $this->errorContext($group, $from, $to),

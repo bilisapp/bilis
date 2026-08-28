@@ -5,9 +5,11 @@ use App\Models\GitHubInstallation;
 use App\Models\Project;
 use App\Models\ProjectRepository;
 use App\Models\Team;
+use App\Services\Autofix\RunDriver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Tests\Support\FakeRunDriver;
 use Tests\TestCase;
 
 /*
@@ -79,9 +81,13 @@ function insertedRows(Request $request): array
 | Autofix helpers
 |--------------------------------------------------------------------------
 |
-| Shared by the autofix feature tests: a fully wired pending fix job, and a
-| fake for the three hosts the dispatch path talks to (GitHub's token
-| exchange, GitHub's commit lookup and Ayos itself).
+| Shared by the autofix feature tests: a fully wired pending fix job, a fake
+| for the two GitHub endpoints the dispatch path talks to, and a stand-in for
+| the platform that starts runs.
+|
+| Note what is NOT here any more: an Ayos endpoint. Dispatching is starting a
+| container, not calling a service, so there is no HTTP to fake — `fakeRuns()`
+| replaces it.
 |
 */
 
@@ -125,15 +131,36 @@ function ayosJob(array $repositoryAttributes = []): FixJob
 }
 
 /**
- * Fake GitHub's token exchange and commit lookup plus Ayos's job endpoint.
+ * Fake GitHub's token exchange and commit lookup.
  */
-function fakeAyos(int $status = 202, string $body = '{"job_id":"ok"}'): void
+function fakeAyos(): void
 {
     Http::fake([
         'api.github.com/app/installations/*/access_tokens' => Http::response(['token' => 'ghs_readonly']),
         'api.github.com/repos/acme/app/commits/main' => Http::response(['sha' => 'c0ffee1234567890']),
-        'ayos.test/jobs*' => Http::response($body, $status),
     ]);
+}
+
+/**
+ * Whether a binary is on the PATH, for tests that shell out for real.
+ */
+function commandExists(string $binary): bool
+{
+    exec('command -v '.escapeshellarg($binary), $output, $status);
+
+    return $status === 0;
+}
+
+/**
+ * Bind a recording run driver, and hand it back so a test can inspect it.
+ */
+function fakeRuns(?FakeRunDriver $driver = null): FakeRunDriver
+{
+    $driver ??= new FakeRunDriver;
+
+    app()->instance(RunDriver::class, $driver);
+
+    return $driver;
 }
 
 /**

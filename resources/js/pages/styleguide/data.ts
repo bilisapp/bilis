@@ -5,6 +5,7 @@ import type {
     LogEntry,
     LogHistogram,
     SeverityLevel,
+    TeamLlmCredential,
 } from '@/types';
 
 export type Swatch = {
@@ -663,4 +664,31 @@ export const demoFixJobStatuses: { status: FixJobStatus; label: string }[] = [
     { status: 'failed', label: 'Failed' },
     { status: 'timeout', label: 'Timeout' },
     { status: 'cancelled', label: 'Cancelled' },
+];
+
+/**
+ * A team's model API keys, as the settings page and the new-job picker see
+ * them: provider, label and the last four characters, never the key.
+ */
+export const demoLlmCredentials: TeamLlmCredential[] = [
+    {
+        id: 1,
+        provider: 'anthropic',
+        providerLabel: 'Anthropic',
+        label: 'Production budget',
+        hint: 'a91f',
+        isDefault: true,
+        lastUsedAt: '2026-08-27T09:14:00.000Z',
+        createdAt: '2026-06-02T11:00:00.000Z',
+    },
+    {
+        id: 2,
+        provider: 'openrouter',
+        providerLabel: 'OpenRouter',
+        label: 'Experiments',
+        hint: '4c7d',
+        isDefault: false,
+        lastUsedAt: null,
+        createdAt: '2026-08-19T16:40:00.000Z',
+    },
 ];

@@ -4,6 +4,7 @@ namespace App\Http\Requests\Autofix;
 
 use App\Models\ProjectRepository;
 use App\Models\Team;
+use App\Models\TeamLlmCredential;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
@@ -45,6 +46,13 @@ class CreateFixJobRequest extends FormRequest
         return [
             'project' => ['required', 'string', 'max:255'],
             'instructions' => ['required', 'string', 'min:'.self::MIN_LENGTH, 'max:'.self::MAX_LENGTH],
+            /*
+             * Which of the team's model credentials pays for this run.
+             * Optional: a team with one key, or a deployment running on the
+             * instance-wide key, has nothing to choose between, and the
+             * controller falls back to the team default.
+             */
+            'credential' => ['nullable', 'integer'],
         ];
     }
 
@@ -124,6 +132,25 @@ class CreateFixJobRequest extends FormRequest
             ->first();
 
         return $this->resolved = $repository;
+    }
+
+    /**
+     * The model credential this request names, if it belongs to the team.
+     *
+     * Resolved through the team rather than by id alone: a credential id from
+     * another team is "no such credential" and falls back to the default,
+     * never someone else's key.
+     */
+    public function credential(): ?TeamLlmCredential
+    {
+        $id = $this->input('credential');
+        $team = $this->team();
+
+        if ($team === null || ! is_numeric($id)) {
+            return null;
+        }
+
+        return $team->llmCredentials()->whereKey((int) $id)->first();
     }
 
     /**

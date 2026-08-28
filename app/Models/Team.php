@@ -27,6 +27,7 @@ use Illuminate\Support\Carbon;
  * @property-read Collection<int, User> $members
  * @property-read Collection<int, Project> $projects
  * @property-read Collection<int, GitHubInstallation> $githubInstallations
+ * @property-read Collection<int, TeamLlmCredential> $llmCredentials
  */
 #[Fillable(['name', 'slug', 'is_personal'])]
 class Team extends Model
@@ -52,6 +53,38 @@ class Team extends Model
                 $team->slug = static::generateUniqueTeamSlug($team->name, $team->id);
             }
         });
+    }
+
+    /**
+     * The model credentials this team holds.
+     *
+     * Bring-your-own-key, one row per key. The default is listed first because
+     * every reader — the settings page, the new-job picker, the scan — wants it
+     * first or wants only it.
+     *
+     * @return HasMany<TeamLlmCredential, $this>
+     */
+    public function llmCredentials(): HasMany
+    {
+        return $this->hasMany(TeamLlmCredential::class)
+            ->orderByDesc('is_default')
+            ->orderBy('id');
+    }
+
+    /**
+     * The credential this team's jobs run on unless one is picked by hand.
+     */
+    public function defaultLlmCredential(): ?TeamLlmCredential
+    {
+        return $this->llmCredentials()->first();
+    }
+
+    /**
+     * Whether this team has a model credential of its own at all.
+     */
+    public function hasLlmCredential(): bool
+    {
+        return $this->llmCredentials()->exists();
     }
 
     /**

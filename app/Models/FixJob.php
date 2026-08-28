@@ -27,11 +27,14 @@ use Illuminate\Support\Carbon;
  * @property string $uuid
  * @property int $project_id
  * @property int $project_repository_id
+ * @property int|null $team_llm_credential_id
  * @property FixJobType $type
  * @property string|null $fingerprint
  * @property array<string, mixed>|null $error_context
  * @property string|null $instructions
  * @property string $base_sha
+ * @property string|null $ayos_public_key
+ * @property string|null $ayos_run_id
  * @property int $redispatch_count
  * @property FixJobStatus $status
  * @property string|null $diff
@@ -48,16 +51,20 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  * @property-read Project $project
  * @property-read ProjectRepository $repository
+ * @property-read TeamLlmCredential|null $llmCredential
  */
 #[Fillable([
     'uuid',
     'project_id',
     'project_repository_id',
+    'team_llm_credential_id',
     'type',
     'fingerprint',
     'error_context',
     'instructions',
     'base_sha',
+    'ayos_public_key',
+    'ayos_run_id',
     'redispatch_count',
     'status',
     'diff',
@@ -116,6 +123,22 @@ class FixJob extends Model
     public function repository(): BelongsTo
     {
         return $this->belongsTo(ProjectRepository::class, 'project_repository_id')->withTrashed();
+    }
+
+    /**
+     * The model credential this job was raised against.
+     *
+     * Pinned when the job is created — by the person who picked it, or by the
+     * scan taking the team's default — so "which key paid for this" has one
+     * answer that does not move when team settings are edited mid-run. Null
+     * when the credential has since been deleted, or when the job predates
+     * per-job credentials; dispatch falls back to the team default then.
+     *
+     * @return BelongsTo<TeamLlmCredential, $this>
+     */
+    public function llmCredential(): BelongsTo
+    {
+        return $this->belongsTo(TeamLlmCredential::class, 'team_llm_credential_id');
     }
 
     /**

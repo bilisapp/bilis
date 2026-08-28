@@ -6,6 +6,9 @@ use App\Http\Middleware\AuthenticateProjectApiKey;
 use App\Models\FixJob;
 use App\Models\Project;
 use App\Models\ProjectApiKey;
+use App\Services\Autofix\LocalRunDriver;
+use App\Services\Autofix\RunDriver;
+use App\Services\Autofix\ScalewayRunDriver;
 use App\Services\Ingest\IngestRateUsage;
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -25,7 +28,25 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->configureAutofixRunner();
+    }
+
+    /**
+     * Bind the driver that starts Ayos runs.
+     *
+     * The two implementations differ only in how a run is started and stopped —
+     * a child process here, a Serverless Job run in production. Everything
+     * downstream is the same code on both sides, which is what makes a local
+     * end-to-end test worth running.
+     */
+    protected function configureAutofixRunner(): void
+    {
+        $this->app->bind(RunDriver::class, function (): RunDriver {
+            return match (config('autofix.runner.driver')) {
+                'scaleway' => new ScalewayRunDriver,
+                default => new LocalRunDriver,
+            };
+        });
     }
 
     /**

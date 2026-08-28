@@ -4,18 +4,21 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\FixJobStatus;
 use App\Http\Controllers\Controller;
+use App\Http\Middleware\VerifyAyosSignature;
 use App\Jobs\ValidateAndPublishFix;
 use App\Models\FixJob;
+use App\Services\Autofix\FixJobEventRecorder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Receives the artifact Ayos produces at the end of a job.
  *
  * The request is authenticated by `ayos.signature` alone — there is no session
- * and no API key on this path, only the shared-secret HMAC over the raw body
- * and a timestamp inside a five minute window.
+ * and no API key on this path, only an Ed25519 signature over
+ * `{timestamp}.{raw body}` made with the key minted for this one run. The
+ * middleware has already resolved the job that key belongs to; the payload is
+ * re-validated here from scratch regardless.
  *
  * Ayos retries the callback with backoff, so this endpoint has to be
  * idempotent: a job that has already moved past `validating` answers 200 and
@@ -57,7 +60,7 @@ class AutofixArtifactController extends Controller
     /**
      * Persist one artifact.
      */
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, FixJobEventRecorder $recorder): JsonResponse
     {
         /** @var array<string, mixed> $payload */
         $payload = $request->validate([
@@ -68,11 +71,14 @@ class AutofixArtifactController extends Controller
             'events' => ['nullable', 'array'],
         ]);
 
-        $job = FixJob::query()->where('uuid', $payload['job_id'])->first();
-
-        if ($job === null) {
-            return new JsonResponse(['message' => 'Unknown job.'], Response::HTTP_NOT_FOUND);
-        }
+        /*
+         * The job the signature was verified against — not a second lookup by
+         * the id in the body. Those are the same row by construction, and
+         * taking it from the middleware is what makes that guaranteed rather
+         * than merely true.
+         */
+        /** @var FixJob $job */
+        $job = $request->attributes->get(VerifyAyosSignature::JOB_ATTRIBUTE);
 
         if (! in_array($job->status, self::ACCEPTING_STATUSES, true)) {
             return new JsonResponse([
@@ -83,11 +89,21 @@ class AutofixArtifactController extends Controller
 
         $status = self::STATUS_MAP[(string) $payload['status']];
 
+        /*
+         * The artifact's transcript is MERGED into whatever the live batches
+         * already left, never assigned over it. The artifact's copy is the
+         * authoritative one, but assigning it would also mean that an artifact
+         * arriving without events — or with a truncated tail — erased a
+         * transcript the viewer had been watching all along.
+         */
+        if (is_array($payload['events'] ?? null)) {
+            $recorder->record($job, $payload['events']);
+        }
+
         $attributes = [
             'status' => $status,
             'diff' => is_string($payload['diff'] ?? null) ? $payload['diff'] : null,
             'report' => is_array($payload['report'] ?? null) ? $payload['report'] : null,
-            'events' => is_array($payload['events'] ?? null) ? $payload['events'] : null,
         ];
 
         if ($status->isTerminal()) {

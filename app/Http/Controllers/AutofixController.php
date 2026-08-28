@@ -10,7 +10,9 @@ use App\Models\FixJob;
 use App\Models\Project;
 use App\Models\ProjectRepository;
 use App\Models\Team;
+use App\Models\TeamLlmCredential;
 use App\Services\Autofix\FixJobBudget;
+use App\Services\Autofix\LlmCredentials;
 use App\Services\Autofix\StreamTokenIssuer;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -79,6 +81,14 @@ class AutofixController extends Controller
              * switched off there is no such project, whatever the rows say.
              */
             'autofixProjects' => $this->enabled() ? $this->autofixProjects($team) : [],
+            /*
+             * The keys the new-job dialog may choose between. Never the keys
+             * themselves — the same summary the settings page gets.
+             */
+            'llmCredentials' => $team->llmCredentials()
+                ->get()
+                ->map(fn (TeamLlmCredential $credential): array => $credential->toSummary())
+                ->values(),
         ]);
     }
 
@@ -91,7 +101,7 @@ class AutofixController extends Controller
      * (the repository's own budgets, shared with the scan — a person and the
      * scheduler draw from one pool).
      */
-    public function store(CreateFixJobRequest $request, FixJobBudget $budgets, string $current_team): RedirectResponse
+    public function store(CreateFixJobRequest $request, FixJobBudget $budgets, LlmCredentials $llm, string $current_team): RedirectResponse
     {
         /*
          * `AUTOFIX_ENABLED` is the deployment-wide switch the scan and the
@@ -113,9 +123,32 @@ class AutofixController extends Controller
             throw ValidationException::withMessages(['project' => $refusal]);
         }
 
+        $team = $repository->project->team;
+
+        /*
+         * Checked here rather than left to the dispatcher. Without a key the
+         * job would be created, queued, and fail a moment later with a banner
+         * that reads like an outage — when the real answer is a field in team
+         * settings that nobody has filled in yet.
+         */
+        if (! $llm->configuredFor($team)) {
+            throw ValidationException::withMessages([
+                'credential' => __('This team has no model API key yet. Add one in team settings before running a fix job.'),
+            ]);
+        }
+
+        /*
+         * Pinned at creation, not read at dispatch: "which key paid for this
+         * job" must have one answer, and it must not change because somebody
+         * edited team settings while the run was in flight. An unnamed (or
+         * unrecognised) credential means the team's default.
+         */
+        $credential = $request->credential() ?? $team->defaultLlmCredential();
+
         $job = FixJob::query()->create([
             'project_id' => $repository->project_id,
             'project_repository_id' => $repository->id,
+            'team_llm_credential_id' => $credential?->getKey(),
             'type' => FixJobType::Custom,
             'fingerprint' => null,
             'error_context' => null,

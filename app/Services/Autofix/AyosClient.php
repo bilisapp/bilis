@@ -3,24 +3,35 @@
 namespace App\Services\Autofix;
 
 use App\Enums\FixJobStatus;
-use App\Http\Middleware\VerifyAyosSignature;
 use App\Models\FixJob;
 use App\Models\ProjectRepository;
 use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Http\Client\PendingRequest;
-use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 
 /**
- * The control-plane client for Ayos.
+ * Starts and stops Ayos runs.
  *
- * Everything Ayos needs arrives in the job spec, minted per job and scoped as
- * narrowly as it goes: a `contents: read` installation token it can clone with
- * and nothing else, an LLM key, and the constraints it must respect. It never
- * receives the App private key, a write token, or any user or team identity.
+ * Ayos used to be a service Bilis POSTed to. It is not one any more: a fix job
+ * is one container run with no inbound HTTP, so there is nothing to call and
+ * nothing to authenticate to. What is left is smaller and, in every direction
+ * that matters, tighter:
  *
- * Both directions of the control plane are authenticated with one shared
- * secret — the same HMAC scheme `VerifyAyosSignature` checks on the way back.
+ * - **Per-run keys instead of a shared secret.** A keypair is minted here, the
+ *   private half goes into the run and the public half onto the job row. There
+ *   is no long-lived credential shared between the two services at all.
+ * - **The clone token is single-use.** It now enters the same container as the
+ *   agent, so Ayos revokes it the moment the clone finishes. That is why it is
+ *   requested `fresh` below: a cached token would be handed to a second job
+ *   after the first had already destroyed it.
+ * - **The model credential belongs to the customer.** It is resolved from the
+ *   job's own team rather than taken from config, so a leak from a run record
+ *   costs one customer's budget instead of every customer's. Which provider it
+ *   is for travels with it: the key and the host it is valid at are chosen by
+ *   the party that holds the key, never guessed by the runner.
+ *
+ * Bilis still owns every credential: the GitHub App key, the LLM key and the
+ * platform's own API key. Ayos receives short-lived, per-job material and
+ * nothing else — no App private key, no write token, no user or team identity.
  */
 class AyosClient
 {
@@ -33,18 +44,15 @@ class AyosClient
      */
     public const CLONE_PERMISSIONS = ['contents' => 'read'];
 
-    /**
-     * How long an Ayos control-plane call may take.
-     */
-    public const TIMEOUT_SECONDS = 15;
-
     public function __construct(
         private readonly GitHubAppTokenService $tokens,
         private readonly TaskRenderer $taskRenderer,
+        private readonly RunDriver $runs,
+        private readonly LlmCredentials $llm,
     ) {}
 
     /**
-     * Hand one fix job to Ayos.
+     * Hand one fix job to a fresh Ayos run.
      *
      * The commit the agent works from is pinned here rather than left to the
      * clone: Ayos checks out exactly the sha Bilis saw, so the diff that comes
@@ -56,63 +64,116 @@ class AyosClient
     public function dispatch(FixJob $job): void
     {
         $repository = $job->repository;
+
+        /*
+         * Resolved first, and deliberately before any token is minted: a job
+         * whose team has no usable key is going to fail either way, and it
+         * should do so without having burned a single-use clone token on the
+         * way.
+         */
+        $credential = $this->llm->forJob($job);
+
+        /*
+         * `fresh: true` is load-bearing. Read-only installation tokens are
+         * cached for 50 minutes and shared between call sites, but Ayos revokes
+         * this one as soon as it has cloned — so a cached token would send the
+         * next job out with a credential the previous run already killed.
+         */
         $token = $this->tokens->installationToken(
             $repository->installation,
             $repository->repo_full_name,
             self::CLONE_PERMISSIONS,
+            fresh: true,
         );
 
         $baseSha = $this->resolveBaseSha($repository, $token);
+        $keys = RunKeyPair::mint();
 
-        $job->forceFill(['base_sha' => $baseSha])->save();
+        /*
+         * The public key lands on the row BEFORE the run starts. The run may
+         * post its first event batch within a second of starting, and a
+         * callback arriving before its own verification key is a 401 on a
+         * perfectly good job.
+         */
+        $job->forceFill([
+            'base_sha' => $baseSha,
+            'ayos_public_key' => $keys->publicKey,
+        ])->save();
 
-        $this->send('/jobs', $this->jobSpec($job, $repository, $token, $baseSha));
+        $spec = $this->jobSpec($job, $repository, $token, $baseSha, $keys, $credential);
+
+        $runId = $this->runs->start($spec, $job->uuid);
+
+        $credential->markUsed();
 
         $job->forceFill([
             'status' => FixJobStatus::Dispatched,
+            'ayos_run_id' => $runId,
             'dispatched_at' => now(),
         ])->save();
     }
 
     /**
-     * Ask Ayos to abort a running job.
+     * Stop a running job.
      *
-     * Ayos still posts a (failed) artifact to the callback, so the job's own
-     * terminal state is set by the callback rather than here.
+     * The run is signalled rather than deleted: Ayos treats that as a
+     * cancellation, aborts the agent and still tries to post a `cancelled`
+     * artifact, so the job's terminal state is set by the callback rather than
+     * guessed here.
      *
      * @throws AyosException
      */
     public function cancel(FixJob $job): void
     {
-        try {
-            $this->send(sprintf('/jobs/%s/cancel', $job->uuid), ['job_id' => $job->uuid]);
-        } catch (AyosException $exception) {
-            /*
-             * A 404 means Ayos no longer knows the job — its in-process state
-             * was lost (restart) or already disposed. Nothing is left to
-             * abort, so cancellation has effectively succeeded.
-             */
-            if ($exception->statusCode() !== 404) {
-                throw $exception;
-            }
+        if (! is_string($job->ayos_run_id) || $job->ayos_run_id === '') {
+            // Never started, or started before this column existed. There is
+            // nothing to stop, and saying so would be inventing a failure.
+            return;
         }
+
+        $this->runs->stop($job->ayos_run_id);
     }
 
     /**
-     * Build the job spec exactly as specs/ayos.md describes it.
+     * What the platform believes about this job's run.
      *
-     * @param  array<string, mixed>  $extra
-     * @return array<string, mixed>
+     * `null` means the driver could not tell — which is emphatically not the
+     * same as the run being dead, and must not be reconciled as one.
+     *
+     * @throws AyosException
      */
-    protected function jobSpec(FixJob $job, ProjectRepository $repository, string $cloneToken, string $baseSha, array $extra = []): array
+    public function runStatus(FixJob $job): ?RunStatus
     {
-        return [
+        if (! is_string($job->ayos_run_id) || $job->ayos_run_id === '') {
+            return null;
+        }
+
+        return $this->runs->status($job->ayos_run_id);
+    }
+
+    /**
+     * Build the job spec exactly as Ayos's SPEC.md describes it.
+     *
+     * @return string the JSON that becomes the run's `AYOS_JOB_SPEC`
+     */
+    protected function jobSpec(
+        FixJob $job,
+        ProjectRepository $repository,
+        string $cloneToken,
+        string $baseSha,
+        RunKeyPair $keys,
+        ResolvedLlmCredential $credential,
+    ): string {
+        return (string) json_encode([
             'job_id' => $job->uuid,
             'repo' => $repository->repo_full_name,
             'base_ref' => $repository->default_branch,
             'base_sha' => $baseSha,
             'clone_token' => $cloneToken,
-            'llm_key' => $this->llmKey(),
+            'llm_provider' => $credential->provider->value,
+            'llm_key' => $credential->key,
+            'llm_host' => $credential->host(),
+            'signing_key' => $keys->signingKey,
             'task' => $this->taskRenderer->render($job),
             'constraints' => [
                 'timeout_s' => (int) config('autofix.defaults.timeout_s', 900),
@@ -121,8 +182,8 @@ class AyosClient
                 'path_denylist' => $this->pathDenylist(),
             ],
             'callback_url' => route('api.internal.autofix.artifacts'),
-            ...$extra,
-        ];
+            'events_url' => route('api.internal.autofix.events'),
+        ], JSON_UNESCAPED_SLASHES);
     }
 
     /**
@@ -165,106 +226,11 @@ class AyosClient
     }
 
     /**
-     * POST a signed request to Ayos.
-     *
-     * The signature covers `{timestamp}.{raw body}` — the same scheme, byte for
-     * byte, that `VerifyAyosSignature` checks on Ayos's callbacks — so the body
-     * is encoded once here and sent verbatim: re-encoding it inside the HTTP
-     * client would sign one string and transmit another. Binding the timestamp
-     * into the digest is what bounds the replay window: it cannot be replaced
-     * with a fresh one without invalidating the signature.
-     *
-     * @param  array<string, mixed>  $payload
-     *
-     * @throws AyosException
-     */
-    protected function send(string $path, array $payload): Response
-    {
-        $url = $this->baseUrl().$path;
-        $body = (string) json_encode($payload, JSON_UNESCAPED_SLASHES);
-        $timestamp = (string) now()->getTimestamp();
-
-        try {
-            $response = $this->request()
-                ->withHeaders([
-                    VerifyAyosSignature::TIMESTAMP_HEADER => $timestamp,
-                    VerifyAyosSignature::SIGNATURE_HEADER => VerifyAyosSignature::signature($timestamp, $body, $this->sharedSecret()),
-                    'Content-Type' => 'application/json',
-                ])
-                ->withBody($body, 'application/json')
-                ->post($url);
-        } catch (ConnectionException $exception) {
-            throw AyosException::fromConnectionException($exception, $path);
-        }
-
-        if ($response->failed()) {
-            throw AyosException::fromResponse($response, $path);
-        }
-
-        return $response;
-    }
-
-    /**
-     * The pending request every Ayos call is built on.
-     */
-    protected function request(): PendingRequest
-    {
-        return Http::acceptJson()->timeout(self::TIMEOUT_SECONDS);
-    }
-
-    /**
-     * The configured Ayos base URL, without a trailing slash.
-     *
-     * @throws AyosException
-     */
-    protected function baseUrl(): string
-    {
-        $url = config('autofix.ayos.url');
-
-        if (! is_string($url) || trim($url) === '') {
-            throw AyosException::missingConfiguration('autofix.ayos.url');
-        }
-
-        return rtrim(trim($url), '/');
-    }
-
-    /**
-     * The shared secret both directions of the control plane are signed with.
-     *
-     * @throws AyosException
-     */
-    protected function sharedSecret(): string
-    {
-        $secret = config('autofix.ayos.shared_secret');
-
-        if (! is_string($secret) || $secret === '') {
-            throw AyosException::missingConfiguration('autofix.ayos.shared_secret');
-        }
-
-        return $secret;
-    }
-
-    /**
-     * The LLM credential forwarded for this job.
-     *
-     * @throws AyosException
-     */
-    protected function llmKey(): string
-    {
-        $key = config('autofix.llm.api_key');
-
-        if (! is_string($key) || $key === '') {
-            throw AyosException::missingConfiguration('autofix.llm.api_key');
-        }
-
-        return $key;
-    }
-
-    /**
      * The paths the agent is told never to touch.
      *
-     * Ayos passes this to the agent; the diff validator re-enforces it on the
-     * way back, because a prompt is not an access control.
+     * Ayos passes this to the agent and re-checks the packaged diff against it;
+     * the diff validator checks again on the way back, because a prompt is not
+     * an access control and neither is a check you did not run yourself.
      *
      * @return list<string>
      */

@@ -8,6 +8,7 @@ use App\Models\Project;
 use App\Models\ProjectRepository;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\Autofix\AyosException;
 use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -126,8 +127,12 @@ test('the detail page ships the transcript, the diff and no stream for a finishe
         );
 });
 
+/*
+ * The stream is a Bilis route now. It used to be an Ayos endpoint the browser
+ * reached across an origin; a container run has nothing listening, so the run
+ * POSTs its events here and this application streams them back out.
+ */
 test('the detail page offers a stream while the job is active', function () {
-    config()->set('autofix.ayos.stream_url', 'https://agents.bilis.test');
     config()->set('autofix.stream_jwt.private_key', base64_encode(random_bytes(SODIUM_CRYPTO_SIGN_SEEDBYTES)));
 
     [$user, $team, , $repository] = autofixJobsTeam();
@@ -138,14 +143,14 @@ test('the detail page offers a stream while the job is active', function () {
         ->get(route('autofix.show', ['current_team' => $team->slug, 'fixJob' => $job->uuid]))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->where('stream.url', 'https://agents.bilis.test/jobs/'.$job->uuid.'/stream')
+            ->where('stream.url', route('autofix.stream', ['current_team' => $team->slug, 'fixJob' => $job->uuid]))
             ->where('stream.ttlMinutes', 10)
             ->where('canCancel', true),
         );
 });
 
-test('no stream is offered when the instance has no ayos configured', function () {
-    config()->set('autofix.ayos.stream_url', null);
+test('no stream is offered when the instance cannot mint a stream token', function () {
+    config()->set('autofix.stream_jwt.private_key', null);
 
     [$user, $team, , $repository] = autofixJobsTeam();
 
@@ -182,22 +187,22 @@ test('guests are redirected away from the autofix pages', function () {
         ->assertRedirect(route('login'));
 });
 
-test('cancelling a job asks ayos to abort it and records the outcome', function () {
-    config()->set('autofix.ayos.url', 'https://ayos.test');
-    config()->set('autofix.ayos.shared_secret', 'secret');
-
-    Http::fake(['ayos.test/*' => Http::response(['ok' => true])]);
+test('cancelling a job stops its run and records the outcome', function () {
+    $runs = fakeRuns();
 
     [$user, $team, , $repository] = autofixJobsTeam();
 
-    $job = FixJob::factory()->forRepository($repository)->create(['status' => FixJobStatus::Running]);
+    $job = FixJob::factory()->forRepository($repository)->create([
+        'status' => FixJobStatus::Running,
+        'ayos_run_id' => 'run-42',
+    ]);
 
     $this->actingAs($user)
         ->from(route('autofix.show', ['current_team' => $team->slug, 'fixJob' => $job->uuid]))
         ->post(route('autofix.cancel', ['current_team' => $team->slug, 'fixJob' => $job->uuid]))
         ->assertRedirect();
 
-    Http::assertSent(fn ($request): bool => $request->url() === 'https://ayos.test/jobs/'.$job->uuid.'/cancel');
+    expect($runs->stopped)->toBe(['run-42']);
 
     expect($job->fresh()->status)->toBe(FixJobStatus::Cancelled)
         ->and($job->fresh()->completed_at)->not->toBeNull();
@@ -205,6 +210,7 @@ test('cancelling a job asks ayos to abort it and records the outcome', function 
 
 test('a job that has already come to rest cannot be cancelled', function () {
     Http::fake();
+    $runs = fakeRuns();
 
     [$user, $team, , $repository] = autofixJobsTeam();
 
@@ -215,18 +221,20 @@ test('a job that has already come to rest cannot be cancelled', function () {
         ->assertForbidden();
 
     Http::assertNothingSent();
-    expect($job->fresh()->status)->toBe(FixJobStatus::Merged);
+    expect($runs->stopped)->toBe([])
+        ->and($job->fresh()->status)->toBe(FixJobStatus::Merged);
 });
 
-test('an unreachable ayos leaves the job running rather than lying about it', function () {
-    config()->set('autofix.ayos.url', 'https://ayos.test');
-    config()->set('autofix.ayos.shared_secret', 'secret');
-
-    Http::fake(['ayos.test/*' => Http::response('nope', 500)]);
+test('a platform that will not stop the run leaves the job running rather than lying about it', function () {
+    $runs = fakeRuns();
+    $runs->failWith = new AyosException('nope', statusCode: 500);
 
     [$user, $team, , $repository] = autofixJobsTeam();
 
-    $job = FixJob::factory()->forRepository($repository)->create(['status' => FixJobStatus::Running]);
+    $job = FixJob::factory()->forRepository($repository)->create([
+        'status' => FixJobStatus::Running,
+        'ayos_run_id' => 'run-42',
+    ]);
 
     $this->actingAs($user)
         ->from(route('autofix.show', ['current_team' => $team->slug, 'fixJob' => $job->uuid]))

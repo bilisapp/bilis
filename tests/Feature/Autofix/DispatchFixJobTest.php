@@ -4,6 +4,7 @@ use App\Enums\FixJobStatus;
 use App\Jobs\DispatchFixJob;
 use App\Models\FixJob;
 use App\Services\Autofix\AyosClient;
+use App\Services\Autofix\AyosException;
 use Illuminate\Contracts\Queue\Job as QueueJob;
 use Illuminate\Support\Facades\Http;
 
@@ -25,14 +26,13 @@ beforeEach(function () {
         'autofix.enabled' => true,
         'autofix.github.app_id' => '123456',
         'autofix.github.private_key' => base64_encode($privatePem),
-        'autofix.ayos.url' => 'https://ayos.test',
-        'autofix.ayos.shared_secret' => 'shared-secret',
         'autofix.llm.api_key' => 'sk-ant-test',
     ]);
 });
 
 test('an accepted job becomes dispatched', function () {
     fakeAyos();
+    fakeRuns();
 
     $job = ayosJob();
 
@@ -47,7 +47,8 @@ test('an accepted job becomes dispatched', function () {
 });
 
 test('backpressure releases the queued job and leaves the fix job pending', function () {
-    fakeAyos(429, 'at capacity');
+    fakeAyos();
+    fakeRuns()->failWith = new AyosException('at capacity', statusCode: 429);
 
     $job = ayosJob();
 
@@ -64,7 +65,8 @@ test('backpressure releases the queued job and leaves the fix job pending', func
 });
 
 test('the release delay grows with each attempt', function () {
-    fakeAyos(503, 'unavailable');
+    fakeAyos();
+    fakeRuns()->failWith = new AyosException('unavailable', statusCode: 503);
 
     $job = ayosJob();
 
@@ -78,7 +80,8 @@ test('the release delay grows with each attempt', function () {
 });
 
 test('a hard failure fails the fix job with the reason recorded', function () {
-    fakeAyos(422, 'bad spec');
+    fakeAyos();
+    fakeRuns()->failWith = new AyosException('The run platform refused the spec (422).', statusCode: 422);
 
     $job = ayosJob();
 
@@ -98,6 +101,7 @@ test('a hard failure fails the fix job with the reason recorded', function () {
 
 test('a job that is no longer pending is never dispatched twice', function () {
     fakeAyos();
+    $runs = fakeRuns();
 
     $job = ayosJob();
     $job->forceFill(['status' => FixJobStatus::Running])->save();
@@ -107,7 +111,9 @@ test('a job that is no longer pending is never dispatched twice', function () {
 
     runDispatcher($job, $queueJob);
 
-    expect($job->fresh()->status)->toBe(FixJobStatus::Running);
+    expect($job->fresh()->status)->toBe(FixJobStatus::Running)
+        ->and($runs->started)->toBe([]);
+
     Http::assertNothingSent();
 });
 

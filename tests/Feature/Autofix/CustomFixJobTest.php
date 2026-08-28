@@ -2,6 +2,7 @@
 
 use App\Enums\FixJobStatus;
 use App\Enums\FixJobType;
+use App\Enums\LlmProvider;
 use App\Enums\TeamRole;
 use App\Jobs\DispatchFixJob;
 use App\Models\FixJob;
@@ -9,6 +10,7 @@ use App\Models\GitHubInstallation;
 use App\Models\Project;
 use App\Models\ProjectRepository;
 use App\Models\Team;
+use App\Models\TeamLlmCredential;
 use App\Models\User;
 use App\Services\Autofix\FixJobBudget;
 use Illuminate\Support\Facades\Queue;
@@ -47,6 +49,11 @@ function customJobUrl(Team $team): string
 
 beforeEach(function () {
     config()->set('autofix.enabled', true);
+
+    // An instance-wide fallback key, so the existing cases exercise the budget
+    // and authorisation rules rather than the bring-your-own-key check. The
+    // two cases at the bottom of this file turn it off deliberately.
+    config()->set('autofix.llm.api_key', 'sk-ant-instance-fallback');
 
     Queue::fake();
 });
@@ -372,4 +379,96 @@ test('the index offers no project to pick when nothing has opted in', function (
             ->where('hasRepository', true)
             ->has('autofixProjects', 0),
         );
+});
+
+/*
+ * Refused at submit time, not two minutes later. Without this the job is
+ * created, queued and fails with a banner that reads like an outage, when the
+ * real answer is a field in team settings nobody has filled in.
+ */
+test('a custom job is refused when the team has no key', function () {
+    config(['autofix.enabled' => true, 'autofix.llm.api_key' => null]);
+
+    [$user, $team] = customJobTeam();
+
+    $this->actingAs($user)
+        ->from(route('autofix.index', ['current_team' => $team->slug]))
+        ->post(customJobUrl($team), ['project' => 'checkout', 'instructions' => 'Rename the thing.'])
+        ->assertSessionHasErrors('credential');
+
+    expect(FixJob::query()->count())->toBe(0);
+});
+
+test('a custom job is accepted once the team has a key', function () {
+    config(['autofix.enabled' => true, 'autofix.llm.api_key' => null]);
+
+    [$user, $team] = customJobTeam();
+    TeamLlmCredential::add($team, LlmProvider::Anthropic, 'Production', 'sk-ant-a-perfectly-good-key-9999');
+
+    $this->actingAs($user)
+        ->post(customJobUrl($team), ['project' => 'checkout', 'instructions' => 'Rename the thing.'])
+        ->assertRedirect();
+
+    expect(FixJob::query()->count())->toBe(1);
+});
+
+/*
+ * Which key pays is pinned when the job is raised. Reading it at dispatch
+ * instead would let a settings edit move the bill of a job already queued.
+ */
+test('a custom job pins the key the person picked', function () {
+    config(['autofix.enabled' => true, 'autofix.llm.api_key' => null]);
+
+    [$user, $team] = customJobTeam();
+    TeamLlmCredential::add($team, LlmProvider::Anthropic, 'Default', 'sk-ant-the-team-default-1111');
+    $picked = TeamLlmCredential::add($team, LlmProvider::OpenRouter, 'Experiments', 'sk-or-v1-picked-by-hand');
+
+    $this->actingAs($user)
+        ->post(customJobUrl($team), [
+            'project' => 'checkout',
+            'instructions' => 'Rename the thing.',
+            'credential' => $picked->id,
+        ])
+        ->assertRedirect();
+
+    expect(FixJob::query()->sole()->team_llm_credential_id)->toBe($picked->id);
+});
+
+test('a custom job with no key named takes the team default', function () {
+    config(['autofix.enabled' => true, 'autofix.llm.api_key' => null]);
+
+    [$user, $team] = customJobTeam();
+    $default = TeamLlmCredential::add($team, LlmProvider::Anthropic, 'Default', 'sk-ant-the-team-default-1111');
+    TeamLlmCredential::add($team, LlmProvider::OpenAi, 'Other', 'sk-openai-not-the-default-22');
+
+    $this->actingAs($user)
+        ->post(customJobUrl($team), ['project' => 'checkout', 'instructions' => 'Rename the thing.'])
+        ->assertRedirect();
+
+    expect(FixJob::query()->sole()->team_llm_credential_id)->toBe($default->id);
+});
+
+/*
+ * A credential id is not a capability: one from another team is "no such key",
+ * and the job falls back to this team's default rather than spending someone
+ * else's budget.
+ */
+test('a key belonging to another team is ignored, not honoured', function () {
+    config(['autofix.enabled' => true, 'autofix.llm.api_key' => null]);
+
+    [$user, $team] = customJobTeam();
+    $ours = TeamLlmCredential::add($team, LlmProvider::Anthropic, 'Ours', 'sk-ant-our-own-key-111111');
+
+    $otherTeam = Team::factory()->create();
+    $theirs = TeamLlmCredential::add($otherTeam, LlmProvider::OpenAi, 'Theirs', 'sk-openai-belongs-to-them');
+
+    $this->actingAs($user)
+        ->post(customJobUrl($team), [
+            'project' => 'checkout',
+            'instructions' => 'Rename the thing.',
+            'credential' => $theirs->id,
+        ])
+        ->assertRedirect();
+
+    expect(FixJob::query()->sole()->team_llm_credential_id)->toBe($ours->id);
 });

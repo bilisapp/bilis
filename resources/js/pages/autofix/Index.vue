@@ -19,6 +19,7 @@ import type {
     FixJobPage,
     FixJobStatusOption,
     LogProject,
+    TeamLlmCredential,
 } from '@/types';
 
 const props = defineProps<{
@@ -29,6 +30,7 @@ const props = defineProps<{
     filters: FixJobFilters;
     hasRepository: boolean;
     autofixProjects: LogProject[];
+    llmCredentials: TeamLlmCredential[];
 }>();
 
 defineOptions({
@@ -131,6 +133,7 @@ function goToPage(page: number) {
                     v-if="canCreateJob"
                     :team-slug="teamSlug"
                     :projects="autofixProjects"
+                    :credentials="llmCredentials"
                 >
                     <Button size="sm" data-test="autofix-new-job">
                         <Plus /> New job

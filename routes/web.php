@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\GitHubLoginController;
 use App\Http\Controllers\Autofix\FixJobCancelController;
+use App\Http\Controllers\Autofix\FixJobStreamController;
 use App\Http\Controllers\Autofix\FixJobStreamTokenController;
 use App\Http\Controllers\AutofixController;
 use App\Http\Controllers\DashboardController;
@@ -125,6 +126,14 @@ Route::prefix('{current_team}')
             ->middleware('throttle:30,1')
             ->name('autofix.stream-token');
         Route::post('autofix/{fixJob}/cancel', FixJobCancelController::class)->name('autofix.cancel');
+
+        /*
+         * The live transcript. This used to be an Ayos endpoint the browser
+         * reached across an origin; a container run has nothing listening, so
+         * the run POSTs its events to Bilis and this streams them back out of
+         * the row we already persist them in.
+         */
+        Route::get('autofix/{fixJob}/stream', FixJobStreamController::class)->name('autofix.stream');
 
         /*
          * Start of the GitHub App install round trip. The other half — the

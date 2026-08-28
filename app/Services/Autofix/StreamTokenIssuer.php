@@ -8,11 +8,15 @@ use App\Models\User;
 /**
  * Mints the short-lived Ed25519 token a browser watches a job's stream with.
  *
- * This is the one credential that leaves Bilis for a user agent, so it is cut
- * as thin as it goes: one job, read only, ten minutes. Ayos holds nothing but
- * the public half — it can verify a token and never mint one — and enforces
- * `exp` at connect time, which is why the viewer reconnects with a fresh token
- * rather than holding one open.
+ * The stream is served by Bilis now — a container run has nothing listening, so
+ * it POSTs its events here and this application fans them out. That makes the
+ * token same-origin and, strictly speaking, redundant with the session.
+ *
+ * It is kept for the one thing a session cannot say: WHICH job the viewer asked
+ * to watch. `FixJobStreamController` authorises with the policy and then checks
+ * this token names the same job, so a client holding a valid token for another
+ * job fails rather than being handed a transcript it is entitled to but did not
+ * ask for. The policy is the authority; this is a scoping check.
  *
  * EdDSA is signed with libsodium, which ships with PHP: no JWT package, the
  * same instinct that keeps a hand-rolled RS256 in `GitHubAppTokenService`.
@@ -63,20 +67,64 @@ class StreamTokenIssuer
     /**
      * The browser-facing stream endpoint for one job.
      *
-     * The token is not baked in here: the URL is stable for the life of the
-     * page and the viewer appends a freshly minted token on every connect.
-     *
-     * @throws StreamTokenException
+     * A Bilis route now, not an Ayos one. The token is not baked in: the URL is
+     * stable for the life of the page and the viewer appends a freshly minted
+     * token on every connect.
      */
     public function streamUrl(FixJob $job): string
     {
-        $base = config('autofix.ayos.stream_url');
+        return route('autofix.stream', [
+            'current_team' => $job->project->team->slug,
+            'fixJob' => $job->uuid,
+        ]);
+    }
 
-        if (! is_string($base) || trim($base) === '') {
-            throw StreamTokenException::missingStreamUrl();
+    /**
+     * Determine whether a token is a live one for this job.
+     *
+     * Deliberately total: any failure — malformed, wrong scope, wrong job,
+     * expired, unverifiable — is a false rather than an exception, because the
+     * caller's only question is whether to serve the stream.
+     *
+     * `exp` IS enforced here, unlike in the old cross-origin design where an
+     * established connection could not be reached to close. A connection is now
+     * bounded anyway, and the viewer mints a fresh token on every reconnect.
+     */
+    public function accepts(string $token, FixJob $job): bool
+    {
+        $parts = explode('.', $token);
+
+        if (count($parts) !== 3) {
+            return false;
         }
 
-        return rtrim(trim($base), '/').'/jobs/'.$job->uuid.'/stream';
+        [$header, $payload, $signature] = $parts;
+
+        $raw = $this->base64UrlDecode($signature);
+        $claims = json_decode((string) $this->base64UrlDecode($payload), true);
+
+        if ($raw === false || ! is_array($claims)) {
+            return false;
+        }
+
+        try {
+            $publicKey = sodium_crypto_sign_publickey_from_secretkey($this->secretKey());
+        } catch (StreamTokenException) {
+            return false;
+        }
+
+        if (strlen($raw) !== SODIUM_CRYPTO_SIGN_BYTES) {
+            return false;
+        }
+
+        if (! sodium_crypto_sign_verify_detached($raw, $header.'.'.$payload, $publicKey)) {
+            return false;
+        }
+
+        return ($claims['scope'] ?? null) === self::SCOPE
+            && ($claims['job'] ?? null) === $job->uuid
+            && is_int($claims['exp'] ?? null)
+            && $claims['exp'] > now()->getTimestamp();
     }
 
     /**
@@ -85,9 +133,8 @@ class StreamTokenIssuer
     public function isConfigured(): bool
     {
         $key = config('autofix.stream_jwt.private_key');
-        $url = config('autofix.ayos.stream_url');
 
-        return is_string($key) && trim($key) !== '' && is_string($url) && trim($url) !== '';
+        return is_string($key) && trim($key) !== '';
     }
 
     /**
@@ -146,6 +193,14 @@ class StreamTokenIssuer
     protected function encodeSegment(array $segment): string
     {
         return $this->base64UrlEncode((string) json_encode($segment, JSON_UNESCAPED_SLASHES));
+    }
+
+    /**
+     * Base64url decode a JWT segment.
+     */
+    protected function base64UrlDecode(string $value): string|false
+    {
+        return base64_decode(strtr($value, '-_', '+/'), true);
     }
 
     /**

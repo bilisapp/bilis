@@ -42,7 +42,6 @@ function streamTokenKeypair(): string
 
     config()->set('autofix.stream_jwt.private_key', base64_encode(sodium_crypto_sign_secretkey($keypair)));
     config()->set('autofix.stream_jwt.ttl_minutes', 10);
-    config()->set('autofix.ayos.stream_url', 'https://agents.bilis.test');
 
     return sodium_crypto_sign_publickey($keypair);
 }
@@ -78,8 +77,10 @@ test('a stream token is signed with ed25519 and scoped to one job', function () 
         ->assertOk()
         ->assertJsonStructure(['token', 'stream_url', 'expires_at']);
 
+    // A Bilis route: the stream is served here now, from the transcript the
+    // run POSTs in, rather than by a service the browser reaches directly.
     expect($response->json('stream_url'))
-        ->toBe('https://agents.bilis.test/jobs/'.$job->uuid.'/stream');
+        ->toBe(route('autofix.stream', ['current_team' => $team->slug, 'fixJob' => $job->uuid]));
 
     [$header, $payload, $signingInput, $signature] = decodeStreamJwt((string) $response->json('token'));
 
@@ -141,7 +142,6 @@ test('a member of another team cannot mint a token for a job', function () {
 
 test('a stream token cannot be minted without a signing key', function () {
     config()->set('autofix.stream_jwt.private_key', null);
-    config()->set('autofix.ayos.stream_url', 'https://agents.bilis.test');
 
     [$user, $team, $job] = streamTokenJob();
 
@@ -155,7 +155,6 @@ test('the issuer accepts a 32 byte seed as well as a full secret key', function 
     $keypair = sodium_crypto_sign_seed_keypair($seed);
 
     config()->set('autofix.stream_jwt.private_key', base64_encode($seed));
-    config()->set('autofix.ayos.stream_url', 'https://agents.bilis.test');
 
     [$user, , $job] = streamTokenJob();
 
