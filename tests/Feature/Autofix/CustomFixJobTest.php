@@ -64,7 +64,7 @@ test('a team member can spawn a custom job against a connected repository', func
     $instructions = 'Upgrade guzzlehttp/guzzle to the latest 7.x release and leave the suite passing.';
 
     $this->actingAs($user)
-        ->post(customJobUrl($team), ['project' => 'checkout', 'instructions' => $instructions])
+        ->post(customJobUrl($team), ['repository' => $repository->id, 'instructions' => $instructions])
         ->assertRedirect();
 
     $job = FixJob::query()->sole();
@@ -84,12 +84,12 @@ test('a team member can spawn a custom job against a connected repository', func
 test('no job is spawned while autofix is switched off for the deployment', function () {
     config()->set('autofix.enabled', false);
 
-    [$user, $team] = customJobTeam();
+    [$user, $team, , $repository] = customJobTeam();
 
     // The repository row still says it opted in — the deployment-wide switch
     // is not something a row gets a second opinion about.
     $this->actingAs($user)
-        ->post(customJobUrl($team), ['project' => 'checkout', 'instructions' => 'Bump the guzzle dependency.'])
+        ->post(customJobUrl($team), ['repository' => $repository->id, 'instructions' => 'Bump the guzzle dependency.'])
         ->assertNotFound();
 
     expect(FixJob::query()->count())->toBe(0);
@@ -100,19 +100,19 @@ test('no job is spawned while autofix is switched off for the deployment', funct
 test('the picker offers no project while autofix is switched off', function () {
     config()->set('autofix.enabled', false);
 
-    [$user, $team] = customJobTeam();
+    [$user, $team, , $repository] = customJobTeam();
 
     $this->actingAs($user)
         ->get(route('autofix.index', ['current_team' => $team->slug]))
-        ->assertInertia(fn (Assert $page) => $page->where('autofixProjects', []));
+        ->assertInertia(fn (Assert $page) => $page->where('autofixRepositories', []));
 });
 
 test('the redirect lands on the new job so the run can be watched', function () {
-    [$user, $team] = customJobTeam();
+    [$user, $team, , $repository] = customJobTeam();
 
     $this->actingAs($user)
         ->post(customJobUrl($team), [
-            'project' => 'checkout',
+            'repository' => $repository->id,
             'instructions' => 'Add a /healthz endpoint that returns 204 and touches no database.',
         ]);
 
@@ -124,11 +124,11 @@ test('the redirect lands on the new job so the run can be watched', function () 
 });
 
 test('the instructions are trimmed before they are measured and stored', function () {
-    [$user, $team] = customJobTeam();
+    [$user, $team, , $repository] = customJobTeam();
 
     $this->actingAs($user)
         ->post(customJobUrl($team), [
-            'project' => 'checkout',
+            'repository' => $repository->id,
             'instructions' => "   Add a /healthz endpoint that returns 204.   \n",
         ])
         ->assertRedirect();
@@ -137,10 +137,10 @@ test('the instructions are trimmed before they are measured and stored', functio
 });
 
 test('a request that says almost nothing is refused', function () {
-    [$user, $team] = customJobTeam();
+    [$user, $team, , $repository] = customJobTeam();
 
     $this->actingAs($user)
-        ->post(customJobUrl($team), ['project' => 'checkout', 'instructions' => 'fix it'])
+        ->post(customJobUrl($team), ['repository' => $repository->id, 'instructions' => 'fix it'])
         ->assertSessionHasErrors('instructions');
 
     expect(FixJob::query()->count())->toBe(0);
@@ -148,21 +148,21 @@ test('a request that says almost nothing is refused', function () {
 });
 
 test('an empty request is refused', function () {
-    [$user, $team] = customJobTeam();
+    [$user, $team, , $repository] = customJobTeam();
 
     $this->actingAs($user)
-        ->post(customJobUrl($team), ['project' => 'checkout', 'instructions' => '   '])
+        ->post(customJobUrl($team), ['repository' => $repository->id, 'instructions' => '   '])
         ->assertSessionHasErrors('instructions');
 
     expect(FixJob::query()->count())->toBe(0);
 });
 
 test('a request longer than the cap is refused', function () {
-    [$user, $team] = customJobTeam();
+    [$user, $team, , $repository] = customJobTeam();
 
     $this->actingAs($user)
         ->post(customJobUrl($team), [
-            'project' => 'checkout',
+            'repository' => $repository->id,
             'instructions' => str_repeat('a', 10001),
         ])
         ->assertSessionHasErrors('instructions');
@@ -171,11 +171,11 @@ test('a request longer than the cap is refused', function () {
 });
 
 test('a request exactly at the cap is accepted', function () {
-    [$user, $team] = customJobTeam();
+    [$user, $team, , $repository] = customJobTeam();
 
     $this->actingAs($user)
         ->post(customJobUrl($team), [
-            'project' => 'checkout',
+            'repository' => $repository->id,
             'instructions' => str_repeat('a', 10000),
         ])
         ->assertSessionHasNoErrors();
@@ -183,61 +183,58 @@ test('a request exactly at the cap is accepted', function () {
     expect(FixJob::query()->count())->toBe(1);
 });
 
-test('a project whose repository has not opted into autofix cannot be given work', function () {
-    [$user, $team, $project] = customJobTeam();
+test('a repository that has not opted into autofix cannot be given work', function () {
+    [$user, $team, $project, $repository] = customJobTeam();
 
-    $project->repository()->update(['autofix_enabled' => false]);
+    $repository->update(['autofix_enabled' => false]);
 
     $this->actingAs($user)
         ->post(customJobUrl($team), [
-            'project' => 'checkout',
+            'repository' => $repository->id,
             'instructions' => 'Add a /healthz endpoint that returns 204.',
         ])
-        ->assertSessionHasErrors('project');
+        ->assertSessionHasErrors('repository');
 
     expect(FixJob::query()->count())->toBe(0);
 });
 
-test('a project with no repository at all cannot be given work', function () {
+test('a repository id that names nothing cannot be given work', function () {
     [$user, $team] = customJobTeam();
 
     Project::factory()->forTeam($team)->create(['name' => 'Docs', 'slug' => 'docs']);
 
     $this->actingAs($user)
         ->post(customJobUrl($team), [
-            'project' => 'docs',
+            'repository' => 99999,
             'instructions' => 'Add a /healthz endpoint that returns 204.',
         ])
-        ->assertSessionHasErrors('project');
+        ->assertSessionHasErrors('repository');
 
     expect(FixJob::query()->count())->toBe(0);
 });
 
-test('a project belonging to another team is not reachable', function () {
+test('a repository belonging to another team is not reachable', function () {
     [$user, $team] = customJobTeam();
     [, , , $otherRepository] = customJobTeam();
 
-    $otherProject = $otherRepository->project;
-    $otherProject->update(['slug' => 'billing']);
-
     $this->actingAs($user)
         ->post(customJobUrl($team), [
-            'project' => $otherProject->slug,
+            'repository' => $otherRepository->id,
             'instructions' => 'Add a /healthz endpoint that returns 204.',
         ])
-        ->assertSessionHasErrors('project');
+        ->assertSessionHasErrors('repository');
 
     expect(FixJob::query()->count())->toBe(0);
 });
 
 test('a user who is not a member of the team cannot reach the endpoint at all', function () {
-    [, $team] = customJobTeam();
+    [, $team, , $repository] = customJobTeam();
 
     $outsider = User::factory()->create();
 
     $this->actingAs($outsider)
         ->post(customJobUrl($team), [
-            'project' => 'checkout',
+            'repository' => $repository->id,
             'instructions' => 'Add a /healthz endpoint that returns 204.',
         ])
         ->assertForbidden();
@@ -246,10 +243,10 @@ test('a user who is not a member of the team cannot reach the endpoint at all', 
 });
 
 test('a guest is sent to log in', function () {
-    [, $team] = customJobTeam();
+    [, $team, , $repository] = customJobTeam();
 
     $this->post(customJobUrl($team), [
-        'project' => 'checkout',
+        'repository' => $repository->id,
         'instructions' => 'Add a /healthz endpoint that returns 204.',
     ])->assertRedirect(route('login'));
 });
@@ -260,13 +257,13 @@ test('the concurrency budget refuses a custom job and names itself', function ()
     FixJob::factory()->forRepository($repository)->running()->create();
 
     $response = $this->actingAs($user)->post(customJobUrl($team), [
-        'project' => 'checkout',
+        'repository' => $repository->id,
         'instructions' => 'Add a /healthz endpoint that returns 204.',
     ]);
 
-    $response->assertSessionHasErrors('project');
+    $response->assertSessionHasErrors('repository');
 
-    expect(session('errors')->first('project'))
+    expect(session('errors')->first('repository'))
         ->toContain('acme/checkout')
         ->toContain('in flight')
         ->and(FixJob::query()->where('type', FixJobType::Custom)->count())->toBe(0);
@@ -278,13 +275,13 @@ test('the daily budget refuses a custom job and names itself', function () {
     FixJob::factory()->forRepository($repository)->merged()->count(2)->create(['created_at' => now()->subHour()]);
 
     $response = $this->actingAs($user)->post(customJobUrl($team), [
-        'project' => 'checkout',
+        'repository' => $repository->id,
         'instructions' => 'Add a /healthz endpoint that returns 204.',
     ]);
 
-    $response->assertSessionHasErrors('project');
+    $response->assertSessionHasErrors('repository');
 
-    expect(session('errors')->first('project'))
+    expect(session('errors')->first('repository'))
         ->toContain('daily budget')
         ->and(FixJob::query()->where('type', FixJobType::Custom)->count())->toBe(0);
 });
@@ -296,14 +293,14 @@ test('custom jobs consume the same daily budget the scan draws from', function (
     FixJob::factory()->forRepository($repository)->merged()->create(['created_at' => now()->subHour()]);
 
     $this->actingAs($user)->post(customJobUrl($team), [
-        'project' => 'checkout',
+        'repository' => $repository->id,
         'instructions' => 'Add a /healthz endpoint that returns 204.',
     ])->assertSessionHasNoErrors();
 
     $this->actingAs($user)->post(customJobUrl($team), [
-        'project' => 'checkout',
+        'repository' => $repository->id,
         'instructions' => 'Add a /readyz endpoint that returns 204 as well.',
-    ])->assertSessionHasErrors('project');
+    ])->assertSessionHasErrors('repository');
 
     expect(FixJob::query()->where('type', FixJobType::Custom)->count())->toBe(1);
 });
@@ -312,7 +309,7 @@ test('a custom job in flight consumes a concurrency slot the scan would have use
     [$user, $team, , $repository] = customJobTeam(['max_concurrent' => 1]);
 
     $this->actingAs($user)->post(customJobUrl($team), [
-        'project' => 'checkout',
+        'repository' => $repository->id,
         'instructions' => 'Add a /healthz endpoint that returns 204.',
     ])->assertSessionHasNoErrors();
 
@@ -339,8 +336,8 @@ test('the index renders a custom job without an exception or a fingerprint', fun
             ->where('jobs.data.0.exception', null)
             ->where('jobs.data.0.occurrences', null)
             ->where('jobs.data.0.title', 'Upgrade guzzlehttp/guzzle to the latest 7.x release and leave the suite passing.')
-            ->has('autofixProjects', 1)
-            ->where('autofixProjects.0.slug', 'checkout'),
+            ->has('autofixRepositories', 1)
+            ->where('autofixRepositories.0.repoFullName', 'acme/checkout'),
         );
 });
 
@@ -367,17 +364,17 @@ test('the detail page renders a custom job with its instructions and no error st
         );
 });
 
-test('the index offers no project to pick when nothing has opted in', function () {
-    [$user, $team, $project] = customJobTeam();
+test('the index offers no repository to pick when nothing has opted in', function () {
+    [$user, $team, $project, $repository] = customJobTeam();
 
-    $project->repository()->update(['autofix_enabled' => false]);
+    $repository->update(['autofix_enabled' => false]);
 
     $this->actingAs($user)
         ->get(route('autofix.index', ['current_team' => $team->slug]))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->where('hasRepository', true)
-            ->has('autofixProjects', 0),
+            ->has('autofixRepositories', 0),
         );
 });
 
@@ -389,11 +386,11 @@ test('the index offers no project to pick when nothing has opted in', function (
 test('a custom job is refused when the team has no key', function () {
     config(['autofix.enabled' => true, 'autofix.llm.api_key' => null]);
 
-    [$user, $team] = customJobTeam();
+    [$user, $team, , $repository] = customJobTeam();
 
     $this->actingAs($user)
         ->from(route('autofix.index', ['current_team' => $team->slug]))
-        ->post(customJobUrl($team), ['project' => 'checkout', 'instructions' => 'Rename the thing.'])
+        ->post(customJobUrl($team), ['repository' => $repository->id, 'instructions' => 'Rename the thing.'])
         ->assertSessionHasErrors('credential');
 
     expect(FixJob::query()->count())->toBe(0);
@@ -402,11 +399,11 @@ test('a custom job is refused when the team has no key', function () {
 test('a custom job is accepted once the team has a key', function () {
     config(['autofix.enabled' => true, 'autofix.llm.api_key' => null]);
 
-    [$user, $team] = customJobTeam();
+    [$user, $team, , $repository] = customJobTeam();
     TeamLlmCredential::add($team, LlmProvider::Anthropic, 'Production', 'sk-ant-a-perfectly-good-key-9999');
 
     $this->actingAs($user)
-        ->post(customJobUrl($team), ['project' => 'checkout', 'instructions' => 'Rename the thing.'])
+        ->post(customJobUrl($team), ['repository' => $repository->id, 'instructions' => 'Rename the thing.'])
         ->assertRedirect();
 
     expect(FixJob::query()->count())->toBe(1);
@@ -419,13 +416,13 @@ test('a custom job is accepted once the team has a key', function () {
 test('a custom job pins the key the person picked', function () {
     config(['autofix.enabled' => true, 'autofix.llm.api_key' => null]);
 
-    [$user, $team] = customJobTeam();
+    [$user, $team, , $repository] = customJobTeam();
     TeamLlmCredential::add($team, LlmProvider::Anthropic, 'Default', 'sk-ant-the-team-default-1111');
     $picked = TeamLlmCredential::add($team, LlmProvider::OpenRouter, 'Experiments', 'sk-or-v1-picked-by-hand');
 
     $this->actingAs($user)
         ->post(customJobUrl($team), [
-            'project' => 'checkout',
+            'repository' => $repository->id,
             'instructions' => 'Rename the thing.',
             'credential' => $picked->id,
         ])
@@ -437,12 +434,12 @@ test('a custom job pins the key the person picked', function () {
 test('a custom job with no key named takes the team default', function () {
     config(['autofix.enabled' => true, 'autofix.llm.api_key' => null]);
 
-    [$user, $team] = customJobTeam();
+    [$user, $team, , $repository] = customJobTeam();
     $default = TeamLlmCredential::add($team, LlmProvider::Anthropic, 'Default', 'sk-ant-the-team-default-1111');
     TeamLlmCredential::add($team, LlmProvider::OpenAi, 'Other', 'sk-openai-not-the-default-22');
 
     $this->actingAs($user)
-        ->post(customJobUrl($team), ['project' => 'checkout', 'instructions' => 'Rename the thing.'])
+        ->post(customJobUrl($team), ['repository' => $repository->id, 'instructions' => 'Rename the thing.'])
         ->assertRedirect();
 
     expect(FixJob::query()->sole()->team_llm_credential_id)->toBe($default->id);
@@ -456,7 +453,7 @@ test('a custom job with no key named takes the team default', function () {
 test('a key belonging to another team is ignored, not honoured', function () {
     config(['autofix.enabled' => true, 'autofix.llm.api_key' => null]);
 
-    [$user, $team] = customJobTeam();
+    [$user, $team, , $repository] = customJobTeam();
     $ours = TeamLlmCredential::add($team, LlmProvider::Anthropic, 'Ours', 'sk-ant-our-own-key-111111');
 
     $otherTeam = Team::factory()->create();
@@ -464,7 +461,7 @@ test('a key belonging to another team is ignored, not honoured', function () {
 
     $this->actingAs($user)
         ->post(customJobUrl($team), [
-            'project' => 'checkout',
+            'repository' => $repository->id,
             'instructions' => 'Rename the thing.',
             'credential' => $theirs->id,
         ])

@@ -42,3 +42,24 @@ test('the horizon dashboard renders under the content security policy', function
         ->and((string) $response->headers->get('Content-Security-Policy'))
         ->toContain("'nonce-{$nonce}'");
 });
+
+/*
+ * Horizon mounts an in-DOM template, so Vue compiles it at runtime with
+ * `new Function`. No nonce can cover that, and the dashboard is blank without
+ * it — so the exception is real, and it stops at Horizon's own paths.
+ */
+test('unsafe-eval is granted to the horizon dashboard and nowhere else', function () {
+    Vite::useHotFile(storage_path('framework/testing/not-a-hot-file'));
+
+    config(['horizon.allowed_emails' => ['admin@example.com']]);
+
+    $user = User::factory()->create(['email' => 'admin@example.com']);
+
+    $horizon = $this->actingAs($user)->get('/horizon')->assertOk();
+    $marketing = $this->get(route('home'))->assertOk();
+
+    expect((string) $horizon->headers->get('Content-Security-Policy'))
+        ->toContain("'unsafe-eval'")
+        ->and((string) $marketing->headers->get('Content-Security-Policy'))
+        ->not->toContain("'unsafe-eval'");
+});

@@ -27,3 +27,14 @@ Keys are never fillable and never sent to the browser. They are written only thr
 `fix_jobs.team_llm_credential_id` is pinned when the job is RAISED (person's pick, or the scan taking the team default), not read at dispatch — so "which key paid for this" cannot move because someone edited team settings mid-run. It is `nullOnDelete`: a deleted credential leaves history intact and dispatch falls back to the team default via `LlmCredentials::forJob()`.
 
 `LlmCredentials` resolves pinned → team default → `config('autofix.llm.*')` and returns a `ResolvedLlmCredential` (provider + key + host). The job spec sends `llm_provider`, `llm_key` and `llm_host` — Bilis holds the key so Bilis, never the runner, decides where it is valid. Ayos's `JobSpec` mirrors this and defaults `llm_provider` to anthropic; each provider there has its own wire API, host and model id (`PROVIDERS` in ayos `src/agent/pi.ts`), so adding a provider means changing both repos.
+
+## A project holds many repositories; the service claim decides which fixes what
+`project_repositories` was always a hasMany — the one-repository rule was product code (`Project::repository()`, now removed), not schema. A project ships several services that need not share a codebase.
+
+`project_repository_services` maps `ServiceName` → repository, many-to-one, with `unique(project_id, service_name)` (project_id denormalised so the DB enforces "one service, one repository" per project). `*` is the catch-all: every service no sibling has named, at most one per project. The first repository connected gets it, so a one-repository project needs no configuration.
+
+`FixTriggerService::scanRepository()` MUST scan per repository with `ProjectRepository::scanScope()` — `include` (named services) or `exclude` (the catch-all minus sibling claims), passed to `LogQuery::errorSamples()` as ServiceName predicates. Scanning the whole project per repository is the bug this prevents: every error raises a job on every repository, one of which is always the wrong codebase, both drawing budget.
+
+A repository claiming nothing is SKIPPED, never falls back to the project — silence is the safe failure. `SaveProjectRepositoryRequest` refuses to enable autofix with no claim, and disconnecting hard-deletes claims (a soft-deleted row holding `checkout` would block re-claiming it invisibly).
+
+Custom jobs name a `repository` id, not a project slug — the old `->first()` lookup silently picked an arbitrary repository.

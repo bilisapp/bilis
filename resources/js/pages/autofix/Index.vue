@@ -15,6 +15,7 @@ import {
 import { index as autofixIndex, show as autofixShow } from '@/routes/autofix';
 import { index as projectsIndex } from '@/routes/projects';
 import type {
+    AutofixRepositoryOption,
     FixJobFilters,
     FixJobPage,
     FixJobStatusOption,
@@ -29,7 +30,7 @@ const props = defineProps<{
     statuses: FixJobStatusOption[];
     filters: FixJobFilters;
     hasRepository: boolean;
-    autofixProjects: LogProject[];
+    autofixRepositories: AutofixRepositoryOption[];
     llmCredentials: TeamLlmCredential[];
 }>();
 
@@ -97,7 +98,7 @@ const formatTime = (iso: string | null): string => {
 const hasJobs = computed(() => props.jobs.data.length > 0);
 
 /** A job can only be spawned against a repository that opted in. */
-const canCreateJob = computed(() => props.autofixProjects.length > 0);
+const canCreateJob = computed(() => props.autofixRepositories.length > 0);
 
 function goToPage(page: number) {
     router.get(
@@ -132,7 +133,7 @@ function goToPage(page: number) {
                 <CreateFixJobModal
                     v-if="canCreateJob"
                     :team-slug="teamSlug"
-                    :projects="autofixProjects"
+                    :repositories="autofixRepositories"
                     :credentials="llmCredentials"
                 >
                     <Button size="sm" data-test="autofix-new-job">

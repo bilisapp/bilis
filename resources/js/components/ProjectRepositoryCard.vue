@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { Link, useForm } from '@inertiajs/vue3';
-import { GitBranch, Wrench } from '@lucide/vue';
-import { ref, watch } from 'vue';
+import { Link } from '@inertiajs/vue3';
+import { GitBranch, Plus, Wrench } from '@lucide/vue';
+import { computed, ref } from 'vue';
 import ConnectRepositoryModal from '@/components/ConnectRepositoryModal.vue';
-import InputError from '@/components/InputError.vue';
-import { Badge } from '@/components/ui/badge';
+import RepositoryAutofixSettings from '@/components/RepositoryAutofixSettings.vue';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -14,12 +13,8 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { index as autofixIndex } from '@/routes/autofix';
 import { connect } from '@/routes/github/installations';
-import { destroy, update } from '@/routes/projects/repository';
 import type {
     GitHubInstallationSummary,
     ProjectAutofixConfig,
@@ -31,56 +26,42 @@ import type {
  * The autofix half of a project's settings.
  *
  * Three states, in the order a team meets them: the App is not installed yet,
- * it is installed but this project has no repository, or a repository is
- * connected and its budgets can be tuned. `autofix_enabled` is the opt-in and
- * defaults off — connecting a repository grants read access, it does not start
- * anything.
+ * it is installed but this project has no repository, or one or more are
+ * connected and each can be tuned. `autofix_enabled` is the opt-in and defaults
+ * off — connecting a repository grants read access, it does not start anything.
+ *
+ * A project may hold several repositories, because a project ships several
+ * services and they need not share a codebase. Which one fixes a given error is
+ * decided by the service claims on each, edited per repository below.
  */
 const props = defineProps<{
     teamSlug: string;
     project: ProjectDetail;
-    repository: ProjectRepository | null;
+    repositories: ProjectRepository[];
+    observedServices: string[];
     installations: GitHubInstallationSummary[];
     autofix: ProjectAutofixConfig;
 }>();
 
 const connectOpen = ref(false);
 
-const settings = useForm({
-    autofix_enabled: props.repository?.autofixEnabled ?? false,
-    test_cmd: props.repository?.testCmd ?? '',
-    max_concurrent: props.repository?.maxConcurrent ?? 1,
-    daily_budget: props.repository?.dailyBudget ?? 5,
+/**
+ * Services this project has logged that no repository answers for.
+ *
+ * Worth saying out loud: an unclaimed service is one whose errors nothing will
+ * ever fix, and the only clue is a scan that quietly does nothing.
+ */
+const unclaimedServices = computed(() => {
+    if (props.repositories.some((repository) => repository.isCatchAll)) {
+        return [];
+    }
+
+    const claimed = new Set(
+        props.repositories.flatMap((repository) => repository.services),
+    );
+
+    return props.observedServices.filter((service) => !claimed.has(service));
 });
-
-watch(
-    () => props.repository,
-    (repository) => {
-        settings.defaults({
-            autofix_enabled: repository?.autofixEnabled ?? false,
-            test_cmd: repository?.testCmd ?? '',
-            max_concurrent: repository?.maxConcurrent ?? 1,
-            daily_budget: repository?.dailyBudget ?? 5,
-        });
-        settings.reset();
-    },
-);
-
-const disconnectForm = useForm({});
-
-function save() {
-    settings
-        .transform((data) => ({ ...data, test_cmd: data.test_cmd || null }))
-        .patch(update([props.teamSlug, props.project.slug]).url, {
-            preserveScroll: true,
-        });
-}
-
-function disconnect() {
-    disconnectForm.delete(destroy([props.teamSlug, props.project.slug]).url, {
-        preserveScroll: true,
-    });
-}
 </script>
 
 <template>
@@ -94,10 +75,15 @@ function disconnect() {
                 <code class="font-mono">.github/</code> is never touched.
             </CardDescription>
 
-            <CardAction v-if="repository">
-                <Badge variant="secondary" class="font-mono">
-                    {{ repository.repoFullName }}
-                </Badge>
+            <CardAction v-if="repositories.length">
+                <Button
+                    variant="secondary"
+                    size="sm"
+                    data-test="project-repository-connect-another"
+                    @click="connectOpen = true"
+                >
+                    <Plus /> Connect another
+                </Button>
             </CardAction>
         </CardHeader>
 
@@ -146,7 +132,7 @@ function disconnect() {
 
             <!-- Installed, but this project has not chosen a repository. -->
             <div
-                v-else-if="!repository"
+                v-else-if="repositories.length === 0"
                 class="flex flex-col items-center gap-3 py-6 text-center"
                 data-test="project-repository-empty"
             >
@@ -173,111 +159,45 @@ function disconnect() {
                 </Button>
             </div>
 
-            <!-- Connected: budgets, the opt-in, and the way out. -->
-            <form v-else class="space-y-5" @submit.prevent="save">
-                <div class="flex items-start gap-3">
-                    <Checkbox
-                        id="autofix-enabled"
-                        :model-value="settings.autofix_enabled"
-                        data-test="project-repository-enabled"
-                        @update:model-value="
-                            settings.autofix_enabled = $event === true
-                        "
-                    />
-                    <div class="space-y-1">
-                        <Label for="autofix-enabled" class="font-medium">
-                            Let autofix open pull requests for this project
-                        </Label>
-                        <p class="text-sm text-muted-foreground">
-                            Off by default. With it off, the repository stays
-                            connected but nothing is ever dispatched.
-                        </p>
-                    </div>
-                </div>
-
-                <div class="grid gap-2">
-                    <Label for="autofix-test-cmd">Test command</Label>
-                    <Input
-                        id="autofix-test-cmd"
-                        v-model="settings.test_cmd"
-                        class="font-mono"
-                        placeholder="php artisan test --compact"
-                        data-test="project-repository-test-cmd"
-                    />
-                    <p class="text-xs text-muted-foreground">
-                        Run inside the agent's sandbox before a diff is
-                        accepted. Leave empty when the suite needs services the
-                        sandbox has no access to — CI on the pull request then
-                        does the proving.
+            <!-- Connected: one panel per repository. -->
+            <div v-else class="space-y-4">
+                <div
+                    v-if="unclaimedServices.length"
+                    class="rounded-lg border border-severity-warn/40 bg-severity-warn/5 p-3 text-sm"
+                    data-test="project-repository-unclaimed"
+                >
+                    <p class="font-medium">Some services have no repository</p>
+                    <p class="mt-1 text-muted-foreground">
+                        Nothing will fix errors from
+                        <span class="font-mono">{{
+                            unclaimedServices.join(', ')
+                        }}</span>
+                        until a repository claims them.
                     </p>
-                    <InputError :message="settings.errors.test_cmd" />
                 </div>
 
-                <div class="grid gap-4 sm:grid-cols-2">
-                    <div class="grid gap-2">
-                        <Label for="autofix-max-concurrent">
-                            Concurrent jobs
-                        </Label>
-                        <Input
-                            id="autofix-max-concurrent"
-                            v-model.number="settings.max_concurrent"
-                            type="number"
-                            min="1"
-                            max="10"
-                            data-test="project-repository-max-concurrent"
-                        />
-                        <InputError :message="settings.errors.max_concurrent" />
-                    </div>
+                <RepositoryAutofixSettings
+                    v-for="repository in repositories"
+                    :key="repository.id"
+                    :team-slug="teamSlug"
+                    :project="project"
+                    :repository="repository"
+                    :observed-services="observedServices"
+                />
 
-                    <div class="grid gap-2">
-                        <Label for="autofix-daily-budget">Jobs per day</Label>
-                        <Input
-                            id="autofix-daily-budget"
-                            v-model.number="settings.daily_budget"
-                            type="number"
-                            min="1"
-                            max="100"
-                            data-test="project-repository-daily-budget"
-                        />
-                        <InputError :message="settings.errors.daily_budget" />
-                    </div>
-                </div>
-
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                    <div class="flex items-center gap-2">
-                        <Button
-                            type="submit"
-                            :disabled="settings.processing"
-                            data-test="project-repository-save"
-                        >
-                            Save settings
-                        </Button>
-
-                        <Button variant="ghost" as-child>
-                            <Link
-                                :href="
-                                    autofixIndex(teamSlug, {
-                                        query: { project: project.slug },
-                                    })
-                                "
-                            >
-                                View fix jobs
-                            </Link>
-                        </Button>
-                    </div>
-
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        class="text-destructive hover:text-destructive"
-                        :disabled="disconnectForm.processing"
-                        data-test="project-repository-disconnect"
-                        @click="disconnect"
+                <Button variant="ghost" as-child>
+                    <Link
+                        :href="
+                            autofixIndex(teamSlug, {
+                                query: { project: project.slug },
+                            })
+                        "
                     >
-                        Disconnect
-                    </Button>
-                </div>
-            </form>
+                        View fix jobs
+                    </Link>
+                </Button>
+            </div>
+
         </CardContent>
     </Card>
 

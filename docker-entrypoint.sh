@@ -87,6 +87,13 @@ prepare_laravel() {
 
 role="$(resolve_role "$@")"
 
+# The healthcheck runs in its own process with no view of this container's
+# argv, so record the role it resolved to. Best effort: a read-only or
+# unwritable path must not stop the service from starting — the healthcheck
+# falls back to BILIS_ROLE.
+role_file="${BILIS_ROLE_FILE:-/tmp/bilis-role}"
+printf '%s' "$role" > "$role_file" 2>/dev/null || true
+
 # Only consume an argument when it was one: with the role coming from the
 # environment, argv is already the extra flags to pass through.
 if [ "$#" -gt 0 ] && [ "$role" != "" ] && [ "$1" = "$role" ]; then

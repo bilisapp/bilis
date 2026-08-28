@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Models\GitHubInstallation;
 use App\Models\Project;
 use App\Models\ProjectRepository;
+use App\Models\ProjectRepositoryService;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -29,6 +30,53 @@ class ProjectRepositoryFactory extends Factory
             'max_concurrent' => 1,
             'daily_budget' => 5,
         ];
+    }
+
+    /**
+     * Give the first repository of a project the catch-all service claim.
+     *
+     * The same thing `ProjectRepositoryController::connect()` does: one
+     * repository on a project scans everything, and only a second one forces
+     * anybody to say which service is whose. Without this every factory-built
+     * repository would claim nothing and the scan would correctly skip it.
+     */
+    public function configure(): static
+    {
+        return $this->afterCreating(function (ProjectRepository $repository): void {
+            $claimed = ProjectRepositoryService::query()
+                ->where('project_id', $repository->project_id)
+                ->exists();
+
+            if ($claimed) {
+                return;
+            }
+
+            $repository->services()->create([
+                'project_id' => $repository->project_id,
+                'service_name' => ProjectRepositoryService::CATCH_ALL,
+            ]);
+        });
+    }
+
+    /**
+     * Claim named services for this repository instead of the catch-all.
+     *
+     * @param  list<string>  $services
+     */
+    public function forServices(array $services): static
+    {
+        return $this->afterCreating(function (ProjectRepository $repository) use ($services): void {
+            $repository->services()->delete();
+
+            foreach ($services as $service) {
+                $repository->services()->create([
+                    'project_id' => $repository->project_id,
+                    'service_name' => $service,
+                ]);
+            }
+
+            $repository->unsetRelation('services');
+        });
     }
 
     /**

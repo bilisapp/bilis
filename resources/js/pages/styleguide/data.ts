@@ -4,6 +4,7 @@ import type {
     IngestRateUsage,
     LogEntry,
     LogHistogram,
+    ProjectRepository,
     SeverityLevel,
     TeamLlmCredential,
 } from '@/types';
@@ -690,5 +691,37 @@ export const demoLlmCredentials: TeamLlmCredential[] = [
         isDefault: false,
         lastUsedAt: null,
         createdAt: '2026-08-19T16:40:00.000Z',
+    },
+];
+
+/**
+ * Two repositories on one project, which is the case the service claim exists
+ * for: the monolith takes everything nobody else named, and billing peeled off
+ * into its own codebase.
+ */
+export const demoProjectRepositories: ProjectRepository[] = [
+    {
+        id: 1,
+        repoFullName: 'acme/checkout',
+        defaultBranch: 'main',
+        autofixEnabled: true,
+        testCmd: 'php artisan test --compact',
+        maxConcurrent: 2,
+        dailyBudget: 8,
+        accountLogin: 'acme',
+        services: ['*'],
+        isCatchAll: true,
+    },
+    {
+        id: 2,
+        repoFullName: 'acme/billing',
+        defaultBranch: 'trunk',
+        autofixEnabled: true,
+        testCmd: null,
+        maxConcurrent: 1,
+        dailyBudget: 5,
+        accountLogin: 'acme',
+        services: ['billing', 'billing-worker'],
+        isCatchAll: false,
     },
 ];

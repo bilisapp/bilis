@@ -105,6 +105,21 @@ export type ProjectRepository = {
     maxConcurrent: number;
     dailyBudget: number;
     accountLogin: string;
+    /**
+     * The services this repository is responsible for. `*` is the catch-all —
+     * every service no sibling repository has named — which is what a project
+     * with a single repository keeps.
+     */
+    services: string[];
+    isCatchAll: boolean;
+};
+
+/** A repository the new-job dialog may hand work to. */
+export type AutofixRepositoryOption = {
+    id: number;
+    name: string;
+    projectName: string;
+    repoFullName: string;
 };
 
 export type GitHubInstallationSummary = {

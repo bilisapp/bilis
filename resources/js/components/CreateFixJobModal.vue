@@ -22,20 +22,24 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { store } from '@/routes/autofix';
-import type { LogProject, TeamLlmCredential } from '@/types';
+import type { AutofixRepositoryOption, TeamLlmCredential } from '@/types';
 
 /**
  * Ask the agent for something that is not a production error.
  *
- * The picker only ever lists projects whose repository has opted into autofix,
- * which is the same gate the endpoint enforces — the dialog cannot offer a
- * choice the server would refuse. The budgets can still refuse it: those are
- * per repository and shared with the scheduled scan, so a refusal comes back
- * as a field error naming which limit was hit rather than as a toast.
+ * The picker only ever lists repositories that have opted into autofix, which
+ * is the same gate the endpoint enforces — the dialog cannot offer a choice the
+ * server would refuse. It is a repository rather than a project because a
+ * project ships several services and may hold a repository per group of them;
+ * picking the project would leave the server guessing which codebase was meant.
+ *
+ * The budgets can still refuse it: those are per repository and shared with the
+ * scheduled scan, so a refusal comes back as a field error naming which limit
+ * was hit rather than as a toast.
  */
 const props = defineProps<{
     teamSlug: string;
-    projects: LogProject[];
+    repositories: AutofixRepositoryOption[];
     /**
      * The team's model API keys. The run is billed to whichever one is picked,
      * so it is offered rather than assumed — but only when there is a genuine
@@ -63,7 +67,8 @@ const defaultCredentialId = computed(
 );
 
 const form = useForm({
-    project: props.projects.length === 1 ? props.projects[0].slug : '',
+    repository:
+        props.repositories.length === 1 ? props.repositories[0].id : null,
     instructions: '',
     credential: defaultCredentialId.value,
 });
@@ -78,7 +83,7 @@ const short = computed(
 const canSubmit = computed(
     () =>
         !form.processing &&
-        form.project !== '' &&
+        form.repository !== null &&
         form.instructions.trim().length >= MIN_LENGTH &&
         form.instructions.length <= MAX_LENGTH,
 );
@@ -87,8 +92,8 @@ watch(open, (value) => {
     if (value) {
         form.reset();
         form.clearErrors();
-        form.project =
-            props.projects.length === 1 ? props.projects[0].slug : '';
+        form.repository =
+            props.repositories.length === 1 ? props.repositories[0].id : null;
         form.credential = defaultCredentialId.value;
     }
 });
@@ -122,26 +127,29 @@ function submit() {
                 </DialogHeader>
 
                 <div class="grid gap-2">
-                    <Label for="fix-job-project">Project</Label>
-                    <Select v-model="form.project">
+                    <Label for="fix-job-repository">Repository</Label>
+                    <Select v-model="form.repository">
                         <SelectTrigger
-                            id="fix-job-project"
+                            id="fix-job-repository"
                             class="w-full"
-                            data-test="create-fix-job-project"
+                            data-test="create-fix-job-repository"
                         >
-                            <SelectValue placeholder="Pick a project" />
+                            <SelectValue placeholder="Pick a repository" />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem
-                                v-for="project in projects"
-                                :key="project.slug"
-                                :value="project.slug"
+                                v-for="repository in repositories"
+                                :key="repository.id"
+                                :value="repository.id"
                             >
-                                {{ project.name }}
+                                {{ repository.projectName }} ·
+                                <span class="font-mono">{{
+                                    repository.repoFullName
+                                }}</span>
                             </SelectItem>
                         </SelectContent>
                     </Select>
-                    <InputError :message="form.errors.project" />
+                    <InputError :message="form.errors.repository" />
                 </div>
 
                 <div v-if="showCredentialPicker" class="grid gap-2">

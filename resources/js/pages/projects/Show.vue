@@ -40,7 +40,8 @@ const props = defineProps<{
     project: ProjectDetail;
     apiKeys: ProjectApiKey[];
     teamSlug: string;
-    repository: ProjectRepository | null;
+    repositories: ProjectRepository[];
+    observedServices: string[];
     installations: GitHubInstallationSummary[];
     autofix: ProjectAutofixConfig;
 }>();
@@ -262,7 +263,8 @@ const openRevokeDialog = (apiKey: ProjectApiKey) => {
         <ProjectRepositoryCard
             :team-slug="teamSlug"
             :project="project"
-            :repository="repository"
+            :repositories="repositories"
+            :observed-services="observedServices"
             :installations="installations"
             :autofix="autofix"
         />

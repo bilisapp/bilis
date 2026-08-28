@@ -9,7 +9,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
@@ -23,7 +22,6 @@ use Illuminate\Support\Str;
  * @property-read Team $team
  * @property-read Collection<int, ProjectApiKey> $apiKeys
  * @property-read Collection<int, ProjectRepository> $repositories
- * @property-read ProjectRepository|null $repository
  * @property-read Collection<int, FixJob> $fixJobs
  */
 #[Fillable(['team_id', 'name', 'slug'])]
@@ -74,20 +72,6 @@ class Project extends Model
     public function repositories(): HasMany
     {
         return $this->hasMany(ProjectRepository::class);
-    }
-
-    /**
-     * Get the single repository this project's autofix attempts work on.
-     *
-     * The schema allows several rows per project, but the product does not:
-     * one project ships from one repository, and every settings surface reads
-     * it through here so "the project's repository" has one meaning.
-     *
-     * @return HasOne<ProjectRepository, $this>
-     */
-    public function repository(): HasOne
-    {
-        return $this->hasOne(ProjectRepository::class);
     }
 
     /**

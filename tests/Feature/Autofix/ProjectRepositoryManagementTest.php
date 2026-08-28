@@ -53,7 +53,7 @@ beforeEach(function () {
     config()->set('autofix.github.private_key', base64_encode((string) $pem));
 });
 
-test('the project page carries the repository and the installations', function () {
+test('the project page carries the repositories and the installations', function () {
     [$user, $team, $project, $installation] = projectRepositoryTeam();
 
     ProjectRepository::factory()
@@ -67,9 +67,11 @@ test('the project page carries the repository and the installations', function (
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('projects/Show')
-            ->where('repository.repoFullName', 'acme/checkout')
-            ->where('repository.autofixEnabled', true)
-            ->where('repository.accountLogin', 'acme')
+            ->has('repositories', 1)
+            ->where('repositories.0.repoFullName', 'acme/checkout')
+            ->where('repositories.0.autofixEnabled', true)
+            ->where('repositories.0.accountLogin', 'acme')
+            ->where('repositories.0.isCatchAll', true)
             ->has('installations', 1)
             ->where('installations.0.accountLogin', 'acme')
             ->where('autofix.enabled', true)
@@ -194,11 +196,13 @@ test('the autofix settings of a connected repository can be updated', function (
         ->patch(route('projects.repository.update', [
             'current_team' => $team->slug,
             'project' => $project->slug,
+            'repository' => $repository->id,
         ]), [
             'autofix_enabled' => true,
             'test_cmd' => 'php artisan test --compact',
             'max_concurrent' => 2,
             'daily_budget' => 12,
+            'services' => ['*'],
         ])
         ->assertRedirect();
 
@@ -212,17 +216,19 @@ test('the autofix settings of a connected repository can be updated', function (
 test('the budgets are bounded', function (array $payload) {
     [$user, $team, $project, $installation] = projectRepositoryTeam();
 
-    ProjectRepository::factory()->forProject($project)->forInstallation($installation)->create();
+    $repository = ProjectRepository::factory()->forProject($project)->forInstallation($installation)->create();
 
     $this->actingAs($user)
         ->from(route('projects.show', ['current_team' => $team->slug, 'project' => $project->slug]))
         ->patch(route('projects.repository.update', [
             'current_team' => $team->slug,
             'project' => $project->slug,
+            'repository' => $repository->id,
         ]), [
             'autofix_enabled' => true,
             'max_concurrent' => 1,
             'daily_budget' => 5,
+            'services' => ['*'],
             ...$payload,
         ])
         ->assertSessionHasErrors(array_keys($payload));
@@ -248,13 +254,14 @@ test('a repository can be disconnected without losing the job history', function
         ->delete(route('projects.repository.destroy', [
             'current_team' => $team->slug,
             'project' => $project->slug,
+            'repository' => $repository->id,
         ]))
         ->assertRedirect();
 
     // The project reads as disconnected, autofix is off, and every job raised
     // against the repository — the history and the cooldown state both — is
     // still there, still able to name the repository it ran in.
-    expect($project->fresh()->repository)->toBeNull()
+    expect($project->fresh()->repositories()->count())->toBe(0)
         ->and($repository->fresh()->autofix_enabled)->toBeFalse()
         ->and($job->fresh())->not->toBeNull()
         ->and($job->fresh()->repository->repo_full_name)->toBe($repository->repo_full_name);
@@ -290,11 +297,17 @@ test('reconnecting the same repository restores it and the jobs under it', funct
         ])
         ->assertRedirect();
 
-    expect($project->fresh()->repository?->id)->toBe($repository->id)
+    expect($project->fresh()->repositories()->first()?->id)->toBe($repository->id)
         ->and($job->fresh()->project_repository_id)->toBe($repository->id);
 });
 
-test('connecting a different repository retires the old row instead of repointing it', function () {
+/*
+ * A project ships several services and they need not share a codebase, so a
+ * second repository is added alongside the first rather than replacing it.
+ * This used to retire the old row, which was the one-repository product rule
+ * rather than anything the schema required.
+ */
+test('connecting a second repository adds it alongside the first', function () {
     [$user, $team, $project, $installation] = projectRepositoryTeam();
 
     $repository = ProjectRepository::factory()
@@ -319,22 +332,23 @@ test('connecting a different repository retires the old row instead of repointin
         ])
         ->assertRedirect();
 
-    $connected = $project->fresh()->repository;
+    $repositories = $project->fresh()->repositories()->orderBy('id')->get();
 
-    // The job keeps pointing at the codebase it actually ran against.
-    expect($connected?->repo_full_name)->toBe('acme/billing')
-        ->and($connected?->default_branch)->toBe('trunk')
-        ->and($connected?->id)->not->toBe($repository->id)
-        ->and($job->fresh()->project_repository_id)->toBe($repository->id)
-        ->and($job->fresh()->repository->repo_full_name)->toBe('acme/checkout');
+    expect($repositories)->toHaveCount(2)
+        ->and($repositories->pluck('repo_full_name')->all())->toBe(['acme/checkout', 'acme/billing'])
+        // The first repository keeps the catch-all; the second claims nothing
+        // until somebody says which services it is responsible for.
+        ->and($repositories[0]->isCatchAll())->toBeTrue()
+        ->and($repositories[1]->services)->toHaveCount(0)
+        ->and($job->fresh()->project_repository_id)->toBe($repository->id);
 
-    $this->assertSoftDeleted('project_repositories', ['id' => $repository->id]);
+    $this->assertNotSoftDeleted('project_repositories', ['id' => $repository->id]);
 });
 
 test('a member of another team cannot manage a project repository', function () {
     [, $team, $project, $installation] = projectRepositoryTeam();
 
-    ProjectRepository::factory()->forProject($project)->forInstallation($installation)->create();
+    $repository = ProjectRepository::factory()->forProject($project)->forInstallation($installation)->create();
 
     $outsider = User::factory()->create();
     Http::fake();
@@ -343,13 +357,15 @@ test('a member of another team cannot manage a project repository', function () 
         ->patch(route('projects.repository.update', [
             'current_team' => $team->slug,
             'project' => $project->slug,
-        ]), ['autofix_enabled' => true, 'max_concurrent' => 1, 'daily_budget' => 5])
+            'repository' => $repository->id,
+        ]), ['autofix_enabled' => true, 'max_concurrent' => 1, 'daily_budget' => 5, 'services' => ['*']])
         ->assertForbidden();
 
     $this->actingAs($outsider)
         ->delete(route('projects.repository.destroy', [
             'current_team' => $team->slug,
             'project' => $project->slug,
+            'repository' => $repository->id,
         ]))
         ->assertForbidden();
 
@@ -359,4 +375,183 @@ test('a member of another team cannot manage a project repository', function () 
             'project' => $project->slug,
         ]))
         ->assertForbidden();
+});
+
+/* --------------------------------------------------------- service claims */
+
+/*
+ * One service, one repository. Two claims on `checkout` would raise a job on
+ * each for every checkout error, which is the thing the mapping exists to
+ * prevent — so it is refused at the point of saving rather than discovered
+ * from a duplicated pull request.
+ */
+test('a service already claimed by a sibling repository is refused', function () {
+    [$user, $team, $project, $installation] = projectRepositoryTeam();
+
+    ProjectRepository::factory()
+        ->forProject($project)
+        ->forInstallation($installation)
+        ->forServices(['checkout'])
+        ->create(['repo_full_name' => 'acme/checkout']);
+
+    $billing = ProjectRepository::factory()
+        ->forProject($project)
+        ->forInstallation($installation)
+        ->forServices(['billing'])
+        ->create(['repo_full_name' => 'acme/billing']);
+
+    $this->actingAs($user)
+        ->from(route('projects.show', ['current_team' => $team->slug, 'project' => $project->slug]))
+        ->patch(route('projects.repository.update', [
+            'current_team' => $team->slug,
+            'project' => $project->slug,
+            'repository' => $billing->id,
+        ]), [
+            'autofix_enabled' => true,
+            'max_concurrent' => 1,
+            'daily_budget' => 5,
+            'services' => ['billing', 'checkout'],
+        ])
+        ->assertSessionHasErrors('services');
+
+    expect($billing->fresh()->services->pluck('service_name')->all())->toBe(['billing']);
+});
+
+test('the same service may be re-saved on the repository that already holds it', function () {
+    [$user, $team, $project, $installation] = projectRepositoryTeam();
+
+    $repository = ProjectRepository::factory()
+        ->forProject($project)
+        ->forInstallation($installation)
+        ->forServices(['checkout'])
+        ->create();
+
+    $this->actingAs($user)
+        ->from(route('projects.show', ['current_team' => $team->slug, 'project' => $project->slug]))
+        ->patch(route('projects.repository.update', [
+            'current_team' => $team->slug,
+            'project' => $project->slug,
+            'repository' => $repository->id,
+        ]), [
+            'autofix_enabled' => true,
+            'max_concurrent' => 1,
+            'daily_budget' => 5,
+            'services' => ['checkout', 'checkout-worker'],
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect($repository->fresh()->services->pluck('service_name')->sort()->values()->all())
+        ->toBe(['checkout', 'checkout-worker']);
+});
+
+/*
+ * Autofix that is switched on and silently scans nothing is worse than autofix
+ * that refuses to switch on.
+ */
+test('autofix cannot be enabled on a repository that claims no service', function () {
+    [$user, $team, $project, $installation] = projectRepositoryTeam();
+
+    $repository = ProjectRepository::factory()
+        ->forProject($project)
+        ->forInstallation($installation)
+        ->create();
+
+    $this->actingAs($user)
+        ->from(route('projects.show', ['current_team' => $team->slug, 'project' => $project->slug]))
+        ->patch(route('projects.repository.update', [
+            'current_team' => $team->slug,
+            'project' => $project->slug,
+            'repository' => $repository->id,
+        ]), [
+            'autofix_enabled' => true,
+            'max_concurrent' => 1,
+            'daily_budget' => 5,
+            'services' => [],
+        ])
+        ->assertSessionHasErrors('services');
+
+    expect($repository->fresh()->autofix_enabled)->toBeFalse();
+});
+
+test('claims are replaced wholesale rather than merged', function () {
+    [$user, $team, $project, $installation] = projectRepositoryTeam();
+
+    $repository = ProjectRepository::factory()
+        ->forProject($project)
+        ->forInstallation($installation)
+        ->forServices(['checkout', 'checkout-worker'])
+        ->create();
+
+    $this->actingAs($user)
+        ->patch(route('projects.repository.update', [
+            'current_team' => $team->slug,
+            'project' => $project->slug,
+            'repository' => $repository->id,
+        ]), [
+            'autofix_enabled' => true,
+            'max_concurrent' => 1,
+            'daily_budget' => 5,
+            'services' => ['checkout'],
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect($repository->fresh()->services->pluck('service_name')->all())->toBe(['checkout']);
+});
+
+/*
+ * A soft-deleted repository holding `checkout` would block another from ever
+ * claiming it, with nothing on screen to explain why.
+ */
+test('disconnecting a repository releases the services it claimed', function () {
+    [$user, $team, $project, $installation] = projectRepositoryTeam();
+
+    $repository = ProjectRepository::factory()
+        ->forProject($project)
+        ->forInstallation($installation)
+        ->forServices(['checkout'])
+        ->create();
+
+    $this->actingAs($user)
+        ->delete(route('projects.repository.destroy', [
+            'current_team' => $team->slug,
+            'project' => $project->slug,
+            'repository' => $repository->id,
+        ]))
+        ->assertRedirect();
+
+    $this->assertDatabaseMissing('project_repository_services', [
+        'project_repository_id' => $repository->id,
+    ]);
+
+    // And the name is free again.
+    $replacement = ProjectRepository::factory()
+        ->forProject($project)
+        ->forInstallation($installation)
+        ->forServices(['checkout'])
+        ->create(['repo_full_name' => 'acme/checkout-v2']);
+
+    expect($replacement->fresh()->services->pluck('service_name')->all())->toBe(['checkout']);
+});
+
+test('a repository id from another project is not reachable through this one', function () {
+    [$user, $team, $project, $installation] = projectRepositoryTeam();
+
+    $otherProject = Project::factory()->forTeam($team)->create(['slug' => 'billing']);
+    $theirs = ProjectRepository::factory()
+        ->forProject($otherProject)
+        ->forInstallation($installation)
+        ->create();
+
+    $this->actingAs($user)
+        ->patch(route('projects.repository.update', [
+            'current_team' => $team->slug,
+            'project' => $project->slug,
+            'repository' => $theirs->id,
+        ]), [
+            'autofix_enabled' => true,
+            'max_concurrent' => 1,
+            'daily_budget' => 5,
+            'services' => ['*'],
+        ])
+        ->assertNotFound();
 });

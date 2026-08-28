@@ -75,12 +75,14 @@ class AutofixController extends Controller
             ],
             'hasRepository' => $this->repositories($team)->exists(),
             /*
-             * Only projects whose repository has opted in can be given work by
-             * hand — the same gate the endpoint enforces, so the picker never
-             * offers a choice the server would refuse. With the whole feature
-             * switched off there is no such project, whatever the rows say.
+             * Only repositories that have opted in can be given work by hand —
+             * the same gate the endpoint enforces, so the picker never offers a
+             * choice the server would refuse. A project ships several services
+             * and may hold a repository per group of them, so the choice is a
+             * repository rather than a project. With the whole feature switched
+             * off there is no such repository, whatever the rows say.
              */
-            'autofixProjects' => $this->enabled() ? $this->autofixProjects($team) : [],
+            'autofixRepositories' => $this->enabled() ? $this->autofixRepositories($team) : [],
             /*
              * The keys the new-job dialog may choose between. Never the keys
              * themselves — the same summary the settings page gets.
@@ -120,7 +122,7 @@ class AutofixController extends Controller
         $refusal = $budgets->refusalReason($repository);
 
         if ($refusal !== null) {
-            throw ValidationException::withMessages(['project' => $refusal]);
+            throw ValidationException::withMessages(['repository' => $refusal]);
         }
 
         $team = $repository->project->team;
@@ -221,20 +223,26 @@ class AutofixController extends Controller
     }
 
     /**
-     * The team's projects that may be handed a job by hand.
+     * The team's repositories that may be handed a job by hand.
      *
-     * @return list<array{name: string, slug: string}>
+     * Named by project AND repository: a project with two of them would
+     * otherwise offer the same label twice, and picking the wrong one means
+     * asking a codebase to fix something that is not in it.
+     *
+     * @return list<array{id: int, name: string, projectName: string, repoFullName: string}>
      */
-    private function autofixProjects(Team $team): array
+    private function autofixRepositories(Team $team): array
     {
         return array_values($this->repositories($team)
             ->where('autofix_enabled', true)
             ->with('project')
             ->get()
-            ->sortBy(fn (ProjectRepository $repository): string => $repository->project->name)
+            ->sortBy(fn (ProjectRepository $repository): string => $repository->project->name.' '.$repository->repo_full_name)
             ->map(fn (ProjectRepository $repository): array => [
+                'id' => $repository->id,
                 'name' => $repository->project->name,
-                'slug' => $repository->project->slug,
+                'projectName' => $repository->project->name,
+                'repoFullName' => $repository->repo_full_name,
             ])
             ->values()
             ->all());

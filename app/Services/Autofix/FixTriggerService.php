@@ -65,7 +65,7 @@ class FixTriggerService
 
         $repositories = ProjectRepository::query()
             ->where('autofix_enabled', true)
-            ->with(['project'])
+            ->with(['project', 'services'])
             ->orderBy('id')
             ->get();
 
@@ -98,6 +98,24 @@ class FixTriggerService
             return [];
         }
 
+        /*
+         * A project ships several services and they do not have to share a
+         * codebase, so a repository is scanned for ITS services and nothing
+         * else. Without this every repository on a project would raise a job
+         * for every error on it: the same error fixed twice, once by a
+         * codebase that has never heard of it, both drawing budget.
+         *
+         * A repository that claims nothing is skipped rather than falling back
+         * to the project. Silence is the safe failure here — the alternative
+         * is asking the wrong codebase to fix something, which costs money and
+         * opens a nonsense pull request.
+         */
+        $scope = $repository->scanScope();
+
+        if ($scope['include'] !== null && $scope['include'] === []) {
+            return [];
+        }
+
         $from = $now->clone()->subMinutes(self::LOOKBACK_MINUTES);
 
         $result = $this->logQuery->errorSamples(
@@ -105,6 +123,8 @@ class FixTriggerService
             $from,
             $now,
             self::SAMPLE_LIMIT,
+            services: $scope['include'],
+            excludeServices: $scope['exclude'],
         );
 
         /*

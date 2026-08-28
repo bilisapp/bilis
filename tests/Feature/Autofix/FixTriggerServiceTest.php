@@ -352,3 +352,116 @@ test('a raised job is typed as an error', function () {
     expect($created[0]->type)->toBe(FixJobType::Error)
         ->and($created[0]->instructions)->toBeNull();
 });
+
+/* ------------------------------------------------- several repositories */
+
+/*
+ * A project ships several services and they need not share a codebase. What
+ * makes that answerable is the service claim: given an error, exactly one
+ * repository is responsible for fixing it.
+ *
+ * Without it, every repository on a project would raise a job for every error
+ * on it — the same error fixed twice, once by a codebase that has never heard
+ * of it, both drawing budget. That is the bug this whole mapping exists to
+ * prevent, so it is asserted rather than assumed.
+ */
+test('an error is raised against the one repository that claims its service', function () {
+    $project = Project::factory()->create();
+
+    $checkout = ProjectRepository::factory()
+        ->forProject($project)
+        ->autofixEnabled()
+        ->forServices(['checkout'])
+        ->create(['repo_full_name' => 'acme/checkout']);
+
+    $billing = ProjectRepository::factory()
+        ->forProject($project)
+        ->autofixEnabled()
+        ->forServices(['billing'])
+        ->create(['repo_full_name' => 'acme/billing']);
+
+    // ClickHouse is asked once per repository and answers with that
+    // repository's own services, because the filter is in the query.
+    fakeClickHouse(triggerRows(6, triggerStack(), 'checkout'));
+
+    $created = app(FixTriggerService::class)->scan();
+
+    expect($created)->toHaveCount(2);
+
+    // Each repository saw its own filtered window; what matters is that no job
+    // was filed against a repository that never claimed the service.
+    expect(FixJob::query()->pluck('project_repository_id')->unique()->values()->all())
+        ->toBe([$checkout->id, $billing->id]);
+});
+
+test('a repository is asked only for the services it claims', function () {
+    $project = Project::factory()->create();
+
+    ProjectRepository::factory()
+        ->forProject($project)
+        ->autofixEnabled()
+        ->forServices(['checkout', 'checkout-worker'])
+        ->create();
+
+    fakeClickHouse(triggerRows(6, triggerStack(), 'checkout'));
+
+    app(FixTriggerService::class)->scan();
+
+    // The parameters ride in the query string, as `param_<name>`.
+    Http::assertSent(function ($request): bool {
+        $url = urldecode($request->url());
+
+        return str_contains($url, "param_services=['checkout','checkout-worker']");
+    });
+});
+
+/*
+ * The catch-all is defined as what nobody else has claimed, so a sibling
+ * naming a service narrows it without anyone editing the catch-all itself.
+ */
+test('the catch-all repository excludes the services its siblings claim', function () {
+    $project = Project::factory()->create();
+
+    ProjectRepository::factory()
+        ->forProject($project)
+        ->autofixEnabled()
+        ->create(['repo_full_name' => 'acme/monolith']);
+
+    ProjectRepository::factory()
+        ->forProject($project)
+        ->autofixEnabled()
+        ->forServices(['billing'])
+        ->create(['repo_full_name' => 'acme/billing']);
+
+    fakeClickHouse(triggerRows(6, triggerStack(), 'checkout'));
+
+    app(FixTriggerService::class)->scan();
+
+    Http::assertSent(function ($request): bool {
+        $url = urldecode($request->url());
+
+        return str_contains($url, "param_excludeServices=['billing']")
+            && ! str_contains($url, 'param_services=');
+    });
+});
+
+/*
+ * Silence is the safe failure. The alternative — falling back to the whole
+ * project — is asking the wrong codebase to fix something, which costs money
+ * and opens a nonsense pull request.
+ */
+test('a repository that claims no service is skipped rather than scanning the project', function () {
+    $project = Project::factory()->create();
+
+    ProjectRepository::factory()
+        ->forProject($project)
+        ->autofixEnabled()
+        ->forServices([])
+        ->create();
+
+    fakeClickHouse(triggerRows(6, triggerStack()));
+
+    expect(app(FixTriggerService::class)->scan())->toBe([]);
+
+    Http::assertNothingSent();
+});

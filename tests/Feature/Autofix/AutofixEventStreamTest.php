@@ -2,6 +2,7 @@
 
 use App\Enums\FixJobStatus;
 use App\Enums\TeamRole;
+use App\Http\Controllers\Autofix\FixJobStreamController;
 use App\Http\Middleware\VerifyAyosSignature;
 use App\Models\FixJob;
 use App\Models\Project;
@@ -228,6 +229,37 @@ test('the stream replays the transcript and ends at done', function () {
         ->toContain('changed Foo.php')
         ->toContain('event: done')
         ->toContain('id: 3');
+});
+
+/*
+ * The stream holds a connection open far longer than a normal request, and
+ * `php.ini-production` caps a request at 30 seconds. Without this the handler
+ * is killed mid-frame and the error handler then tries to render onto a
+ * response whose body is already on the wire.
+ */
+test('the stream lifts the request execution limit past its own budget', function () {
+    [$job, $keys, $user, $team] = eventJob();
+
+    config()->set('autofix.stream_jwt.private_key', base64_encode(random_bytes(SODIUM_CRYPTO_SIGN_SEEDBYTES)));
+
+    postEvents($job, $keys, [jobEvent(1, 'done', ['status' => 'done'])])->assertAccepted();
+
+    $token = app(StreamTokenIssuer::class)->issue($job->fresh(), $user);
+
+    $restore = (int) ini_get('max_execution_time');
+
+    try {
+        set_time_limit(30);
+
+        $this->actingAs($user)->get(
+            route('autofix.stream', ['current_team' => $team->slug, 'fixJob' => $job->uuid]).'?token='.$token['token'],
+        )->assertOk()->streamedContent();
+
+        expect((int) ini_get('max_execution_time'))
+            ->toBeGreaterThan(FixJobStreamController::MAX_SECONDS);
+    } finally {
+        set_time_limit($restore);
+    }
 });
 
 /*

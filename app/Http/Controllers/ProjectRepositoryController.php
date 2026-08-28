@@ -7,6 +7,7 @@ use App\Http\Requests\Autofix\SaveProjectRepositoryRequest;
 use App\Models\GitHubInstallation;
 use App\Models\Project;
 use App\Models\ProjectRepository;
+use App\Models\ProjectRepositoryService;
 use App\Models\Team;
 use App\Services\Autofix\GitHubAppException;
 use App\Services\Autofix\GitHubInstallationClient;
@@ -18,10 +19,17 @@ use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 /**
- * The repository one project's autofix attempts are allowed to touch.
+ * The repositories one project's autofix attempts are allowed to touch.
  *
- * A project has at most one, and connecting it is the opt-in gate: until a
- * repository exists and `autofix_enabled` is on, nothing is ever dispatched.
+ * Connecting one is the opt-in gate: until a repository exists and
+ * `autofix_enabled` is on, nothing is ever dispatched.
+ *
+ * A project ships several services and they need not share a codebase, so it
+ * may hold several repositories. What makes that answerable is the service
+ * claim on each one (`project_repository_services`): given an error, exactly
+ * one repository is responsible for fixing it. The first repository connected
+ * takes the catch-all, so the ordinary one-repository project never has to
+ * think about services at all.
  */
 class ProjectRepositoryController extends Controller
 {
@@ -116,15 +124,7 @@ class ProjectRepositoryController extends Controller
     private function connect(Project $project, GitHubInstallation $installation, string $repoFullName, string $defaultBranch): void
     {
         DB::transaction(function () use ($project, $installation, $repoFullName, $defaultBranch): void {
-            $current = $project->repository()->first();
-
-            if ($current !== null && $current->repo_full_name !== $repoFullName) {
-                $current->update(['autofix_enabled' => false]);
-                $current->delete();
-                $current = null;
-            }
-
-            $repository = $current ?? ProjectRepository::withTrashed()->firstOrNew([
+            $repository = ProjectRepository::withTrashed()->firstOrNew([
                 'project_id' => $project->getKey(),
                 'repo_full_name' => $repoFullName,
             ]);
@@ -136,21 +136,40 @@ class ProjectRepositoryController extends Controller
 
             $repository->deleted_at = null;
             $repository->save();
+
+            /*
+             * The first repository on a project takes every service. That is
+             * what a one-repository project means, and it keeps the common
+             * case free of configuration — only a second repository forces
+             * anyone to say which service belongs to which codebase.
+             */
+            $claimed = ProjectRepositoryService::query()
+                ->where('project_id', $project->getKey())
+                ->exists();
+
+            if (! $claimed) {
+                $repository->services()->create([
+                    'project_id' => $project->getKey(),
+                    'service_name' => ProjectRepositoryService::CATCH_ALL,
+                ]);
+            }
         });
 
-        $project->unsetRelation('repository');
+        $project->unsetRelation('repositories');
     }
 
     /**
-     * Update the repository's autofix settings.
+     * Update one repository's autofix settings.
      */
-    public function update(SaveProjectRepositoryRequest $request, string $current_team, Project $project): RedirectResponse
+    public function update(SaveProjectRepositoryRequest $request, string $current_team, Project $project, ProjectRepository $repository): RedirectResponse
     {
-        $repository = $project->repository;
+        abort_if($repository->project_id !== $project->getKey(), 404);
 
-        abort_if($repository === null, 404);
+        DB::transaction(function () use ($request, $repository): void {
+            $repository->update($request->settings());
 
-        $repository->update($request->validated());
+            $this->claimServices($repository, $request->services());
+        });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Autofix settings saved.')]);
 
@@ -163,21 +182,54 @@ class ProjectRepositoryController extends Controller
      * The fix jobs already raised against it stay: they are the record of what
      * was attempted, and losing them would lose the cooldown state with them.
      */
-    public function destroy(string $current_team, Project $project): RedirectResponse
+    public function destroy(string $current_team, Project $project, ProjectRepository $repository): RedirectResponse
     {
-        $repository = $project->repository;
+        abort_if($repository->project_id !== $project->getKey(), 404);
 
-        abort_if($repository === null, 404);
+        DB::transaction(function () use ($repository): void {
+            // Soft deleted: `fix_jobs` cascades from this row, and
+            // disconnecting must not take the transcripts, pull requests and
+            // fingerprint cooldowns of everything already attempted with it.
+            $repository->update(['autofix_enabled' => false]);
+            $repository->delete();
 
-        // Soft deleted: `fix_jobs` cascades from this row, and disconnecting
-        // must not take the transcripts, pull requests and fingerprint
-        // cooldowns of everything already attempted with it.
-        $repository->update(['autofix_enabled' => false]);
-        $repository->delete();
+            /*
+             * The claims go, though. They are settings rather than history —
+             * and a soft-deleted row holding `checkout` would block another
+             * repository from ever claiming it, with nothing on screen to
+             * explain why.
+             */
+            $repository->services()->delete();
+        });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Repository disconnected.')]);
 
         return back();
+    }
+
+    /**
+     * Replace a repository's service claims with exactly this list.
+     *
+     * Written as a whole rather than diffed: the settings form sends the full
+     * set, and a partial update would leave a claim behind that nobody can see
+     * on the page they just saved.
+     *
+     * @param  list<string>  $services
+     */
+    private function claimServices(ProjectRepository $repository, array $services): void
+    {
+        $repository->services()->whereNotIn('service_name', $services)->delete();
+
+        $existing = $repository->services()->pluck('service_name')->all();
+
+        foreach (array_diff($services, $existing) as $service) {
+            $repository->services()->create([
+                'project_id' => $repository->project_id,
+                'service_name' => $service,
+            ]);
+        }
+
+        $repository->unsetRelation('services');
     }
 
     /**

@@ -36,6 +36,7 @@ use Illuminate\Support\Carbon;
  * @property-read Project $project
  * @property-read GitHubInstallation $installation
  * @property-read Collection<int, FixJob> $fixJobs
+ * @property-read Collection<int, ProjectRepositoryService> $services
  */
 #[Fillable([
     'project_id',
@@ -80,6 +81,96 @@ class ProjectRepository extends Model
     public function fixJobs(): HasMany
     {
         return $this->hasMany(FixJob::class);
+    }
+
+    /**
+     * The services this repository is responsible for.
+     *
+     * @return HasMany<ProjectRepositoryService, $this>
+     */
+    public function services(): HasMany
+    {
+        return $this->hasMany(ProjectRepositoryService::class);
+    }
+
+    /**
+     * The service names this repository has claimed by name.
+     *
+     * The catch-all is not one of them: it is the absence of a name, and the
+     * scan handles it by subtraction rather than by listing.
+     *
+     * @return list<string>
+     */
+    public function namedServices(): array
+    {
+        /** @var list<string> $names */
+        $names = $this->services
+            ->reject(fn (ProjectRepositoryService $service): bool => $service->isCatchAll())
+            ->map(fn (ProjectRepositoryService $service): string => $service->service_name)
+            ->values()
+            ->all();
+
+        return $names;
+    }
+
+    /**
+     * Whether this repository takes every service nobody else has named.
+     */
+    public function isCatchAll(): bool
+    {
+        return $this->services->contains(
+            fn (ProjectRepositoryService $service): bool => $service->isCatchAll(),
+        );
+    }
+
+    /**
+     * Which services the scan should read for this repository.
+     *
+     * Two shapes, and the caller has to tell them apart:
+     *
+     * - `include` — read only these services. A repository that named its
+     *   services reads exactly those, and one that named nothing reads nothing
+     *   at all rather than quietly inheriting the project.
+     * - `exclude` — read everything except these. This is the catch-all, and
+     *   the exclusions are the services its sibling repositories have claimed,
+     *   which is what stops one error raising two jobs.
+     *
+     * @return array{include: list<string>|null, exclude: list<string>}
+     */
+    public function scanScope(): array
+    {
+        if (! $this->isCatchAll()) {
+            return ['include' => $this->namedServices(), 'exclude' => []];
+        }
+
+        /** @var list<string> $claimedElsewhere */
+        $claimedElsewhere = ProjectRepositoryService::query()
+            ->where('project_id', $this->project_id)
+            ->where('project_repository_id', '!=', $this->getKey())
+            ->where('service_name', '!=', ProjectRepositoryService::CATCH_ALL)
+            ->get()
+            ->map(fn (ProjectRepositoryService $service): string => $service->service_name)
+            ->values()
+            ->all();
+
+        return ['include' => null, 'exclude' => $claimedElsewhere];
+    }
+
+    /**
+     * Whether this repository can be scanned at all.
+     *
+     * An autofix-enabled repository that claims no service is a repository the
+     * scan will never raise anything for. That is a settings mistake rather
+     * than a state to design around, so it is refused at the point of enabling
+     * and surfaced in project settings — but the scan still checks, because a
+     * sibling repository claiming the last service can empty this one out
+     * without anyone touching its own settings.
+     */
+    public function hasScannableServices(): bool
+    {
+        $scope = $this->scanScope();
+
+        return $scope['include'] === null || $scope['include'] !== [];
     }
 
     /**

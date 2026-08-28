@@ -5,14 +5,24 @@ namespace App\Http\Controllers;
 use App\Http\Requests\Projects\SaveProjectRequest;
 use App\Models\GitHubInstallation;
 use App\Models\Project;
+use App\Models\ProjectRepository;
+use App\Models\ProjectRepositoryService;
 use App\Models\Team;
+use App\Services\Logs\LogFilters;
+use App\Services\Logs\LogQuery;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class ProjectController extends Controller
 {
+    /**
+     * @param  LogQuery  $logs  reads the service names the claim editor suggests
+     */
+    public function __construct(private readonly LogQuery $logs) {}
+
     /**
      * List the current team's projects.
      */
@@ -77,7 +87,14 @@ class ProjectController extends Controller
                 ])
                 ->values(),
             'teamSlug' => $current_team,
-            'repository' => $this->repository($project),
+            'repositories' => $this->repositories($project),
+            /*
+             * The service names actually seen in this project's logs, so the
+             * claim editor offers real values rather than asking someone to
+             * remember how their OTel resource is spelled. Best effort: a
+             * ClickHouse that cannot answer costs autocomplete, not the page.
+             */
+            'observedServices' => $this->observedServices($project),
             'installations' => $project->team->githubInstallations()
                 ->orderBy('account_login')
                 ->get()
@@ -96,28 +113,53 @@ class ProjectController extends Controller
     }
 
     /**
-     * The project's connected repository, as the settings card renders it.
+     * The service names this project has actually logged.
      *
-     * @return array<string, mixed>|null
+     * Autocomplete for the claim editor, and nothing more: the claim itself is
+     * free text, because a service that has not logged yet is exactly the one
+     * you want to map before it starts failing.
+     *
+     * @return list<string>
      */
-    private function repository(Project $project): ?array
+    private function observedServices(Project $project): array
     {
-        $repository = $project->repository()->with('installation')->first();
+        return $this->logs->services(
+            [(string) $project->getKey()],
+            new LogFilters(from: Carbon::now()->subDays(7), to: Carbon::now()),
+        );
+    }
 
-        if ($repository === null) {
-            return null;
-        }
+    /**
+     * The project's connected repositories, as the settings cards render them.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function repositories(Project $project): array
+    {
+        /** @var list<array<string, mixed>> $repositories */
+        $repositories = $project->repositories()
+            ->with(['installation', 'services'])
+            ->orderBy('id')
+            ->get()
+            ->map(fn (ProjectRepository $repository): array => [
+                'id' => $repository->id,
+                'repoFullName' => $repository->repo_full_name,
+                'defaultBranch' => $repository->default_branch,
+                'autofixEnabled' => $repository->autofix_enabled,
+                'testCmd' => $repository->test_cmd,
+                'maxConcurrent' => $repository->max_concurrent,
+                'dailyBudget' => $repository->daily_budget,
+                'accountLogin' => $repository->installation->account_login,
+                'services' => $repository->services
+                    ->map(fn (ProjectRepositoryService $service): string => $service->service_name)
+                    ->values()
+                    ->all(),
+                'isCatchAll' => $repository->isCatchAll(),
+            ])
+            ->values()
+            ->all();
 
-        return [
-            'id' => $repository->id,
-            'repoFullName' => $repository->repo_full_name,
-            'defaultBranch' => $repository->default_branch,
-            'autofixEnabled' => $repository->autofix_enabled,
-            'testCmd' => $repository->test_cmd,
-            'maxConcurrent' => $repository->max_concurrent,
-            'dailyBudget' => $repository->daily_budget,
-            'accountLogin' => $repository->installation->account_login,
-        ];
+        return $repositories;
     }
 
     /**

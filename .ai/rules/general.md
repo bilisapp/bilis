@@ -1,6 +1,7 @@
 ---
 paths:
   - docker-entrypoint.sh
+  - docker-healthcheck.sh
 ---
 
 # General
@@ -15,3 +16,8 @@ An unrecognised `BILIS_ROLE` exits 64 rather than defaulting to web: a typo woul
 Flags only ride with the argument form (`horizon --environment=production`); `BILIS_ROLE` takes the role alone.
 
 Deploy exactly one horizon and one scheduler container — Horizon forks its own workers (scale with `HORIZON_MAX_PROCESSES`), and two schedulers double-fire `autofix:scan`.
+
+## The healthcheck is role-aware, because only `web` serves HTTP
+`docker-healthcheck.sh` (image: `bilis-healthcheck`) switches on the role: `web` curls `/up`, `horizon` uses `horizon:status` (paused counts as healthy — restarting would undo an operator's pause; only "inactive" fails), `scheduler` boots the framework with `schedule:list` since `schedule:work` is PID 1 and its death already kills the container, and a verbatim command reports nothing.
+
+A single `GET /up` healthcheck can never pass in the horizon or scheduler containers — Coolify reports three empty-log attempts and rolls the deployment back on a process that was running fine. The entrypoint writes the resolved role to `${BILIS_ROLE_FILE:-/tmp/bilis-role}` because the healthcheck runs in its own process and cannot see argv; it falls back to `BILIS_ROLE`. Only exit 0 and 1 are meaningful to Docker, so every branch normalises its failure to 1. `tests/Feature/DockerHealthcheckTest.php` covers all of this.

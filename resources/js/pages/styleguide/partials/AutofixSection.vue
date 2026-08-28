@@ -4,6 +4,7 @@ import { computed, ref } from 'vue';
 import CodeCanvas from '@/components/CodeCanvas.vue';
 import CreateFixJobModal from '@/components/CreateFixJobModal.vue';
 import DeleteLlmCredentialModal from '@/components/DeleteLlmCredentialModal.vue';
+import RepositoryAutofixSettings from '@/components/RepositoryAutofixSettings.vue';
 import FixJobEventRow from '@/components/FixJobEventRow.vue';
 import FixJobStatusBadge from '@/components/FixJobStatusBadge.vue';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,7 @@ import {
     demoFixJobEvents,
     demoFixJobStatuses,
     demoLlmCredentials,
+    demoProjectRepositories,
 } from '@/pages/styleguide/data';
 import DemoBlock from './DemoBlock.vue';
 import SectionShell from './SectionShell.vue';
@@ -22,12 +24,37 @@ const page = usePage();
 /** The demo posts to the real endpoint, so it needs the real team slug. */
 const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
 
-const demoAutofixProjects = [
-    { name: 'Checkout API', slug: 'checkout-api' },
-    { name: 'Ingest Gateway', slug: 'ingest-gateway' },
+const demoAutofixRepositories = [
+    {
+        id: 1,
+        name: 'Checkout',
+        projectName: 'Checkout',
+        repoFullName: 'acme/checkout-api',
+    },
+    {
+        id: 2,
+        name: 'Checkout',
+        projectName: 'Checkout',
+        repoFullName: 'acme/ingest-gateway',
+    },
 ];
 
 const deleteCredentialOpen = ref(false);
+
+const demoProject = {
+    id: 1,
+    name: 'Checkout',
+    slug: 'checkout',
+    createdAt: '2026-06-02T11:00:00.000Z',
+};
+
+const demoObservedServices = [
+    'checkout',
+    'checkout-worker',
+    'billing',
+    'billing-worker',
+    'notifications',
+];
 </script>
 
 <template>
@@ -52,11 +79,11 @@ const deleteCredentialOpen = ref(false);
 
         <DemoBlock
             title="CreateFixJobModal"
-            description="The one place a person, rather than the scan, starts an agent run. The project picker lists only repositories that opted into autofix — the same gate the endpoint enforces — and preselects when there is exactly one. The counter turns warn-coloured below the minimum; a budget refusal comes back as a field error naming the limit that blocked it, not a toast."
+            description="The one place a person, rather than the scan, starts an agent run. The picker lists repositories rather than projects — a project ships several services and may hold one repository per group of them — and lists only those that opted into autofix, the same gate the endpoint enforces. It preselects when there is exactly one. The counter turns warn-coloured below the minimum; a budget refusal comes back as a field error naming the limit that blocked it, not a toast."
         >
             <CreateFixJobModal
                 :team-slug="teamSlug"
-                :projects="demoAutofixProjects"
+                :repositories="demoAutofixRepositories"
                 :credentials="demoLlmCredentials"
             >
                 <Button size="sm">New job</Button>
@@ -80,6 +107,22 @@ const deleteCredentialOpen = ref(false);
                 :team-slug="teamSlug"
                 :credential="demoLlmCredentials[0]"
             />
+        </DemoBlock>
+
+        <DemoBlock
+            title="RepositoryAutofixSettings"
+            description="One connected repository. The service claim is what makes several repositories on one project answerable: an error is fixed by the repository that claims its service, so exactly one is responsible. The first repository keeps the catch-all — every service nobody else named — which is why the ordinary one-repository project never has to think about this. The second has peeled off and names its own."
+        >
+            <div class="space-y-4">
+                <RepositoryAutofixSettings
+                    v-for="repository in demoProjectRepositories"
+                    :key="repository.id"
+                    :team-slug="teamSlug"
+                    :project="demoProject"
+                    :repository="repository"
+                    :observed-services="demoObservedServices"
+                />
+            </div>
         </DemoBlock>
 
         <DemoBlock

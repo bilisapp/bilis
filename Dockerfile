@@ -95,6 +95,7 @@ COPY . .
 COPY --from=php-deps /app/vendor ./vendor
 COPY --from=assets /app/public/build ./public/build
 COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/bilis-entrypoint
+COPY --chmod=755 docker-healthcheck.sh /usr/local/bin/bilis-healthcheck
 
 RUN { \
         echo '{'; \
@@ -159,8 +160,11 @@ USER www-data
 
 EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD php -r '$port = getenv("PORT") ?: "8080"; exit(@file_get_contents("http://127.0.0.1:".$port."/up") === false ? 1 : 0);'
+# Role-aware: only the web role serves HTTP. Probing /up inside the horizon
+# and scheduler containers can never pass, and the platform reads that as a
+# failed deployment.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD ["bilis-healthcheck"]
 
 ENTRYPOINT ["bilis-entrypoint"]
 

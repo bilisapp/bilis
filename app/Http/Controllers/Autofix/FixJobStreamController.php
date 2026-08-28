@@ -72,6 +72,8 @@ class FixJobStreamController extends Controller
         $after = $this->resumeFrom($request);
 
         return response()->stream(function () use ($fixJob, $after): void {
+            $this->liftExecutionLimit();
+
             $this->pump($fixJob, $after);
         }, 200, [
             'Content-Type' => 'text/event-stream',
@@ -82,6 +84,23 @@ class FixJobStreamController extends Controller
             'X-Accel-Buffering' => 'no',
             'Connection' => 'keep-alive',
         ]);
+    }
+
+    /**
+     * Give this request the whole stream budget.
+     *
+     * `php.ini-production` caps a request at 30 seconds, which is right for
+     * every other route and fatal for this one: PHP kills the handler mid
+     * frame, and the error handler then tries to render a response whose body
+     * is already on the wire ("headers already sent"). The loop's own deadline
+     * is what bounds the connection; this only stops PHP from ending it first.
+     * The grace covers the last poll interval and the shutdown after it.
+     */
+    protected function liftExecutionLimit(): void
+    {
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(self::MAX_SECONDS + 30);
+        }
     }
 
     /**

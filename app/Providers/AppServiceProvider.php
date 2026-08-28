@@ -6,6 +6,7 @@ use App\Http\Middleware\AuthenticateProjectApiKey;
 use App\Models\FixJob;
 use App\Models\Project;
 use App\Models\ProjectApiKey;
+use App\Models\ProjectRepository;
 use App\Services\Autofix\LocalRunDriver;
 use App\Services\Autofix\RunDriver;
 use App\Services\Autofix\ScalewayRunDriver;
@@ -92,6 +93,20 @@ class AppServiceProvider extends ServiceProvider
             abort_unless($project instanceof Project, 404);
 
             return $project->apiKeys()->whereKey($id)->firstOrFail();
+        });
+
+        /*
+         * A project may hold several repositories — one per group of services
+         * that share a codebase — so a repository is addressed by id, and
+         * resolved through the project so an id from another project (or
+         * another team) is a 404 rather than someone else's settings.
+         */
+        Route::bind('repository', function (string $id, RouteElement $route): ProjectRepository {
+            $project = $route->parameter('project');
+
+            abort_unless($project instanceof Project, 404);
+
+            return $project->repositories()->whereKey($id)->firstOrFail();
         });
     }
 

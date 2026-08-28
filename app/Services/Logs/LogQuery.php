@@ -302,12 +302,25 @@ class LogQuery
      * or weakens the ProjectId predicate.
      *
      * The user filters are deliberately off: this is a background scan, not a
-     * search, so there is no service, severity or search term to honour.
+     * search, so there is no severity or search term to honour. Services are
+     * the exception, and not a user filter at all — a project can ship several
+     * services from several repositories, and each repository must be scanned
+     * for its own services only. Filtering here rather than in PHP also keeps
+     * the row sample honest: 500 rows of a noisy neighbour would otherwise
+     * crowd out every error the repository is actually responsible for.
+     *
+     * `services` reads only those names; `excludeServices` reads everything
+     * else, which is how the catch-all repository of a project is scanned
+     * without raising a second job for an error a sibling already owns. They
+     * are ServiceName predicates appended to the base predicate (R4), never a
+     * replacement for it.
      *
      * An overloaded ClickHouse yields `unavailable`, so the scan can skip this
      * pass instead of raising fix jobs from a half-read window.
      *
      * @param  list<string>  $projectIds
+     * @param  list<string>|null  $services  read only these; null reads every service
+     * @param  list<string>  $excludeServices  read everything but these
      * @return ErrorSampleResult
      */
     public function errorSamples(
@@ -316,8 +329,19 @@ class LogQuery
         Carbon $to,
         int $limit = self::ERROR_SAMPLE_LIMIT,
         SeverityLevel $minimumSeverity = SeverityLevel::Error,
+        ?array $services = null,
+        array $excludeServices = [],
     ): array {
         if ($projectIds === []) {
+            return ['rows' => [], 'unavailable' => false];
+        }
+
+        /*
+         * An empty include list is "this repository claims nothing", which can
+         * only ever match nothing. Answering it with a query would read the
+         * whole window and throw the rows away.
+         */
+        if ($services !== null && $services === []) {
             return ['rows' => [], 'unavailable' => false];
         }
 
@@ -334,6 +358,16 @@ class LogQuery
         $conditions[] = 'SeverityNumber >= {severityFloor:UInt8}';
         $params['severityFloor'] = $minimumSeverity->minimumSeverityNumber();
         $params['rowLimit'] = max(1, min($limit, self::ERROR_SAMPLE_MAX));
+
+        if ($services !== null) {
+            $conditions[] = 'ServiceName IN {services:Array(String)}';
+            $params['services'] = $this->stringArrayParameter($services);
+        }
+
+        if ($excludeServices !== []) {
+            $conditions[] = 'ServiceName NOT IN {excludeServices:Array(String)}';
+            $params['excludeServices'] = $this->stringArrayParameter($excludeServices);
+        }
 
         $rows = $this->run($conditions, $params);
 
@@ -659,9 +693,23 @@ class LogQuery
      */
     private function projectIdsParameter(array $projectIds): string
     {
+        return $this->stringArrayParameter($projectIds);
+    }
+
+    /**
+     * Render a list of strings the way ClickHouse expects an Array(String) parameter.
+     *
+     * Service names come from customer telemetry rather than from our own
+     * tables, so the escaping here is load-bearing rather than defensive: a
+     * service called `a'b` must be matched, not executed.
+     *
+     * @param  list<string>  $values
+     */
+    private function stringArrayParameter(array $values): string
+    {
         $quoted = array_map(
-            fn (string $id): string => "'".str_replace(['\\', "'"], ['\\\\', "\\'"], $id)."'",
-            $projectIds,
+            fn (string $value): string => "'".str_replace(['\\', "'"], ['\\\\', "\\'"], $value)."'",
+            $values,
         );
 
         return '['.implode(',', $quoted).']';

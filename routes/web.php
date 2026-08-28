@@ -100,8 +100,8 @@ Route::prefix('{current_team}')
          */
         Route::get('projects/{project}/repository/available', [ProjectRepositoryController::class, 'available'])->name('projects.repository.available');
         Route::post('projects/{project}/repository', [ProjectRepositoryController::class, 'store'])->name('projects.repository.store');
-        Route::patch('projects/{project}/repository', [ProjectRepositoryController::class, 'update'])->name('projects.repository.update');
-        Route::delete('projects/{project}/repository', [ProjectRepositoryController::class, 'destroy'])->name('projects.repository.destroy');
+        Route::patch('projects/{project}/repositories/{repository}', [ProjectRepositoryController::class, 'update'])->name('projects.repository.update');
+        Route::delete('projects/{project}/repositories/{repository}', [ProjectRepositoryController::class, 'destroy'])->name('projects.repository.destroy');
 
         /*
          * Autofix. `{fixJob}` is bound through its project's team in

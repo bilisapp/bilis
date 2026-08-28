@@ -11,11 +11,11 @@ use Illuminate\Validation\Validator;
 /**
  * Spawning a job from typed instructions rather than from a production error.
  *
- * Two things are checked here and nothing else is taken on trust. The project
- * is resolved through the team in the URL, so a slug from another team is
- * "no such project" rather than a permission error; and its repository has to
+ * Two things are checked here and nothing else is taken on trust. The
+ * repository is resolved through the team in the URL, so an id from another
+ * team is "no such repository" rather than a permission error; and it has to
  * have opted into autofix, because the opt-in is what the whole surface hangs
- * on — a project that has not enabled it cannot be made to run an agent by
+ * on — a repository that has not enabled it cannot be made to run an agent by
  * hand-editing a form. Budgets are the controller's job: they are shared with
  * the scheduled path and live in `FixJobBudget`.
  */
@@ -32,7 +32,7 @@ class CreateFixJobRequest extends FormRequest
     public const MAX_LENGTH = 10000;
 
     /**
-     * The repository resolved from the submitted project slug, once.
+     * The repository resolved from the submitted id, once.
      */
     protected ?ProjectRepository $resolved = null;
 
@@ -44,7 +44,7 @@ class CreateFixJobRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'project' => ['required', 'string', 'max:255'],
+            'repository' => ['required', 'integer'],
             'instructions' => ['required', 'string', 'min:'.self::MIN_LENGTH, 'max:'.self::MAX_LENGTH],
             /*
              * Which of the team's model credentials pays for this run.
@@ -86,7 +86,7 @@ class CreateFixJobRequest extends FormRequest
     }
 
     /**
-     * Check the project the request names, once the fields themselves are sane.
+     * Check the repository the request names, once the fields themselves are sane.
      *
      * @return list<callable(Validator): void>
      */
@@ -94,21 +94,28 @@ class CreateFixJobRequest extends FormRequest
     {
         return [
             function (Validator $validator): void {
-                if ($validator->errors()->has('project')) {
+                if ($validator->errors()->has('repository')) {
                     return;
                 }
 
-                $repository = $this->repository();
-
-                if ($repository === null) {
-                    $validator->errors()->add('project', __('Pick a project whose repository has autofix enabled.'));
+                if ($this->repository() === null) {
+                    $validator->errors()->add('repository', __('Pick a repository that has autofix enabled.'));
                 }
             },
         ];
     }
 
     /**
-     * The autofix-enabled repository of the project this request names.
+     * The autofix-enabled repository this request names.
+     *
+     * Addressed by id rather than by project slug. A project ships several
+     * services and may hold a repository per group of them, so "the project's
+     * repository" no longer identifies anything — it used to resolve to
+     * whichever row came back first, which would have quietly sent a request
+     * to the wrong codebase the moment a second one was connected.
+     *
+     * The id is still resolved through the team in the URL, so one from
+     * another team is "no such repository" rather than a permission error.
      */
     public function repository(): ?ProjectRepository
     {
@@ -117,18 +124,17 @@ class CreateFixJobRequest extends FormRequest
         }
 
         $teamSlug = $this->route('current_team');
-        $projectSlug = $this->input('project');
+        $repositoryId = $this->input('repository');
 
-        if (! is_string($teamSlug) || ! is_string($projectSlug)) {
+        if (! is_string($teamSlug) || ! is_numeric($repositoryId)) {
             return null;
         }
 
         $repository = ProjectRepository::query()
+            ->whereKey((int) $repositoryId)
             ->where('autofix_enabled', true)
             ->with(['project.team'])
-            ->whereHas('project', fn ($query) => $query
-                ->where('slug', $projectSlug)
-                ->whereHas('team', fn ($team) => $team->where('slug', $teamSlug)))
+            ->whereHas('project.team', fn ($team) => $team->where('slug', $teamSlug))
             ->first();
 
         return $this->resolved = $repository;
