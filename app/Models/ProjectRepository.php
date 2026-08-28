@@ -114,6 +114,38 @@ class ProjectRepository extends Model
     }
 
     /**
+     * The repository responsible for one service of one project.
+     *
+     * The same claim the scan reads, asked the other way round: the scan walks
+     * repositories and asks which services each may read, while a person
+     * looking at a single log line asks which codebase owns the service that
+     * line came from. A named claim wins over the catch-all, which is the rule
+     * `unique(project_id, service_name)` and `scanScope()`'s subtraction
+     * already encode.
+     *
+     * Only repositories that opted into autofix are considered: a connected
+     * repository with the feature off is not a fix target, and offering it
+     * would put a button in front of a request the endpoint would refuse.
+     */
+    public static function forService(int $projectId, string $serviceName): ?self
+    {
+        $repositories = self::query()
+            ->where('project_id', $projectId)
+            ->where('autofix_enabled', true)
+            ->with('services')
+            ->orderBy('id')
+            ->get();
+
+        $named = $serviceName === ''
+            ? null
+            : $repositories->first(
+                fn (self $repository): bool => in_array($serviceName, $repository->namedServices(), true),
+            );
+
+        return $named ?? $repositories->first(fn (self $repository): bool => $repository->isCatchAll());
+    }
+
+    /**
      * Whether this repository takes every service nobody else has named.
      */
     public function isCatchAll(): bool

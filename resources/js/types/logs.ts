@@ -1,3 +1,5 @@
+import type { TeamLlmCredential } from './teams';
+
 export type SeverityLevel =
     'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 
@@ -164,4 +166,38 @@ export type LogOnboardingStage = 'no-projects' | 'no-logs' | 'ready';
 
 export type LogOnboarding = {
     stage: LogOnboardingStage;
+};
+
+/**
+ * Which codebase, if any, is responsible for a given project's services.
+ *
+ * Resolved on the server from the repository service claims — the browser
+ * reads this map, it never asserts a repository. A named service wins over
+ * the catch-all, which is the same rule the endpoint applies.
+ */
+export type LogAutofixProject = {
+    slug: string;
+    name: string;
+    /** The repository taking every service no sibling has named. */
+    catchAll: string | null;
+    /** Service name -> the repository that fixes it. */
+    services: Record<string, string>;
+};
+
+export type LogAutofixState = {
+    /** The deployment-wide switch. With it off, autofix is not offered at all. */
+    enabled: boolean;
+    /** At least one repository on the team has opted in. */
+    connected: boolean;
+    /** Keyed by project id, as it appears on a log entry. */
+    projects: Record<string, LogAutofixProject>;
+    /** The team's model API keys, so the run dialog can say who pays. */
+    credentials: TeamLlmCredential[];
+};
+
+/** What one log line resolves to when the reader asks for a fix. */
+export type LogAutofixTarget = {
+    project: LogAutofixProject | null;
+    /** The repository responsible for this line's service, if any. */
+    repository: string | null;
 };

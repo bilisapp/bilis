@@ -162,6 +162,62 @@ class FixTriggerService
     }
 
     /**
+     * Raise a fix job for one log line somebody pointed at.
+     *
+     * The scan's thresholds are deliberately absent here. They exist to stop
+     * an unattended loop spending money on noise; a person clicking "fix this"
+     * has already made that judgement, and an error they care about on its
+     * first occurrence is exactly the case the five-occurrence floor gets
+     * wrong. Everything that protects the repository rather than the budget
+     * still applies — the caller checks `FixJobBudget` first, and the job that
+     * comes out is an ordinary error job: same fingerprint, same cooldown for
+     * the scan afterwards, same diff validation and pull request.
+     *
+     * @param  LogRow  $row
+     */
+    public function raiseFromRow(ProjectRepository $repository, array $row, ?int $credentialId = null, ?Carbon $now = null): FixJob
+    {
+        $now = ($now ?? Carbon::now())->clone();
+        $timestamp = $row['timestamp'];
+
+        /** @var ErrorGroup $group */
+        $group = [
+            'fingerprint' => $this->fingerprintFor($row),
+            'count' => 1,
+            'first_seen' => $timestamp,
+            'last_seen' => $timestamp,
+            'row' => $row,
+            'samples' => [[
+                'timestamp' => $timestamp,
+                'severity' => $row['severityText'],
+                'body' => $row['body'],
+            ]],
+        ];
+
+        /*
+         * The window is the line itself. A scanned job's window says "these
+         * are the minutes I counted over"; there was no counting here, and
+         * widening it would suggest occurrences nobody looked for.
+         */
+        $at = $this->parse($timestamp) ?? $now;
+
+        return $this->createJob($repository, $group, $at, $at, $credentialId);
+    }
+
+    /**
+     * The stable identity of the error behind one log row.
+     *
+     * Exposed so a caller can ask "is this already being fixed?" before
+     * spending a run on it — the same value `raiseFromRow()` would store.
+     *
+     * @param  LogRow  $row
+     */
+    public function fingerprintFor(array $row): string
+    {
+        return $this->fingerprinter->fingerprint($row);
+    }
+
+    /**
      * Group the sampled rows by fingerprint, most frequent first.
      *
      * @param  list<LogRow>  $rows
@@ -273,17 +329,18 @@ class FixTriggerService
      *
      * @param  ErrorGroup  $group
      */
-    protected function createJob(ProjectRepository $repository, array $group, Carbon $from, Carbon $to): FixJob
+    protected function createJob(ProjectRepository $repository, array $group, Carbon $from, Carbon $to, ?int $credentialId = null): FixJob
     {
         $job = FixJob::query()->create([
             'project_id' => $repository->project_id,
             'project_repository_id' => $repository->id,
             /*
-             * Nobody is here to pick a key, so the scan takes the team's
-             * default and pins it — the same thing the new-job dialog does
-             * when the person leaves the picker alone.
+             * Pinned at creation either way. When a person raised the job they
+             * may have picked the key; when the scan did, nobody is here to
+             * pick one, so it takes the team's default — the same thing the
+             * new-job dialog does when the picker is left alone.
              */
-            'team_llm_credential_id' => $repository->project->team->defaultLlmCredential()?->getKey(),
+            'team_llm_credential_id' => $credentialId ?? $repository->project->team->defaultLlmCredential()?->getKey(),
             'type' => FixJobType::Error,
             'fingerprint' => $group['fingerprint'],
             'error_context' => $this->errorContext($group, $from, $to),

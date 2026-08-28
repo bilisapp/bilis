@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\GitHubLoginController;
 use App\Http\Controllers\Autofix\FixJobCancelController;
 use App\Http\Controllers\Autofix\FixJobStreamController;
 use App\Http\Controllers\Autofix\FixJobStreamTokenController;
+use App\Http\Controllers\Autofix\LogFixJobController;
 use App\Http\Controllers\AutofixController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocsApiKeyController;
@@ -120,6 +121,16 @@ Route::prefix('{current_team}')
         Route::post('autofix/jobs', [AutofixController::class, 'store'])
             ->middleware('throttle:20,1')
             ->name('autofix.store');
+
+        /*
+         * A job raised from one log line in the viewer. Sits alongside
+         * `jobs` and above `{fixJob}` for the same reason, and carries the
+         * same throttle: it spends an agent run, and the repository is
+         * derived from the line's service rather than named by the browser.
+         */
+        Route::post('autofix/from-log', LogFixJobController::class)
+            ->middleware('throttle:20,1')
+            ->name('autofix.from-log');
 
         Route::get('autofix/{fixJob}', [AutofixController::class, 'show'])->name('autofix.show');
         Route::post('autofix/{fixJob}/stream-token', FixJobStreamTokenController::class)

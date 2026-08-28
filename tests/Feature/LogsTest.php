@@ -1,7 +1,9 @@
 <?php
 
 use App\Enums\TeamRole;
+use App\Models\GitHubInstallation;
 use App\Models\Project;
+use App\Models\ProjectRepository;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Http\Client\Request;
@@ -506,4 +508,84 @@ test('the older endpoint is forbidden for non members', function () {
     $this->actingAs(User::factory()->create())
         ->getJson(route('logs.older', ['current_team' => $team->slug]))
         ->assertForbidden();
+});
+
+test('the log viewer is told which service has a codebase behind it', function () {
+    Http::fake(['127.0.0.1:8123/*' => Http::response(logRowsResponse())]);
+
+    config()->set('autofix.enabled', true);
+
+    [$user, $team, $project] = logTeam();
+
+    $installation = GitHubInstallation::factory()->forTeam($team)->create();
+
+    ProjectRepository::factory()
+        ->forProject($project)
+        ->forInstallation($installation)
+        ->autofixEnabled()
+        ->forServices(['api'])
+        ->create(['repo_full_name' => 'acme/api']);
+
+    ProjectRepository::factory()
+        ->forProject($project)
+        ->forInstallation($installation)
+        ->autofixEnabled()
+        ->forServices(['*'])
+        ->create(['repo_full_name' => 'acme/checkout']);
+
+    $this->actingAs($user)
+        ->get(route('logs.index', ['current_team' => $team->slug]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('logs/Index')
+            ->where('autofix.enabled', true)
+            ->where('autofix.connected', true)
+            // Keyed by the project id the log rows carry, so a row resolves
+            // its own repository without a second request.
+            ->where('autofix.projects.'.$project->id.'.services.api', 'acme/api')
+            ->where('autofix.projects.'.$project->id.'.catchAll', 'acme/checkout')
+            ->where('autofix.projects.'.$project->id.'.slug', 'checkout'),
+        );
+});
+
+test('a repository that has not opted into autofix is not offered', function () {
+    Http::fake(['127.0.0.1:8123/*' => Http::response(logRowsResponse())]);
+
+    config()->set('autofix.enabled', true);
+
+    [$user, $team, $project] = logTeam();
+
+    ProjectRepository::factory()
+        ->forProject($project)
+        ->forInstallation(GitHubInstallation::factory()->forTeam($team)->create())
+        ->create(['repo_full_name' => 'acme/checkout', 'autofix_enabled' => false]);
+
+    $this->actingAs($user)
+        ->get(route('logs.index', ['current_team' => $team->slug]))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('autofix.connected', false)
+            ->where('autofix.projects.'.$project->id.'.catchAll', null),
+        );
+});
+
+test('the deployment switch takes the whole offer off the page', function () {
+    Http::fake(['127.0.0.1:8123/*' => Http::response(logRowsResponse())]);
+
+    config()->set('autofix.enabled', false);
+
+    [$user, $team, $project] = logTeam();
+
+    ProjectRepository::factory()
+        ->forProject($project)
+        ->forInstallation(GitHubInstallation::factory()->forTeam($team)->create())
+        ->autofixEnabled()
+        ->create(['repo_full_name' => 'acme/checkout']);
+
+    $this->actingAs($user)
+        ->get(route('logs.index', ['current_team' => $team->slug]))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('autofix.enabled', false)
+            ->where('autofix.connected', false)
+            ->where('autofix.credentials', []),
+        );
 });

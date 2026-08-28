@@ -84,6 +84,25 @@ class FixJob extends Model
     use HasFactory, HasUuids;
 
     /**
+     * A safety valve on the failure reason, not a length limit.
+     *
+     * `failure_reason` is `text`, which Postgres does not bound at all — there
+     * is no larger type. The reason is stored whole, because a truncated one is
+     * exactly the thing that stops being useful at the moment you need it: the
+     * 403 that made this column a problem carried the missing IAM permissions
+     * in its body.
+     *
+     * This exists only so a pathological upstream — an HTML error page from
+     * some proxy, megabytes of it — cannot be written verbatim onto every
+     * failed row. 16k characters is more than an order of magnitude past any
+     * real message, and stays under MySQL's 64KB `TEXT` even at four bytes a
+     * character, so a self-hosted install on MySQL fails no differently.
+     *
+     * The full text reaches the logs regardless of this.
+     */
+    public const MAX_FAILURE_REASON = 16000;
+
+    /**
      * The columns that should receive a generated unique identifier.
      *
      * @return array<int, string>

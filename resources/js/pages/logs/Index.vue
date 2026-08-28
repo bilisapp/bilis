@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { Head, router, useHttp, usePage, usePoll } from '@inertiajs/vue3';
+import { useClipboard } from '@vueuse/core';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { toast } from 'vue-sonner';
 import AlertError from '@/components/AlertError.vue';
 import GetStartedPanel from '@/components/GetStartedPanel.vue';
 import LogEntryRow from '@/components/LogEntryRow.vue';
@@ -13,6 +15,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { useLogKeyboard } from '@/composables/useLogKeyboard';
 import { useTailStatus } from '@/composables/useTailStatus';
 import { useTailTabBadge } from '@/composables/useTailTabBadge';
+import { autofixTargetFor, formatLogEntry } from '@/lib/logRow';
 import {
     DEFAULT_RANGE_PRESET,
     presetForRange,
@@ -27,6 +30,7 @@ import {
     tail as logsTail,
 } from '@/routes/logs';
 import type {
+    LogAutofixState,
     LogEntry,
     LogFilters,
     LogHistogram,
@@ -47,6 +51,8 @@ const props = defineProps<{
     services?: string[];
     logs?: LogResult;
     histogram?: LogHistogram;
+    /** Which of the team's services have a codebase behind them. */
+    autofix: LogAutofixState;
 }>();
 
 defineOptions({
@@ -614,6 +620,33 @@ const toggleExpanded = (key: string) => {
 
 const shortcutsOpen = ref(false);
 
+const { copy: copyToClipboard } = useClipboard({
+    // navigator.clipboard needs a secure context; self-hosted installs often
+    // run plain http, so fall back to the legacy execCommand path there.
+    legacy: true,
+});
+
+/**
+ * Put one line on the clipboard, as UTC plain text.
+ *
+ * The row's own copy button says so with a check mark in place, so the toast
+ * is only raised for the keyboard route, where nothing else would confirm it.
+ */
+const copyEntry = (entry: LogEntry) => {
+    copyToClipboard(formatLogEntry(entry));
+    toast.success('Line copied.');
+};
+
+/**
+ * Which codebase, if any, would fix the error on a given line.
+ *
+ * Read off the map the server sent rather than asked per row: the answer is a
+ * settings fact about the project and the line's service, and the row needs it
+ * the moment a pointer touches it.
+ */
+const autofixTarget = (entry: LogEntry) =>
+    autofixTargetFor(entry, props.autofix);
+
 /**
  * `less`-style keys over the stream. Every one of them has a pointer
  * equivalent; this is a faster route, never the only one.
@@ -646,6 +679,13 @@ const { cursor, reset: resetCursor } = useLogKeyboard({
     },
     openShortcuts: () => {
         shortcutsOpen.value = true;
+    },
+    copy: (index) => {
+        const entry = rows.value[index];
+
+        if (entry) {
+            copyEntry(entry);
+        }
     },
 });
 
@@ -937,6 +977,9 @@ const activeFilterCount = computed(
                             :expanded="expandedKey === entryKey(entry, index)"
                             :fresh="freshKeys.has(freshId(entry))"
                             :cursor="cursor === index"
+                            :team-slug="teamSlug"
+                            :autofix="autofixTarget(entry)"
+                            :credentials="autofix.credentials"
                             @toggle="toggleExpanded(entryKey(entry, index))"
                         />
 

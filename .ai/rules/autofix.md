@@ -38,3 +38,10 @@ Keys are never fillable and never sent to the browser. They are written only thr
 A repository claiming nothing is SKIPPED, never falls back to the project — silence is the safe failure. `SaveProjectRepositoryRequest` refuses to enable autofix with no claim, and disconnecting hard-deletes claims (a soft-deleted row holding `checkout` would block re-claiming it invisibly).
 
 Custom jobs name a `repository` id, not a project slug — the old `->first()` lookup silently picked an arbitrary repository.
+
+## A log line raised by hand skips the scan thresholds, never the budgets
+`FixTriggerService::raiseFromRow()` is the log-viewer path (POST `autofix/from-log`, `LogFixJobController`). It creates an ordinary `FixJobType::Error` job — same fingerprint, same `error_context` shape, `count: 1` and one sample — so the scan's cooldown applies to it afterwards.
+
+`min_error_count` deliberately does NOT apply: it exists to stop an unattended loop spending on noise, and a person clicking "fix this" has made that call. `FixJobBudget::refusalReason()` still runs, and an *active* job on the same fingerprint short-circuits to that job instead of raising a duplicate.
+
+The repository is never named by the browser: `ProjectRepository::forService($projectId, $serviceName)` resolves it from the service claims (named beats catch-all, autofix-enabled only). The project id in the body is matched against the team's own projects. The rest of the row is untrusted and only ever reaches the agent through `TaskRenderer`'s untrusted-data markers.

@@ -5,16 +5,20 @@ import ApiKeyCreatedDialog from '@/components/ApiKeyCreatedDialog.vue';
 import AppLogo from '@/components/AppLogo.vue';
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import AppLogoMark from '@/components/AppLogoMark.vue';
+import AskAiMenu from '@/components/AskAiMenu.vue';
+import AutofixUpsellModal from '@/components/AutofixUpsellModal.vue';
 import GetStartedPanel from '@/components/GetStartedPanel.vue';
 import GitHubLoginButton from '@/components/GitHubLoginButton.vue';
 import Heading from '@/components/Heading.vue';
 import IngestRateCard from '@/components/IngestRateCard.vue';
 import InputError from '@/components/InputError.vue';
 import LogEntryRow from '@/components/LogEntryRow.vue';
+import LogRowActions from '@/components/LogRowActions.vue';
 import LogsHistogram from '@/components/LogsHistogram.vue';
 import LogsShortcutsDialog from '@/components/LogsShortcutsDialog.vue';
 import LogsToolbar from '@/components/LogsToolbar.vue';
 import PlaceholderPattern from '@/components/PlaceholderPattern.vue';
+import RunAutofixModal from '@/components/RunAutofixModal.vue';
 import TextLink from '@/components/TextLink.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,7 +31,12 @@ import {
     demoLogEntry,
 } from '@/pages/styleguide/data';
 import { styleguide } from '@/routes';
-import type { LogProject, LogRangePreset, SeverityLevel } from '@/types';
+import type {
+    LogAutofixTarget,
+    LogProject,
+    LogRangePreset,
+    SeverityLevel,
+} from '@/types';
 import DemoBlock from './DemoBlock.vue';
 import SectionShell from './SectionShell.vue';
 
@@ -37,6 +46,32 @@ const demoEntries = SEVERITY_LEVELS.map((level, index) => ({
 }));
 
 const expandedLevel = ref<SeverityLevel | null>('error');
+
+/**
+ * The two answers a row can get when somebody asks it to be fixed: a
+ * repository responsible for the line's service, or none yet.
+ */
+const demoAutofixConnected: LogAutofixTarget = {
+    project: {
+        slug: 'checkout',
+        name: 'Checkout',
+        catchAll: 'bilisapp/checkout',
+        services: {},
+    },
+    repository: 'bilisapp/checkout',
+};
+
+const demoAutofixUnconnected: LogAutofixTarget = {
+    project: {
+        slug: 'checkout',
+        name: 'Checkout',
+        catchAll: null,
+        services: {},
+    },
+    repository: null,
+};
+
+const demoErrorEntry = demoLogEntry('error', 2);
 
 const toggleExpanded = (level: SeverityLevel) => {
     expandedLevel.value = expandedLevel.value === level ? null : level;
@@ -158,6 +193,58 @@ const onHistogramZoom = (window: { from: string; to: string }) => {
                     @toggle="toggleExpanded(demo.level)"
                 />
             </div>
+        </DemoBlock>
+
+        <DemoBlock
+            title="LogRowActions"
+            description="what one line can be handed to without leaving the stream: copy the line as UTC plain text, ask a general-purpose assistant about it, or hand it to the autofix agent. In a log row it floats above the line rather than taking a column of it — reserving the width would shorten every line on the page to make room for a control that is invisible most of the time — and it is untouchable while hidden, so it never swallows a click aimed at the line beneath. Shown here in the flow, since positioning is the caller's business. The fix button is present in both states — with a repository responsible for the line's service it opens the run dialog, without one it opens the case for connecting a repository. A button that disappears teaches nobody the feature exists."
+        >
+            <div class="flex flex-wrap items-center gap-6">
+                <LogRowActions
+                    :entry="demoErrorEntry"
+                    team-slug="bilis"
+                    :autofix="demoAutofixConnected"
+                />
+                <LogRowActions
+                    :entry="demoErrorEntry"
+                    team-slug="bilis"
+                    :autofix="demoAutofixUnconnected"
+                />
+            </div>
+        </DemoBlock>
+
+        <DemoBlock
+            title="RunAutofixModal"
+            description="the step between the click and the run, because a run costs money and opens a pull request. It quotes the line back and names the repository the server resolved for it — the only place the reader sees that answer before agreeing to it — and offers the assistant route in the same footer. The scan's five-occurrence floor does not apply here: it exists to stop an unattended loop spending on noise, and the person in front of this dialog has already made that call. Submitting from the styleguide posts to a team slug that does not exist."
+        >
+            <RunAutofixModal
+                :entry="demoErrorEntry"
+                team-slug="bilis"
+                repository="bilisapp/checkout"
+            >
+                <Button variant="secondary">Show the run dialog</Button>
+            </RunAutofixModal>
+        </DemoBlock>
+
+        <DemoBlock
+            title="AskAiMenu"
+            description="the escape hatch for every line autofix cannot take: no repository connected, no model key, or simply not worth an agent run. The prompt is built from the line rather than typed, so what reaches the assistant carries the timestamp, the service and the attributes — the parts people forget to paste and then get a worse answer for. Gemini has no prefill parameter, so its item copies the prompt and says so."
+        >
+            <AskAiMenu :entry="demoErrorEntry" align="start" />
+        </DemoBlock>
+
+        <DemoBlock
+            title="AutofixUpsellModal"
+            description="what the fix button says when nothing can fix it yet. It answers the question the click was asking — here is what a connected repository would have done with this line, here is where to connect one — and offers the assistant route as a real answer rather than a consolation. It opens on a click, never on its own."
+        >
+            <AutofixUpsellModal
+                :entry="demoErrorEntry"
+                team-slug="bilis"
+                project-slug="checkout"
+                project-name="Checkout"
+            >
+                <Button variant="secondary">Show the case</Button>
+            </AutofixUpsellModal>
         </DemoBlock>
 
         <DemoBlock

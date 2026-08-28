@@ -72,7 +72,7 @@ class StaleFixJobReaper
 
             $job->forceFill([
                 'status' => FixJobStatus::Failed,
-                'failure_reason' => $reason,
+                'failure_reason' => mb_substr($reason, 0, FixJob::MAX_FAILURE_REASON),
                 'completed_at' => $now,
             ])->save();
 

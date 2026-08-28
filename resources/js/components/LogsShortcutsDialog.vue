@@ -21,6 +21,7 @@ const SHORTCUTS: { keys: string[]; label: string }[] = [
     { keys: ['g'], label: 'Jump to the newest line' },
     { keys: ['G'], label: 'Jump to the oldest loaded line' },
     { keys: ['o', 'Enter'], label: 'Expand or collapse the line' },
+    { keys: ['y'], label: 'Copy the line' },
     { keys: ['/'], label: 'Search log bodies' },
     { keys: ['Esc'], label: 'Collapse, then leave the line' },
     { keys: ['?'], label: 'This sheet' },

@@ -9,6 +9,7 @@ use App\Services\Autofix\AyosException;
 use App\Services\Autofix\GitHubAppException;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
@@ -70,6 +71,22 @@ class DispatchFixJob implements ShouldQueue
             $ayos->dispatch($job);
         } catch (AyosException|GitHubAppException $exception) {
             if (! $exception->isTransient()) {
+                /*
+                 * Logged before the row is written, and with the upstream body
+                 * in full: the job row carries a reason a person can read, the
+                 * log carries everything the upstream actually said. A control
+                 * plane refusing a run explains itself in that body — which IAM
+                 * permission is missing, which quota is exhausted — and it is
+                 * the difference between "403" and knowing what to fix.
+                 */
+                Log::error('Autofix dispatch failed.', [
+                    'fix_job' => $job->uuid,
+                    'reason' => $exception->getMessage(),
+                    'response_body' => $exception instanceof AyosException
+                        ? $exception->responseBody()
+                        : null,
+                ]);
+
                 $this->markFailed($job, $exception->getMessage());
                 $this->fail($exception);
 
@@ -117,7 +134,7 @@ class DispatchFixJob implements ShouldQueue
 
         $job->forceFill([
             'status' => FixJobStatus::Failed,
-            'failure_reason' => mb_substr($reason, 0, 1000),
+            'failure_reason' => mb_substr($reason, 0, FixJob::MAX_FAILURE_REASON),
             'completed_at' => now(),
         ])->save();
     }

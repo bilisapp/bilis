@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ChevronDown, ChevronRight } from '@lucide/vue';
 import { computed } from 'vue';
+import LogRowActions from '@/components/LogRowActions.vue';
 import {
     formatTimestamp,
     formatUtcTimestamp,
@@ -12,7 +13,7 @@ import {
     timeZoneOffset,
 } from '@/lib/logs';
 import { cn } from '@/lib/utils';
-import type { LogEntry } from '@/types';
+import type { LogAutofixTarget, LogEntry, TeamLlmCredential } from '@/types';
 
 const props = withDefaults(
     defineProps<{
@@ -22,12 +23,30 @@ const props = withDefaults(
         fresh?: boolean;
         /** The row the keyboard is currently on. */
         cursor?: boolean;
+        /**
+         * The team this row is being read in. Absent in the styleguide, which
+         * renders the row without its actions.
+         */
+        teamSlug?: string;
+        /**
+         * What this line resolves to for autofix, or null when the feature is
+         * switched off for the deployment.
+         */
+        autofix?: LogAutofixTarget | null;
+        credentials?: TeamLlmCredential[];
     }>(),
-    { fresh: false, cursor: false },
+    {
+        fresh: false,
+        cursor: false,
+        teamSlug: undefined,
+        autofix: null,
+        credentials: undefined,
+    },
 );
 
 const emit = defineEmits<{
     (event: 'toggle'): void;
+    (event: 'copied'): void;
 }>();
 
 const level = computed(() => severityLevelFor(props.entry));
@@ -61,63 +80,100 @@ const attributeGroups = computed(() => [
         :data-severity="level"
         data-test="log-row"
     >
-        <button
-            type="button"
-            class="flex w-full items-start gap-3 px-3 py-1.5 text-left font-mono hover:bg-accent/50"
-            :aria-expanded="expanded"
-            @click="emit('toggle')"
+        <!--
+          The actions sit beside the disclosure button rather than inside it —
+          a button may not contain buttons — and they float ABOVE the row
+          rather than taking a column of it. Reserving the width would shorten
+          every log line on the page to make room for a control that is
+          invisible most of the time; the line is what people came to read, so
+          it gets the full width and the cluster slides over its tail on hover.
+        -->
+        <div
+            class="group/row relative flex w-full items-start hover:bg-accent/50"
         >
-            <component
-                :is="expanded ? ChevronDown : ChevronRight"
-                class="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
-            />
+            <button
+                type="button"
+                class="flex min-w-0 flex-1 items-start gap-3 px-3 py-1.5 text-left font-mono"
+                :aria-expanded="expanded"
+                @click="emit('toggle')"
+            >
+                <component
+                    :is="expanded ? ChevronDown : ChevronRight"
+                    class="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
+                />
 
-            <!--
+                <!--
               Local time to read against, UTC one hover away: the stored value
               is naive UTC, and that is what a reader pastes into a query.
             -->
-            <span
-                class="shrink-0 text-muted-foreground tabular-nums"
-                :title="formatUtcTimestamp(entry.timestamp)"
-            >
-                {{ formatTimestamp(entry.timestamp) }}
-                <!--
+                <span
+                    class="shrink-0 text-muted-foreground tabular-nums"
+                    :title="formatUtcTimestamp(entry.timestamp)"
+                >
+                    {{ formatTimestamp(entry.timestamp) }}
+                    <!--
                   The row's own offset, softer than the time it qualifies.
                   Per instant, not per session: rows straddling a DST switch
                   wear the offset that was true for them.
                 -->
-                <span class="opacity-60">{{
-                    timeZoneOffset(entry.timestamp)
-                }}</span>
-            </span>
+                    <span class="opacity-60">{{
+                        timeZoneOffset(entry.timestamp)
+                    }}</span>
+                </span>
 
-            <span
-                :class="
-                    cn(
-                        'inline-flex w-16 shrink-0 items-center gap-1.5 font-semibold uppercase',
-                        SEVERITY_TEXT_CLASS[level],
-                    )
-                "
-            >
                 <span
                     :class="
                         cn(
-                            'size-2 shrink-0 rounded-full',
-                            SEVERITY_DOT_CLASS[level],
+                            'inline-flex w-16 shrink-0 items-center gap-1.5 font-semibold uppercase',
+                            SEVERITY_TEXT_CLASS[level],
                         )
                     "
-                />
-                {{ label }}
-            </span>
+                >
+                    <span
+                        :class="
+                            cn(
+                                'size-2 shrink-0 rounded-full',
+                                SEVERITY_DOT_CLASS[level],
+                            )
+                        "
+                    />
+                    {{ label }}
+                </span>
 
-            <span class="w-40 shrink-0 truncate text-muted-foreground">
-                {{ entry.serviceName || '—' }}
-            </span>
+                <span class="w-40 shrink-0 truncate text-muted-foreground">
+                    {{ entry.serviceName || '—' }}
+                </span>
 
-            <span :class="cn('min-w-0 flex-1', expanded ? '' : 'truncate')">
-                {{ entry.body }}
-            </span>
-        </button>
+                <span :class="cn('min-w-0 flex-1', expanded ? '' : 'truncate')">
+                    {{ entry.body }}
+                </span>
+            </button>
+
+            <LogRowActions
+                v-if="teamSlug"
+                :entry="entry"
+                :team-slug="teamSlug"
+                :autofix="autofix"
+                :credentials="credentials"
+                :class="
+                    cn(
+                        // Floating, so it costs the log line no width. Its own
+                        // surface and hairline lift it off whatever severity
+                        // tint is underneath, and the blur keeps the text it
+                        // covers legible as texture rather than as words.
+                        'absolute top-0.5 right-1.5 z-10 rounded-md border bg-background/90 px-1 py-0.5 shadow-xs backdrop-blur-sm',
+                        // Hidden means untouchable: an invisible overlay must
+                        // not swallow clicks aimed at the line beneath it.
+                        'pointer-events-none opacity-0 transition-opacity',
+                        'group-hover/row:pointer-events-auto group-hover/row:opacity-100',
+                        'focus-within:pointer-events-auto focus-within:opacity-100',
+                        (expanded || cursor) &&
+                            'pointer-events-auto opacity-100',
+                    )
+                "
+                @copied="emit('copied')"
+            />
+        </div>
 
         <div v-if="expanded" class="space-y-3 bg-muted/40 px-10 py-3 font-mono">
             <pre class="break-words whitespace-pre-wrap">{{ entry.body }}</pre>

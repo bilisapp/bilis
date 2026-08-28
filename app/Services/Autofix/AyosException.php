@@ -35,13 +35,40 @@ class AyosException extends RuntimeException
      */
     public const BACKPRESSURE_STATUS = 429;
 
+    /**
+     * How much of an upstream body goes into the exception MESSAGE.
+     *
+     * Generous rather than tight, because this message becomes the failure
+     * reason an operator reads on the job row, and a control-plane API that
+     * refuses a run explains itself in the body — the 403 that started this
+     * carried the exact IAM permissions the key was missing. The full body is
+     * kept separately in `$responseBody` and reaches the logs untouched, so
+     * this bound only ever costs prose in the UI, never diagnosis.
+     */
+    public const MESSAGE_BODY_LIMIT = 4000;
+
     public function __construct(
         string $message,
         private readonly ?int $statusCode = null,
         private readonly bool $connectionFailed = false,
         ?Throwable $previous = null,
+        /**
+         * The upstream response body, in full and untruncated.
+         *
+         * Not in the message: the message is read by a person on a job row,
+         * while this is what you grep when the message was not enough.
+         */
+        private readonly ?string $responseBody = null,
     ) {
         parent::__construct($message, $statusCode ?? 0, $previous);
+    }
+
+    /**
+     * The complete upstream body, when the failure came from a response.
+     */
+    public function responseBody(): ?string
+    {
+        return $this->responseBody;
     }
 
     /**
@@ -57,14 +84,17 @@ class AyosException extends RuntimeException
      */
     public static function fromResponse(Response $response, string $path): self
     {
+        $body = trim($response->body());
+
         return new self(
             sprintf(
                 'Ayos answered %s with status %d: %s',
                 $path,
                 $response->status(),
-                trim(mb_substr($response->body(), 0, 500)),
+                mb_substr($body, 0, self::MESSAGE_BODY_LIMIT),
             ),
             statusCode: $response->status(),
+            responseBody: $body,
         );
     }
 

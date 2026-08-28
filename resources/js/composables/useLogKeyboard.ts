@@ -12,6 +12,8 @@ export type LogKeyboardOptions = {
     focusSearch: () => void;
     /** Open the shortcuts sheet. */
     openShortcuts: () => void;
+    /** Put the row the cursor is on onto the clipboard. */
+    copy: (index: number) => void;
 };
 
 export type UseLogKeyboardReturn = {
@@ -127,6 +129,16 @@ export function useLogKeyboard(
                 if (cursor.value !== null) {
                     event.preventDefault();
                     options.toggle(cursor.value);
+                }
+
+                break;
+            // `y` is vi's yank, which is the muscle memory this reaches for.
+            // Only copying is bound: a keystroke must not be able to spend an
+            // agent run, so the fix action stays behind a pointer and a dialog.
+            case 'y':
+                if (cursor.value !== null) {
+                    event.preventDefault();
+                    options.copy(cursor.value);
                 }
 
                 break;

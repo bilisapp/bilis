@@ -143,7 +143,7 @@ class ValidateAndPublishFix implements ShouldQueue
     {
         $job->forceFill([
             'status' => FixJobStatus::Rejected,
-            'failure_reason' => mb_substr($reason, 0, 1000),
+            'failure_reason' => mb_substr($reason, 0, FixJob::MAX_FAILURE_REASON),
             'completed_at' => now(),
         ])->save();
     }
@@ -162,7 +162,7 @@ class ValidateAndPublishFix implements ShouldQueue
             'redispatch_count' => $job->redispatch_count + 1,
             'diff' => null,
             'report' => null,
-            'failure_reason' => mb_substr($reason, 0, 1000),
+            'failure_reason' => mb_substr($reason, 0, FixJob::MAX_FAILURE_REASON),
             'dispatched_at' => null,
         ])->save();
 
@@ -180,7 +180,7 @@ class ValidateAndPublishFix implements ShouldQueue
 
         $job->forceFill([
             'status' => FixJobStatus::Failed,
-            'failure_reason' => mb_substr($reason, 0, 1000),
+            'failure_reason' => mb_substr($reason, 0, FixJob::MAX_FAILURE_REASON),
             'completed_at' => now(),
         ])->save();
     }
