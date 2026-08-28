@@ -101,6 +101,10 @@ class SecurityHeaders
             'frame-src' => ["'none'"],
         ];
 
+        if ($this->isHorizonDashboard($request)) {
+            $directives['script-src'][] = "'unsafe-eval'";
+        }
+
         foreach ($this->configuredSources() as $directive => $sources) {
             $directives[$directive] = [...$directives[$directive], ...$sources];
         }
@@ -124,6 +128,24 @@ class SecurityHeaders
         }
 
         return implode('; ', $policy);
+    }
+
+    /**
+     * Whether this request is for Horizon's own dashboard.
+     *
+     * Horizon mounts an in-DOM template (`<div id="horizon">` with its
+     * `<router-view>`), so Vue compiles that markup at runtime with
+     * `new Function` — an `EvalError` under any policy without `'unsafe-eval'`,
+     * and not something a nonce can cover. The exception is scoped to the
+     * dashboard's own routes rather than granted to the application: nothing
+     * Bilis ships evaluates a string, and Horizon is already behind the
+     * `viewHorizon` gate.
+     */
+    protected function isHorizonDashboard(Request $request): bool
+    {
+        $path = trim((string) config('horizon.path'), '/');
+
+        return $path !== '' && $request->is($path, $path.'/*');
     }
 
     /**
