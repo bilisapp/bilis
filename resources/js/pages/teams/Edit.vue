@@ -210,21 +210,24 @@ const confirmCancelInvitation = (invitation: TeamInvitation) => {
                             <span class="truncate font-medium">
                                 {{ credential.label }}
                             </span>
-                            <Badge v-if="credential.isDefault" variant="secondary">
+                            <Badge
+                                v-if="credential.isDefault"
+                                variant="secondary"
+                            >
                                 Default
                             </Badge>
                         </div>
-                        <p class="text-muted-foreground text-sm">
+                        <p class="text-sm text-muted-foreground">
                             {{ credential.providerLabel }} · key ending
                             <span class="font-mono">{{ credential.hint }}</span>
                             <template v-if="addedOn(credential)">
                                 · added {{ addedOn(credential) }}
                                 <DeleteLlmCredentialModal
-        v-model:open="deleteCredentialOpen"
-        :team-slug="team.slug"
-        :credential="credentialToDelete"
-    />
-</template>
+                                    v-model:open="deleteCredentialOpen"
+                                    :team-slug="team.slug"
+                                    :credential="credentialToDelete"
+                                />
+                            </template>
                         </p>
                     </div>
 
@@ -245,13 +248,15 @@ const confirmCancelInvitation = (invitation: TeamInvitation) => {
                             @click="confirmDeleteCredential(credential)"
                         >
                             <X class="size-4" />
-                            <span class="sr-only">Remove {{ credential.label }}</span>
+                            <span class="sr-only"
+                                >Remove {{ credential.label }}</span
+                            >
                         </Button>
                     </div>
                 </div>
             </div>
 
-            <p v-else class="text-muted-foreground text-sm">
+            <p v-else class="text-sm text-muted-foreground">
                 No keys yet, so jobs fall back to this installation's key if it
                 has one and fail if it does not. Add a key below to run jobs on
                 your own budget.
@@ -316,7 +321,7 @@ const confirmCancelInvitation = (invitation: TeamInvitation) => {
                         :placeholder="newKeyPlaceholder"
                     />
                     <InputError :message="errors.api_key" />
-                    <p class="text-muted-foreground text-sm">
+                    <p class="text-sm text-muted-foreground">
                         Stored encrypted and never shown again — only the last
                         four characters come back, so you can tell your keys
                         apart. To replace a key, add the new one and remove the

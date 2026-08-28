@@ -57,8 +57,8 @@ const deleteCredential = () => {
                     from this team and no new job can run on it. Jobs that
                     already used it keep their history. This does not revoke the
                     key at
-                    {{ props.credential?.providerLabel ?? 'the provider' }} —
-                    do that there if the key has leaked.
+                    {{ props.credential?.providerLabel ?? 'the provider' }} — do
+                    that there if the key has leaked.
                 </DialogDescription>
             </DialogHeader>
 
