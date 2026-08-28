@@ -2,6 +2,7 @@
 import { Head } from '@inertiajs/vue3';
 import { styleguide } from '@/routes';
 import AppComponentsSection from './partials/AppComponentsSection.vue';
+import AutofixSection from './partials/AutofixSection.vue';
 import ChartsSection from './partials/ChartsSection.vue';
 import ComponentsSection from './partials/ComponentsSection.vue';
 import PaletteSection from './partials/PaletteSection.vue';
@@ -45,6 +46,7 @@ defineOptions({
             <ComponentsSection />
             <AppComponentsSection />
             <ChartsSection />
+            <AutofixSection />
         </div>
     </div>
 </template>

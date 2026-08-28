@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Teams;
 
 use App\Actions\Teams\CreateTeam;
+use App\Enums\LlmProvider;
 use App\Enums\TeamRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Teams\DeleteTeamRequest;
 use App\Http\Requests\Teams\SaveTeamRequest;
 use App\Models\Membership;
 use App\Models\Team;
+use App\Models\TeamLlmCredential;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -57,6 +59,23 @@ class TeamController extends Controller
                 'slug' => $team->slug,
                 'isPersonal' => $team->is_personal,
             ],
+            /*
+             * The keys themselves never leave the server. The page needs to
+             * show WHICH keys are held, not what they are, so each one is
+             * reduced to its provider, its label and its last four characters.
+             */
+            'llmCredentials' => $team->llmCredentials()
+                ->get()
+                ->map(fn (TeamLlmCredential $credential): array => $credential->toSummary())
+                ->values(),
+            'llmProviders' => array_map(
+                fn (LlmProvider $provider): array => [
+                    'value' => $provider->value,
+                    'label' => $provider->label(),
+                    'placeholder' => $provider->keyPlaceholder(),
+                ],
+                LlmProvider::cases(),
+            ),
             'members' => $team->members()->get()->map(function (User $member) {
                 /** @var Membership $membership */
                 $membership = $member->getRelation('pivot');

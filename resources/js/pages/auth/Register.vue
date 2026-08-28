@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Form, Head } from '@inertiajs/vue3';
+import GitHubLoginButton from '@/components/GitHubLoginButton.vue';
 import InputError from '@/components/InputError.vue';
 import PasswordInput from '@/components/PasswordInput.vue';
 import TeamInvitationAlert from '@/components/TeamInvitationAlert.vue';
@@ -14,6 +15,7 @@ import type { TeamInvitationContext } from '@/types';
 
 defineProps<{
     passwordRules: string;
+    github: boolean;
     teamInvitation?: TeamInvitationContext | null;
 }>();
 
@@ -27,6 +29,8 @@ defineOptions({
 
 <template>
     <Head title="Register" />
+
+    <GitHubLoginButton v-if="github" separator="Or register with email" />
 
     <TeamInvitationAlert
         v-if="teamInvitation"

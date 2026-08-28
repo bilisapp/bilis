@@ -39,27 +39,27 @@ BILIS_API_KEY=bilis_YOUR_API_KEY
 
 ```yaml
 services:
-  otel-collector:
-    image: otel/opentelemetry-collector-contrib:latest
-    container_name: bilis-otel-collector
-    restart: unless-stopped
-    user: "0:0"
-    env_file:
-      - .env
-    command: ["--config=/etc/otelcol-contrib/config.yml"]
-    volumes:
-      - ./config.yml:/etc/otelcol-contrib/config.yml:ro
-      - /var/log:/var/log:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - otel-storage:/var/lib/otelcol/storage
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
+    otel-collector:
+        image: otel/opentelemetry-collector-contrib:latest
+        container_name: bilis-otel-collector
+        restart: unless-stopped
+        user: '0:0'
+        env_file:
+            - .env
+        command: ['--config=/etc/otelcol-contrib/config.yml']
+        volumes:
+            - ./config.yml:/etc/otelcol-contrib/config.yml:ro
+            - /var/log:/var/log:ro
+            - /var/lib/docker/containers:/var/lib/docker/containers:ro
+            - otel-storage:/var/lib/otelcol/storage
+        logging:
+            driver: json-file
+            options:
+                max-size: '10m'
+                max-file: '3'
 
 volumes:
-  otel-storage:
+    otel-storage:
 ```
 
 `user: "0:0"` is there because `/var/log/auth.log` is not world-readable. The
@@ -77,280 +77,281 @@ nothing else — the API key comes from the environment.
 
 ```yaml
 extensions:
-  # Persists filelog read checkpoints across restarts. Without this, every
-  # restart jumps to the end of each file (start_at: end) and the lines
-  # written while the collector was down are lost.
-  file_storage:
-    directory: /var/lib/otelcol/storage
+    # Persists filelog read checkpoints across restarts. Without this, every
+    # restart jumps to the end of each file (start_at: end) and the lines
+    # written while the collector was down are lost.
+    file_storage:
+        directory: /var/lib/otelcol/storage
 
 receivers:
-  filelog/auth:
-    include: [/var/log/auth.log]
-    start_at: end
-    storage: file_storage
-    include_file_path: true
-    operators:
-      # 2026-08-26T18:08:15.187811+00:00 vps-8d4cfe56 sshd-session[316724]: message...
-      - type: regex_parser
-        regex: '^(?P<ts>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+(?:[+-]\d{2}:\d{2}|Z))\s+(?P<hostname>\S+)\s+(?P<appname>[^\s:\[]+)(?:\[(?P<pid>\d+)\])?:\s?(?P<message>.*)$'
-        on_error: send_quiet
-        timestamp:
-          parse_from: attributes.ts
-          layout_type: gotime
-          layout: '2006-01-02T15:04:05.999999Z07:00'
-      - type: move
-        if: 'attributes.message != nil'
-        from: attributes.message
-        to: body
-      - type: move
-        if: 'attributes.appname != nil'
-        from: attributes.appname
-        to: attributes["syslog.appname"]
-      - type: remove
-        if: 'attributes.ts != nil'
-        field: attributes.ts
-      - type: remove
-        if: 'attributes.hostname != nil'
-        field: attributes.hostname
+    filelog/auth:
+        include: [/var/log/auth.log]
+        start_at: end
+        storage: file_storage
+        include_file_path: true
+        operators:
+            # 2026-08-26T18:08:15.187811+00:00 vps-8d4cfe56 sshd-session[316724]: message...
+            - type: regex_parser
+              regex: '^(?P<ts>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+(?:[+-]\d{2}:\d{2}|Z))\s+(?P<hostname>\S+)\s+(?P<appname>[^\s:\[]+)(?:\[(?P<pid>\d+)\])?:\s?(?P<message>.*)$'
+              on_error: send_quiet
+              timestamp:
+                  parse_from: attributes.ts
+                  layout_type: gotime
+                  layout: '2006-01-02T15:04:05.999999Z07:00'
+            - type: move
+              if: 'attributes.message != nil'
+              from: attributes.message
+              to: body
+            - type: move
+              if: 'attributes.appname != nil'
+              from: attributes.appname
+              to: attributes["syslog.appname"]
+            - type: remove
+              if: 'attributes.ts != nil'
+              field: attributes.ts
+            - type: remove
+              if: 'attributes.hostname != nil'
+              field: attributes.hostname
 
-  # kern.log is intentionally NOT tailed: kernel messages already land in
-  # syslog, and UFW kernel lines are ingested (and parsed) via filelog/ufw.
-  filelog/syslog:
-    include: [/var/log/syslog]
-    start_at: end
-    storage: file_storage
-    include_file_path: true
-    operators:
-      - type: regex_parser
-        regex: '^(?P<ts>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+(?:[+-]\d{2}:\d{2}|Z))\s+(?P<hostname>\S+)\s+(?P<appname>[^\s:\[]+)(?:\[(?P<pid>\d+)\])?:\s?(?P<message>.*)$'
-        on_error: send_quiet
-        timestamp:
-          parse_from: attributes.ts
-          layout_type: gotime
-          layout: '2006-01-02T15:04:05.999999Z07:00'
-      - type: move
-        if: 'attributes.message != nil'
-        from: attributes.message
-        to: body
-      - type: move
-        if: 'attributes.appname != nil'
-        from: attributes.appname
-        to: attributes["syslog.appname"]
-      - type: remove
-        if: 'attributes.ts != nil'
-        field: attributes.ts
-      - type: remove
-        if: 'attributes.hostname != nil'
-        field: attributes.hostname
-      # UFW lines also reach syslog; drop them here so filelog/ufw is their
-      # single source. (Alternative: uncomment "& stop" in
-      # /etc/rsyslog.d/20-ufw.conf and delete this operator.)
-      - type: filter
-        expr: 'body matches "\\[UFW [A-Z ]+\\]"'
+    # kern.log is intentionally NOT tailed: kernel messages already land in
+    # syslog, and UFW kernel lines are ingested (and parsed) via filelog/ufw.
+    filelog/syslog:
+        include: [/var/log/syslog]
+        start_at: end
+        storage: file_storage
+        include_file_path: true
+        operators:
+            - type: regex_parser
+              regex: '^(?P<ts>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+(?:[+-]\d{2}:\d{2}|Z))\s+(?P<hostname>\S+)\s+(?P<appname>[^\s:\[]+)(?:\[(?P<pid>\d+)\])?:\s?(?P<message>.*)$'
+              on_error: send_quiet
+              timestamp:
+                  parse_from: attributes.ts
+                  layout_type: gotime
+                  layout: '2006-01-02T15:04:05.999999Z07:00'
+            - type: move
+              if: 'attributes.message != nil'
+              from: attributes.message
+              to: body
+            - type: move
+              if: 'attributes.appname != nil'
+              from: attributes.appname
+              to: attributes["syslog.appname"]
+            - type: remove
+              if: 'attributes.ts != nil'
+              field: attributes.ts
+            - type: remove
+              if: 'attributes.hostname != nil'
+              field: attributes.hostname
+            # UFW lines also reach syslog; drop them here so filelog/ufw is their
+            # single source. (Alternative: uncomment "& stop" in
+            # /etc/rsyslog.d/20-ufw.conf and delete this operator.)
+            - type: filter
+              expr: 'body matches "\\[UFW [A-Z ]+\\]"'
 
-  filelog/fail2ban:
-    include: [/var/log/fail2ban.log]
-    start_at: end
-    storage: file_storage
-    include_file_path: true
-    operators:
-      # 2026-08-26 18:08:15,187 fail2ban.actions [575]: NOTICE [sshd] Ban 203.0.113.7
-      - type: regex_parser
-        regex: '^(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3})\s+(?P<component>\S+)\s*(?:\[(?P<pid>\d+)\])?:\s+(?P<level>[A-Z]+)\s+(?P<message>.*)$'
-        on_error: send_quiet
-        timestamp:
-          parse_from: attributes.ts
-          layout_type: strptime
-          layout: '%Y-%m-%d %H:%M:%S,%L'
-        severity:
-          parse_from: attributes.level
-          mapping:
-            debug: DEBUG
-            info: INFO
-            info2: NOTICE
-            warn: WARNING
-            error: ERROR
-            fatal: CRITICAL
-      - type: move
-        if: 'attributes.message != nil'
-        from: attributes.message
-        to: body
-      - type: remove
-        if: 'attributes.ts != nil'
-        field: attributes.ts
-      # "[sshd] Ban 203.0.113.7" -> jail / action / ip attributes
-      - type: regex_parser
-        parse_from: body
-        regex: '^\[(?P<jail>[^\]]+)\]\s+(?P<action>Ban|Unban|Restore Ban|Found|Ignore)\s+(?P<ip>\S+)'
-        on_error: send_quiet
-      - type: move
-        if: 'attributes.jail != nil'
-        from: attributes.jail
-        to: attributes["fail2ban.jail"]
-      - type: move
-        if: 'attributes.action != nil'
-        from: attributes.action
-        to: attributes["fail2ban.action"]
-      - type: move
-        if: 'attributes.ip != nil'
-        from: attributes.ip
-        to: attributes["fail2ban.ip"]
+    filelog/fail2ban:
+        include: [/var/log/fail2ban.log]
+        start_at: end
+        storage: file_storage
+        include_file_path: true
+        operators:
+            # 2026-08-26 18:08:15,187 fail2ban.actions [575]: NOTICE [sshd] Ban 203.0.113.7
+            - type: regex_parser
+              regex: '^(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3})\s+(?P<component>\S+)\s*(?:\[(?P<pid>\d+)\])?:\s+(?P<level>[A-Z]+)\s+(?P<message>.*)$'
+              on_error: send_quiet
+              timestamp:
+                  parse_from: attributes.ts
+                  layout_type: strptime
+                  layout: '%Y-%m-%d %H:%M:%S,%L'
+              severity:
+                  parse_from: attributes.level
+                  mapping:
+                      debug: DEBUG
+                      info: INFO
+                      info2: NOTICE
+                      warn: WARNING
+                      error: ERROR
+                      fatal: CRITICAL
+            - type: move
+              if: 'attributes.message != nil'
+              from: attributes.message
+              to: body
+            - type: remove
+              if: 'attributes.ts != nil'
+              field: attributes.ts
+            # "[sshd] Ban 203.0.113.7" -> jail / action / ip attributes
+            - type: regex_parser
+              parse_from: body
+              regex: '^\[(?P<jail>[^\]]+)\]\s+(?P<action>Ban|Unban|Restore Ban|Found|Ignore)\s+(?P<ip>\S+)'
+              on_error: send_quiet
+            - type: move
+              if: 'attributes.jail != nil'
+              from: attributes.jail
+              to: attributes["fail2ban.jail"]
+            - type: move
+              if: 'attributes.action != nil'
+              from: attributes.action
+              to: attributes["fail2ban.action"]
+            - type: move
+              if: 'attributes.ip != nil'
+              from: attributes.ip
+              to: attributes["fail2ban.ip"]
 
-  filelog/ufw:
-    include: [/var/log/ufw.log]
-    start_at: end
-    storage: file_storage
-    include_file_path: true
-    operators:
-      - type: regex_parser
-        regex: '^(?P<ts>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+(?:[+-]\d{2}:\d{2}|Z))\s+(?P<hostname>\S+)\s+kernel:\s?(?P<message>.*)$'
-        on_error: send_quiet
-        timestamp:
-          parse_from: attributes.ts
-          layout_type: gotime
-          layout: '2006-01-02T15:04:05.999999Z07:00'
-      - type: move
-        if: 'attributes.message != nil'
-        from: attributes.message
-        to: body
-      - type: remove
-        if: 'attributes.ts != nil'
-        field: attributes.ts
-      - type: remove
-        if: 'attributes.hostname != nil'
-        field: attributes.hostname
-      # [UFW BLOCK] ... SRC=1.2.3.4 DST=5.6.7.8 ... PROTO=TCP SPT=51234 DPT=22
-      - type: regex_parser
-        parse_from: body
-        regex: '\[UFW (?P<action>[A-Z ]+)\].*?SRC=(?P<src>\S+)\s+DST=(?P<dst>\S+).*?PROTO=(?P<proto>\S+)(?:.*?SPT=(?P<spt>\d+)\s+DPT=(?P<dpt>\d+))?'
-        on_error: send_quiet
-      - type: move
-        if: 'attributes.action != nil'
-        from: attributes.action
-        to: attributes["ufw.action"]
-      - type: move
-        if: 'attributes.src != nil'
-        from: attributes.src
-        to: attributes["ufw.src"]
-      - type: move
-        if: 'attributes.dst != nil'
-        from: attributes.dst
-        to: attributes["ufw.dst"]
-      - type: move
-        if: 'attributes.proto != nil'
-        from: attributes.proto
-        to: attributes["ufw.proto"]
-      - type: move
-        if: 'attributes.spt != nil'
-        from: attributes.spt
-        to: attributes["ufw.spt"]
-      - type: move
-        if: 'attributes.dpt != nil'
-        from: attributes.dpt
-        to: attributes["ufw.dpt"]
+    filelog/ufw:
+        include: [/var/log/ufw.log]
+        start_at: end
+        storage: file_storage
+        include_file_path: true
+        operators:
+            - type: regex_parser
+              regex: '^(?P<ts>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+(?:[+-]\d{2}:\d{2}|Z))\s+(?P<hostname>\S+)\s+kernel:\s?(?P<message>.*)$'
+              on_error: send_quiet
+              timestamp:
+                  parse_from: attributes.ts
+                  layout_type: gotime
+                  layout: '2006-01-02T15:04:05.999999Z07:00'
+            - type: move
+              if: 'attributes.message != nil'
+              from: attributes.message
+              to: body
+            - type: remove
+              if: 'attributes.ts != nil'
+              field: attributes.ts
+            - type: remove
+              if: 'attributes.hostname != nil'
+              field: attributes.hostname
+            # [UFW BLOCK] ... SRC=1.2.3.4 DST=5.6.7.8 ... PROTO=TCP SPT=51234 DPT=22
+            - type: regex_parser
+              parse_from: body
+              regex: '\[UFW (?P<action>[A-Z ]+)\].*?SRC=(?P<src>\S+)\s+DST=(?P<dst>\S+).*?PROTO=(?P<proto>\S+)(?:.*?SPT=(?P<spt>\d+)\s+DPT=(?P<dpt>\d+))?'
+              on_error: send_quiet
+            - type: move
+              if: 'attributes.action != nil'
+              from: attributes.action
+              to: attributes["ufw.action"]
+            - type: move
+              if: 'attributes.src != nil'
+              from: attributes.src
+              to: attributes["ufw.src"]
+            - type: move
+              if: 'attributes.dst != nil'
+              from: attributes.dst
+              to: attributes["ufw.dst"]
+            - type: move
+              if: 'attributes.proto != nil'
+              from: attributes.proto
+              to: attributes["ufw.proto"]
+            - type: move
+              if: 'attributes.spt != nil'
+              from: attributes.spt
+              to: attributes["ufw.spt"]
+            - type: move
+              if: 'attributes.dpt != nil'
+              from: attributes.dpt
+              to: attributes["ufw.dpt"]
 
-  filelog/docker:
-    include: [/var/lib/docker/containers/*/*.log]
-    start_at: end
-    storage: file_storage
-    include_file_path: true
-    operators:
-      - type: json_parser
-        parse_from: body
-        timestamp:
-          parse_from: attributes.time
-          layout_type: gotime
-          layout: '2006-01-02T15:04:05.999999999Z07:00'
-      - type: move
-        from: attributes.log
-        to: body
-      - type: move
-        from: attributes.stream
-        to: attributes["log.iostream"]
-      - type: remove
-        if: 'attributes.time != nil'
-        field: attributes.time
+    filelog/docker:
+        include: [/var/lib/docker/containers/*/*.log]
+        start_at: end
+        storage: file_storage
+        include_file_path: true
+        operators:
+            - type: json_parser
+              parse_from: body
+              timestamp:
+                  parse_from: attributes.time
+                  layout_type: gotime
+                  layout: '2006-01-02T15:04:05.999999999Z07:00'
+            - type: move
+              from: attributes.log
+              to: body
+            - type: move
+              from: attributes.stream
+              to: attributes["log.iostream"]
+            - type: remove
+              if: 'attributes.time != nil'
+              field: attributes.time
 
 processors:
-  memory_limiter:
-    check_interval: 5s
-    limit_mib: 256
-    spike_limit_mib: 64
+    memory_limiter:
+        check_interval: 5s
+        limit_mib: 256
+        spike_limit_mib: 64
 
-  resource/host:
-    attributes:
-      - key: host.name
-        value: vps-8d4cfe56
-        action: upsert
-      - key: deployment.environment
-        value: production
-        action: upsert
+    resource/host:
+        attributes:
+            - key: host.name
+              value: vps-8d4cfe56
+              action: upsert
+            - key: deployment.environment
+              value: production
+              action: upsert
 
-  resource/auth:
-    attributes:
-      - key: service.name
-        value: auth
-        action: upsert
+    resource/auth:
+        attributes:
+            - key: service.name
+              value: auth
+              action: upsert
 
-  resource/syslog:
-    attributes:
-      - key: service.name
-        value: syslog
-        action: upsert
+    resource/syslog:
+        attributes:
+            - key: service.name
+              value: syslog
+              action: upsert
 
-  resource/fail2ban:
-    attributes:
-      - key: service.name
-        value: fail2ban
-        action: upsert
+    resource/fail2ban:
+        attributes:
+            - key: service.name
+              value: fail2ban
+              action: upsert
 
-  resource/ufw:
-    attributes:
-      - key: service.name
-        value: ufw
-        action: upsert
+    resource/ufw:
+        attributes:
+            - key: service.name
+              value: ufw
+              action: upsert
 
-  resource/docker:
-    attributes:
-      - key: service.name
-        value: docker-containers
-        action: upsert
+    resource/docker:
+        attributes:
+            - key: service.name
+              value: docker-containers
+              action: upsert
 
-  batch:
-    timeout: 5s
-    send_batch_size: 1024
+    batch:
+        timeout: 5s
+        send_batch_size: 1024
 
 exporters:
-  otlphttp/bilis:
-    logs_endpoint: https://bilis.app/api/v1/logs
-    encoding: json
-    compression: gzip # or none; both are understood
-    headers:
-      Authorization: Bearer ${env:BILIS_API_KEY}
+    otlphttp/bilis:
+        logs_endpoint: https://bilis.app/api/v1/logs
+        encoding: json
+        compression: gzip # or none; both are understood
+        headers:
+            Authorization: Bearer ${env:BILIS_API_KEY}
 
 service:
-  extensions: [file_storage]
-  pipelines:
-    logs/auth:
-      receivers: [filelog/auth]
-      processors: [memory_limiter, resource/host, resource/auth, batch]
-      exporters: [otlphttp/bilis]
-    logs/syslog:
-      receivers: [filelog/syslog]
-      processors: [memory_limiter, resource/host, resource/syslog, batch]
-      exporters: [otlphttp/bilis]
-    logs/fail2ban:
-      receivers: [filelog/fail2ban]
-      processors: [memory_limiter, resource/host, resource/fail2ban, batch]
-      exporters: [otlphttp/bilis]
-    logs/ufw:
-      receivers: [filelog/ufw]
-      processors: [memory_limiter, resource/host, resource/ufw, batch]
-      exporters: [otlphttp/bilis]
-    logs/docker:
-      receivers: [filelog/docker]
-      processors: [memory_limiter, resource/host, resource/docker, batch]
-      exporters: [otlphttp/bilis]
+    extensions: [file_storage]
+    pipelines:
+        logs/auth:
+            receivers: [filelog/auth]
+            processors: [memory_limiter, resource/host, resource/auth, batch]
+            exporters: [otlphttp/bilis]
+        logs/syslog:
+            receivers: [filelog/syslog]
+            processors: [memory_limiter, resource/host, resource/syslog, batch]
+            exporters: [otlphttp/bilis]
+        logs/fail2ban:
+            receivers: [filelog/fail2ban]
+            processors:
+                [memory_limiter, resource/host, resource/fail2ban, batch]
+            exporters: [otlphttp/bilis]
+        logs/ufw:
+            receivers: [filelog/ufw]
+            processors: [memory_limiter, resource/host, resource/ufw, batch]
+            exporters: [otlphttp/bilis]
+        logs/docker:
+            receivers: [filelog/docker]
+            processors: [memory_limiter, resource/host, resource/docker, batch]
+            exporters: [otlphttp/bilis]
 ```
 
 Then `docker compose up -d`, and `docker compose logs -f` for the first minute
@@ -397,7 +398,7 @@ neither.
 `start_at: end` says "when you first meet a file, skip what is already in it" —
 which is what you want, because you are not trying to backfill a year of syslog.
 
-Without the `file_storage` extension the collector has no memory, so *every*
+Without the `file_storage` extension the collector has no memory, so _every_
 start is a first meeting. Restart it, redeploy it, let the host reboot, and it
 quietly jumps to the current end of every file. Everything written while it was
 down is gone, with no error and no gap you would notice unless you went looking.

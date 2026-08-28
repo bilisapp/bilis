@@ -166,9 +166,10 @@ const resolvedWindow = (): { from: string; to: string } => {
     };
 };
 
-const filterQuery = (
-    window: { from: string; to: string },
-): Record<string, string | string[]> => {
+const filterQuery = (window: {
+    from: string;
+    to: string;
+}): Record<string, string | string[]> => {
     const query: Record<string, string | string[]> = {
         from: window.from,
         to: window.to,

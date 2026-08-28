@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
-import { FolderKanban, LayoutGrid, Palette, ScrollText } from '@lucide/vue';
+import {
+    FolderKanban,
+    LayoutGrid,
+    Palette,
+    ScrollText,
+    Wrench,
+} from '@lucide/vue';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
 import NavMain from '@/components/NavMain.vue';
@@ -16,6 +22,7 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard, styleguide } from '@/routes';
+import { index as autofixIndex } from '@/routes/autofix';
 import { index as logsIndex } from '@/routes/logs';
 import { index as projectsIndex } from '@/routes/projects';
 import type { NavItem } from '@/types';
@@ -30,6 +37,12 @@ const logsUrl = computed(() =>
     page.props.currentTeam ? logsIndex(page.props.currentTeam.slug).url : '/',
 );
 
+const autofixUrl = computed(() =>
+    page.props.currentTeam
+        ? autofixIndex(page.props.currentTeam.slug).url
+        : '/',
+);
+
 const projectsUrl = computed(() =>
     page.props.currentTeam
         ? projectsIndex(page.props.currentTeam.slug).url
@@ -38,7 +51,9 @@ const projectsUrl = computed(() =>
 
 /**
  * Logs sits above Projects on purpose: the viewer is the surface people come
- * back to, projects are the thing you set up once.
+ * back to, projects are the thing you set up once. Autofix comes last: it is
+ * downstream of both, and reads as a consequence of the logs rather than a
+ * place you go first.
  */
 const mainNavItems = computed<NavItem[]>(() => [
     {
@@ -56,6 +71,18 @@ const mainNavItems = computed<NavItem[]>(() => [
         href: projectsUrl.value,
         icon: FolderKanban,
     },
+    // Autofix is off for a deployment that has no control plane configured,
+    // and its endpoints 404 there — so the rail leaves it out entirely rather
+    // than pointing at a page that cannot answer.
+    ...(page.props.autofix?.enabled
+        ? [
+              {
+                  title: 'Autofix',
+                  href: autofixUrl.value,
+                  icon: Wrench,
+              },
+          ]
+        : []),
 ]);
 
 const resourceNavItems: NavItem[] = [

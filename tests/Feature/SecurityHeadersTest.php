@@ -231,3 +231,23 @@ it('names a dev server it can express', function () {
         @unlink($hotFile);
     }
 });
+
+it('allows the browser to reach the ayos stream host when one is configured', function () {
+    config(['autofix.ayos.stream_url' => 'https://agents.bilis.test/jobs']);
+
+    $response = get(route('home'))->assertOk();
+
+    // The path is dropped: a CSP host-source names an origin, never a route.
+    expect(directive($response, 'connect-src'))
+        ->toContain('https://agents.bilis.test')
+        ->toContain('wss://agents.bilis.test')
+        ->not->toContain('/jobs');
+});
+
+it('allows no third party stream host when ayos is not configured', function () {
+    config(['autofix.ayos.stream_url' => null]);
+
+    $response = get(route('home'))->assertOk();
+
+    expect(directive($response, 'connect-src'))->not->toContain('agents.bilis.test');
+});

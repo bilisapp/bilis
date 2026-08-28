@@ -22,6 +22,7 @@ use Illuminate\Support\Carbon;
  *
  * @phpstan-type LogRow array{timestamp: string, traceId: string, spanId: string, severityText: string, severityNumber: int, serviceName: string, body: string, scopeName: string, scopeVersion: string, resourceAttributes: array<string, string>, logAttributes: array<string, string>, projectId: string}
  * @phpstan-type LogResult array{rows: list<LogRow>, nextCursor: string|null, unavailable: bool}
+ * @phpstan-type ErrorSampleResult array{rows: list<LogRow>, unavailable: bool}
  * @phpstan-type HistogramBucket array{bucket: string, counts: array<string, int>, total: int}
  * @phpstan-type HistogramResult array{buckets: list<HistogramBucket>, intervalSeconds: int, total: int, unavailable: bool}
  */
@@ -56,6 +57,24 @@ class LogQuery
      * The hard ceiling on generated buckets, so an absurd window cannot blow up the payload.
      */
     private const MAX_BUCKETS = 240;
+
+    /**
+     * How many error rows one autofix scan reads per project by default.
+     */
+    private const ERROR_SAMPLE_LIMIT = 500;
+
+    /**
+     * The hard ceiling on an autofix scan, whatever the caller asks for.
+     */
+    private const ERROR_SAMPLE_MAX = 5000;
+
+    /**
+     * How many error rows one verification pass reads for a merged fix.
+     *
+     * Wider than a scan's default: the window runs from the merge to now, so
+     * it can span days rather than the scan's hour.
+     */
+    private const ERROR_OCCURRENCE_LIMIT = 2000;
 
     /**
      * How far back the service list looks when the selected window is shorter.
@@ -270,6 +289,109 @@ class LogQuery
 
             return true;
         }
+    }
+
+    /**
+     * Fetch recent error rows for the autofix trigger, newest first.
+     *
+     * The autofix scan needs raw error records rather than a page of the
+     * viewer, but it reads the same table under the same rules: the base
+     * predicate still comes from `conditions()` (R4) — ProjectId IN plus a
+     * plain range on raw Timestamp, ordered by Timestamp DESC — and the only
+     * thing appended is a lower bound on SeverityNumber. Nothing here replaces
+     * or weakens the ProjectId predicate.
+     *
+     * The user filters are deliberately off: this is a background scan, not a
+     * search, so there is no service, severity or search term to honour.
+     *
+     * An overloaded ClickHouse yields `unavailable`, so the scan can skip this
+     * pass instead of raising fix jobs from a half-read window.
+     *
+     * @param  list<string>  $projectIds
+     * @return ErrorSampleResult
+     */
+    public function errorSamples(
+        array $projectIds,
+        Carbon $from,
+        Carbon $to,
+        int $limit = self::ERROR_SAMPLE_LIMIT,
+        SeverityLevel $minimumSeverity = SeverityLevel::Error,
+    ): array {
+        if ($projectIds === []) {
+            return ['rows' => [], 'unavailable' => false];
+        }
+
+        [$conditions, $params] = $this->conditions(
+            $projectIds,
+            new LogFilters(from: $from, to: $to),
+            withUserFilters: false,
+        );
+
+        /*
+         * A lower bound rather than the viewer's per-bucket ranges: everything
+         * at least as severe as the given level is a candidate, fatal included.
+         */
+        $conditions[] = 'SeverityNumber >= {severityFloor:UInt8}';
+        $params['severityFloor'] = $minimumSeverity->minimumSeverityNumber();
+        $params['rowLimit'] = max(1, min($limit, self::ERROR_SAMPLE_MAX));
+
+        $rows = $this->run($conditions, $params);
+
+        if ($rows === null) {
+            return ['rows' => [], 'unavailable' => true];
+        }
+
+        return ['rows' => $rows, 'unavailable' => false];
+    }
+
+    /**
+     * Fetch a single project's error rows for the autofix verification loop.
+     *
+     * The verification pass asks a narrower question than the scan: did *this*
+     * fingerprint happen again since the fix merged? The fingerprint itself is
+     * computed in PHP, not in SQL, so what this returns is the raw candidate
+     * rows for the window; the caller re-fingerprints them and counts the ones
+     * that match.
+     *
+     * The read is the same contract as every other one (R4): the base
+     * predicate comes from `conditions()` — ProjectId IN plus a plain range on
+     * raw Timestamp, ordered by Timestamp DESC — and only a lower bound on
+     * SeverityNumber is appended. The window can be days rather than the
+     * scan's hour, so the row cap is higher, and still hard-capped.
+     *
+     * An overloaded ClickHouse yields `unavailable`, so the pass can be
+     * skipped rather than declaring a fix verified off a half-read window.
+     *
+     * @return ErrorSampleResult
+     */
+    public function errorOccurrences(
+        string $projectId,
+        Carbon $from,
+        Carbon $to,
+        int $limit = self::ERROR_OCCURRENCE_LIMIT,
+        SeverityLevel $minimumSeverity = SeverityLevel::Error,
+    ): array {
+        if ($projectId === '') {
+            return ['rows' => [], 'unavailable' => false];
+        }
+
+        [$conditions, $params] = $this->conditions(
+            [$projectId],
+            new LogFilters(from: $from, to: $to),
+            withUserFilters: false,
+        );
+
+        $conditions[] = 'SeverityNumber >= {severityFloor:UInt8}';
+        $params['severityFloor'] = $minimumSeverity->minimumSeverityNumber();
+        $params['rowLimit'] = max(1, min($limit, self::ERROR_SAMPLE_MAX));
+
+        $rows = $this->run($conditions, $params);
+
+        if ($rows === null) {
+            return ['rows' => [], 'unavailable' => true];
+        }
+
+        return ['rows' => $rows, 'unavailable' => false];
     }
 
     /**

@@ -148,7 +148,37 @@ class SecurityHeaders
             $sources['connect-src'] = [...$sources['connect-src'] ?? [], $analytics];
         }
 
+        /*
+         * The autofix event stream is the one connection a page opens to a
+         * host that is not this instance: the browser watches a running job on
+         * Ayos directly, because proxying a long-lived SSE/WebSocket through
+         * Octane would pin a worker per viewer. Only the origin is allowed,
+         * and only when one is configured — a stock install adds nothing.
+         */
+        foreach ($this->ayosStreamOrigins() as $origin) {
+            $sources['connect-src'] = [...$sources['connect-src'] ?? [], $origin];
+        }
+
         return $sources;
+    }
+
+    /**
+     * The Ayos stream origin, plus its WebSocket form, when one is configured.
+     *
+     * Both schemes are listed because the spec leaves SSE and WebSocket open
+     * to Ayos, and a `wss:` connection is not covered by an `https:` source.
+     *
+     * @return list<string>
+     */
+    protected function ayosStreamOrigins(): array
+    {
+        $origin = $this->origin((string) config('autofix.ayos.stream_url'));
+
+        if ($origin === null) {
+            return [];
+        }
+
+        return [$origin, Str::replaceStart('http', 'ws', $origin)];
     }
 
     /**
@@ -159,9 +189,18 @@ class SecurityHeaders
      */
     protected function analyticsOrigin(): ?string
     {
-        $url = (string) config('bilis.analytics.script_url');
+        return $this->origin((string) config('bilis.analytics.script_url'));
+    }
 
-        if ($url === '') {
+    /**
+     * Reduce a configured URL to the scheme/host/port a CSP source can name.
+     *
+     * A CSP host-source has no form for a path, so everything after the
+     * authority is dropped rather than emitted as an unparseable source.
+     */
+    protected function origin(string $url): ?string
+    {
+        if (trim($url) === '') {
             return null;
         }
 

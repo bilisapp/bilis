@@ -12,7 +12,13 @@ GitHub App installations, one per GitHub account/org, linked to a team.
 - `id`, `team_id` FK, `installation_id` (GitHub's), `account_login`, `account_type`
 - timestamps; unique on `installation_id`
 
-The App's **private key (PEM)** is app-level config, not per-row: `AUTOFIX_GITHUB_APP_ID` + `AUTOFIX_GITHUB_PRIVATE_KEY` env vars (key base64-encoded in env; alternatively an `encrypted` cast column in a single settings row if it must be editable from the UI). Never exposed to Ayos.
+The App's **private key (PEM)** is app-level config, not per-row: `GITHUB_APP_ID` + `GITHUB_APP_PRIVATE_KEY` env vars (key base64-encoded in env; alternatively an `encrypted` cast column in a single settings row if it must be editable from the UI). Never exposed to Ayos.
+
+**One GitHub App, one experience.** The same GitHub App serves login and repo access: its OAuth client credentials (`GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` in `config/services.php`) power "Continue with GitHub", and its installation side (`GITHUB_APP_*`) powers autofix. Users log in with GitHub; enabling autofix later is just installing the already-familiar App on repos:
+
+1. Project settings shows "Connect repositories" → redirect to `https://github.com/apps/{slug}/installations/new?state={signed team ref}` (`slug` from `config('autofix.github.slug')`).
+2. The App's **Setup URL** points back at `/settings/github/setup` (`installation_id` + `state` query params): verify `state`, upsert `github_installations` for the current team, land the user back in project settings with the repo picker open.
+3. The `installation` webhook remains the source of truth (created/deleted/repos added/removed) — the setup callback is UX sugar; the webhook reconciles.
 
 ### `project_repositories`
 Maps a Bilis project to the repo the agent should fix.
@@ -101,10 +107,22 @@ Scheduled `autofix:verify` for jobs in `merged`:
 - Rate dropped to ~0 after a deploy window → comment on the PR ("error rate dropped X% since merge") and mark verified.
 - Errors persist after N hours → comment that the fix did not take; clear the fingerprint cooldown so a re-attempt is allowed.
 
+## 4b. Custom jobs (user-spawned instructions)
+
+Besides error-triggered fixes, a team member can spawn a job with **arbitrary instructions** against a connected repository ("upgrade this dependency", "add a health endpoint") — no error required.
+
+- `fix_jobs.type`: `error` | `custom`; `fingerprint` and `error_context` are nullable (custom jobs have neither). Custom jobs store `instructions` text (their own column or inside a generalized context column).
+- `POST /autofix/jobs` (session auth, policy: member of the repository's team, repo has autofix enabled): validates instructions (non-empty, sane length cap), creates the job (status pending, type custom), dispatches through the same `DispatchFixJob` path. Per-project `max_concurrent`/`daily_budget` apply to custom jobs identically.
+- `TaskRenderer` branches on type: custom instructions become `task.instructions` with a neutral safety preamble; there is no untrusted log context, but the user text still goes inside the delimited block (a teammate's prompt is trusted-ish, the delimiting costs nothing).
+- The whole downstream pipeline is unchanged: same Ayos dispatch, same DiffValidator (denylist/size/tests), same PR path — a custom job cannot do anything a fix job cannot.
+- `FixTriggerService` ignores custom jobs for fingerprint cooldowns; `autofix:verify` skips them (nothing to measure). Branch name: `autofix/custom-{short uuid}`.
+- UI: "New job" action on the autofix index (repo picker if >1 project, instructions textarea, live char count); custom jobs render in the same index/detail pages with a `custom` marker instead of exception/fingerprint columns.
+
 ## 5. Frontend (Inertia/Vue)
 
 - **Jobs index** (`resources/js/pages/autofix/`): table of fix jobs — fingerprint/exception, project, status badge, PR link, timestamps. Severity/status colouring must come from existing token families (severity + neutral ladder) — no new hues; chrome stays achromatic per the branding rules.
 - **Job detail**: header (error context, deep link to logs, PR link) + **timeline** of session events. Running job: fetch stream token, connect SSE/WS directly to Ayos (`agents.` subdomain), render events live; reconnect with a fresh token on drop. Finished job: render the persisted `events` transcript from the prop — no Ayos round-trip.
+- **Diff & code rendering: `@pierre/diffs`** (diffs.com), vanilla JS API (`FileDiff` / `CodeView` / `File` — https://diffs.com/docs#vanilla-js-api), used for ALL code visualization: the job's diff, code excerpts in tool-call events, anything else that shows source. Wrap it once in a reusable Vue component (add to the styleguide), themed from the app's CSS tokens for both modes the way `ChartCanvas` themes ECharts — Shiki theme must follow dark/light, never hardcoded. No hand-rolled diff HTML, no other diff library. (Rule recorded in `.ai/rules/js.md`.)
 - New reusable components (event timeline row, status badge if none fits) go into `/styleguide` in the same change, with Bilis-flavoured demo data.
 - Sidebar: add "Autofix" to the Platform group in `AppSidebar.vue`, visible when any project has a repository connected (or always, with an empty/onboarding state mirroring `GetStartedPanel` patterns).
 - Read `.ai/rules/js.md` and `.ai/rules/css.md` before frontend work; Wayfinder regeneration with `--with-form` after route changes.
@@ -122,9 +140,11 @@ return [
         'shared_secret' => env('AUTOFIX_SHARED_SECRET'),
     ],
     'github' => [
-        'app_id' => env('AUTOFIX_GITHUB_APP_ID'),
-        'private_key' => env('AUTOFIX_GITHUB_PRIVATE_KEY'),   // base64 PEM
-        'webhook_secret' => env('AUTOFIX_GITHUB_WEBHOOK_SECRET'),
+        // the SAME App whose client id/secret power "Continue with GitHub"
+        'app_id' => env('GITHUB_APP_ID'),
+        'slug' => env('GITHUB_APP_SLUG'),                    // for the install link
+        'private_key' => env('GITHUB_APP_PRIVATE_KEY'),      // base64 PEM
+        'webhook_secret' => env('GITHUB_APP_WEBHOOK_SECRET'),
     ],
     'stream_jwt' => [
         'private_key' => env('AUTOFIX_STREAM_PRIVATE_KEY'),   // Ed25519; Ayos gets ONLY the public key

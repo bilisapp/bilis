@@ -6,6 +6,7 @@ import AppLogo from '@/components/AppLogo.vue';
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import AppLogoMark from '@/components/AppLogoMark.vue';
 import GetStartedPanel from '@/components/GetStartedPanel.vue';
+import GitHubLoginButton from '@/components/GitHubLoginButton.vue';
 import Heading from '@/components/Heading.vue';
 import IngestRateCard from '@/components/IngestRateCard.vue';
 import InputError from '@/components/InputError.vue';
@@ -305,6 +306,17 @@ const onHistogramZoom = (window: { from: string; to: string }) => {
                     <TextLink :href="styleguide()">styleguide</TextLink>
                     to check how a component renders in both modes.
                 </p>
+            </DemoBlock>
+
+            <DemoBlock
+                title="GitHubLoginButton"
+                description="the OAuth entry point on the login and register pages. An outline button like any other — the GitHub mark is drawn in currentColor, so the chrome stays achromatic. The optional separator divides it from the email form beneath."
+            >
+                <GitHubLoginButton />
+                <GitHubLoginButton
+                    label="Continue with GitHub"
+                    separator="Or continue with email"
+                />
             </DemoBlock>
 
             <DemoBlock

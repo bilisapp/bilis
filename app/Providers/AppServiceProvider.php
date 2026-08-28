@@ -3,8 +3,12 @@
 namespace App\Providers;
 
 use App\Http\Middleware\AuthenticateProjectApiKey;
+use App\Models\FixJob;
 use App\Models\Project;
 use App\Models\ProjectApiKey;
+use App\Services\Autofix\LocalRunDriver;
+use App\Services\Autofix\RunDriver;
+use App\Services\Autofix\ScalewayRunDriver;
 use App\Services\Ingest\IngestRateUsage;
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -24,7 +28,25 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->configureAutofixRunner();
+    }
+
+    /**
+     * Bind the driver that starts Ayos runs.
+     *
+     * The two implementations differ only in how a run is started and stopped —
+     * a child process here, a Serverless Job run in production. Everything
+     * downstream is the same code on both sides, which is what makes a local
+     * end-to-end test worth running.
+     */
+    protected function configureAutofixRunner(): void
+    {
+        $this->app->bind(RunDriver::class, function (): RunDriver {
+            return match (config('autofix.runner.driver')) {
+                'scaleway' => new ScalewayRunDriver,
+                default => new LocalRunDriver,
+            };
+        });
     }
 
     /**
@@ -42,6 +64,7 @@ class AppServiceProvider extends ServiceProvider
      *
      * Slugs are only unique per team, so a project is always looked up through
      * the team in the route; a project from another team resolves to a 404.
+     * Fix jobs reach their team the same way, through their project.
      */
     protected function configureRouteBindings(): void
     {
@@ -51,6 +74,15 @@ class AppServiceProvider extends ServiceProvider
             return Project::query()
                 ->where('slug', $slug)
                 ->whereHas('team', fn ($query) => $query->where('slug', is_string($teamSlug) ? $teamSlug : null))
+                ->firstOrFail();
+        });
+
+        Route::bind('fixJob', function (string $uuid, RouteElement $route): FixJob {
+            $teamSlug = $route->parameter('current_team');
+
+            return FixJob::query()
+                ->where('uuid', $uuid)
+                ->whereHas('project.team', fn ($query) => $query->where('slug', is_string($teamSlug) ? $teamSlug : null))
                 ->firstOrFail();
         });
 

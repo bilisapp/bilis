@@ -46,6 +46,12 @@ class HandleInertiaRequests extends Middleware
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'currentTeam' => fn () => $user?->currentTeam ? $user->toUserTeam($user->currentTeam) : null,
             'teams' => fn () => $user?->toUserTeams(includeCurrent: true) ?? [],
+            /*
+             * The navigation has to know about the deployment-wide autofix
+             * switch: with it off the endpoints 404, so the rail must not
+             * offer a door that does not open.
+             */
+            'autofix' => ['enabled' => config('autofix.enabled') === true],
         ];
     }
 }

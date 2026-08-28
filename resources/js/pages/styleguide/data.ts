@@ -1,8 +1,11 @@
 import type {
+    FixJobEvent,
+    FixJobStatus,
     IngestRateUsage,
     LogEntry,
     LogHistogram,
     SeverityLevel,
+    TeamLlmCredential,
 } from '@/types';
 
 export type Swatch = {
@@ -33,6 +36,7 @@ export const STYLEGUIDE_SECTIONS: StyleguideSection[] = [
     { id: 'components', title: 'Components' },
     { id: 'app-components', title: 'App components' },
     { id: 'charts', title: 'Charts' },
+    { id: 'autofix', title: 'Autofix' },
 ];
 
 /**
@@ -533,3 +537,158 @@ export const demoIngestRateDisabled: IngestRateUsage = {
         remaining: 0,
     })),
 };
+
+/**
+ * A patch of the shape autofix actually produces: one small, defensive change
+ * to the file the stack trace pointed at, against the project's own code.
+ */
+export const demoFixDiff = `diff --git a/app/Services/Billing/ChargeOrder.php b/app/Services/Billing/ChargeOrder.php
+index 83db48f..bf269f4 100644
+--- a/app/Services/Billing/ChargeOrder.php
++++ b/app/Services/Billing/ChargeOrder.php
+@@ -18,9 +18,13 @@ class ChargeOrder
+     public function handle(Order $order): Receipt
+     {
+-        $total = $order->lines->sum('amount');
++        if ($order->lines->isEmpty()) {
++            throw new EmptyOrder($order->id);
++        }
+ 
+-        return $this->gateway->charge($total, $order->currency);
++        $total = $order->lines->sum('amount');
++
++        return $this->gateway->charge($total, $order->currency ?? 'EUR');
+     }
+ }
+`;
+
+/** A short excerpt of source, for the single-file rendering mode. */
+export const demoFixExcerpt = `public function handle(Order $order): Receipt
+{
+    $total = $order->lines->sum('amount');
+
+    return $this->gateway->charge($total, $order->currency);
+}`;
+
+/**
+ * One agent session, end to end, in the schema Ayos emits: the same rows the
+ * live stream appends and the persisted transcript replays.
+ */
+export const demoFixJobEvents: FixJobEvent[] = [
+    {
+        seq: 1,
+        ts: '2026-08-27T09:12:01.000Z',
+        type: 'phase',
+        data: { state: 'cloning' },
+    },
+    {
+        seq: 2,
+        ts: '2026-08-27T09:12:04.000Z',
+        type: 'phase',
+        data: { state: 'cloning', done: true, duration_ms: 2333 },
+    },
+    {
+        seq: 3,
+        ts: '2026-08-27T09:12:04.000Z',
+        type: 'phase',
+        data: {
+            state: 'queued',
+            egress: ['api.anthropic.com', 'registry.npmjs.org'],
+        },
+    },
+    {
+        seq: 4,
+        ts: '2026-08-27T09:12:19.000Z',
+        type: 'agent_message',
+        data: {
+            text: 'The trace points at ChargeOrder::handle. An order with no lines sums to zero, and the gateway rejects a zero charge — that is the PaymentFailed we are seeing.',
+        },
+    },
+    {
+        seq: 5,
+        ts: '2026-08-27T09:12:28.000Z',
+        type: 'tool_call',
+        data: {
+            title: 'bash',
+            input: {
+                command: 'php artisan test --compact --filter=ChargeOrder',
+            },
+        },
+    },
+    {
+        seq: 6,
+        ts: '2026-08-27T09:12:31.000Z',
+        type: 'tool_call',
+        data: {
+            title: 'read_file',
+            input: {
+                path: 'app/Services/Billing/ChargeOrder.php',
+                lines: '1-40',
+            },
+        },
+    },
+    {
+        seq: 7,
+        ts: '2026-08-27T09:12:33.000Z',
+        type: 'tool_result',
+        data: { name: 'read_file', output: demoFixExcerpt },
+    },
+    {
+        seq: 8,
+        ts: '2026-08-27T09:13:02.000Z',
+        type: 'test_output',
+        data: {
+            passed: true,
+            output_tail:
+                '  PASS  Tests\\Feature\\Billing\\ChargeOrderTest\n  ✓ it refuses an empty order\n\n  Tests:  14 passed (32 assertions)',
+        },
+    },
+    {
+        seq: 9,
+        ts: '2026-08-27T09:13:10.000Z',
+        type: 'done',
+        data: { status: 'succeeded', summary: 'Guarded the empty-order case.' },
+    },
+];
+
+/** The status ladder, in lifecycle order, as the jobs table renders it. */
+export const demoFixJobStatuses: { status: FixJobStatus; label: string }[] = [
+    { status: 'pending', label: 'Pending' },
+    { status: 'dispatched', label: 'Dispatched' },
+    { status: 'running', label: 'Running' },
+    { status: 'validating', label: 'Validating' },
+    { status: 'pr_opened', label: 'PR opened' },
+    { status: 'merged', label: 'Merged' },
+    { status: 'no_change', label: 'No change' },
+    { status: 'rejected', label: 'Rejected' },
+    { status: 'failed', label: 'Failed' },
+    { status: 'timeout', label: 'Timeout' },
+    { status: 'cancelled', label: 'Cancelled' },
+];
+
+/**
+ * A team's model API keys, as the settings page and the new-job picker see
+ * them: provider, label and the last four characters, never the key.
+ */
+export const demoLlmCredentials: TeamLlmCredential[] = [
+    {
+        id: 1,
+        provider: 'anthropic',
+        providerLabel: 'Anthropic',
+        label: 'Production budget',
+        hint: 'a91f',
+        isDefault: true,
+        lastUsedAt: '2026-08-27T09:14:00.000Z',
+        createdAt: '2026-06-02T11:00:00.000Z',
+    },
+    {
+        id: 2,
+        provider: 'openrouter',
+        providerLabel: 'OpenRouter',
+        label: 'Experiments',
+        hint: '4c7d',
+        isDefault: false,
+        lastUsedAt: null,
+        createdAt: '2026-08-19T16:40:00.000Z',
+    },
+];

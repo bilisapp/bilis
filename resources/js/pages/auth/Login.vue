@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { Form, Head } from '@inertiajs/vue3';
+import AlertError from '@/components/AlertError.vue';
+import GitHubLoginButton from '@/components/GitHubLoginButton.vue';
 import InputError from '@/components/InputError.vue';
 import PasskeyVerify from '@/components/PasskeyVerify.vue';
 import PasswordInput from '@/components/PasswordInput.vue';
@@ -24,6 +26,8 @@ defineOptions({
 
 defineProps<{
     status?: string;
+    error?: string;
+    github: boolean;
     canResetPassword: boolean;
     teamInvitation?: TeamInvitationContext | null;
 }>();
@@ -39,11 +43,20 @@ defineProps<{
         {{ status }}
     </div>
 
+    <AlertError
+        v-if="error"
+        :errors="[error]"
+        title="GitHub sign-in did not complete."
+        class="mb-6"
+    />
+
     <TeamInvitationAlert
         v-if="teamInvitation"
         :invitation="teamInvitation"
         action="Log in"
     />
+
+    <GitHubLoginButton v-if="github" class="mb-2" />
 
     <PasskeyVerify />
 

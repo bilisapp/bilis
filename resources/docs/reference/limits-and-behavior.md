@@ -67,10 +67,10 @@ than trusting a tier label.
 Ingest is throttled per API key, so one runaway client cannot starve the
 others:
 
-| Requests | Limit | Counted per |
-| --- | --- | --- |
-| With a valid `Authorization` header | **1,200 requests/minute** | API key |
-| Without one | **60 requests/minute** | client IP |
+| Requests                            | Limit                     | Counted per |
+| ----------------------------------- | ------------------------- | ----------- |
+| With a valid `Authorization` header | **1,200 requests/minute** | API key     |
+| Without one                         | **60 requests/minute**    | client IP   |
 
 Two things worth being precise about:
 
@@ -92,7 +92,7 @@ BILIS_INGEST_RATE_LIMIT=1200
 BILIS_INGEST_RATE_LIMIT_UNAUTHENTICATED=60
 ```
 
-The rate limit shapes *request rate*; it does not cap *stored volume*. A
+The rate limit shapes _request rate_; it does not cap _stored volume_. A
 well-batched client can fill the disk without ever seeing a `429` — see the
 sizing table above, and the quota note below.
 
@@ -102,7 +102,7 @@ Bilis stores what arrives. There is no server-side sampling, no
 ingest-side downsampling, and none is planned: dropping data you deliberately
 sent would be a surprising way to protect a disk you own.
 
-That makes volume control your job, and the right place for it is *before* the
+That makes volume control your job, and the right place for it is _before_ the
 log leaves your infrastructure — in the SDK or collector, where the decision is
 cheap and nothing is transmitted just to be thrown away:
 

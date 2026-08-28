@@ -20,6 +20,7 @@
         "fortify-development",
         "laravel-best-practices",
         "configuring-horizon",
+        "socialite-development",
         "wayfinder-development",
         "pest-testing",
         "inertia-vue-development",

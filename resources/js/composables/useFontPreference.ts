@@ -71,8 +71,9 @@ export function useFontPreference(): UseFontPreferenceReturn {
 
     const fontLabel = computed(
         () =>
-            FONT_PREFERENCE_OPTIONS.find((option) => option.value === font.value)
-                ?.label ?? 'Geist',
+            FONT_PREFERENCE_OPTIONS.find(
+                (option) => option.value === font.value,
+            )?.label ?? 'Geist',
     );
 
     function updateFontPreference(value: FontPreference) {

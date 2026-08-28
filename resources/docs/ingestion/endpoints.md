@@ -7,10 +7,10 @@ order: 1
 Bilis exposes two ingest endpoints. Both authenticate the same way, both write
 into the same table, and both follow the same never-blame-the-client contract.
 
-| Endpoint              | Payload                                                 | Success |
-| --------------------- | ------------------------------------------------------- | ------- |
-| `POST /api/v1/logs`   | OTLP `ExportLogsServiceRequest`, JSON **or** protobuf   | `200`   |
-| `POST /api/v1/ingest` | Simple JSON: one object or an array of them             | `202`   |
+| Endpoint              | Payload                                               | Success |
+| --------------------- | ----------------------------------------------------- | ------- |
+| `POST /api/v1/logs`   | OTLP `ExportLogsServiceRequest`, JSON **or** protobuf | `200`   |
+| `POST /api/v1/ingest` | Simple JSON: one object or an array of them           | `202`   |
 
 ## Authentication
 
