@@ -39,7 +39,7 @@ use Illuminate\Support\Carbon;
  * @property FixJobStatus $status
  * @property string|null $diff
  * @property array<string, mixed>|null $report
- * @property array<int, array<string, mixed>>|null $events
+ * @property array<int, mixed>|null $events
  * @property array<string, mixed>|null $verification
  * @property int|null $pr_number
  * @property string|null $pr_url
