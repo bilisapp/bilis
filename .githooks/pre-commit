@@ -1,7 +1,9 @@
 #!/bin/sh
 #
-# Bilis pre-commit hook: run the same checks CI runs, so a commit that lands
-# here is a commit that passes `composer ci:check`.
+# Bilis pre-commit hook: run CI's static checks (lint, format, types) so a
+# commit never lands with code CI would reject on style or type grounds.
+# The Pest suite is deliberately not run here — it belongs in CI, not in the
+# commit path.
 #
 # Enable with: git config core.hooksPath .githooks
 # Skip once with: git commit --no-verify
@@ -61,11 +63,6 @@ if [ -n "$php_changed" ]; then
 
     echo "pre-commit: phpstan"
     vendor/bin/phpstan analyse --no-progress || fail "phpstan"
-fi
-
-if [ -n "$php_changed" ] || [ -n "$js_changed" ]; then
-    echo "pre-commit: pest"
-    php artisan test --compact || fail "pest"
 fi
 
 echo "pre-commit: ok"
