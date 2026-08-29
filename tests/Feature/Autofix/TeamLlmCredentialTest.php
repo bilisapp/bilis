@@ -32,6 +32,22 @@ function teamWith(TeamRole $role = TeamRole::Owner): array
     return [$team, $user];
 }
 
+/*
+ * The dispatch path mints a GitHub App JWT on its way to starting a run, so
+ * this file needs a throwaway App of its own — never the operator's real one
+ * out of the environment.
+ */
+beforeEach(function () {
+    $key = openssl_pkey_new(['private_key_type' => OPENSSL_KEYTYPE_RSA, 'private_key_bits' => 2048]);
+    openssl_pkey_export($key, $privatePem);
+
+    config([
+        'autofix.enabled' => true,
+        'autofix.github.app_id' => '123456',
+        'autofix.github.private_key' => base64_encode($privatePem),
+    ]);
+});
+
 /* ------------------------------------------------------------------ storage */
 
 test('a key is encrypted at rest and never stored in the clear', function () {

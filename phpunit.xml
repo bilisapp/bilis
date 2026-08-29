@@ -32,5 +32,17 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <!--
+            The autofix credentials are blanked so a test never picks up the
+            operator's real GitHub App or model key out of .env. A test that
+            needs them configures its own throwaway pair, which is what keeps a
+            local run honest about what CI will do.
+        -->
+        <env name="GITHUB_APP_ID" value=""/>
+        <env name="GITHUB_APP_SLUG" value=""/>
+        <env name="GITHUB_APP_PRIVATE_KEY" value=""/>
+        <env name="GITHUB_APP_WEBHOOK_SECRET" value=""/>
+        <env name="AUTOFIX_LLM_API_KEY" value=""/>
+        <env name="AUTOFIX_ANTHROPIC_API_KEY" value=""/>
     </php>
 </phpunit>
