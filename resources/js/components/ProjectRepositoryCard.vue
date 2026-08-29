@@ -197,7 +197,6 @@ const unclaimedServices = computed(() => {
                     </Link>
                 </Button>
             </div>
-
         </CardContent>
     </Card>
 

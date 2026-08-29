@@ -34,9 +34,6 @@ const props = defineProps<{
     observedServices: string[];
 }>();
 
-const namedServices = (repository: ProjectRepository): string[] =>
-    repository.services.filter((service) => service !== CATCH_ALL);
-
 const settings = useForm({
     autofix_enabled: props.repository.autofixEnabled,
     test_cmd: props.repository.testCmd ?? '',
@@ -81,9 +78,7 @@ function addService(name?: string) {
 }
 
 function removeService(name: string) {
-    settings.services = settings.services.filter(
-        (service) => service !== name,
-    );
+    settings.services = settings.services.filter((service) => service !== name);
 }
 
 watch(
@@ -141,9 +136,7 @@ function disconnect() {
                 :id="`autofix-enabled-${repository.id}`"
                 :model-value="settings.autofix_enabled"
                 data-test="project-repository-enabled"
-                @update:model-value="
-                    settings.autofix_enabled = $event === true
-                "
+                @update:model-value="settings.autofix_enabled = $event === true"
             />
             <div class="space-y-1">
                 <Label

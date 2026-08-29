@@ -47,31 +47,31 @@ the public key belongs to, exactly as it is for the other ingest endpoints.
 
 One envelope `event` becomes one log record:
 
-| Log field       | Comes from                                                         |
-| --------------- | ------------------------------------------------------------------ |
-| Body            | `Type: message` of the thrown exception, or the event's message      |
-| Severity        | The SDK's level (`warning` becomes `WARN`)                           |
-| Service         | The `service` tag, falling back to `server_name`                     |
-| Trace / span id | `contexts.trace`, which is already OpenTelemetry's hex               |
-| Timestamp       | The event timestamp                                                  |
+| Log field       | Comes from                                                      |
+| --------------- | --------------------------------------------------------------- |
+| Body            | `Type: message` of the thrown exception, or the event's message |
+| Severity        | The SDK's level (`warning` becomes `WARN`)                      |
+| Service         | The `service` tag, falling back to `server_name`                |
+| Trace / span id | `contexts.trace`, which is already OpenTelemetry's hex          |
+| Timestamp       | The event timestamp                                             |
 
 Everything else is flattened into attributes, under the OpenTelemetry names the
 rest of your logs already use rather than the ones on the wire:
 
-| Attribute                                          | Was                        |
-| -------------------------------------------------- | -------------------------- |
-| `exception.type`, `exception.message`               | the thrown exception        |
-| `exception.stacktrace`                              | the frames, most recent first |
-| `exception.origin`                                  | the innermost frame in your own code |
-| `exception.handled`, `exception.mechanism`          | how it was caught           |
-| `service.version`, `service.dist`                   | release, dist               |
-| `deployment.environment`                            | environment                 |
-| `transaction.name`, `logger.name`, `event.id`       | transaction, logger, event id |
-| `host.name`                                         | server name                 |
-| `telemetry.sdk.name`, `.version`, `.language`       | which client reported it    |
-| `process.runtime.name`, `.version`                  | the runtime context         |
-| `tag.*`, `extra.*`, `user.*`, `http.*`              | tags, extras, user, request |
-| `breadcrumbs`                                       | breadcrumbs, newest first   |
+| Attribute                                     | Was                                  |
+| --------------------------------------------- | ------------------------------------ |
+| `exception.type`, `exception.message`         | the thrown exception                 |
+| `exception.stacktrace`                        | the frames, most recent first        |
+| `exception.origin`                            | the innermost frame in your own code |
+| `exception.handled`, `exception.mechanism`    | how it was caught                    |
+| `service.version`, `service.dist`             | release, dist                        |
+| `deployment.environment`                      | environment                          |
+| `transaction.name`, `logger.name`, `event.id` | transaction, logger, event id        |
+| `host.name`                                   | server name                          |
+| `telemetry.sdk.name`, `.version`, `.language` | which client reported it             |
+| `process.runtime.name`, `.version`            | the runtime context                  |
+| `tag.*`, `extra.*`, `user.*`, `http.*`        | tags, extras, user, request          |
+| `breadcrumbs`                                 | breadcrumbs, newest first            |
 
 Search them the way you search any attribute — `exception.type` is a good place
 to start when you want one class of failure.

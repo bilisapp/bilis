@@ -4,9 +4,9 @@ import { computed, ref } from 'vue';
 import CodeCanvas from '@/components/CodeCanvas.vue';
 import CreateFixJobModal from '@/components/CreateFixJobModal.vue';
 import DeleteLlmCredentialModal from '@/components/DeleteLlmCredentialModal.vue';
-import RepositoryAutofixSettings from '@/components/RepositoryAutofixSettings.vue';
 import FixJobEventRow from '@/components/FixJobEventRow.vue';
 import FixJobStatusBadge from '@/components/FixJobStatusBadge.vue';
+import RepositoryAutofixSettings from '@/components/RepositoryAutofixSettings.vue';
 import { Button } from '@/components/ui/button';
 import {
     demoFixDiff,
@@ -16,6 +16,7 @@ import {
     demoLlmCredentials,
     demoProjectRepositories,
 } from '@/pages/styleguide/data';
+import type { ProjectDetail } from '@/types';
 import DemoBlock from './DemoBlock.vue';
 import SectionShell from './SectionShell.vue';
 
@@ -41,10 +42,11 @@ const demoAutofixRepositories = [
 
 const deleteCredentialOpen = ref(false);
 
-const demoProject = {
+const demoProject: ProjectDetail = {
     id: 1,
     name: 'Checkout',
     slug: 'checkout',
+    allowedOrigins: ['https://checkout.example.com'],
     createdAt: '2026-06-02T11:00:00.000Z',
 };
 

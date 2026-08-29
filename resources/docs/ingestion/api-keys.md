@@ -10,10 +10,10 @@ it can ever write to. Issue keys from **Projects → your project → New API ke
 Each key is one credential with two halves. They are issued together, they are
 revoked together, and they share a rate limit.
 
-| Half   | Looks like     | Visibility            | Used by                                          |
-| ------ | -------------- | --------------------- | ------------------------------------------------ |
-| Secret | `bilis_…`      | Shown once, then only a hash is stored | Collectors, shippers, anything that can send a header |
-| Public | `bilis_pk_…`   | Always visible on the project page      | Clients configured with a URL instead of a header     |
+| Half   | Looks like   | Visibility                             | Used by                                               |
+| ------ | ------------ | -------------------------------------- | ----------------------------------------------------- |
+| Secret | `bilis_…`    | Shown once, then only a hash is stored | Collectors, shippers, anything that can send a header |
+| Public | `bilis_pk_…` | Always visible on the project page     | Clients configured with a URL instead of a header     |
 
 ## The secret half
 

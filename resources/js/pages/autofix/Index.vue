@@ -239,7 +239,8 @@ function goToPage(page: number) {
             <CreateFixJobModal
                 v-if="canCreateJob"
                 :team-slug="teamSlug"
-                :projects="autofixProjects"
+                :repositories="autofixRepositories"
+                :credentials="llmCredentials"
             >
                 <Button size="sm" data-test="autofix-empty-new-job">
                     <Plus /> New job

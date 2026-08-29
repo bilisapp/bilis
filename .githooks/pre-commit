@@ -1,0 +1,71 @@
+#!/bin/sh
+#
+# Bilis pre-commit hook: run the same checks CI runs, so a commit that lands
+# here is a commit that passes `composer ci:check`.
+#
+# Enable with: git config core.hooksPath .githooks
+# Skip once with: git commit --no-verify
+
+set -e
+
+if [ -n "$BILIS_SKIP_HOOKS" ]; then
+    echo "pre-commit: skipped (BILIS_SKIP_HOOKS set)"
+    exit 0
+fi
+
+cd "$(git rev-parse --show-toplevel)"
+
+# Only the staged tree should be checked, not unstaged work in progress.
+STASH_NAME="bilis-pre-commit-$(date +%s)"
+UNSTAGED=0
+if ! git diff --quiet; then
+    UNSTAGED=1
+    git stash push --keep-index --include-untracked --quiet --message "$STASH_NAME"
+fi
+
+restore() {
+    if [ "$UNSTAGED" = "1" ]; then
+        STASH_REF=$(git stash list --format='%gd %gs' | grep -F "$STASH_NAME" | head -n1 | cut -d' ' -f1)
+        if [ -n "$STASH_REF" ]; then
+            git stash pop --quiet "$STASH_REF" || echo "pre-commit: could not restore $STASH_REF automatically — run 'git stash pop' yourself."
+        fi
+    fi
+}
+trap restore EXIT
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR)
+
+php_changed=$(printf '%s\n' "$STAGED" | grep -E '\.php$' || true)
+js_changed=$(printf '%s\n' "$STAGED" | grep -E '\.(ts|tsx|js|mjs|vue|css)$' || true)
+
+fail() {
+    echo ""
+    echo "pre-commit: $1 failed. Fix it (or commit with --no-verify) and try again."
+    exit 1
+}
+
+if [ -n "$js_changed" ]; then
+    echo "pre-commit: eslint"
+    npm run --silent lint:check || fail "eslint"
+
+    echo "pre-commit: prettier"
+    npm run --silent format:check || fail "prettier"
+
+    echo "pre-commit: vue-tsc"
+    npm run --silent types:check || fail "vue-tsc"
+fi
+
+if [ -n "$php_changed" ]; then
+    echo "pre-commit: pint"
+    vendor/bin/pint --parallel --test || fail "pint"
+
+    echo "pre-commit: phpstan"
+    vendor/bin/phpstan analyse --no-progress || fail "phpstan"
+fi
+
+if [ -n "$php_changed" ] || [ -n "$js_changed" ]; then
+    echo "pre-commit: pest"
+    php artisan test --compact || fail "pest"
+fi
+
+echo "pre-commit: ok"

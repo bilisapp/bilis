@@ -47,13 +47,17 @@
         }
     },
     "scripts": {
+        "hooks:install": [
+            "@php -r \"passthru('git config core.hooksPath .githooks'); echo 'Git hooks enabled (.githooks).', PHP_EOL;\""
+        ],
         "setup": [
             "composer install",
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
             "@php artisan key:generate",
             "@php artisan migrate --force",
             "npm install",
-            "npm run build"
+            "npm run build",
+            "@hooks:install"
         ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",
