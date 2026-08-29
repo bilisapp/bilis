@@ -11,6 +11,7 @@ use App\Http\Controllers\DocsApiKeyController;
 use App\Http\Controllers\DocsController;
 use App\Http\Controllers\LogsController;
 use App\Http\Controllers\ProjectApiKeyController;
+use App\Http\Controllers\ProjectBrowserOriginController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectRepositoryController;
 use App\Http\Controllers\Settings\GitHubInstallationController;
@@ -90,6 +91,8 @@ Route::prefix('{current_team}')
         Route::get('projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
         Route::patch('projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
         Route::delete('projects/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
+
+        Route::patch('projects/{project}/browser-origins', [ProjectBrowserOriginController::class, 'update'])->name('projects.browser-origins.update');
 
         Route::post('projects/{project}/api-keys', [ProjectApiKeyController::class, 'store'])->name('projects.api-keys.store');
         Route::delete('projects/{project}/api-keys/{apiKey}', [ProjectApiKeyController::class, 'destroy'])->name('projects.api-keys.destroy');

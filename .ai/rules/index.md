@@ -14,4 +14,6 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Logging/** | .ai/rules/logging.md |
 | app/Services/Logs/** | .ai/rules/logs.md |
 | app/Http/Middleware/SecurityHeaders.php | .ai/rules/middleware.md |
+| app/Models/ProjectApiKey.php | .ai/rules/models.md |
 | routes/api.php | .ai/rules/routes.md |
+| app/Services/Ingest/Envelope/** | .ai/rules/envelope-ingest.md |

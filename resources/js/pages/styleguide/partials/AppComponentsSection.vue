@@ -7,6 +7,8 @@ import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import AppLogoMark from '@/components/AppLogoMark.vue';
 import AskAiMenu from '@/components/AskAiMenu.vue';
 import AutofixUpsellModal from '@/components/AutofixUpsellModal.vue';
+import BrowserOriginsCard from '@/components/BrowserOriginsCard.vue';
+import CopyableValue from '@/components/CopyableValue.vue';
 import GetStartedPanel from '@/components/GetStartedPanel.vue';
 import GitHubLoginButton from '@/components/GitHubLoginButton.vue';
 import Heading from '@/components/Heading.vue';
@@ -158,9 +160,21 @@ const onToolbarReset = () =>
 
 const apiKeyDialogOpen = ref(false);
 
+const demoProject = {
+    id: 12,
+    name: 'Checkout',
+    slug: 'checkout',
+    allowedOrigins: [
+        'https://shop.example.com',
+        'https://*.staging.example.com',
+    ],
+    createdAt: '2026-08-01T09:00:00Z',
+};
+
 const demoApiKey = {
     name: 'Production collector',
     key: 'bilis_9fZ1qPdK3sWmXbT7vRcYhN2eJgL4uA6oQ8iM0zSr',
+    dsn: 'https://bilis_pk_T4hW9nQ2rLxK7bV3mJ8cYzD6sF1gP0aUeR5oI/12',
 };
 
 const shortcutsOpen = ref(false);
@@ -485,6 +499,28 @@ const onHistogramZoom = (window: { from: string; to: string }) => {
                 v-model:open="apiKeyDialogOpen"
                 :api-key="demoApiKey"
             />
+        </DemoBlock>
+
+        <DemoBlock
+            title="BrowserOriginsCard"
+            description="the allow list a page must be served from before Bilis answers it — a monospace textarea, one origin per line, and a footer that says plainly when the list is closed"
+        >
+            <div class="w-full max-w-xl">
+                <BrowserOriginsCard :project="demoProject" team-slug="acme" />
+            </div>
+        </DemoBlock>
+
+        <DemoBlock
+            title="CopyableValue"
+            description="a read-only monospace field with a copy button that flips to a check — used for anything meant to be pasted somewhere else, like an ingest key or a DSN"
+        >
+            <div class="w-full max-w-xl space-y-3">
+                <CopyableValue :value="demoApiKey.dsn" label="Copy DSN" />
+                <CopyableValue
+                    value="https://logs.example.com/api/v1/ingest"
+                    label="Copy ingest endpoint"
+                />
+            </div>
         </DemoBlock>
 
         <DemoBlock

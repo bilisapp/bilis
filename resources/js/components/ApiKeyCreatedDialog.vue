@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Check, Copy, TriangleAlert } from '@lucide/vue';
-import { useClipboard } from '@vueuse/core';
+import { TriangleAlert } from '@lucide/vue';
+import CopyableValue from '@/components/CopyableValue.vue';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -22,8 +22,6 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
     'update:open': [value: boolean];
 }>();
-
-const { copy, copied } = useClipboard({ legacy: true });
 </script>
 
 <template>
@@ -40,27 +38,26 @@ const { copy, copied } = useClipboard({ legacy: true });
                 </DialogDescription>
             </DialogHeader>
 
-            <div
-                class="flex w-full items-stretch overflow-hidden rounded-lg border border-input bg-card"
-            >
-                <input
-                    type="text"
-                    readonly
-                    data-test="api-key-plaintext"
-                    :value="props.apiKey?.key"
-                    class="w-full bg-transparent p-3 font-mono text-sm text-foreground outline-none"
-                    @focus="($event.target as HTMLInputElement).select()"
+            <CopyableValue
+                data-test="api-key-plaintext"
+                :value="props.apiKey?.key ?? ''"
+                label="Copy API key"
+            />
+
+            <div v-if="props.apiKey?.dsn" class="space-y-2">
+                <p class="text-sm font-medium">DSN</p>
+                <CopyableValue
+                    data-test="api-key-dsn"
+                    :value="props.apiKey.dsn"
+                    label="Copy DSN"
                 />
-                <button
-                    type="button"
-                    data-test="api-key-copy"
-                    class="block border-l border-input px-3 hover:bg-muted"
-                    :aria-label="copied ? 'Copied' : 'Copy API key'"
-                    @click="copy(props.apiKey?.key ?? '')"
-                >
-                    <Check v-if="copied" class="w-4 text-foreground" />
-                    <Copy v-else class="w-4" />
-                </button>
+                <p class="text-xs text-muted-foreground">
+                    For clients configured with a URL instead of a header: Bilis
+                    accepts requests from Sentry-compatible SDKs, so pointing
+                    one at this DSN ships its exceptions here. It holds the
+                    public half of the pair, so it stays visible on the project
+                    page.
+                </p>
             </div>
 
             <p

@@ -26,6 +26,7 @@ class ProjectApiKeyFactory extends Factory
             'name' => Str::title(fake()->word().' Key'),
             'key_prefix' => Str::substr($plainTextKey, 0, ProjectApiKey::DISPLAY_PREFIX_LENGTH),
             'key_hash' => ProjectApiKey::hashKey($plainTextKey),
+            'public_key' => ProjectApiKey::PUBLIC_KEY_PREFIX.Str::random(ProjectApiKey::RANDOM_LENGTH),
             'last_used_at' => null,
         ];
     }
@@ -48,6 +49,16 @@ class ProjectApiKeyFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'key_prefix' => Str::substr($plainTextKey, 0, ProjectApiKey::DISPLAY_PREFIX_LENGTH),
             'key_hash' => ProjectApiKey::hashKey($plainTextKey),
+        ]);
+    }
+
+    /**
+     * Indicate that the API key carries the given public key.
+     */
+    public function withPublicKey(string $publicKey): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'public_key' => $publicKey,
         ]);
     }
 

@@ -12,10 +12,15 @@ into the same table, and both follow the same never-blame-the-client contract.
 | `POST /api/v1/logs`   | OTLP `ExportLogsServiceRequest`, JSON **or** protobuf | `200`   |
 | `POST /api/v1/ingest` | Simple JSON: one object or an array of them           | `202`   |
 
+A third path accepts what the Sentry SDKs send, for applications that already
+report exceptions through one; it follows the same contract. See
+[Sentry-compatible ingest](/docs/ingestion/sentry).
+
 ## Authentication
 
 Send the project API key as a bearer token, or in `X-Bilis-Key` if the client
-cannot set an `Authorization` header:
+cannot set an `Authorization` header — see [API keys](/docs/ingestion/api-keys)
+for how a key is issued, what its two halves are for, and how to revoke one:
 
 ```bash
 -H "Authorization: Bearer bilis_YOUR_API_KEY"

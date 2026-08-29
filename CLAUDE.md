@@ -15,7 +15,8 @@ Self-hostable log storage and search. **v1 is feature-complete and shipped**: OT
 | ClickHouse client + exceptions | `app/Services/ClickHouse/` |
 | ClickHouse DDL (idempotent, filename order) | `database/clickhouse/*.sql`, applied by `php artisan clickhouse:migrate` |
 | Ingest endpoints (OTLP JSON + simple JSON) | `routes/api.php`, `app/Http/Controllers/Api/`, mappers in `app/Services/Ingest/` |
-| API-key auth (key -> project) | `App\Http\Middleware\AuthenticateProjectApiKey`, alias `project.api-key`; keys are `bilis_`-prefixed, only sha256 hash stored (`App\Models\ProjectApiKey`) |
+| Envelope ingest (DSN clients; Sentry-SDK compatible) | `app/Services/Ingest/Envelope/`, `Api\EnvelopeIngestController`, `App\Http\Middleware\AuthenticatePublicKey` (alias `project.public-key`). Browser access is a per-project origin allow list (`projects.allowed_origins`, `HandleEnvelopeCors`, alias `envelope.cors`); `config/cors.php` covers `api/v1/*` only. Vendor names live in the docs only — see `.ai/rules/envelope-ingest.md` |
+| API-key auth (key -> project) | `App\Http\Middleware\AuthenticateProjectApiKey`, alias `project.api-key`; keys are `bilis_`-prefixed, only sha256 hash stored. Each key also carries a **public** half (`bilis_pk_`, stored in plaintext) that a DSN is built from (`App\Models\ProjectApiKey`) |
 | Monolog shipper (in-app) | `app/Logging/BilisLogger.php` (custom-driver factory) + `BilisHandler.php`; buffered batch POST to the simple ingest endpoint, flushed on `terminating()`/`close()`/full buffer. Channel `bilis` in `config/logging.php`, off unless `LOG_STACK` names it; inert without `BILIS_ENDPOINT`/`BILIS_API_KEY` |
 | Log querying for the UI | `app/Services/Logs/` (LogQuery, LogFilters, SeverityLevel) |
 | Log viewer page | `LogsController`, `resources/js/pages/logs/`, `LogsToolbar.vue`, `LogEntryRow.vue`, `resources/js/lib/logs.ts` |

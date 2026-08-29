@@ -13,8 +13,10 @@ class ProjectApiKeyController extends Controller
     /**
      * Issue a new API key for the project.
      *
-     * The plaintext key is flashed exactly once so the UI can show it in a
-     * "copy it now" dialog; it is never persisted or sent again.
+     * The plaintext secret key is flashed exactly once so the UI can show it
+     * in a "copy it now" dialog; it is never persisted or sent again. The DSN
+     * rides along for convenience only — it holds the public half, so the
+     * project page can show it again at any time.
      */
     public function store(CreateProjectApiKeyRequest $request, string $current_team, Project $project): RedirectResponse
     {
@@ -23,6 +25,7 @@ class ProjectApiKeyController extends Controller
         Inertia::flash('newApiKey', [
             'name' => $apiKey->name,
             'key' => $apiKey->plainTextKey,
+            'dsn' => $apiKey->dsn(),
         ]);
 
         return back();

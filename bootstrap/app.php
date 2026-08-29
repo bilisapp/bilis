@@ -1,7 +1,9 @@
 <?php
 
 use App\Http\Middleware\AuthenticateProjectApiKey;
+use App\Http\Middleware\AuthenticatePublicKey;
 use App\Http\Middleware\HandleAppearance;
+use App\Http\Middleware\HandleEnvelopeCors;
 use App\Http\Middleware\HandleFontPreference;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\SecurityHeaders;
@@ -54,6 +56,8 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'project.api-key' => AuthenticateProjectApiKey::class,
+            'project.public-key' => AuthenticatePublicKey::class,
+            'envelope.cors' => HandleEnvelopeCors::class,
             'ayos.signature' => VerifyAyosSignature::class,
             'github.signature' => VerifyGitHubSignature::class,
         ]);

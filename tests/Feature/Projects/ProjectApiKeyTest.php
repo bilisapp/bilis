@@ -108,3 +108,62 @@ test('marking a key as used is throttled', function () {
 
     expect($apiKey->fresh()->last_used_at->timestamp)->toBeGreaterThan($firstUsedAt->timestamp);
 });
+
+test('generating a key issues a public half stored in plaintext', function () {
+    $project = Project::factory()->create();
+
+    $apiKey = ProjectApiKey::generate($project, 'Ingest Key');
+
+    expect($apiKey->public_key)->toStartWith(ProjectApiKey::PUBLIC_KEY_PREFIX)
+        ->and($apiKey->public_key)->toHaveLength(strlen(ProjectApiKey::PUBLIC_KEY_PREFIX) + ProjectApiKey::RANDOM_LENGTH);
+
+    // The DSN has to stay readable, so unlike the secret half it is stored as
+    // it is handed out and survives a reload.
+    $this->assertDatabaseHas('project_api_keys', [
+        'id' => $apiKey->id,
+        'public_key' => $apiKey->public_key,
+    ]);
+
+    expect($apiKey->fresh()->public_key)->toBe($apiKey->public_key);
+});
+
+test('a public key can never look like a secret key', function () {
+    $project = Project::factory()->create();
+
+    $apiKey = ProjectApiKey::generate($project, 'Ingest Key');
+
+    // `Str::random()` emits alphanumerics only, so `bilis_pk_` is a prefix no
+    // secret key can be generated with — the two halves stay distinguishable.
+    expect($apiKey->plainTextKey)->not->toStartWith(ProjectApiKey::PUBLIC_KEY_PREFIX)
+        ->and(ProjectApiKey::findByPlainKey($apiKey->public_key))->toBeNull()
+        ->and(ProjectApiKey::findByPublicKey($apiKey->plainTextKey))->toBeNull();
+});
+
+test('a key is found by its public half', function () {
+    $project = Project::factory()->create();
+
+    $apiKey = ProjectApiKey::generate($project, 'Ingest Key');
+
+    expect(ProjectApiKey::findByPublicKey($apiKey->public_key)?->is($apiKey))->toBeTrue()
+        ->and(ProjectApiKey::findByPublicKey('  '.$apiKey->public_key.'  ')?->is($apiKey))->toBeTrue()
+        ->and(ProjectApiKey::findByPublicKey('bilis_pk_nope'))->toBeNull()
+        ->and(ProjectApiKey::findByPublicKey(''))->toBeNull();
+});
+
+test('the DSN carries the public key and the project id', function () {
+    config(['app.url' => 'https://logs.example.com']);
+
+    $project = Project::factory()->create();
+    $apiKey = ProjectApiKey::generate($project, 'Ingest Key');
+
+    expect($apiKey->dsn())->toBe("https://{$apiKey->public_key}@logs.example.com/{$project->id}");
+});
+
+test('the DSN keeps a port and a path prefix from the app url', function () {
+    config(['app.url' => 'http://localhost:8000/bilis/']);
+
+    $project = Project::factory()->create();
+    $apiKey = ProjectApiKey::generate($project, 'Ingest Key');
+
+    expect($apiKey->dsn())->toBe("http://{$apiKey->public_key}@localhost:8000/bilis/{$project->id}");
+});

@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Http\Middleware\AuthenticateProjectApiKey;
+use App\Http\Middleware\AuthenticatePublicKey;
 use App\Models\FixJob;
 use App\Models\Project;
 use App\Models\ProjectApiKey;
@@ -121,7 +122,11 @@ class AppServiceProvider extends ServiceProvider
     protected function configureRateLimiting(): void
     {
         RateLimiter::for('ingest', function (Request $request): Limit {
-            $key = AuthenticateProjectApiKey::keyFromRequest($request);
+            // A client configured with a DSN sends its public key in a header
+            // of its own, so that is read here too: without it every such
+            // client would share the one unauthenticated bucket.
+            $key = AuthenticateProjectApiKey::keyFromRequest($request)
+                ?? AuthenticatePublicKey::keyFromRequest($request);
 
             // The throttle sorts ahead of the API-key middleware, so the key is
             // read from the request and hashed rather than looked up: a bucket

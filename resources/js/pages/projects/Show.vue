@@ -3,6 +3,8 @@ import { Head, usePage } from '@inertiajs/vue3';
 import { KeyRound, MoreHorizontal, Pencil, Plus, Trash2 } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
 import ApiKeyCreatedDialog from '@/components/ApiKeyCreatedDialog.vue';
+import BrowserOriginsCard from '@/components/BrowserOriginsCard.vue';
+import CopyableValue from '@/components/CopyableValue.vue';
 import CreateApiKeyModal from '@/components/CreateApiKeyModal.vue';
 import DeleteProjectModal from '@/components/DeleteProjectModal.vue';
 import ProjectRepositoryCard from '@/components/ProjectRepositoryCard.vue';
@@ -188,46 +190,79 @@ const openRevokeDialog = (apiKey: ProjectApiKey) => {
                     <li
                         v-for="apiKey in apiKeys"
                         :key="apiKey.id"
-                        class="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+                        class="space-y-3 py-3 first:pt-0 last:pb-0"
                         data-test="api-key-row"
                     >
-                        <div class="min-w-0 space-y-1">
-                            <p class="truncate font-medium">
-                                {{ apiKey.name }}
-                            </p>
-                            <p
-                                class="font-mono text-xs text-muted-foreground"
-                                data-test="api-key-prefix"
-                            >
-                                {{ maskedKey(apiKey.keyPrefix) }}
-                            </p>
-                        </div>
-
-                        <div class="flex items-center gap-4">
-                            <div
-                                class="text-right text-xs text-muted-foreground"
-                            >
-                                <p data-test="api-key-last-used">
-                                    {{
-                                        apiKey.lastUsedForHumans
-                                            ? `Last used ${apiKey.lastUsedForHumans}`
-                                            : 'Never used'
-                                    }}
+                        <div
+                            class="flex flex-wrap items-center justify-between gap-3"
+                        >
+                            <div class="min-w-0 space-y-1">
+                                <p class="truncate font-medium">
+                                    {{ apiKey.name }}
                                 </p>
-                                <p>
-                                    Created {{ formatDate(apiKey.createdAt) }}
+                                <p
+                                    class="font-mono text-xs text-muted-foreground"
+                                    data-test="api-key-prefix"
+                                >
+                                    {{ maskedKey(apiKey.keyPrefix) }}
                                 </p>
                             </div>
 
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                data-test="api-key-revoke"
-                                :aria-label="`Revoke ${apiKey.name}`"
-                                @click="openRevokeDialog(apiKey)"
-                            >
-                                <Trash2 class="size-4" />
-                            </Button>
+                            <div class="flex items-center gap-4">
+                                <div
+                                    class="text-right text-xs text-muted-foreground"
+                                >
+                                    <p data-test="api-key-last-used">
+                                        {{
+                                            apiKey.lastUsedForHumans
+                                                ? `Last used ${apiKey.lastUsedForHumans}`
+                                                : 'Never used'
+                                        }}
+                                    </p>
+                                    <p>
+                                        Created
+                                        {{ formatDate(apiKey.createdAt) }}
+                                    </p>
+                                </div>
+
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    data-test="api-key-revoke"
+                                    :aria-label="`Revoke ${apiKey.name}`"
+                                    @click="openRevokeDialog(apiKey)"
+                                >
+                                    <Trash2 class="size-4" />
+                                </Button>
+                            </div>
+                        </div>
+
+                        <!--
+                            The public half of the pair, and the only credential
+                            here that is meant to be read twice: a client
+                            configured with a URL cannot be handed a token it
+                            can only see once.
+                        -->
+                        <div
+                            v-if="apiKey.dsn"
+                            class="space-y-1"
+                            data-test="api-key-dsn"
+                        >
+                            <p class="text-xs text-muted-foreground">DSN</p>
+                            <CopyableValue
+                                :value="apiKey.dsn"
+                                :label="`Copy the DSN for ${apiKey.name}`"
+                            />
+                            <p class="text-xs text-muted-foreground">
+                                Bilis accepts requests from Sentry-compatible
+                                SDKs, so pointing one at this DSN ships its
+                                exceptions here as error logs.
+                                <a
+                                    href="/docs/ingestion/sentry"
+                                    class="underline underline-offset-4 hover:text-foreground"
+                                    >Read more</a
+                                >.
+                            </p>
                         </div>
                     </li>
                 </ul>
@@ -259,6 +294,8 @@ const openRevokeDialog = (apiKey: ProjectApiKey) => {
                 </div>
             </CardContent>
         </Card>
+
+        <BrowserOriginsCard :team-slug="teamSlug" :project="project" />
 
         <ProjectRepositoryCard
             :team-slug="teamSlug"

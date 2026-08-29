@@ -96,7 +96,7 @@ it('lists every section and page in front matter order', function () {
 
     expect($pages)->toBe([
         'getting-started' => ['overview', 'quickstart'],
-        'ingestion' => ['endpoints', 'timestamps', 'severity', 'shippers', 'go', 'linux-host'],
+        'ingestion' => ['endpoints', 'api-keys', 'timestamps', 'severity', 'shippers', 'go', 'linux-host', 'sentry'],
         'reference' => ['limits-and-behavior'],
     ]);
 });

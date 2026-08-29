@@ -1,7 +1,7 @@
 ---
 title: Timestamps
 description: What Bilis accepts as a time, how it is normalised, and why event time is not arrival time.
-order: 2
+order: 3
 ---
 
 Every log line is stored with one timestamp, in a ClickHouse

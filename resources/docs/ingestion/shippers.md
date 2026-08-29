@@ -1,7 +1,7 @@
 ---
 title: Shippers
 description: curl, OpenTelemetry exporters, a Laravel Monolog channel, and Collector configuration that does not lose data.
-order: 4
+order: 5
 ---
 
 Anything that can POST JSON can ship to Bilis. These are the four paths that

@@ -20,9 +20,17 @@ return [
     | Session-backed routes are not listed here at all, so they remain
     | same-origin and CSRF protected.
     |
+    | The DSN endpoints (`/api/{id}/envelope`, `/store`) are deliberately NOT
+    | listed. A client that authenticates by URL carries a credential the page
+    | it runs in discloses, so a wildcard would let any site on the internet
+    | post with a key lifted from someone's page source. Those routes answer
+    | from a per-project allow list instead, in `HandleEnvelopeCors`; leaving
+    | them out here is what lets that middleware be the only voice on the
+    | matter, rather than one of two writing the same header.
+    |
     */
 
-    'paths' => ['api/*'],
+    'paths' => ['api/v1/*'],
 
     'allowed_methods' => ['POST', 'OPTIONS'],
 

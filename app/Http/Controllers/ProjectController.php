@@ -72,6 +72,7 @@ class ProjectController extends Controller
                 'id' => $project->id,
                 'name' => $project->name,
                 'slug' => $project->slug,
+                'allowedOrigins' => $project->allowed_origins ?? [],
                 'createdAt' => $project->created_at?->toISOString(),
             ],
             'apiKeys' => $project->apiKeys()
@@ -81,6 +82,7 @@ class ProjectController extends Controller
                     'id' => $apiKey->id,
                     'name' => $apiKey->name,
                     'keyPrefix' => $apiKey->key_prefix,
+                    'dsn' => $apiKey->dsn(),
                     'lastUsedAt' => $apiKey->last_used_at?->toISOString(),
                     'lastUsedForHumans' => $apiKey->last_used_at?->diffForHumans(),
                     'createdAt' => $apiKey->created_at?->toISOString(),
