@@ -24,22 +24,6 @@ export type Swatch = {
     preview?: string;
 };
 
-export type StyleguideSection = {
-    id: string;
-    title: string;
-};
-
-export const STYLEGUIDE_SECTIONS: StyleguideSection[] = [
-    { id: 'surfaces', title: 'Neutral ladder' },
-    { id: 'tokens', title: 'Semantic tokens' },
-    { id: 'severity', title: 'Severity scale' },
-    { id: 'typography', title: 'Typography' },
-    { id: 'components', title: 'Components' },
-    { id: 'app-components', title: 'App components' },
-    { id: 'charts', title: 'Charts' },
-    { id: 'autofix', title: 'Autofix' },
-];
-
 /**
  * The neutral ladder every surface is cut from.
  *

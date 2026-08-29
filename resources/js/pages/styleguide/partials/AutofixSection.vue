@@ -18,7 +18,6 @@ import {
 } from '@/pages/styleguide/data';
 import type { ProjectDetail } from '@/types';
 import DemoBlock from './DemoBlock.vue';
-import SectionShell from './SectionShell.vue';
 
 const page = usePage();
 
@@ -60,11 +59,7 @@ const demoObservedServices = [
 </script>
 
 <template>
-    <SectionShell
-        id="autofix"
-        title="Autofix"
-        description="The surfaces that show what an agent did — to a production error the scan found, or to a change somebody asked for: a status ladder cut from the severity ramp, a session transcript, and the one component in the app that renders code."
-    >
+    <div class="space-y-6">
         <DemoBlock
             title="FixJobStatusBadge"
             description="The badge stays achromatic — the dot is the only hue, and it is borrowed from the severity ramp: teal for an outcome that landed, crimson for one that did not, nothing while the job is still deciding. Running and validating pulse."
@@ -170,5 +165,5 @@ const demoObservedServices = [
                 />
             </ol>
         </DemoBlock>
-    </SectionShell>
+    </div>
 </template>

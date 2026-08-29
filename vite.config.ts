@@ -13,7 +13,7 @@ export default defineConfig({
                 'resources/css/app.css',
                 'resources/js/app.ts',
                 // Blade-only marketing enhancement; never pulls in Inertia.
-                'resources/js/marketing/hero-shader.ts',
+                'resources/js/marketing/marketing.ts',
             ],
             refresh: true,
             fonts: [

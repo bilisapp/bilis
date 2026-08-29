@@ -9,6 +9,7 @@ use App\Services\Autofix\RunDriver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Testing\TestResponse;
 use Tests\Support\FakeRunDriver;
 use Tests\TestCase;
 
@@ -26,6 +27,20 @@ use Tests\TestCase;
 pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)
     ->in('Feature');
+
+/**
+ * A response's HTML with every run of whitespace collapsed to one space.
+ *
+ * Blade sources are formatted to be read, so a tag whose attributes do not
+ * fit on one line gets wrapped — which is invisible to a browser and to a
+ * crawler, but breaks a test that asserts on the whole tag as a literal
+ * string. Assert against this instead: what matters is that the tag is there
+ * carrying the right values, not how the source was laid out.
+ */
+function html(TestResponse $response): string
+{
+    return preg_replace('/\s+/', ' ', (string) $response->getContent()) ?? '';
+}
 
 /*
 |--------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Docs;
+namespace App\Services\Markdown;
 
 use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
@@ -15,16 +15,22 @@ use League\CommonMark\Parser\MarkdownParser;
 use League\CommonMark\Renderer\HtmlRenderer;
 
 /**
- * Turns a documentation page's markdown into HTML and its own table of
- * contents.
+ * Turns a markdown body into HTML and the list of its own headings.
+ *
+ * Shared by the documentation and the blog: both are markdown files that
+ * ship with the application and are rendered into `.docs-prose`, so both
+ * want the same anchors, the same GitHub-flavoured tables and code fences,
+ * and the same heading list. What each surface *does* with that list is its
+ * own business — the docs render an "On this page" rail from it, a blog post
+ * shows one only when it is long enough to earn it.
  *
  * Raw HTML is stripped rather than passed through: the content is ours, but
- * a docs page has no reason to carry markup the design system cannot style.
+ * it has no reason to carry markup the design system cannot style.
  */
-class DocsRenderer
+class MarkdownRenderer
 {
     /**
-     * The heading levels that appear in the "On this page" list.
+     * The heading levels collected into the returned heading list.
      *
      * @var array<int, int>
      */
@@ -61,11 +67,11 @@ class DocsRenderer
     /**
      * Render a markdown body.
      */
-    public function render(string $markdown): RenderedDoc
+    public function render(string $markdown): RenderedMarkdown
     {
         $document = $this->parser->parse($markdown);
 
-        return new RenderedDoc(
+        return new RenderedMarkdown(
             html: (string) $this->renderer->renderDocument($document),
             tableOfContents: $this->tableOfContents($document),
         );

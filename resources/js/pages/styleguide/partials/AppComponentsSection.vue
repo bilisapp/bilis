@@ -40,7 +40,6 @@ import type {
     SeverityLevel,
 } from '@/types';
 import DemoBlock from './DemoBlock.vue';
-import SectionShell from './SectionShell.vue';
 
 const demoEntries = SEVERITY_LEVELS.map((level, index) => ({
     level,
@@ -189,11 +188,7 @@ const onHistogramZoom = (window: { from: string; to: string }) => {
 </script>
 
 <template>
-    <SectionShell
-        id="app-components"
-        title="App components"
-        description="The Bilis-specific pieces that sit on top of the primitives. Everything below is the real component with demo data, so these blocks double as a regression check when the log UI changes."
-    >
+    <div class="space-y-6">
         <DemoBlock
             title="LogEntryRow"
             description="one row per severity bucket; the error row starts expanded to show the attribute panel. Every row carries a 1px severity hairline on its left edge, so a stack of rows reads as a temperature ribbon before a single line is read — and warn, error and fatal add a resting tint, because those are the only levels that mean something broke."
@@ -533,5 +528,5 @@ const onHistogramZoom = (window: { from: string; to: string }) => {
                 <PlaceholderPattern />
             </div>
         </DemoBlock>
-    </SectionShell>
+    </div>
 </template>

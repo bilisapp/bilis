@@ -6,9 +6,11 @@ use App\Http\Controllers\Autofix\FixJobStreamController;
 use App\Http\Controllers\Autofix\FixJobStreamTokenController;
 use App\Http\Controllers\Autofix\LogFixJobController;
 use App\Http\Controllers\AutofixController;
+use App\Http\Controllers\BlogController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocsApiKeyController;
 use App\Http\Controllers\DocsController;
+use App\Http\Controllers\FeaturesController;
 use App\Http\Controllers\LogsController;
 use App\Http\Controllers\ProjectApiKeyController;
 use App\Http\Controllers\ProjectBrowserOriginController;
@@ -40,6 +42,15 @@ Route::view('privacy', 'marketing.privacy')->name('privacy');
  * Public documentation, rendered from `resources/docs/{section}/{page}.md`.
  * Blade only — these pages must read without JavaScript and be indexable.
  */
+Route::get('features', FeaturesController::class)->name('features');
+
+/*
+ * The blog, rendered from `resources/blog/*.md`. Posts ship with the app.
+ */
+Route::get('blog', [BlogController::class, 'index'])->name('blog.index');
+Route::get('blog/feed.xml', [BlogController::class, 'feed'])->name('blog.feed');
+Route::get('blog/{post}', [BlogController::class, 'show'])->name('blog.show');
+
 Route::get('docs', [DocsController::class, 'index'])->name('docs.index');
 
 /*
@@ -176,9 +187,18 @@ Route::middleware('guest')->group(function () {
     Route::get('auth/github/callback', [GitHubLoginController::class, 'callback'])->name('github.callback');
 });
 
-Route::middleware(['auth'])->group(function () {
-    Route::get('styleguide', StyleguideController::class)->name('styleguide');
+/*
+ * The styleguide is the one public Inertia surface.
+ *
+ * It is a live gallery of the application's own Vue components, so it cannot
+ * be Blade like the rest of the public pages — rendering the components is
+ * the whole point. It therefore boots the app bundle for a logged-out
+ * visitor and paints after JavaScript, which is acceptable for a component
+ * reference and is not a licence for any other public page to do the same.
+ */
+Route::get('styleguide', StyleguideController::class)->name('styleguide');
 
+Route::middleware(['auth'])->group(function () {
     Route::post('invitations/{invitation}/accept', [TeamInvitationController::class, 'accept'])->name('invitations.accept');
     Route::delete('invitations/{invitation}', [TeamInvitationController::class, 'decline'])->name('invitations.decline');
 });

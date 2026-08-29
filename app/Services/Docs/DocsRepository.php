@@ -2,6 +2,9 @@
 
 namespace App\Services\Docs;
 
+use App\Services\Markdown\FrontMatter;
+use App\Services\Markdown\MarkdownRenderer;
+use App\Services\Markdown\RenderedMarkdown;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use SplFileInfo;
@@ -24,7 +27,7 @@ class DocsRepository
     private readonly string $directory;
 
     public function __construct(
-        private readonly DocsRenderer $renderer,
+        private readonly MarkdownRenderer $renderer,
         ?string $directory = null,
     ) {
         $this->directory = $directory ?? resource_path('docs');
@@ -154,7 +157,7 @@ class DocsRepository
     /**
      * Render a page to HTML, caching against the file's modification time.
      */
-    public function render(DocsPage $page): RenderedDoc
+    public function render(DocsPage $page): RenderedMarkdown
     {
         $key = 'docs:page:'.md5($page->path.':'.(File::lastModified($page->path) ?: 0));
 
@@ -175,7 +178,7 @@ class DocsRepository
             },
         );
 
-        return new RenderedDoc(html: $rendered['html'], tableOfContents: $rendered['toc']);
+        return new RenderedMarkdown(html: $rendered['html'], tableOfContents: $rendered['toc']);
     }
 
     /**

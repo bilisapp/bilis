@@ -19,7 +19,6 @@ import {
     SPARKLINE_VOLUME_24H,
 } from '@/pages/styleguide/data';
 import DemoBlock from './DemoBlock.vue';
-import SectionShell from './SectionShell.vue';
 import SwatchGrid from './SwatchGrid.vue';
 
 const { tokens } = useChartTokens();
@@ -137,11 +136,7 @@ const SPARKLINE_SERVICES = [
 </script>
 
 <template>
-    <SectionShell
-        id="charts"
-        title="Charts"
-        description="Charts are Apache ECharts, always wrapped in ChartCanvas. Chart series are one of only two places this product spends colour — the interface itself is achromatic, and a series is data. Both data palettes come from the same place: the three stripes in the Bilis mark's tail, plus its navy body. The five series are those colours in order, authored twice so they hold on both the near-white and the dark card. A severity chart ignores this palette entirely and reads the --severity-* tokens directly, so its bars always agree with the dots in the log viewer."
-    >
+    <div class="space-y-6">
         <SwatchGrid :swatches="CHART_SWATCHES" />
 
         <DemoBlock
@@ -199,53 +194,59 @@ const SPARKLINE_SERVICES = [
             title="DitherSparkline — error overlay"
             description="A service row on the dashboard: pass errorValues alongside values and a second dithered line is drawn on top in --severity-error, so one glance answers both how much a shipper logged and how much of it broke. Errors are a subset of the totals, so the overlay shares the primary series' scale — no second axis, no stacking. The tooltip names both, and stays quiet about errors in the hours that had none."
         >
-            <ul class="flex flex-col gap-2 rounded-lg border bg-card p-4">
-                <!--
-                  The dashboard's fixed column template: identical on every
-                  row so the charts share one x-origin and right edge, with
-                  the status cell always rendered to keep the layout stable
-                  whether or not a row wears the quiet pill.
-                -->
-                <li
-                    v-for="service in SPARKLINE_SERVICES"
-                    :key="service.name"
-                    class="grid grid-cols-[7.5rem_minmax(4rem,1fr)_3.5rem_4.25rem] items-center gap-3 text-sm"
+            <div class="overflow-x-auto">
+                <ul
+                    class="flex min-w-[24rem] flex-col gap-2 rounded-lg border bg-card p-4"
                 >
-                    <span
-                        class="min-w-0 truncate font-mono text-xs"
-                        :class="service.quiet ? 'text-muted-foreground' : ''"
-                        :title="service.name"
-                    >
-                        {{ service.name }}
-                    </span>
-                    <span class="min-w-0">
-                        <DitherSparkline
-                            :values="service.values"
-                            :error-values="service.errors"
-                            :labels="SPARKLINE_HOUR_LABELS"
-                            :utc-labels="SPARKLINE_UTC_HOUR_LABELS"
-                            :height="32"
-                            tone="volume"
-                            unit="logs"
-                        />
-                    </span>
-                    <span
-                        class="flex justify-center text-xs text-muted-foreground"
+                    <!--
+                      The dashboard's fixed column template: identical on every
+                      row so the charts share one x-origin and right edge, with
+                      the status cell always rendered to keep the layout stable
+                      whether or not a row wears the quiet pill.
+                    -->
+                    <li
+                        v-for="service in SPARKLINE_SERVICES"
+                        :key="service.name"
+                        class="grid grid-cols-[7.5rem_minmax(4rem,1fr)_3.5rem_4.25rem] items-center gap-3 text-sm"
                     >
                         <span
-                            v-if="service.quiet"
-                            class="rounded-full border border-border px-1.5 py-0.5 text-xs tracking-wide uppercase"
+                            class="min-w-0 truncate font-mono text-xs"
+                            :class="
+                                service.quiet ? 'text-muted-foreground' : ''
+                            "
+                            :title="service.name"
                         >
-                            quiet
+                            {{ service.name }}
                         </span>
-                    </span>
-                    <span
-                        class="text-right text-xs text-muted-foreground tabular-nums"
-                    >
-                        {{ service.lastSeen }}
-                    </span>
-                </li>
-            </ul>
+                        <span class="min-w-0">
+                            <DitherSparkline
+                                :values="service.values"
+                                :error-values="service.errors"
+                                :labels="SPARKLINE_HOUR_LABELS"
+                                :utc-labels="SPARKLINE_UTC_HOUR_LABELS"
+                                :height="32"
+                                tone="volume"
+                                unit="logs"
+                            />
+                        </span>
+                        <span
+                            class="flex justify-center text-xs text-muted-foreground"
+                        >
+                            <span
+                                v-if="service.quiet"
+                                class="rounded-full border border-border px-1.5 py-0.5 text-xs tracking-wide uppercase"
+                            >
+                                quiet
+                            </span>
+                        </span>
+                        <span
+                            class="text-right text-xs text-muted-foreground tabular-nums"
+                        >
+                            {{ service.lastSeen }}
+                        </span>
+                    </li>
+                </ul>
+            </div>
         </DemoBlock>
 
         <div class="space-y-2 rounded-lg border bg-card p-4 text-sm">
@@ -280,5 +281,5 @@ const SPARKLINE_SERVICES = [
                 </li>
             </ul>
         </div>
-    </SectionShell>
+    </div>
 </template>

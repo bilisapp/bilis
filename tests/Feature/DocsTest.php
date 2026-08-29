@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use App\Services\Docs\DocsRenderer;
 use App\Services\Docs\DocsRepository;
-use App\Services\Docs\FrontMatter;
+use App\Services\Markdown\FrontMatter;
+use App\Services\Markdown\MarkdownRenderer;
 
 use function Pest\Laravel\get;
 
@@ -62,11 +62,13 @@ it('404s for a markdown request for an unknown page', function () {
 });
 
 it('offers the page as markdown from the rendered page', function () {
-    get(route('docs.show', ['section' => 'ingestion', 'page' => 'severity']))
+    $response = get(route('docs.show', ['section' => 'ingestion', 'page' => 'severity']))
         ->assertOk()
-        ->assertSee('Copy as Markdown')
-        ->assertSee('rel="alternate" type="text/markdown"', false)
-        ->assertSee(route('docs.markdown', ['section' => 'ingestion', 'page' => 'severity']), false);
+        ->assertSee('Copy as Markdown');
+
+    expect(html($response))
+        ->toContain('rel="alternate" type="text/markdown"')
+        ->toContain(route('docs.markdown', ['section' => 'ingestion', 'page' => 'severity']));
 });
 
 it('404s for an unknown page or an unknown section', function () {
@@ -114,7 +116,7 @@ it('leaves a document without front matter untouched', function () {
 });
 
 it('renders fenced code, tables and heading anchors', function () {
-    $rendered = app(DocsRenderer::class)->render(<<<'MD'
+    $rendered = app(MarkdownRenderer::class)->render(<<<'MD'
         ## Send a line
 
         ```bash
@@ -138,7 +140,7 @@ it('renders fenced code, tables and heading anchors', function () {
 });
 
 it('strips raw html out of the rendered markdown', function () {
-    $rendered = app(DocsRenderer::class)->render("Hello <script>alert(1)</script>\n");
+    $rendered = app(MarkdownRenderer::class)->render("Hello <script>alert(1)</script>\n");
 
     expect($rendered->html)->not->toContain('<script>');
 });

@@ -1,13 +1,14 @@
 <?php
 
-namespace App\Services\Docs;
+namespace App\Services\Markdown;
 
 /**
- * A deliberately small front matter reader for the documentation files.
+ * A deliberately small front matter reader for the markdown files that ship
+ * with the application — documentation pages and blog posts alike.
  *
- * The docs are ours, so the format is a flat `key: value` block between two
- * `---` fences — enough for a title, a description and a nav order, and not
- * enough to justify a YAML dependency.
+ * The content is ours, so the format is a flat `key: value` block between two
+ * `---` fences — enough for a title, a description, a date and a nav order,
+ * and not enough to justify a YAML dependency.
  */
 class FrontMatter
 {

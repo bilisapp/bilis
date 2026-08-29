@@ -1,11 +1,12 @@
 <?php
 
-namespace App\Services\Docs;
+namespace App\Services\Markdown;
 
 /**
- * The rendered HTML of a documentation page plus its "On this page" entries.
+ * The rendered HTML of one markdown file plus the headings a surface can
+ * build an "On this page" list from.
  */
-class RenderedDoc
+class RenderedMarkdown
 {
     /**
      * @param  array<int, array{id: string, title: string, level: int}>  $tableOfContents

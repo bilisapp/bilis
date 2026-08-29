@@ -2,15 +2,10 @@
 import { SEVERITY_DOT_CLASS, SEVERITY_TEXT_CLASS } from '@/lib/logs';
 import { cn } from '@/lib/utils';
 import DemoBlock from './DemoBlock.vue';
-import SectionShell from './SectionShell.vue';
 </script>
 
 <template>
-    <SectionShell
-        id="typography"
-        title="Typography"
-        description="Geist for everything the interface says, Geist Mono for everything a machine wrote. The split is the whole type system: if it came out of a log — a body, a timestamp, an id, an attribute pair — it is monospace; if the interface is talking about that data, it is Geist. Headings stay tight; body copy sits at 14px and support copy at 12px, so a dense log table and its surrounding chrome share one rhythm."
-    >
+    <div class="space-y-6">
         <div class="grid gap-4 lg:grid-cols-2">
             <DemoBlock
                 title="Heading scale"
@@ -109,5 +104,5 @@ import SectionShell from './SectionShell.vue';
                 </div>
             </div>
         </DemoBlock>
-    </SectionShell>
+    </div>
 </template>

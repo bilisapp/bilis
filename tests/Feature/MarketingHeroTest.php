@@ -25,28 +25,57 @@ test('the pre-paint ground matches the background token', function () {
         ->assertSee('background-color: hsl(225 14% 8%)', false);
 });
 
-test('the hero and the viewer share one shader band', function () {
+test('the hero and the live tail share one shader band', function () {
     $page = $this->get(route('home'))->assertOk()->getContent();
 
     $band = substr($page, strpos($page, 'data-fold-gradient'));
     $band = substr($band, 0, strpos($band, '</section>'));
 
     expect($band)->toContain('Your logs, on your own box.')
-        ->toContain('/screenshot-logs-dark.png');
+        ->toContain('data-live-tail-list');
 });
 
-test('the landing page loads the hero shader but never boots inertia', function () {
+test('the landing page loads the marketing bundle but never boots inertia', function () {
     $response = $this->get(route('home'))->assertOk();
 
     // The tag is either the dev server URL or the hashed build asset; both
     // carry the entry name, and neither may drag the Inertia root along.
-    $response->assertSee('hero-shader', false);
+    $response->assertSee('marketing', false);
     $response->assertDontSee('data-page=', false);
 });
 
-test('marketing pages without a hero load no shader', function () {
+test('marketing pages without a hero load no shader and no stream', function () {
     $this->get(route('privacy'))
         ->assertOk()
         ->assertDontSee('data-fold-gradient', false)
-        ->assertDontSee('hero-shader', false);
+        ->assertDontSee('data-live-tail', false);
+});
+
+test('the live tail renders its whole stream server-side', function () {
+    $page = $this->get(route('home'))->assertOk()->getContent();
+
+    // Without JavaScript the pane must still read as a full stream: the
+    // script only ever adds to something already complete.
+    expect(substr_count($page, 'data-live-tail-list'))->toBe(1)
+        ->and(substr_count($page, '<time'))->toBe(12)
+        ->and($page)->toContain('data-live-tail-pool')
+        ->and($page)->toContain('text-severity-fatal');
+});
+
+test('the ingest snippet shows the round trip and can be copied', function () {
+    $this->get(route('home'))
+        ->assertOk()
+        ->assertSee('data-copy="ingest-request"', false)
+        ->assertSee('id="ingest-request"', false)
+        // The counts and status the controller actually answers with.
+        ->assertSee('202 Accepted', false)
+        ->assertSee('{"accepted":', false);
+});
+
+test('every section below the hero is numbered', function () {
+    $page = $this->get(route('home'))->assertOk()->getContent();
+
+    foreach (['01', '02', '03', '04', '05'] as $number) {
+        expect($page)->toContain(">{$number}</span>");
+    }
 });
