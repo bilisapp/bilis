@@ -1,54 +1,89 @@
 <x-layouts.marketing>
-    {{-- Hero --}}
-    <section class="mx-auto max-w-5xl px-6 pt-16 pb-12 sm:pt-24">
-        <p class="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-            Self-hosted log storage and search
-        </p>
+    {{-- Hero and the viewer share one band.
 
-        <h1 class="mt-4 max-w-3xl text-3xl leading-tight font-semibold tracking-tight sm:text-5xl">
-            Your logs, on your own box.
-        </h1>
+         The band is the shader surface: Paper's ShaderMount prepends a
+         `z-index: -1` canvas and isolates the element, so the headline and
+         the screenshot both sit on the same drifting sheets.
 
-        <p class="mt-5 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Bilis takes logs over OTLP/HTTP, stores them in ClickHouse, and gives you a viewer
-            built for finding one line among millions. One Laravel app and one database —
-            no Grafana stack to operate, and no per-gigabyte bill at the end of the month.
-        </p>
+         Two palettes, one per ground, because light is authored rather than
+         derived: `data-light-*` overrides the dark stops when the reader's
+         OS is light. Both are built out of the mark's tail — navy, teal and
+         gold — around the page's own `--background`, so the gaps between the
+         sheets *are* the page and the band dissolves into it either way. --}}
+    <section
+        data-fold-gradient
+        data-colors="#0d1420,#1f3a5f,#45bfa6,#f3c440,#f3f0e7"
+        data-bg-color="#111317"
+        data-shadow-color="#141d29"
+        data-softness="0.9"
+        data-saturation="1.05"
+        data-rotation="-25"
+        data-zoom="10"
+        data-speed="1"
+        data-light-colors="#e4eaf3,#a9c6e2,#66c3ad,#dcb85e,#4a6c94"
+        data-light-bg-color="#f6f7f9"
+        data-light-shadow-color="#dfe5ee"
+        data-light-saturation="0.9"
+        data-light-softness="1.4"
+        class="relative isolate overflow-hidden bg-background bg-[radial-gradient(120%_120%_at_15%_0%,#eaeef4_0%,#f2f4f7_45%,#f6f7f9_100%)] dark:bg-[radial-gradient(120%_120%_at_15%_0%,#1f3a5f_0%,#141d29_45%,#111317_100%)]"
+    >
+        {{-- Scrim: the sheets are bright where they are bright, and the
+             headline has to win regardless of where they drift. --}}
+        <div class="pointer-events-none absolute inset-0 bg-gradient-to-r from-background/90 via-background/45 to-transparent dark:to-background/10" aria-hidden="true"></div>
 
-        <div class="mt-8 flex flex-wrap items-center gap-3">
-            @auth
-                @if ($team = auth()->user()->currentTeam)
-                    <a href="{{ route('dashboard', $team) }}"
+        {{-- Fade into the page ground so the band ends rather than stops. --}}
+        <div class="pointer-events-none absolute inset-x-0 bottom-0 h-48 bg-gradient-to-b from-transparent via-background/70 to-background" aria-hidden="true"></div>
+
+        <div class="relative mx-auto max-w-5xl px-6 pt-16 pb-12 sm:pt-24">
+            <p class="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                Self-hosted log storage and search
+            </p>
+
+            <h1 class="mt-4 max-w-3xl text-3xl leading-tight font-semibold tracking-tight sm:text-5xl">
+                Your logs, on your own box.
+            </h1>
+
+            <p class="mt-5 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+                Bilis takes logs over OTLP/HTTP, stores them in ClickHouse, and gives you a viewer
+                built for finding one line among millions. One Laravel app and one database —
+                no Grafana stack to operate, and no per-gigabyte bill at the end of the month.
+            </p>
+
+            <div class="mt-8 flex flex-wrap items-center gap-3">
+                @auth
+                    @if ($team = auth()->user()->currentTeam)
+                        <a href="{{ route('dashboard', $team) }}"
+                           class="rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
+                            Open the app
+                        </a>
+                    @endif
+                @else
+                    <a href="{{ route('register') }}"
                        class="rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
-                        Open the app
+                        Create an account
                     </a>
-                @endif
-            @else
-                <a href="{{ route('register') }}"
-                   class="rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
-                    Create an account
+                @endauth
+
+                <a href="#ingest"
+                   class="rounded-md border border-border px-5 py-2.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground dark:border-foreground/25 dark:hover:bg-foreground/10 dark:hover:text-foreground">
+                    See how ingest works
                 </a>
-            @endauth
-
-            <a href="#ingest"
-               class="rounded-md border border-border px-5 py-2.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground">
-                See how ingest works
-            </a>
-        </div>
-    </section>
-
-    {{-- The viewer --}}
-    <section class="mx-auto max-w-5xl px-6 pb-16 sm:pb-24">
-        <div class="overflow-hidden rounded-xl border border-border bg-card">
-            <picture>
-                <source media="(prefers-color-scheme: dark)" srcset="/screenshot-logs-dark.png">
-                <img src="/screenshot-logs-light.png" alt="The Bilis log viewer: a live tail with time-range, project, service and severity filters above a scrolling stream of timestamped, severity-coloured log lines." width="1440" height="900" loading="lazy">
-            </picture>
+            </div>
         </div>
 
-        <p class="mt-3 text-xs text-muted-foreground">
-            Time range, project, service and severity filters, full-text search, and a live tail you can leave open during a deploy. Log lines shown are illustrative — Bilis is pre-launch.
-        </p>
+        {{-- The viewer --}}
+        <div class="relative mx-auto max-w-5xl px-6 pb-16 sm:pb-24">
+            <div class="overflow-hidden rounded-xl border border-border bg-card dark:border-foreground/10 dark:shadow-[0_32px_90px_-24px_rgb(0_0_0/0.9)]">
+                <picture>
+                    <source media="(prefers-color-scheme: dark)" srcset="/screenshot-logs-dark.png">
+                    <img src="/screenshot-logs-light.png" alt="The Bilis log viewer: a live tail with time-range, project, service and severity filters above a scrolling stream of timestamped, severity-coloured log lines." width="1440" height="900" loading="lazy">
+                </picture>
+            </div>
+
+            <p class="mt-3 text-xs text-muted-foreground">
+                Time range, project, service and severity filters, full-text search, and a live tail you can leave open during a deploy. Log lines shown are illustrative — Bilis is pre-launch.
+            </p>
+        </div>
     </section>
 
     {{-- Ingest --}}
@@ -193,4 +228,9 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs</pre>
             </div>
         </div>
     </section>
+
+    @push('scripts')
+        {{-- The hero shader, and nothing else: still no Inertia bundle here. --}}
+        @vite('resources/js/marketing/hero-shader.ts')
+    @endpush
 </x-layouts.marketing>

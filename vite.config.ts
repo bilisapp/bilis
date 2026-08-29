@@ -9,7 +9,12 @@ import { defineConfig } from 'vite';
 export default defineConfig({
     plugins: [
         laravel({
-            input: ['resources/css/app.css', 'resources/js/app.ts'],
+            input: [
+                'resources/css/app.css',
+                'resources/js/app.ts',
+                // Blade-only marketing enhancement; never pulls in Inertia.
+                'resources/js/marketing/hero-shader.ts',
+            ],
             refresh: true,
             fonts: [
                 bunny('IBM Plex Mono', {

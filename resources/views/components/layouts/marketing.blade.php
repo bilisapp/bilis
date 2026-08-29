@@ -22,11 +22,11 @@
         {{-- Paint the page ground before the stylesheet lands, so there is no flash. --}}
         <style nonce="{{ $cspNonce ?? '' }}">
             html {
-                background-color: hsl(44 33% 93%);
+                background-color: hsl(225 20% 97%);
             }
 
             html.dark {
-                background-color: hsl(28 22% 9%);
+                background-color: hsl(225 14% 8%);
             }
         </style>
 
@@ -34,8 +34,8 @@
         <link rel="icon" href="/favicon.svg" type="image/svg+xml">
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 
-        <meta name="theme-color" content="#f0ebdd" media="(prefers-color-scheme: light)">
-        <meta name="theme-color" content="#1c1611" media="(prefers-color-scheme: dark)">
+        <meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
+        <meta name="theme-color" content="#111317" media="(prefers-color-scheme: dark)">
 
         @fonts
 
@@ -137,5 +137,7 @@
                 </div>
             </div>
         </footer>
+
+        @stack('scripts')
     </body>
 </html>
