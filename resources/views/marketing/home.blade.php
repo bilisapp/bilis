@@ -36,7 +36,7 @@
 
         <div class="relative mx-auto max-w-5xl px-6 pt-16 pb-12 sm:pt-24">
             <p class="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                Self-hosted log storage and search
+                Self-hosted observability, starting with your logs
             </p>
 
             <h1 class="mt-4 max-w-3xl text-3xl leading-tight font-semibold tracking-tight sm:text-5xl">
@@ -44,9 +44,11 @@
             </h1>
 
             <p class="mt-5 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-                Bilis takes logs over OTLP/HTTP, stores them in ClickHouse, and gives you a viewer
-                built for finding one line among millions. One Laravel app and one database —
-                no Grafana stack to operate, and no per-gigabyte bill at the end of the month.
+                When something breaks, the answer is already in your logs. Bilis gets you from
+                “something is wrong” to the exact line that explains it, in seconds, on hardware
+                you own — with no per-gigabyte bill for the privilege. And it is only the start:
+                Bilis is growing into a self-hosted observability stack where AI reads alongside
+                you, spotting what matters and helping you fix it.
             </p>
 
             <div class="mt-8 flex flex-wrap items-center gap-3">
@@ -85,10 +87,12 @@
     <section class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
         @include('marketing.partials.section-label', ['number' => '01', 'label' => 'The viewer'])
 
-        <h2 class="mt-4 text-xl font-semibold tracking-tight">Built for finding one line among millions</h2>
+        <h2 class="mt-4 text-xl font-semibold tracking-tight">From “something is wrong” to the line that
+            explains it</h2>
         <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            Time range, project, service and severity filters, full-text search, and a live tail
-            you can leave open during a deploy.
+            No query language to learn. Narrow by time, project, service or severity, search the
+            text of every line, and keep a live tail open while the deploy goes out. The search
+            that finds the answer is a link you can paste into the incident channel.
         </p>
 
         <div class="mt-8 overflow-hidden rounded-xl border border-border bg-card">
@@ -109,11 +113,12 @@
         <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '02', 'label' => 'Ingest'])
 
-            <h2 class="mt-4 text-xl font-semibold tracking-tight">Point anything that speaks OTLP at it</h2>
+            <h2 class="mt-4 text-xl font-semibold tracking-tight">Works with the stack you already run</h2>
             <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                Standard OTLP/HTTP with standard OTel columns, so any exporter you already run works
-                and the data can be taken elsewhere. If you would rather not run a collector, there is
-                a plain JSON endpoint that takes one record or a list of them.
+                If your tooling speaks OpenTelemetry — and most already does — sending logs to Bilis
+                is a configuration change, not a project. No agents to deploy, no SDK to adopt,
+                nothing to rewrite. For everything else there is a plain JSON endpoint, and your
+                existing Sentry SDKs can report straight to it too.
             </p>
 
             {{-- A round trip, not a snippet: the request and what actually
@@ -162,7 +167,8 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs</pre>
             </p>
 
             <p class="mt-8 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                The key comes from a project in the app — one key, one project, revocable any time:
+                Access stays under your thumb: one key per project, revocable in a click, and useless
+                for anything but writing logs to that project.
             </p>
 
             <div class="mt-4 max-w-2xl overflow-hidden rounded-xl border border-border bg-background">
@@ -188,24 +194,27 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs</pre>
 
         <div class="mt-8 grid gap-10 sm:grid-cols-3">
             <div>
-                <h3 class="text-base font-semibold tracking-tight">Self-hosted, no per-GB pricing</h3>
+                <h3 class="text-base font-semibold tracking-tight">Your data never leaves the building</h3>
                 <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
-                    You own the box and you own the data. What retention costs is disk, which you already
-                    pay for — not a metered bill that punishes a noisy deploy.
+                    You own the box, so you own the logs — all of them, for as long as your disk
+                    allows. Retention costs storage you already pay for, not a metered bill that
+                    punishes a noisy deploy, and the compliance conversation gets very short.
                 </p>
             </div>
             <div>
-                <h3 class="text-base font-semibold tracking-tight">Simple to run</h3>
+                <h3 class="text-base font-semibold tracking-tight">Small enough to run yourself</h3>
                 <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
-                    One Laravel app and one ClickHouse. That is the entire deployment. Operational
-                    simplicity is the product here, not a side effect of it.
+                    One app and one database is the entire deployment — a stack you can hold in your
+                    head, deploy in an afternoon, and keep healthy without a platform team. The
+                    system that pages you least is the one you fully understand.
                 </p>
             </div>
             <div>
-                <h3 class="text-base font-semibold tracking-tight">OTel-native, no lock-in</h3>
+                <h3 class="text-base font-semibold tracking-tight">Open, so you're never stuck</h3>
                 <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
-                    Standard OTLP/HTTP ingest into an OTel-compatible schema. Nothing about your data
-                    is shaped so that leaving is hard, and the code that handles it is
+                    Logs arrive over standard OpenTelemetry and sit in a standard table. Anything
+                    that understands that format — your scripts, your queries, your AI tools — works
+                    on your data today, and walking away is a SELECT, not a migration. The code is
                     <a href="{{ config('bilis.github_url') }}" class="underline underline-offset-2 hover:text-foreground"
                        target="_blank" rel="noopener noreferrer">public</a>.
                 </p>
@@ -216,13 +225,14 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs</pre>
     {{-- Scope --}}
     <section class="border-t border-border">
         <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
-            @include('marketing.partials.section-label', ['number' => '04', 'label' => 'Scope'])
+            @include('marketing.partials.section-label', ['number' => '04', 'label' => 'Where it goes'])
 
-            <h2 class="mt-4 text-xl font-semibold tracking-tight">What Bilis does, and what it deliberately does
-                not</h2>
+            <h2 class="mt-4 text-xl font-semibold tracking-tight">Logs today. Observability that acts, next.</h2>
             <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                Being narrow is the point. Everything below the line is a thing you should use another
-                tool for — and we would rather say so than imply it is coming.
+                Right now Bilis does one thing well: log storage and search you can self-host. The
+                direction is bigger — more signals, and AI that reads what arrives and helps you fix
+                it, so the stack does not just show you the problem. Self-hosting stays the
+                first-class way to run all of it.
             </p>
 
             {{-- A ledger, not two cards: two columns read across as one table,
@@ -231,16 +241,16 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs</pre>
             <div class="mt-8 grid gap-x-12 gap-y-10 sm:grid-cols-2">
                 <div>
                     <p class="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">In the
-                        product</p>
+                        product today</p>
 
                     <ul class="mt-3 divide-y divide-border border-t border-border">
                         @foreach ([
-                            'OTLP/HTTP JSON ingest, plus a simple JSON endpoint',
-                            'OTel-compatible ClickHouse logs table',
-                            'Time range, project, service and severity filters',
-                            'Full-text search across log bodies',
-                            'Live tail',
-                            'Teams, projects, and scoped API keys',
+                            'Every way in your stack already speaks: OTLP, plain JSON, Sentry SDKs',
+                            'Fast full-text search across every log body',
+                            'Filters for time, project, service and severity',
+                            'Live tail for deploys and incidents',
+                            'Teams, projects, and revocable API keys',
+                            'Your data in an open, portable format',
                         ] as $item)
                             <li class="flex items-baseline gap-3 py-2.5 text-sm">
                                 <span class="font-mono text-severity-debug"
@@ -252,24 +262,28 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs</pre>
                 </div>
 
                 <div>
-                    <p class="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">Not in the
-                        product</p>
+                    <p class="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">Where it is
+                        heading</p>
 
                     <ul class="mt-3 divide-y divide-border border-t border-border">
                         @foreach ([
-                            'Traces and metrics',
-                            'Alerting and on-call',
+                            'Traces and metrics, same box, same open standards',
+                            'Alerting, so the stack tells you when to look',
                             'Dashboards and saved searches',
-                            'eBPF collection',
-                            'S3 tiering and replication',
+                            'AI that spots the error that matters and helps you fix it',
                         ] as $item)
                             <li class="flex items-baseline gap-3 py-2.5 text-sm text-muted-foreground">
                                 <span class="font-mono"
-                                      aria-hidden="true">&minus;</span>
+                                      aria-hidden="true">&rarr;</span>
                                 <span>{{ $item }}</span>
                             </li>
                         @endforeach
                     </ul>
+
+                    <p class="mt-4 text-xs leading-relaxed text-muted-foreground">
+                        Some things stay out on purpose — eBPF collection, S3 tiering, replication.
+                        Those are a bigger platform's job.
+                    </p>
                 </div>
             </div>
         </div>
@@ -282,9 +296,10 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs</pre>
 
             <h2 class="mt-4 text-xl font-semibold tracking-tight">Bilis is early</h2>
             <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                There is no hosted tier yet and nothing to buy. What exists is the product itself —
-                run it on your own infrastructure and read your logs. If a hosted option lands later,
-                self-hosting stays the first-class way to use it.
+                There is no hosted tier yet and nothing to buy. What exists today is the log
+                product — run it on your own infrastructure and read your logs — and what is being
+                built on top of it is the part to watch. If a hosted option lands later,
+                self-hosting stays the first-class way to use Bilis.
             </p>
 
             <p class="mt-4 max-w-2xl text-sm leading-relaxed text-muted-foreground">

@@ -1,12 +1,6 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
-import {
-    FolderKanban,
-    LayoutGrid,
-    Palette,
-    ScrollText,
-    Wrench,
-} from '@lucide/vue';
+import { FolderKanban, LayoutGrid, ScrollText, Wrench } from '@lucide/vue';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
 import NavMain from '@/components/NavMain.vue';
@@ -21,7 +15,7 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { dashboard, styleguide } from '@/routes';
+import { dashboard } from '@/routes';
 import { index as autofixIndex } from '@/routes/autofix';
 import { index as logsIndex } from '@/routes/logs';
 import { index as projectsIndex } from '@/routes/projects';
@@ -66,11 +60,7 @@ const mainNavItems = computed<NavItem[]>(() => [
         href: logsUrl.value,
         icon: ScrollText,
     },
-    {
-        title: 'Projects',
-        href: projectsUrl.value,
-        icon: FolderKanban,
-    },
+
     // Autofix is off for a deployment that has no control plane configured,
     // and its endpoints 404 there — so the rail leaves it out entirely rather
     // than pointing at a page that cannot answer.
@@ -87,9 +77,9 @@ const mainNavItems = computed<NavItem[]>(() => [
 
 const resourceNavItems: NavItem[] = [
     {
-        title: 'Styleguide',
-        href: styleguide(),
-        icon: Palette,
+        title: 'Projects',
+        href: projectsUrl.value,
+        icon: FolderKanban,
     },
 ];
 </script>
@@ -118,9 +108,13 @@ const resourceNavItems: NavItem[] = [
             </SidebarMenu>
         </SidebarHeader>
 
-        <SidebarContent class="gap-5">
+        <SidebarContent class="flex flex-col gap-5">
             <NavMain :items="mainNavItems" />
-            <NavMain label="Resources" :items="resourceNavItems" />
+            <NavMain
+                label="Resources"
+                :items="resourceNavItems"
+                class="mt-auto mb-2"
+            />
         </SidebarContent>
 
         <!--

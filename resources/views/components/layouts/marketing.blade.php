@@ -1,6 +1,6 @@
 @props([
     'title' => null,
-    'description' => 'Self-hosted log storage and search. OTLP in, ClickHouse underneath, a fast viewer on top.',
+    'description' => 'Self-hosted log storage and search: your logs on your own box, in open formats, with a viewer that finds the line that matters. Growing into an observability stack with AI.',
     'current' => null,
 ])
 

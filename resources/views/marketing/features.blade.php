@@ -1,6 +1,6 @@
 <x-layouts.marketing
     title="Features"
-    description="Everything Bilis does: OTLP/HTTP ingest, an OTel-compatible ClickHouse table, and a log viewer built for finding one line among millions."
+    description="What Bilis does today: log ingest that works with what you already run, storage in an open format, a viewer built for answers — plus the honest limits and where the stack goes next."
     current="features"
 >
     {{-- The page a sceptical engineer reads after the landing page.
@@ -18,10 +18,11 @@
         </h1>
 
         <p class="mt-5 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Bilis is one Laravel app and one ClickHouse database. Logs come in over OTLP/HTTP,
-            land in a table whose columns belong to the OpenTelemetry project rather than to us,
-            and come back out through a viewer built for one question: which line was it.
-            Everything below is in the product today — where something is missing, it says so.
+            Bilis keeps every log line your systems produce on hardware you own, and gets you to
+            the one line that explains what went wrong. Nothing about it asks you to trust a
+            format, a vendor, or a landing page: everything below is in the product today, the
+            limits are stated plainly, and the direction — more signals, with AI that helps you
+            act on them — is named rather than implied.
         </p>
 
         {{-- A contents strip. The page is long on purpose; the reader should
@@ -36,7 +37,7 @@
                 '05' => ['label' => 'Projects and keys', 'href' => '#projects'],
                 '06' => ['label' => 'Running it', 'href' => '#running'],
                 '07' => ['label' => 'Honest limits', 'href' => '#limits'],
-                '08' => ['label' => 'Not in the product', 'href' => '#scope'],
+                '08' => ['label' => 'Where it goes', 'href' => '#scope'],
             ] as $number => $entry)
                 <a href="{{ $entry['href'] }}"
                    class="flex items-center gap-2 transition-colors hover:text-foreground">
@@ -53,11 +54,11 @@
         <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '01', 'label' => 'Ingest'])
 
-            <h2 class="mt-4 text-xl font-semibold tracking-tight">Three ways in, one contract</h2>
+            <h2 class="mt-4 text-xl font-semibold tracking-tight">If it can log, Bilis can take it</h2>
             <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                Whatever your application already speaks, there is a path that does not require
-                rewriting it. All three authenticate with the same project API key, write into the
-                same table, and answer the same way when something is wrong with the payload.
+                Your applications already know how to talk to Bilis. Whatever they speak, getting
+                logs in is a configuration change rather than a rewrite — one API key per project,
+                one table underneath, and a promise that a bad payload never becomes your problem.
             </p>
 
             @include('marketing.features.endpoints')
@@ -66,14 +67,11 @@
                 <div>
                     <h3 class="text-base font-semibold tracking-tight">OTLP/HTTP, JSON and protobuf</h3>
                     <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
-                        Standard OTLP, so any exporter you already run works unchanged. Protobuf matters
-                        because most OTel SDKs cannot speak OTLP/JSON at all — the Go, Java, .NET and Rust
-                        HTTP exporters are protobuf-only. Bilis decodes it
-                        <strong class="font-medium text-foreground">in-process, in pure PHP</strong>: no
-                        composer package and no <code class="font-mono text-xs">ext-protobuf</code>. Unknown
-                        fields are skipped rather than refused, so a newer collector keeps working against an
-                        older Bilis. Because it parses untrusted binary it has an off switch,
-                        <code class="font-mono text-xs">BILIS_OTLP_PROTOBUF=false</code>.
+                        Standard OTLP, so any exporter you already run works unchanged — including the
+                        SDKs that only speak protobuf (Go, Java, .NET, Rust), which Bilis decodes
+                        itself with nothing to install. Unknown fields are skipped rather than refused,
+                        so a newer collector keeps working against an older Bilis. And if you ever want
+                        the binary endpoint off, it is one environment variable.
                     </p>
                 </div>
 
@@ -84,11 +82,10 @@
                         If you would rather not run a collector,
                         <code class="font-mono text-xs">/api/v1/ingest</code> takes one JSON object or a list
                         of them; only the message is required. And if your application already reports
-                        exceptions through a Sentry SDK, Bilis implements the ingest protocol those SDKs
-                        speak — point the DSN here and the exceptions land as
-                        <code class="font-mono text-xs">ERROR</code>
-                        records beside the logs that explain them. That is protocol compatibility for
-                        ingestion, not error tracking: there is no issue list, no grouping, no resolve button.
+                        exceptions through a Sentry SDK, point its DSN here instead and those exceptions
+                        land as <code class="font-mono text-xs">ERROR</code>
+                        records beside the logs that explain them. That is ingestion, not error tracking:
+                        no issue list, no grouping, no resolve button.
                     </p>
                 </div>
             </div>
@@ -146,9 +143,9 @@ curl -X POST https://bilis.example.com/api/v1/ingest \
 
                 <ul class="divide-y divide-border border-t border-border">
                     @foreach ([
-                        'gzip and deflate bodies are inflated; a decompressed body is capped at 32 MB',
+                        'Compressed bodies just work — gzip and deflate are inflated for you, up to 32 MB',
                         'Throttled per key: 1,200 requests a minute, 60 without a key — both configurable',
-                        'Retries are idempotent: an identical re-sent batch is deduplicated by ClickHouse',
+                        'Retries are safe: an identical re-sent batch is deduplicated, never double-stored',
                     ] as $item)
                         <li class="flex items-baseline gap-3 py-2.5 text-sm">
                             <span class="font-mono text-severity-debug"
@@ -173,13 +170,14 @@ curl -X POST https://bilis.example.com/api/v1/ingest \
         <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '02', 'label' => 'Storage'])
 
-            <h2 class="mt-4 text-xl font-semibold tracking-tight">An OpenTelemetry table, not a private format</h2>
+            <h2 class="mt-4 text-xl font-semibold tracking-tight">Your data stays yours, in a format everything can
+                read</h2>
             <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                Logs live in one ClickHouse table, <code class="font-mono text-xs">otel_logs</code>. Its column
-                names and types are the ones the upstream OpenTelemetry ClickHouse exporter writes, pinned to a
-                specific collector tag and re-diffed on every upgrade. That is the whole portability story:
-                the rows are readable by anything that already understands that schema, and getting your data
-                out is a <code class="font-mono text-xs">SELECT</code>, not a migration project.
+                Logs live in one table, <code class="font-mono text-xs">otel_logs</code>, whose column names
+                and types belong to the OpenTelemetry project rather than to us — pinned to an upstream
+                release and re-checked on every upgrade. Any tool that understands that standard, from your
+                scripts to your AI assistants, can read your data today. And if you ever leave, leaving is a
+                <code class="font-mono text-xs">SELECT</code>, not a migration project.
             </p>
 
             <div class="mt-8 grid gap-x-12 gap-y-10 sm:grid-cols-2">
@@ -227,13 +225,8 @@ curl -X POST https://bilis.example.com/api/v1/ingest \
             <p class="mt-8 max-w-2xl text-sm leading-relaxed text-muted-foreground">
                 The project a line belongs to is decided by the API key that carried it and never by anything
                 in the payload — a resource attribute named <code class="font-mono text-xs">project.id</code>
-                is just an attribute. Writes use ClickHouse's asynchronous insert path, which is why a success
-                means <em>queued</em> rather than durable; that trade is stated plainly further down.
-            </p>
-
-            <p class="mt-4 text-sm text-muted-foreground">
-                Bilis talks to ClickHouse over its HTTP interface, so there is no driver and no PHP extension
-                to install.
+                is just an attribute. Writes are queued for throughput, which is why a success means
+                <em>accepted</em> rather than durable; that trade is stated plainly further down.
             </p>
         </div>
     </section>
@@ -244,50 +237,51 @@ curl -X POST https://bilis.example.com/api/v1/ingest \
         <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '03', 'label' => 'The viewer'])
 
-            <h2 class="mt-4 text-xl font-semibold tracking-tight">Built for finding one line among millions</h2>
+            <h2 class="mt-4 text-xl font-semibold tracking-tight">From “something is wrong” to the line that
+                explains it</h2>
             <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                Every query the viewer makes is the same shape: a project, a time range, and an index the
-                sort key was designed for. There is no query language to learn, and no way to write a search
-                that quietly scans the whole table.
+                No query language to learn. You ask the way you think — a project, a window of time, a
+                service, a severity — and the answer comes back fast because the storage was designed for
+                exactly that question. There is no way to write a search that quietly scans the whole table.
             </p>
 
             <div class="mt-8 grid gap-x-12 gap-y-8 sm:grid-cols-2">
                 <div>
-                    <h3 class="text-base font-semibold tracking-tight">Filters</h3>
+                    <h3 class="text-base font-semibold tracking-tight">Filters that match how you think</h3>
                     <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
                         A time range, one project, one service, and any combination of the six severities —
-                        trace, debug, info, warn, error, fatal. Filters live in the URL, so a search is a link
-                        you can paste into an incident channel.
+                        trace, debug, info, warn, error, fatal. Every filter lives in the URL, so the search
+                        that found the answer is a link you can paste into the incident channel.
                     </p>
                 </div>
 
                 <div>
-                    <h3 class="text-base font-semibold tracking-tight">Full-text search over bodies</h3>
+                    <h3 class="text-base font-semibold tracking-tight">Search the text of every line</h3>
                     <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
-                        Backed by a token bloom filter index on the log body. It matches whole tokens,
-                        case-insensitively — <span class="text-foreground">not substrings</span>, which is the
-                        one thing worth knowing before you type. Searching
+                        Full-text over every log body, case-insensitive, backed by an index built for it.
+                        One thing worth knowing before you type: it matches whole words, <span
+                            class="text-foreground">not substrings</span> — searching
                         <code class="font-mono text-xs">timeout</code>
                         finds the line; searching <code class="font-mono text-xs">imeou</code> does not.
                     </p>
                 </div>
 
                 <div>
-                    <h3 class="text-base font-semibold tracking-tight">Live tail</h3>
+                    <h3 class="text-base font-semibold tracking-tight">Watch the deploy as it happens</h3>
                     <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
-                        Leave it open during a deploy. New lines arrive at the top under the filters you
-                        already set, and scrolling away pauses the stream rather than fighting you for the
-                        scroll position.
+                        Leave the live tail open and new lines arrive at the top under the filters you
+                        already set. Scroll back to read, and the stream waits for you instead of fighting
+                        you for the scroll position.
                     </p>
                 </div>
 
                 <div>
-                    <h3 class="text-base font-semibold tracking-tight">The line itself</h3>
+                    <h3 class="text-base font-semibold tracking-tight">Everything the line knows</h3>
                     <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
-                        Rows are set in a mono face with severity as the only colour on the page, and expand
-                        to the full body plus every resource, scope and log attribute that arrived with it —
-                        including trace and span ids. Pages are fetched a hundred rows at a time by timestamp
-                        cursor, not by offset.
+                        Severity is the only colour on the page, so the eye goes to what matters. Expand any
+                        line for its full body and every attribute that arrived with it — trace and span ids
+                        included, ready to correlate with the tracing backend you already use. Older pages
+                        load a hundred lines at a time, as fast as you can read.
                     </p>
                 </div>
             </div>
@@ -312,11 +306,11 @@ curl -X POST https://bilis.example.com/api/v1/ingest \
         <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '04', 'label' => 'Dashboard'])
 
-            <h2 class="mt-4 text-xl font-semibold tracking-tight">One overview, built in and not configurable</h2>
+            <h2 class="mt-4 text-xl font-semibold tracking-tight">Open the app, know how things are</h2>
             <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                There is exactly one dashboard and you cannot build another. It answers the questions you
-                would have built the first one to answer, and then gets out of the way — the viewer is where
-                the actual work happens.
+                One dashboard, the same for everyone, answering the questions you would have built the first
+                one to answer. Nothing to configure and no widget sprawl — the viewer is where the actual
+                work happens.
             </p>
 
             <ul class="mt-8 divide-y divide-border border-t border-b border-border">
@@ -347,12 +341,13 @@ curl -X POST https://bilis.example.com/api/v1/ingest \
         <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '05', 'label' => 'Projects and keys'])
 
-            <h2 class="mt-4 text-xl font-semibold tracking-tight">A key writes to one project, and can do nothing
-                else</h2>
+            <h2 class="mt-4 text-xl font-semibold tracking-tight">A leaked key is a small problem, not a
+                breach</h2>
             <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
                 Projects belong to a team, and everything you look at in the app is scoped to the team you
-                are in. Each project issues its own API keys, and a key is one credential with two halves —
-                issued together, revoked together, sharing one rate limit.
+                are in. Each project issues its own API keys, and a key authorises exactly one thing:
+                writing logs into its own project. It comes in two halves — issued together, revoked
+                together, sharing one rate limit.
             </p>
 
             <div class="mt-8 grid gap-x-12 gap-y-8 sm:grid-cols-2">
@@ -377,11 +372,10 @@ curl -X POST https://bilis.example.com/api/v1/ingest \
             </div>
 
             <p class="mt-8 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                Both halves authorise exactly one thing: writing logs into their own project. Neither can read
-                a log line, list a project, or touch anything else — so a leaked public key costs you junk in
-                one project's stream, not access to your data. For anything running in a browser there is a
-                second lock that is not on the key at all: a per-project origin allow list, with an empty list
-                meaning no page may post.
+                Neither half can read a log line, list a project, or touch anything else — so a leaked
+                public key costs you junk in one project's stream, not access to your data. For anything
+                running in a browser there is a second lock that is not on the key at all: a per-project
+                origin allow list, with an empty list meaning no page may post.
             </p>
 
             <p class="mt-6 text-sm text-muted-foreground">
@@ -397,11 +391,11 @@ curl -X POST https://bilis.example.com/api/v1/ingest \
         <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '06', 'label' => 'Running it'])
 
-            <h2 class="mt-4 text-xl font-semibold tracking-tight">One app, one database, your box</h2>
+            <h2 class="mt-4 text-xl font-semibold tracking-tight">You can run the whole thing yourself</h2>
             <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
                 Bilis is self-hosted, and that is not a fallback — there is no hosted tier, nothing to buy,
                 and no per-gigabyte bill at the end of a noisy month. What retention costs you is disk you
-                already pay for.
+                already pay for; what it costs your team to operate is close to nothing.
             </p>
 
             <div class="mt-8 overflow-hidden rounded-xl border border-border bg-card">
@@ -445,16 +439,17 @@ php artisan clickhouse:migrate</pre>
                 <div>
                     <h3 class="text-base font-semibold tracking-tight">No stack to operate</h3>
                     <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
-                        A Laravel app and a ClickHouse. No Grafana, no Loki, no agent mesh, and no message
-                        broker between them. Operational simplicity is the product here, not a side effect.
+                        One app and one database. No Grafana, no Loki, no agent mesh, nothing in between.
+                        Fewer moving parts means fewer 3 a.m. surprises — and the whole system fits in one
+                        engineer's head.
                     </p>
                 </div>
                 <div>
                     <h3 class="text-base font-semibold tracking-tight">Nothing exotic to install</h3>
                     <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
-                        ClickHouse over its HTTP interface, so no driver or PHP extension. Protobuf decoded in
-                        pure PHP for the same reason. Timeouts are deliberately short so an overloaded database
-                        fails fast into a retryable 503 instead of holding a worker.
+                        No drivers, no PHP extensions, nothing to bolt on. And if the database underneath
+                        ever overloads, Bilis fails fast and asks exporters to retry rather than falling
+                        over quietly.
                     </p>
                 </div>
                 <div>
@@ -513,34 +508,62 @@ php artisan clickhouse:migrate</pre>
     <section id="scope"
              class="scroll-mt-20">
         <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
-            @include('marketing.partials.section-label', ['number' => '08', 'label' => 'Not in the product'])
+            @include('marketing.partials.section-label', ['number' => '08', 'label' => 'Where it goes'])
 
-            <h2 class="mt-4 text-xl font-semibold tracking-tight">What to use instead</h2>
+            <h2 class="mt-4 text-xl font-semibold tracking-tight">What is coming, and what stays out</h2>
             <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                Being narrow is the point, so the omissions get named and pointed somewhere rather than left
-                to be discovered. None of these is a roadmap item.
+                The omissions are named rather than left to be discovered. Some are where Bilis is heading —
+                the observability stack, with AI doing more of the reading. The rest stay out on purpose,
+                and for those there is a tool to use instead.
             </p>
 
-            <ul class="mt-8 divide-y divide-border border-t border-b border-border">
-                @foreach ([
-                    ['Traces and metrics', 'A tracing backend. Bilis stores the trace and span ids that arrive on a log line, so the two can be correlated — it just does not store the spans.'],
-                    ['Alerting and on-call', 'Whatever already pages you. Nothing in Bilis will wake anybody up.'],
-                    ['Error tracking', 'Sentry itself. The envelope endpoint accepts what its SDKs send, but there is no issue list, no grouping and no resolve button.'],
-                    ['User-defined dashboards and saved searches', 'The built-in overview, and a URL — every filter combination is a link you can bookmark.'],
-                    ['OTLP over gRPC', 'A Collector, which already bridges that hop. PHP is a poor gRPC server and this will not change.'],
-                    ['eBPF collection, S3 tiering, replication', 'A larger platform. All three add operating surface a one-box deployment cannot pay for.'],
-                    ['Billing and a hosted tier', 'Nothing — there is no hosted Bilis to buy. Self-hosting is the way to use it.'],
-                ] as [$item, $instead])
-                    <li class="grid gap-1 py-4 sm:grid-cols-[15rem_1fr] sm:gap-6">
-                        <span class="flex items-baseline gap-3 text-sm text-muted-foreground">
-                            <span class="font-mono"
-                                  aria-hidden="true">&minus;</span>
-                            <span>{{ $item }}</span>
-                        </span>
-                        <span class="text-sm leading-relaxed text-muted-foreground">{{ $instead }}</span>
-                    </li>
-                @endforeach
-            </ul>
+            <div class="mt-8 grid gap-x-12 gap-y-10 sm:grid-cols-2">
+                <div>
+                    <p class="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">On the
+                        way</p>
+
+                    <ul class="mt-3 divide-y divide-border border-t border-border">
+                        @foreach ([
+                            ['Traces and metrics', 'The same open standards, on the same box. Today every log line already carries its trace and span ids, so it correlates with the tracing backend you use now.'],
+                            ['Alerting', 'The stack should tell you when to look. Until it does, keep whatever already pages you.'],
+                            ['AI that reads your logs', 'The point of the roadmap: software that spots the error that matters, explains it, and helps you fix it — on your infrastructure, where your data already is.'],
+                            ['Dashboards you can shape yourself', 'For now: the built-in overview, and a URL — every filter combination is a link you can bookmark.'],
+                        ] as [$item, $instead])
+                            <li class="grid gap-1 py-4">
+                                <span class="flex items-baseline gap-3 text-sm font-medium">
+                                    <span class="font-mono text-severity-debug"
+                                          aria-hidden="true">&rarr;</span>
+                                    <span>{{ $item }}</span>
+                                </span>
+                                <span class="text-sm leading-relaxed text-muted-foreground">{{ $instead }}</span>
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+
+                <div>
+                    <p class="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">Out on
+                        purpose</p>
+
+                    <ul class="mt-3 divide-y divide-border border-t border-border">
+                        @foreach ([
+                            ['Error tracking', 'Sentry itself. The envelope endpoint accepts what its SDKs send, but there is no issue list, no grouping and no resolve button.'],
+                            ['OTLP over gRPC', 'A Collector, which already bridges that hop. PHP is a poor gRPC server and this will not change.'],
+                            ['eBPF collection, S3 tiering, replication', 'A larger platform. All three add operating surface a one-box deployment cannot pay for.'],
+                            ['Billing and a hosted tier', 'Nothing — there is no hosted Bilis to buy. Self-hosting is the way to use it, and stays first-class even if a hosted option lands.'],
+                        ] as [$item, $instead])
+                            <li class="grid gap-1 py-4">
+                                <span class="flex items-baseline gap-3 text-sm text-muted-foreground">
+                                    <span class="font-mono"
+                                          aria-hidden="true">&minus;</span>
+                                    <span>{{ $item }}</span>
+                                </span>
+                                <span class="text-sm leading-relaxed text-muted-foreground">{{ $instead }}</span>
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+            </div>
         </div>
     </section>
 
@@ -549,8 +572,8 @@ php artisan clickhouse:migrate</pre>
         <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
             <h2 class="text-xl font-semibold tracking-tight">Point something at it</h2>
             <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                A project, a key, and one line of curl is the whole first run. The quickstart takes a few
-                minutes and does not ask you to install a collector first.
+                A project, a key, and one line of curl is the whole first run — your own logs in the viewer
+                within minutes, and the quickstart does not ask you to install a collector first.
             </p>
 
             <div class="mt-8 flex flex-wrap items-center gap-3">

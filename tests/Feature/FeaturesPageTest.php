@@ -54,7 +54,10 @@ it('keeps the storage and limits claims that make the page honest', function () 
         ->assertSee('ORDER BY (ProjectId, Timestamp, ServiceName)')
         ->assertSee('An acknowledgement is not durability')
         ->assertSee('there is no hosted tier, nothing to buy')
-        ->assertSee('Not in the product');
+        ->assertSee('On the')
+        ->assertSee('way')
+        ->assertSee('Out on')
+        ->assertSee('purpose');
 });
 
 it('stays Blade only and never boots inertia', function () {
