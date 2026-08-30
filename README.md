@@ -36,9 +36,9 @@
 
 ## How it works
 
-- **Ingest** — `POST /api/v1/logs` accepts OTLP/HTTP (JSON encoding), `POST /api/v1/ingest` accepts a simple JSON shape (`{"level": "error", "message": "...", "service": "...", "context": {...}}`). An API key resolves to a project; malformed records are skipped best-effort — ingest never returns 400, and overload returns 503 with `Retry-After`.
-- **Storage** — an OTel-compatible `otel_logs` MergeTree table in ClickHouse (async inserts, token bloom filter on `lower(Body)`, `ProjectId`-first ordering, 30 day TTL). Schema and its rules: [`database/clickhouse/SCHEMA.md`](database/clickhouse/SCHEMA.md).
-- **UI** — per-team log viewer: time range, project/service/severity filters, full-text search, expandable rows, live tail.
+- **Ingest** — `POST /api/v1/logs` accepts OTLP/HTTP (JSON or protobuf), `POST /api/v1/ingest` accepts a simple JSON shape (`{"level": "error", "message": "...", "service": "...", "context": {...}}`), and `POST /api/v1/traces` accepts OTLP spans. An API key resolves to a project; malformed records are skipped best-effort — ingest never returns 400, and overload returns 503 with `Retry-After`. OTLP over gRPC is not supported, which matters because collectors default to it.
+- **Storage** — OTel-compatible `otel_logs` and `otel_traces` MergeTree tables in ClickHouse (async inserts, a `text` index on `lower(Body)`, `ProjectId`-first ordering, 30 day TTL), plus a `trace_summary` aggregate kept for 90 days. Requires ClickHouse **26.2+**. Schema and its rules: [`database/clickhouse/SCHEMA.md`](database/clickhouse/SCHEMA.md).
+- **UI** — per-team log viewer (time range, project/service/severity filters, full-text search, expandable rows, live tail) and trace viewer (trace list, span waterfall, per-service latency). A log line links to its trace and a span links back to its logs.
 
 ## Stack
 
@@ -53,10 +53,13 @@ composer install && npm install
 cp .env.example .env && php artisan key:generate
 
 # ClickHouse connection (defaults: 127.0.0.1:8123, database "bilis")
-# -> set CLICKHOUSE_* in .env, then create the database + otel_logs table:
+# -> set CLICKHOUSE_* in .env (ClickHouse 26.2+), then create the database and tables:
 php artisan clickhouse:migrate
-# the schema is still pre-1.0: if you already have a dev otel_logs table from an
-# earlier checkout, DROP TABLE it first — migrate is CREATE ... IF NOT EXISTS.
+
+# Upgrading an install that predates the text body index? migrate swaps the index
+# definition instantly; this rebuilds it for rows written before the swap. Run it
+# once, deliberately — it is not part of migrate, which runs on every boot.
+php artisan clickhouse:materialize-index
 
 # App database + demo team/project/API key (the key is printed once)
 php artisan migrate --seed

@@ -267,3 +267,32 @@ function billingFiles(): array
 {
     return ['app/Billing.php' => "<?php\n\$total = \$order['total'];\nreturn \$total;\n"];
 }
+
+/**
+ * A ClickHouse request body with its SQL comments stripped.
+ *
+ * The schema files carry long comments explaining which constructs are
+ * forbidden and why, so a test asserting that a statement does NOT contain
+ * `ReplacingMergeTree` would fail on the comment saying never to use it.
+ */
+function clickHouseStatement(Request $request): string
+{
+    return preg_replace('/^\s*--.*$/m', '', $request->body()) ?? '';
+}
+
+/**
+ * Pull the query string of a ClickHouse request as an array.
+ *
+ * Shared because both the logs and the traces tests assert on bound
+ * `param_*` values rather than on interpolated SQL.
+ *
+ * @return array<string, string>
+ */
+function clickHouseQuery(Request $request): array
+{
+    $query = [];
+    parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+
+    /** @var array<string, string> $query */
+    return $query;
+}

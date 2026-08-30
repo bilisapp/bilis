@@ -1,7 +1,7 @@
 ---
 title: Sentry-compatible ingest
 description: Bilis speaks the Sentry SDKs' ingest protocol, so an SDK you already have can ship exceptions here as searchable error logs.
-order: 8
+order: 9
 ---
 
 Sentry's SDKs are good at one thing Bilis does not do itself: catching an

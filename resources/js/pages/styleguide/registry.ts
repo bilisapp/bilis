@@ -8,6 +8,7 @@ import ComponentsOverlays from './partials/ComponentsOverlays.vue';
 import PaletteSection from './partials/PaletteSection.vue';
 import SeveritySection from './partials/SeveritySection.vue';
 import TokensSection from './partials/TokensSection.vue';
+import TracesSection from './partials/TracesSection.vue';
 import TypographySection from './partials/TypographySection.vue';
 
 /**
@@ -125,6 +126,13 @@ export const STYLEGUIDE_CATEGORIES: StyleguideCategory[] = [
                 description:
                     'The Bilis-specific pieces that sit on top of the primitives. Everything below is the real component with demo data, so these blocks double as a regression check when the log UI changes.',
                 component: AppComponentsSection,
+            },
+            {
+                id: 'traces',
+                name: 'Traces',
+                description:
+                    'The trace surfaces: a list read from the summary table, a waterfall flattened server-side, and the panel that links a span back to its logs. Colour follows the same single rule the rest of the product does — a failed span or a non-zero error rate takes the severity-error token, latency series take chart slots, and nothing else is coloured at all. Three states here are designed rather than accidental and each one is shown: a trace whose summary outlived its spans, a span whose parent is missing, and a trace too large to draw in full.',
+                component: TracesSection,
             },
             {
                 id: 'autofix',

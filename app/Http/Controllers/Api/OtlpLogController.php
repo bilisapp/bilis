@@ -113,7 +113,7 @@ class OtlpLogController extends Controller
         }
 
         try {
-            return $this->protobuf->decode($body);
+            return $this->protobuf->decodeLogs($body);
         } catch (MalformedProtobufException) {
             /*
              * Deliberately not logged: the answer already tells the client its

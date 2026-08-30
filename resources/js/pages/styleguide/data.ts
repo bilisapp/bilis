@@ -5,8 +5,12 @@ import type {
     LogEntry,
     LogHistogram,
     ProjectRepository,
+    ServiceLatencyResult,
     SeverityLevel,
+    Span,
     TeamLlmCredential,
+    TracePanelResult,
+    TraceSummary,
 } from '@/types';
 
 export type Swatch = {
@@ -709,3 +713,324 @@ export const demoProjectRepositories: ProjectRepository[] = [
         isCatchAll: false,
     },
 ];
+
+/**
+ * Three traces for the list demo: one healthy, one that failed, and one whose
+ * spans have aged out from under its 90-day summary.
+ */
+export const DEMO_TRACES: TraceSummary[] = [
+    {
+        traceId: '5b8efff798038103d269b633813fc60c',
+        rootName: 'POST /checkout',
+        rootService: 'checkout',
+        startedAt: '2026-08-30 09:14:02.184000000',
+        endedAt: '2026-08-30 09:14:02.436000000',
+        durationMs: 252,
+        spanCount: 14,
+        errorCount: 2,
+    },
+    {
+        traceId: '9f2c41d0aa7b4e1290b3c7e5f10d8a44',
+        rootName: 'GET /orders/41902',
+        rootService: 'checkout',
+        startedAt: '2026-08-30 09:13:47.902000000',
+        endedAt: '2026-08-30 09:13:47.939000000',
+        durationMs: 37,
+        spanCount: 6,
+        errorCount: 0,
+    },
+    {
+        traceId: '3ac1be77045f4d0f8e6b21c9d4a70e13',
+        rootName: 'ledger.settle',
+        rootService: 'ledger',
+        startedAt: '2026-07-02 22:41:10.005000000',
+        endedAt: '2026-07-02 22:41:11.882000000',
+        durationMs: 1877,
+        spanCount: 21,
+        errorCount: 0,
+    },
+];
+
+/**
+ * One trace's spans, already flattened the way SpanTree hands them over: depth
+ * assigned, depth-first order, and one span whose parent is deliberately not in
+ * the set so the orphan case has something to draw.
+ */
+export const DEMO_SPANS: Span[] = [
+    {
+        timestamp: '2026-08-30 09:14:02.184000000',
+        traceId: '5b8efff798038103d269b633813fc60c',
+        spanId: 'eee19b7ec3c1b174',
+        parentSpanId: '',
+        name: 'POST /checkout',
+        kind: 'Server',
+        serviceName: 'checkout',
+        durationMs: 252,
+        statusCode: 'Error',
+        statusMessage: 'checkout failed: payment declined',
+        attributes: {
+            'http.method': 'POST',
+            'http.route': '/checkout',
+            'http.status_code': '500',
+        },
+        events: [],
+        childCount: 2,
+        depth: 0,
+    },
+    {
+        timestamp: '2026-08-30 09:14:02.191000000',
+        traceId: '5b8efff798038103d269b633813fc60c',
+        spanId: '0102030405060708',
+        parentSpanId: 'eee19b7ec3c1b174',
+        name: 'charge card',
+        kind: 'Client',
+        serviceName: 'payments',
+        durationMs: 198,
+        statusCode: 'Error',
+        statusMessage: 'card declined',
+        attributes: {
+            'payment.provider': 'stripe',
+            'payment.amount': '19.50',
+            'order.id': '41902',
+        },
+        events: [
+            {
+                timestamp: '2026-08-30 09:14:02.310000000',
+                name: 'retrying',
+                attributes: { attempt: '3' },
+            },
+            {
+                timestamp: '2026-08-30 09:14:02.388000000',
+                name: 'exception',
+                attributes: {
+                    'exception.type': 'CardDeclinedException',
+                    'exception.message': 'Insufficient funds',
+                },
+            },
+        ],
+        childCount: 1,
+        depth: 1,
+    },
+    {
+        timestamp: '2026-08-30 09:14:02.201000000',
+        traceId: '5b8efff798038103d269b633813fc60c',
+        spanId: '1112131415161718',
+        parentSpanId: '0102030405060708',
+        name: 'SELECT payment_methods',
+        kind: 'Client',
+        serviceName: 'payments',
+        durationMs: 4.2,
+        statusCode: 'Ok',
+        statusMessage: '',
+        attributes: {
+            'db.system': 'postgresql',
+            'db.table': 'payment_methods',
+        },
+        events: [],
+        childCount: 0,
+        depth: 2,
+    },
+    {
+        timestamp: '2026-08-30 09:14:02.404000000',
+        traceId: '5b8efff798038103d269b633813fc60c',
+        spanId: '2122232425262728',
+        parentSpanId: 'eee19b7ec3c1b174',
+        name: 'ledger.reverse',
+        kind: 'Producer',
+        serviceName: 'ledger',
+        durationMs: 21,
+        statusCode: 'Unset',
+        statusMessage: '',
+        attributes: { 'messaging.system': 'rabbitmq' },
+        events: [],
+        childCount: 0,
+        depth: 1,
+    },
+    {
+        timestamp: '2026-08-30 09:14:02.418000000',
+        traceId: '5b8efff798038103d269b633813fc60c',
+        spanId: '3132333435363738',
+        // A parent that is not in this set: the orphan case.
+        parentSpanId: 'deadbeefdeadbeef',
+        name: 'emit receipt',
+        kind: 'Consumer',
+        serviceName: 'notifications',
+        durationMs: 0.6,
+        statusCode: 'Unset',
+        statusMessage: '',
+        attributes: {},
+        events: [],
+        childCount: 0,
+        depth: 0,
+    },
+];
+
+/**
+ * A trace from an instrumentation that names span *types*, not instances.
+ *
+ * Modelled on Claude Code's OTLP exporter, and the reason `spanLabel()` exists:
+ * every one of these spans is correctly named per OpenTelemetry's own advice —
+ * span names are meant to be low-cardinality — and a page of them says nothing.
+ * Flip the waterfall to Raw here and the demo becomes the bug report.
+ */
+export const DEMO_AGENT_SPANS: Span[] = [
+    {
+        timestamp: '2026-08-30 12:03:01.833000000',
+        traceId: '02e33a252526db18b8c37ce677ec4018',
+        spanId: 'a03fd6149877f001',
+        parentSpanId: '',
+        name: 'claude_code.interaction',
+        kind: 'Internal',
+        serviceName: 'claude-code',
+        durationMs: 235893,
+        statusCode: 'Unset',
+        statusMessage: '',
+        attributes: {
+            user_prompt: 'implement all mentioned, leverage sub-agents',
+            user_prompt_length: '45',
+            'interaction.sequence': '2',
+            'span.type': 'interaction',
+        },
+        events: [],
+        childCount: 3,
+        depth: 0,
+    },
+    {
+        timestamp: '2026-08-30 12:03:01.902000000',
+        traceId: '02e33a252526db18b8c37ce677ec4018',
+        spanId: 'a03fd6149877f002',
+        parentSpanId: 'a03fd6149877f001',
+        name: 'claude_code.llm_request',
+        kind: 'Internal',
+        serviceName: 'claude-code',
+        durationMs: 13780,
+        statusCode: 'Ok',
+        statusMessage: '',
+        attributes: {
+            'gen_ai.system': 'anthropic',
+            model: 'claude-opus-5[1m]',
+            input_tokens: '2',
+            output_tokens: '352',
+            cache_creation_tokens: '1234',
+            cache_read_tokens: '120212',
+            stop_reason: 'tool_use',
+            ttft_ms: '1023',
+        },
+        events: [],
+        childCount: 0,
+        depth: 1,
+    },
+    {
+        timestamp: '2026-08-30 12:03:15.700000000',
+        traceId: '02e33a252526db18b8c37ce677ec4018',
+        spanId: 'a03fd6149877f003',
+        parentSpanId: 'a03fd6149877f001',
+        name: 'claude_code.tool',
+        kind: 'Internal',
+        serviceName: 'claude-code',
+        durationMs: 3110,
+        statusCode: 'Unset',
+        statusMessage: '',
+        attributes: {
+            tool_name: 'Bash',
+            full_command:
+                'go get go.opentelemetry.io/otel/exporters/otlp/otlptrace 2>&1 | tail -6',
+            'gen_ai.tool.call.id': 'toolu_01QQ',
+        },
+        events: [],
+        childCount: 1,
+        depth: 1,
+    },
+    {
+        timestamp: '2026-08-30 12:03:15.703000000',
+        traceId: '02e33a252526db18b8c37ce677ec4018',
+        spanId: 'a03fd6149877f004',
+        parentSpanId: 'a03fd6149877f003',
+        name: 'claude_code.tool.blocked_on_user',
+        kind: 'Internal',
+        serviceName: 'claude-code',
+        durationMs: 8.2,
+        statusCode: 'Unset',
+        statusMessage: '',
+        attributes: { decision: 'accept', source: 'config' },
+        events: [],
+        childCount: 0,
+        depth: 2,
+    },
+    {
+        timestamp: '2026-08-30 12:03:19.100000000',
+        traceId: '02e33a252526db18b8c37ce677ec4018',
+        spanId: 'a03fd6149877f005',
+        parentSpanId: 'a03fd6149877f001',
+        name: 'claude_code.tool',
+        kind: 'Internal',
+        serviceName: 'claude-code',
+        durationMs: 4407,
+        statusCode: 'Error',
+        statusMessage: 'tool execution failed',
+        attributes: {
+            tool_name: 'Agent',
+            subagent_type: 'general-purpose',
+            'gen_ai.tool.call.id': 'toolu_01RR',
+        },
+        events: [],
+        childCount: 0,
+        depth: 1,
+    },
+];
+
+export const DEMO_SERVICE_LATENCY: ServiceLatencyResult = {
+    unavailable: false,
+    rows: [
+        {
+            serviceName: 'checkout',
+            spans: 18402,
+            p95Ms: 241,
+            p99Ms: 612,
+            errors: 214,
+            errorRate: 0.0116,
+        },
+        {
+            serviceName: 'payments',
+            spans: 12980,
+            p95Ms: 198,
+            p99Ms: 486,
+            errors: 402,
+            errorRate: 0.031,
+        },
+        {
+            serviceName: 'ledger',
+            spans: 9044,
+            p95Ms: 42,
+            p99Ms: 88,
+            errors: 0,
+            errorRate: 0,
+        },
+        {
+            serviceName: 'notifications',
+            spans: 3110,
+            p95Ms: 6.4,
+            p99Ms: 19,
+            errors: 3,
+            errorRate: 0.001,
+        },
+    ],
+};
+
+/** The panel's happy path: a failed trace with its spans intact. */
+export const DEMO_TRACE_PANEL: TracePanelResult = {
+    traceId: DEMO_TRACES[0].traceId,
+    summary: DEMO_TRACES[0],
+    spans: DEMO_SPANS,
+    truncated: false,
+    unavailable: false,
+};
+
+/** The designed state where a 90-day summary outlived its 30-day spans. */
+export const DEMO_TRACE_PANEL_EXPIRED: TracePanelResult = {
+    traceId: DEMO_TRACES[2].traceId,
+    summary: DEMO_TRACES[2],
+    spans: [],
+    truncated: false,
+    unavailable: false,
+};

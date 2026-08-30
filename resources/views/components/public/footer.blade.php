@@ -15,7 +15,7 @@
                  class="h-5 w-auto"
                  width="20790"
                  height="4080">
-            <span>{{ config('app.name', 'Bilis') }} — self-hosted log storage and search.</span>
+            <span>{{ config('app.name', 'Bilis') }} — self-hosted logs and traces.</span>
         </div>
 
         <div class="flex flex-wrap items-center gap-x-4 gap-y-2">

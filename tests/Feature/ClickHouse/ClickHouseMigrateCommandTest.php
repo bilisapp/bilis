@@ -39,9 +39,11 @@ test('the migrate command creates the database and the otel logs table', functio
             && str_contains($request->body(), 'TTL toDateTime(Timestamp) + toIntervalDay(30)')
             && str_contains($request->body(), 'ttl_only_drop_parts = 1')
             && str_contains($request->body(), 'non_replicated_deduplication_window = 1000')
-            // The <26.2 branch of SCHEMA.md R5: the index expression has to be
-            // the same lower(Body) the search query uses.
-            && str_contains($request->body(), 'INDEX idx_lower_body lower(Body) TYPE tokenbf_v1(32768, 3, 0) GRANULARITY 8')
+            // SCHEMA.md R5 on a >= 26.2 floor: a text index, still on lower(Body)
+            // because the tokenizer does not fold case, and still character for
+            // character the expression LogQuery searches against.
+            && str_contains($request->body(), "INDEX idx_lower_body lower(Body) TYPE text(tokenizer = 'splitByNonAlpha') GRANULARITY 8")
+            && ! str_contains($request->body(), 'tokenbf_v1')
             && str_contains($request->body(), 'INDEX idx_trace_id         TraceId                       TYPE bloom_filter(0.001) GRANULARITY 1')
             && str_contains($request->body(), 'INDEX idx_scope_attr_key   mapKeys(ScopeAttributes)      TYPE bloom_filter(0.01)  GRANULARITY 1')
             && str_contains($request->body(), 'ResourceSchemaUrl  LowCardinality(String)              CODEC(ZSTD(1))')
@@ -55,7 +57,7 @@ test('the migrate command creates the database and the otel logs table', functio
             && ($query['database'] ?? null) === 'bilis';
     });
 
-    Http::assertSentCount(2);
+    Http::assertSentCount(6);
 });
 
 test('the migrate command may be run repeatedly', function () {
@@ -64,7 +66,7 @@ test('the migrate command may be run repeatedly', function () {
     $this->artisan('clickhouse:migrate')->assertSuccessful();
     $this->artisan('clickhouse:migrate')->assertSuccessful();
 
-    Http::assertSentCount(4);
+    Http::assertSentCount(12);
 });
 
 test('the migrate command fails when clickhouse rejects the schema', function () {
@@ -77,4 +79,74 @@ test('the migrate command fails when clickhouse rejects the schema', function ()
     ]);
 
     $this->artisan('clickhouse:migrate')->assertFailed();
+});
+
+test('the migrate command creates the traces table, the summary table and its view', function () {
+    Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
+
+    $this->artisan('clickhouse:migrate')->assertSuccessful();
+
+    Http::assertSent(function (Request $request) {
+        $body = $request->body();
+
+        return str_contains($body, 'CREATE TABLE IF NOT EXISTS otel_traces')
+            // R1: the column list is the exporter's, ScopeName/ScopeVersion
+            // included — a stock exporter INSERT names them.
+            && str_contains($body, 'ScopeName           String                              CODEC(ZSTD(1))')
+            && str_contains($body, 'ScopeVersion        String                              CODEC(ZSTD(1))')
+            && str_contains($body, 'Duration            UInt64                              CODEC(ZSTD(1))')
+            && str_contains($body, 'Events Nested (')
+            && str_contains($body, 'Links Nested (')
+            // Ours: same sort key as the logs table.
+            && str_contains($body, 'ORDER BY (ProjectId, Timestamp, ServiceName)')
+            && str_contains($body, 'TTL toDateTime(Timestamp) + toIntervalDay(30)');
+    });
+
+    Http::assertSent(function (Request $request) {
+        // The negative assertions below have to read the statement rather than
+        // the file, because the comments explaining each prohibition name the
+        // very thing they forbid.
+        $statement = clickHouseStatement($request);
+
+        // R11: the three write-side choices that fail silently if changed.
+        return str_contains($statement, 'CREATE TABLE IF NOT EXISTS trace_summary')
+            && str_contains($statement, 'ENGINE = AggregatingMergeTree')
+            && ! str_contains($statement, 'ReplacingMergeTree')
+            && ! str_contains($statement, 'PARTITION BY')
+            && str_contains($statement, 'TTL toDateTime(Start) + toIntervalDay(90)');
+    });
+
+    Http::assertSent(function (Request $request) {
+        $statement = clickHouseStatement($request);
+
+        // R10: the exporter writes 'Error', not the proto enum name. R11: the
+        // root columns use max(if(...)), never anyIf(...).
+        return str_contains($statement, 'CREATE MATERIALIZED VIEW IF NOT EXISTS trace_summary_mv TO trace_summary')
+            && str_contains($statement, "countIf(StatusCode = 'Error')")
+            && ! str_contains($statement, 'STATUS_CODE_ERROR')
+            && str_contains($statement, "max(if(ParentSpanId = '', SpanName, ''))")
+            && ! str_contains($statement, 'anyIf(');
+    });
+});
+
+test('the migrate command migrates a deployed logs table onto the text body index', function () {
+    Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
+
+    $this->artisan('clickhouse:migrate')->assertSuccessful();
+
+    Http::assertSent(function (Request $request) {
+        $body = $request->body();
+
+        /*
+         * A fresh database gets the text index from the CREATE in 0001; a
+         * deployed one can only get it here, because CREATE TABLE IF NOT EXISTS
+         * cannot alter a table that already exists. Both clauses are guarded so
+         * the statement is a no-op in either direction — which it has to be,
+         * since docker-entrypoint.sh runs migrate once per container role and a
+         * deploy can issue this three times at once.
+         */
+        return str_contains($body, 'ALTER TABLE otel_logs')
+            && str_contains($body, 'DROP INDEX IF EXISTS idx_lower_body')
+            && str_contains($body, "ADD INDEX IF NOT EXISTS idx_lower_body lower(Body) TYPE text(tokenizer = 'splitByNonAlpha') GRANULARITY 8");
+    });
 });

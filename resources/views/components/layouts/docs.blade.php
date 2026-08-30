@@ -1,6 +1,6 @@
 @props([
     'title' => null,
-    'description' => 'Documentation for Bilis — self-hosted log storage and search.',
+    'description' => 'Documentation for Bilis — self-hosted logs and traces.',
     'sections' => [],
     'current' => null,
     'toc' => [],

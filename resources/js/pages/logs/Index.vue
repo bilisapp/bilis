@@ -9,6 +9,7 @@ import LogEntryRow from '@/components/LogEntryRow.vue';
 import LogsHistogram from '@/components/LogsHistogram.vue';
 import LogsShortcutsDialog from '@/components/LogsShortcutsDialog.vue';
 import LogsToolbar from '@/components/LogsToolbar.vue';
+import TracePanel from '@/components/TracePanel.vue';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
@@ -29,6 +30,7 @@ import {
     older as logsOlder,
     tail as logsTail,
 } from '@/routes/logs';
+import { panel as tracePanel } from '@/routes/traces';
 import type {
     LogAutofixState,
     LogEntry,
@@ -40,6 +42,7 @@ import type {
     LogResult,
     SeverityLevel,
     Team,
+    TracePanelResult,
 } from '@/types';
 
 const props = defineProps<{
@@ -531,6 +534,79 @@ const nextCursor = computed(
     () => olderCursor.value ?? props.logs?.nextCursor ?? null,
 );
 
+/*
+ * The trace preview beside the stream.
+ *
+ * State lives here rather than in the row because the panel outlives any one
+ * row: clicking another line swaps what it shows without closing it, and a row
+ * that owned the panel could not do that.
+ */
+const panelTraceId = ref<string | null>(null);
+const panelResult = ref<TracePanelResult | null>(null);
+const panelFailed = ref(false);
+
+/**
+ * The trace the newest request was for.
+ *
+ * Three quick clicks fire three requests that can land in any order, and the
+ * slowest one is not necessarily the oldest. Every response is checked against
+ * this before it is allowed to write, so a stale answer is dropped rather than
+ * overwriting the trace the reader is actually looking at.
+ */
+let panelRequestFor: string | null = null;
+
+const openTracePanel = async (traceId: string, timestamp: string) => {
+    // Re-clicking the open trace is a no-op, not a refetch.
+    if (panelTraceId.value === traceId) {
+        return;
+    }
+
+    panelTraceId.value = traceId;
+    panelResult.value = null;
+    panelFailed.value = false;
+    panelRequestFor = traceId;
+
+    try {
+        const response = await fetch(
+            tracePanel(
+                { current_team: teamSlug.value, trace: traceId },
+                // The row's own timestamp bounds the span query to minutes. The
+                // server treats it as a hint and re-resolves if it finds nothing.
+                { query: { ts: timestamp } },
+            ).url,
+            { headers: { Accept: 'application/json' } },
+        );
+
+        if (panelRequestFor !== traceId) {
+            return;
+        }
+
+        if (!response.ok) {
+            panelFailed.value = true;
+
+            return;
+        }
+
+        panelResult.value = (await response.json()) as TracePanelResult;
+    } catch {
+        if (panelRequestFor === traceId) {
+            panelFailed.value = true;
+        }
+    }
+};
+
+const closeTracePanel = () => {
+    panelTraceId.value = null;
+    panelResult.value = null;
+    panelFailed.value = false;
+    panelRequestFor = null;
+};
+
+/** The row that asked, so the panel can be opened from the entry itself. */
+const onRowTrace = (entry: LogEntry) => {
+    void openTracePanel(entry.traceId, entry.timestamp);
+};
+
 const olderRequest = useHttp<{ cursor: string }, LogResult>({ cursor: '' });
 
 /**
@@ -661,6 +737,14 @@ const { cursor, reset: resetCursor } = useLogKeyboard({
         }
     },
     collapse: () => {
+        // Escape closes the most recently opened thing, so the trace panel goes
+        // before the expanded row — it is the one the reader just opened.
+        if (panelTraceId.value !== null) {
+            closeTracePanel();
+
+            return true;
+        }
+
         if (expandedKey.value === null) {
             return false;
         }
@@ -782,229 +866,258 @@ const activeFilterCount = computed(
                 @zoom="onZoom"
             />
 
-            <div
-                class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border bg-card"
-                data-test="logs-list"
-            >
-                <!--
+            <!--
+              The stream and the trace preview are siblings, not layers. The
+              panel narrows the stream instead of covering it, which is what
+              lets a reader keep clicking rows while it is open.
+            -->
+            <div class="flex min-h-0 flex-1 gap-4">
+                <div
+                    class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border bg-card"
+                    data-test="logs-list"
+                >
+                    <!--
               The stream's own header: what you are looking at, and whether it
               is still moving. It lives outside the scroll area so the state
               stays readable however far down the reader has gone.
             -->
-                <header
-                    class="flex items-center gap-2 border-b px-3 py-1.5 text-xs"
-                >
-                    <p v-if="logs" class="text-muted-foreground">
-                        <span class="font-medium text-foreground tabular-nums">
-                            {{ rows.length.toLocaleString() }}
-                        </span>
-                        {{ rows.length === 1 ? 'line' : 'lines' }} loaded
-                        <template v-if="activeFilterCount > 0">
-                            · {{ activeFilterCount }}
-                            {{ activeFilterCount === 1 ? 'filter' : 'filters' }}
-                            active
-                        </template>
-                    </p>
-                    <p v-else class="text-muted-foreground">Loading lines…</p>
-
-                    <p
-                        v-if="firstLineLanded"
-                        class="inline-flex animate-in items-center gap-1.5 font-medium text-severity-info duration-500 fade-in slide-in-from-left-2 motion-reduce:animate-none"
-                        data-test="logs-first-line"
+                    <header
+                        class="flex items-center gap-2 border-b px-3 py-1.5 text-xs"
                     >
-                        <span class="size-1.5 rounded-full bg-current" />
-                        First line received. The pipe works.
-                    </p>
-
-                    <p
-                        v-if="liveTail && tailPaused"
-                        class="inline-flex items-center gap-1.5 rounded-full border border-severity-warn/40 bg-severity-warn/10 px-2 py-0.5 font-medium text-severity-warn"
-                        data-test="logs-tail-paused"
-                    >
-                        <span class="size-1.5 rounded-full bg-current" />
-                        Tail paused while you read
-                    </p>
-                    <p
-                        v-else-if="liveTail"
-                        class="inline-flex items-center gap-1.5 font-medium text-severity-info"
-                        data-test="logs-tail-live"
-                    >
-                        <span class="relative flex size-1.5">
+                        <p v-if="logs" class="text-muted-foreground">
                             <span
-                                class="absolute inline-flex size-1.5 animate-ping rounded-full bg-current opacity-60 motion-reduce:hidden"
-                            />
-                            <span
-                                class="relative inline-flex size-1.5 rounded-full bg-current"
-                            />
-                        </span>
-                        Tailing
-                    </p>
+                                class="font-medium text-foreground tabular-nums"
+                            >
+                                {{ rows.length.toLocaleString() }}
+                            </span>
+                            {{ rows.length === 1 ? 'line' : 'lines' }} loaded
+                            <template v-if="activeFilterCount > 0">
+                                · {{ activeFilterCount }}
+                                {{
+                                    activeFilterCount === 1
+                                        ? 'filter'
+                                        : 'filters'
+                                }}
+                                active
+                            </template>
+                        </p>
+                        <p v-else class="text-muted-foreground">
+                            Loading lines…
+                        </p>
 
-                    <p
-                        class="ml-auto hidden text-muted-foreground sm:block"
-                        data-test="logs-timezone"
-                    >
-                        {{ timeZone }}
-                    </p>
-
-                    <button
-                        type="button"
-                        class="hidden items-center gap-1.5 rounded px-1.5 py-0.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none sm:inline-flex"
-                        data-test="logs-shortcuts-open"
-                        @click="shortcutsOpen = true"
-                    >
-                        <kbd
-                            class="inline-flex h-5 min-w-5 items-center justify-center rounded border border-input px-1 font-mono text-xs"
+                        <p
+                            v-if="firstLineLanded"
+                            class="inline-flex animate-in items-center gap-1.5 font-medium text-severity-info duration-500 fade-in slide-in-from-left-2 motion-reduce:animate-none"
+                            data-test="logs-first-line"
                         >
-                            ?
-                        </kbd>
-                        Keyboard
-                    </button>
-                </header>
+                            <span class="size-1.5 rounded-full bg-current" />
+                            First line received. The pipe works.
+                        </p>
 
-                <div
-                    class="scrollbar-stream min-h-0 flex-1 overflow-auto"
-                    @scroll="onScroll"
-                >
-                    <!--
+                        <p
+                            v-if="liveTail && tailPaused"
+                            class="inline-flex items-center gap-1.5 rounded-full border border-severity-warn/40 bg-severity-warn/10 px-2 py-0.5 font-medium text-severity-warn"
+                            data-test="logs-tail-paused"
+                        >
+                            <span class="size-1.5 rounded-full bg-current" />
+                            Tail paused while you read
+                        </p>
+                        <p
+                            v-else-if="liveTail"
+                            class="inline-flex items-center gap-1.5 font-medium text-severity-info"
+                            data-test="logs-tail-live"
+                        >
+                            <span class="relative flex size-1.5">
+                                <span
+                                    class="absolute inline-flex size-1.5 animate-ping rounded-full bg-current opacity-60 motion-reduce:hidden"
+                                />
+                                <span
+                                    class="relative inline-flex size-1.5 rounded-full bg-current"
+                                />
+                            </span>
+                            Tailing
+                        </p>
+
+                        <p
+                            class="ml-auto hidden text-muted-foreground sm:block"
+                            data-test="logs-timezone"
+                        >
+                            {{ timeZone }}
+                        </p>
+
+                        <button
+                            type="button"
+                            class="hidden items-center gap-1.5 rounded px-1.5 py-0.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none sm:inline-flex"
+                            data-test="logs-shortcuts-open"
+                            @click="shortcutsOpen = true"
+                        >
+                            <kbd
+                                class="inline-flex h-5 min-w-5 items-center justify-center rounded border border-input px-1 font-mono text-xs"
+                            >
+                                ?
+                            </kbd>
+                            Keyboard
+                        </button>
+                    </header>
+
+                    <div
+                        class="scrollbar-stream min-h-0 flex-1 overflow-auto"
+                        @scroll="onScroll"
+                    >
+                        <!--
                   The skeleton mirrors the real row: timestamp, severity,
                   service, body. A row-shaped wait reads as "logs are coming"
                   rather than "a box is loading".
                 -->
-                    <div v-if="!logs" data-test="logs-skeleton">
-                        <div
-                            v-for="index in 14"
-                            :key="index"
-                            class="flex items-center gap-3 border-b border-b-sidebar-border/70 px-3 py-1.5"
-                        >
-                            <Skeleton class="h-3 w-3.5 shrink-0 rounded-sm" />
-                            <Skeleton class="h-3 w-40 shrink-0" />
-                            <Skeleton class="h-3 w-14 shrink-0" />
-                            <Skeleton class="h-3 w-28 shrink-0" />
-                            <Skeleton
-                                class="h-3 flex-1"
-                                :style="{
-                                    maxWidth: `${40 + ((index * 37) % 55)}%`,
-                                }"
-                            />
-                        </div>
-                    </div>
-
-                    <div
-                        v-else-if="rows.length === 0 && unavailable"
-                        class="flex h-full flex-col items-center justify-center gap-2 px-6 py-16 text-center"
-                        data-test="logs-unreachable"
-                    >
-                        <p class="text-sm font-semibold">
-                            No lines to show while storage is busy
-                        </p>
-                        <p
-                            class="max-w-sm text-sm text-balance text-muted-foreground"
-                        >
-                            This is not an empty window — the query never ran.
-                            The lines are still in ClickHouse.
-                        </p>
-                    </div>
-
-                    <div
-                        v-else-if="rows.length === 0"
-                        class="flex h-full flex-col items-center justify-center gap-4 px-6 py-16 text-center"
-                        data-test="logs-empty"
-                    >
-                        <!--
-                      The severity ramp, drawn flat: the shape the stream would
-                      have if it had anything to show.
-                    -->
-                        <div
-                            class="flex w-40 items-end gap-1.5"
-                            aria-hidden="true"
-                        >
-                            <span
-                                v-for="level in severityLevels"
-                                :key="level"
-                                :class="
-                                    cn(
-                                        'h-0.5 flex-1 rounded-full opacity-40',
-                                        SEVERITY_DOT_CLASS[level],
-                                    )
-                                "
-                            />
+                        <div v-if="!logs" data-test="logs-skeleton">
+                            <div
+                                v-for="index in 14"
+                                :key="index"
+                                class="flex items-center gap-3 border-b border-b-sidebar-border/70 px-3 py-1.5"
+                            >
+                                <Skeleton
+                                    class="h-3 w-3.5 shrink-0 rounded-sm"
+                                />
+                                <Skeleton class="h-3 w-40 shrink-0" />
+                                <Skeleton class="h-3 w-14 shrink-0" />
+                                <Skeleton class="h-3 w-28 shrink-0" />
+                                <Skeleton
+                                    class="h-3 flex-1"
+                                    :style="{
+                                        maxWidth: `${40 + ((index * 37) % 55)}%`,
+                                    }"
+                                />
+                            </div>
                         </div>
 
-                        <div class="space-y-1">
+                        <div
+                            v-else-if="rows.length === 0 && unavailable"
+                            class="flex h-full flex-col items-center justify-center gap-2 px-6 py-16 text-center"
+                            data-test="logs-unreachable"
+                        >
                             <p class="text-sm font-semibold">
-                                Nothing landed in this window
+                                No lines to show while storage is busy
                             </p>
                             <p
                                 class="max-w-sm text-sm text-balance text-muted-foreground"
                             >
-                                <template v-if="activeFilterCount > 0">
-                                    {{ activeFilterCount }}
-                                    {{
-                                        activeFilterCount === 1
-                                            ? 'filter is'
-                                            : 'filters are'
-                                    }}
-                                    active. Widen the window or clear a filter
-                                    to see more.
-                                </template>
-                                <template v-else>
-                                    Point an OTLP exporter at this project's
-                                    ingest endpoint and its lines will show up
-                                    here.
-                                </template>
+                                This is not an empty window — the query never
+                                ran. The lines are still in ClickHouse.
                             </p>
                         </div>
 
-                        <Button
-                            v-if="range !== '7d'"
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            data-test="logs-widen"
-                            @click="onWiden"
+                        <div
+                            v-else-if="rows.length === 0"
+                            class="flex h-full flex-col items-center justify-center gap-4 px-6 py-16 text-center"
+                            data-test="logs-empty"
                         >
-                            Search the last 7 days
-                        </Button>
-                    </div>
+                            <!--
+                      The severity ramp, drawn flat: the shape the stream would
+                      have if it had anything to show.
+                    -->
+                            <div
+                                class="flex w-40 items-end gap-1.5"
+                                aria-hidden="true"
+                            >
+                                <span
+                                    v-for="level in severityLevels"
+                                    :key="level"
+                                    :class="
+                                        cn(
+                                            'h-0.5 flex-1 rounded-full opacity-40',
+                                            SEVERITY_DOT_CLASS[level],
+                                        )
+                                    "
+                                />
+                            </div>
 
-                    <template v-else>
-                        <LogEntryRow
-                            v-for="(entry, index) in rows"
-                            :key="entryKey(entry, index)"
-                            :entry="entry"
-                            :data-log-index="index"
-                            :expanded="expandedKey === entryKey(entry, index)"
-                            :fresh="freshKeys.has(freshId(entry))"
-                            :cursor="cursor === index"
-                            :team-slug="teamSlug"
-                            :autofix="autofixTarget(entry)"
-                            :credentials="autofix.credentials"
-                            @toggle="toggleExpanded(entryKey(entry, index))"
-                        />
+                            <div class="space-y-1">
+                                <p class="text-sm font-semibold">
+                                    Nothing landed in this window
+                                </p>
+                                <p
+                                    class="max-w-sm text-sm text-balance text-muted-foreground"
+                                >
+                                    <template v-if="activeFilterCount > 0">
+                                        {{ activeFilterCount }}
+                                        {{
+                                            activeFilterCount === 1
+                                                ? 'filter is'
+                                                : 'filters are'
+                                        }}
+                                        active. Widen the window or clear a
+                                        filter to see more.
+                                    </template>
+                                    <template v-else>
+                                        Point an OTLP exporter at this project's
+                                        ingest endpoint and its lines will show
+                                        up here.
+                                    </template>
+                                </p>
+                            </div>
 
-                        <div v-if="nextCursor" class="p-3 text-center">
                             <Button
+                                v-if="range !== '7d'"
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                data-test="logs-load-older"
-                                :disabled="olderRequest.processing"
-                                @click="loadOlder"
+                                data-test="logs-widen"
+                                @click="onWiden"
                             >
-                                <Spinner
-                                    v-if="olderRequest.processing"
-                                    class="size-4"
-                                />
-                                {{
-                                    olderRequest.processing
-                                        ? 'Loading older logs…'
-                                        : 'Load older logs'
-                                }}
+                                Search the last 7 days
                             </Button>
                         </div>
-                    </template>
+
+                        <template v-else>
+                            <LogEntryRow
+                                v-for="(entry, index) in rows"
+                                :key="entryKey(entry, index)"
+                                :entry="entry"
+                                :data-log-index="index"
+                                :expanded="
+                                    expandedKey === entryKey(entry, index)
+                                "
+                                :fresh="freshKeys.has(freshId(entry))"
+                                :cursor="cursor === index"
+                                :team-slug="teamSlug"
+                                :autofix="autofixTarget(entry)"
+                                :credentials="autofix.credentials"
+                                @toggle="toggleExpanded(entryKey(entry, index))"
+                                @trace="onRowTrace(entry)"
+                            />
+
+                            <div v-if="nextCursor" class="p-3 text-center">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    data-test="logs-load-older"
+                                    :disabled="olderRequest.processing"
+                                    @click="loadOlder"
+                                >
+                                    <Spinner
+                                        v-if="olderRequest.processing"
+                                        class="size-4"
+                                    />
+                                    {{
+                                        olderRequest.processing
+                                            ? 'Loading older logs…'
+                                            : 'Load older logs'
+                                    }}
+                                </Button>
+                            </div>
+                        </template>
+                    </div>
                 </div>
+
+                <TracePanel
+                    v-if="panelTraceId"
+                    :trace-id="panelTraceId"
+                    :team-slug="teamSlug"
+                    :result="panelResult"
+                    :failed="panelFailed"
+                    @close="closeTracePanel"
+                />
             </div>
         </template>
     </div>

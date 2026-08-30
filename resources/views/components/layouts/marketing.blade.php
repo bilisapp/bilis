@@ -1,13 +1,13 @@
 @props([
     'title' => null,
-    'description' => 'Self-hosted log storage and search: your logs on your own box, in open formats, with a viewer that finds the line that matters. Growing into an observability stack with AI.',
+    'description' => 'Self-hosted logs and traces: your telemetry on your own box, in open formats, with a viewer that finds the line — and the span — that matters. Growing into an observability stack with AI.',
     'current' => null,
 ])
 
 @php
     $pageTitle = $title
         ? $title.' — '.config('app.name', 'Bilis')
-        : config('app.name', 'Bilis').' — self-hosted log storage and search';
+        : config('app.name', 'Bilis').' — self-hosted logs and traces';
 @endphp
 
 <!DOCTYPE html>

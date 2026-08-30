@@ -32,7 +32,7 @@ it('maps a protobuf export to exactly the rows its JSON twin maps to', function 
 
     $mapper = new OtlpLogMapper;
 
-    $fromProtobuf = $mapper->map((new OtlpProtobufDecoder)->decode($protobuf), '7');
+    $fromProtobuf = $mapper->map((new OtlpProtobufDecoder)->decodeLogs($protobuf), '7');
     $fromJson = $mapper->map($json, '7');
 
     expect($fromProtobuf->rejected)->toBe(0)
@@ -44,7 +44,7 @@ it('maps a protobuf export to exactly the rows its JSON twin maps to', function 
 it('decodes a real exporter body field by field', function () {
     [$protobuf] = otlpFixture('otlp-logs-export');
 
-    $decoded = (new OtlpProtobufDecoder)->decode($protobuf);
+    $decoded = (new OtlpProtobufDecoder)->decodeLogs($protobuf);
 
     $resourceLogs = $decoded['resourceLogs'][0];
     $records = $resourceLogs['scopeLogs'][0]['logRecords'];
@@ -89,7 +89,7 @@ it('decodes a real exporter body field by field', function () {
 it('decodes the value kinds the Go SDK cannot emit', function () {
     [$protobuf] = otlpFixture('otlp-logs-kitchen-sink');
 
-    $decoded = (new OtlpProtobufDecoder)->decode($protobuf);
+    $decoded = (new OtlpProtobufDecoder)->decodeLogs($protobuf);
     $resourceLogs = $decoded['resourceLogs'][0];
     $scopeLogs = $resourceLogs['scopeLogs'][0];
     $attributes = collect($scopeLogs['logRecords'][0]['attributes'])->keyBy('key');
@@ -119,23 +119,23 @@ it('skips fields it does not know', function () {
     // passes because it is skipped rather than choked on.
     [$protobuf, $json] = otlpFixture('otlp-logs-kitchen-sink');
 
-    expect((new OtlpProtobufDecoder)->decode($protobuf)['resourceLogs'])
+    expect((new OtlpProtobufDecoder)->decodeLogs($protobuf)['resourceLogs'])
         ->toHaveCount(count($json['resourceLogs']));
 });
 
 it('reads an empty body as an export with no records', function () {
-    expect((new OtlpProtobufDecoder)->decode(''))->toBe(['resourceLogs' => []]);
+    expect((new OtlpProtobufDecoder)->decodeLogs(''))->toBe(['resourceLogs' => []]);
 });
 
 it('refuses a truncated message', function () {
     [$protobuf] = otlpFixture('otlp-logs-export');
 
-    expect(fn () => (new OtlpProtobufDecoder)->decode(substr($protobuf, 0, 120)))
+    expect(fn () => (new OtlpProtobufDecoder)->decodeLogs(substr($protobuf, 0, 120)))
         ->toThrow(MalformedProtobufException::class);
 });
 
 it('refuses JSON sent with the protobuf content type', function () {
-    expect(fn () => (new OtlpProtobufDecoder)->decode('{"resourceLogs":[]}'))
+    expect(fn () => (new OtlpProtobufDecoder)->decodeLogs('{"resourceLogs":[]}'))
         ->toThrow(MalformedProtobufException::class);
 });
 
@@ -169,7 +169,7 @@ it('scrubs invalid UTF-8 in a string field so the batch still encodes', function
     // (it is just bytes), but not valid UTF-8, so json_encode would throw.
     $record = pbField(5, pbField(1, "before\xFF\xFEafter"));   // LogRecord{body{stringValue}}
 
-    $decoded = (new OtlpProtobufDecoder)->decode(pbRequestWithRecord($record));
+    $decoded = (new OtlpProtobufDecoder)->decodeLogs(pbRequestWithRecord($record));
     $body = $decoded['resourceLogs'][0]['scopeLogs'][0]['logRecords'][0]['body'];
 
     expect(mb_check_encoding($body['stringValue'], 'UTF-8'))->toBeTrue()
@@ -182,7 +182,7 @@ it('scrubs invalid UTF-8 in an attribute key and value', function () {
     $attribute = pbField(1, "k\xFF").pbField(2, pbField(1, "v\xFF")); // KeyValue{key, value{stringValue}}
     $record = pbField(6, $attribute);                                  // LogRecord{attributes}
 
-    $keyValue = (new OtlpProtobufDecoder)->decode(pbRequestWithRecord($record))['resourceLogs'][0]['scopeLogs'][0]['logRecords'][0]['attributes'][0];
+    $keyValue = (new OtlpProtobufDecoder)->decodeLogs(pbRequestWithRecord($record))['resourceLogs'][0]['scopeLogs'][0]['logRecords'][0]['attributes'][0];
 
     expect(mb_check_encoding($keyValue['key'], 'UTF-8'))->toBeTrue()
         ->and(mb_check_encoding($keyValue['value']['stringValue'], 'UTF-8'))->toBeTrue();
@@ -192,7 +192,7 @@ it('leaves valid multi-byte UTF-8 untouched', function () {
     $text = 'faktúra — zaplatená ✅';
     $record = pbField(5, pbField(1, $text));
 
-    $body = (new OtlpProtobufDecoder)->decode(pbRequestWithRecord($record))['resourceLogs'][0]['scopeLogs'][0]['logRecords'][0]['body'];
+    $body = (new OtlpProtobufDecoder)->decodeLogs(pbRequestWithRecord($record))['resourceLogs'][0]['scopeLogs'][0]['logRecords'][0]['body'];
 
     expect($body['stringValue'])->toBe($text);
 });
@@ -210,7 +210,7 @@ it('decodes deeply nested values in memory proportional to the body', function (
 
     gc_collect_cycles();
     $before = memory_get_usage(true);
-    (new OtlpProtobufDecoder)->decode($body);
+    (new OtlpProtobufDecoder)->decodeLogs($body);
     $used = memory_get_usage(true) - $before;
 
     // Windows, not copies: comfortably under 4x the body. The old copying
@@ -235,6 +235,6 @@ it('refuses an AnyValue nested deeper than the limit', function () {
 
     // Asserted on the message: a length byte gone wrong would also throw, and
     // this test is worth nothing if it passes for that reason instead.
-    expect(fn () => (new OtlpProtobufDecoder)->decode($body))
+    expect(fn () => (new OtlpProtobufDecoder)->decodeLogs($body))
         ->toThrow(MalformedProtobufException::class, 'AnyValue nests deeper than 16 levels.');
 });

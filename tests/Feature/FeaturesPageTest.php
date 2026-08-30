@@ -36,15 +36,17 @@ it('marks the features item as the current one in the public header', function (
     expect(substr($link, 0, 200))->toContain('aria-current="page"');
 });
 
-it('states the three ingest endpoints and their success codes', function () {
+it('states the four ingest endpoints and their success codes', function () {
     // The page's whole job is being specific; a rewrite that drops the
     // contract has removed the reason to read it.
     get(route('features'))
         ->assertOk()
         ->assertSee('/api/v1/logs', false)
+        ->assertSee('/api/v1/traces', false)
         ->assertSee('/api/v1/ingest', false)
         ->assertSee('/api/{id}/envelope', false)
         ->assertSee('OTLP ExportLogsServiceRequest, JSON or protobuf')
+        ->assertSee('OTLP ExportTraceServiceRequest, JSON or protobuf')
         ->assertSee('Ingest never returns 400 for a bad payload');
 });
 

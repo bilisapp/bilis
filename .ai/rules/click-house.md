@@ -23,7 +23,11 @@ Column names and types are the collector exporter's (R1) and are not ours to ren
 
 `ProjectId` is `LowCardinality(String) DEFAULT ''`. The `DEFAULT` exists only so a stock exporter INSERT is *valid* — Bilis always writes the column explicitly (R2). It is clustering, never isolation (R3): do not describe the sort key as a tenancy boundary.
 
-There is no production data yet, so the DDL file is edited in place and the operator drops the dev table before re-running `clickhouse:migrate`. That stops being true the moment anything real is stored.
+**Bilis is deployed and `otel_logs` holds real data**, so a DDL file may no longer be edited in place and expected to take effect: `CREATE TABLE IF NOT EXISTS` cannot alter a table that exists. A schema change now needs two things — the `CREATE` updated so a fresh install is correct, *and* a numbered `ALTER` file so a deployed one converges. Both clauses of the ALTER are guarded (`IF EXISTS` / `IF NOT EXISTS`), because the file re-runs on every boot and `docker-entrypoint.sh` runs `clickhouse:migrate` once per container role — a deploy can issue it three times at once. `0005_alter_otel_logs_body_index.sql` is the worked example.
+
+Anything expensive stays out of `clickhouse:migrate` and gets its own command: `clickhouse:materialize-index` rebuilds index files across every existing part, which must happen once, deliberately, not on each boot.
+
+There is still no backup (SCHEMA.md R7), so there is no restore path before a bad ALTER.
 
 ## Timezone: every request pins session_timezone=UTC
 

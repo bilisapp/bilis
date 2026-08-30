@@ -34,10 +34,10 @@ class LogQuery
     private const COLUMNS = 'ProjectId, Timestamp, TraceId, SpanId, SeverityText, SeverityNumber, ServiceName, Body, ScopeName, ScopeVersion, ResourceAttributes, LogAttributes';
 
     /**
-     * A search term made only of these characters can use the token bloom filter.
+     * A search term made only of these characters is a single whole token.
      *
      * The index is built on lower(Body), so the query expression must be
-     * hasToken(lower(Body), lower(...)) — see SCHEMA.md R5.
+     * hasAnyTokens(lower(Body), [lower(...)]) — see SCHEMA.md R5.
      */
     private const TOKEN_PATTERN = '/^[A-Za-z0-9_]{3,}$/';
 
@@ -641,6 +641,23 @@ class LogQuery
             $params['service'] = $filters->service;
         }
 
+        /*
+         * The trace side of the logs/traces link. TraceId carries a bloom filter
+         * index, so this is a cheap narrowing on top of the ProjectId and time
+         * predicates rather than a replacement for either — the time window the
+         * caller came in with still applies, which is what keeps a trace's log
+         * lookup bounded to the seconds around the trace.
+         */
+        if ($filters->traceId !== null) {
+            $conditions[] = 'TraceId = {traceId:String}';
+            $params['traceId'] = $filters->traceId;
+        }
+
+        if ($filters->spanId !== null) {
+            $conditions[] = 'SpanId = {spanId:String}';
+            $params['spanId'] = $filters->spanId;
+        }
+
         if ($filters->severities !== []) {
             $ranges = [];
 
@@ -663,18 +680,23 @@ class LogQuery
                 /*
                  * The expression has to be character for character the one the
                  * idx_lower_body index is defined on, or the index is skipped.
-                 * hasToken is whole-token and case sensitive, which is why both
-                 * sides go through lower().
+                 * The tokenizer splits but does not fold case, so both sides go
+                 * through lower() — dropping the wrapper here would silently
+                 * stop matching every line whose case differs from the term.
                  */
-                $conditions[] = 'hasToken(lower(Body), lower({search:String}))';
+                $conditions[] = 'hasAnyTokens(lower(Body), [lower({search:String})])';
                 $params['search'] = $filters->search;
             } else {
                 /*
-                 * The slower "contains" mode for terms that are not a single
-                 * token. It is a real substring match rather than a token match,
-                 * and it does not read the body index.
+                 * The "contains" mode for terms that are not a single token: a
+                 * real substring match rather than a token match. It is written
+                 * against lower(Body) rather than as `Body ILIKE` because that
+                 * is the indexed expression — ClickHouse can prune granules for
+                 * a LIKE over a text index, and measurably does here, while the
+                 * ILIKE form reads none of it. lower() + LIKE and ILIKE fold
+                 * case identically (both ASCII only), so results are unchanged.
                  */
-                $conditions[] = 'Body ILIKE {search:String}';
+                $conditions[] = 'lower(Body) LIKE lower({search:String})';
                 $params['search'] = '%'.$this->escapeLike($filters->search).'%';
             }
         }

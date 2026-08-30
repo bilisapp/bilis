@@ -1,16 +1,22 @@
 ---
 title: Endpoints
-description: The two ingest endpoints, how they authenticate, and the response contract they promise.
+description: The ingest endpoints, how they authenticate, and the response contract they promise.
 order: 1
 ---
 
-Bilis exposes two ingest endpoints. Both authenticate the same way, both write
-into the same table, and both follow the same never-blame-the-client contract.
+Bilis exposes three ingest endpoints. They all authenticate the same way and
+all follow the same never-blame-the-client contract.
 
-| Endpoint              | Payload                                               | Success |
-| --------------------- | ----------------------------------------------------- | ------- |
-| `POST /api/v1/logs`   | OTLP `ExportLogsServiceRequest`, JSON **or** protobuf | `200`   |
-| `POST /api/v1/ingest` | Simple JSON: one object or an array of them           | `202`   |
+| Endpoint              | Payload                                                | Success |
+| --------------------- | ------------------------------------------------------ | ------- |
+| `POST /api/v1/logs`   | OTLP `ExportLogsServiceRequest`, JSON **or** protobuf  | `200`   |
+| `POST /api/v1/ingest` | Simple JSON: one object or an array of them            | `202`   |
+| `POST /api/v1/traces` | OTLP `ExportTraceServiceRequest`, JSON **or** protobuf | `200`   |
+
+The first two write log lines; the third writes spans. See
+[Traces](/docs/ingestion/traces) for the trace endpoint in full — including why
+OTLP over gRPC on port 4317 is not supported, which is the most common reason a
+new install looks broken.
 
 A third path accepts what the Sentry SDKs send, for applications that already
 report exceptions through one; it follows the same contract. See

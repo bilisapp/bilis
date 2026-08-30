@@ -20,6 +20,15 @@
         ],
         "createdAt": "2026-08-27T11:44:44.132Z",
         "reason": "model triage: same designed compact idiom as logs surface; hierarchy via weight/color per DESIGN.md"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "resources/js/pages/traces/Show.vue"
+        ],
+        "createdAt": "2026-08-30T08:51:26.832Z",
+        "reason": "DESIGN.md 'The 14/12 Rule' mandates 14px interface copy and 12px support copy adjacent, and bans 13px between them; that 1.167 step is the documented ramp and is used repo-wide. Heading fixed to text-xl (Headline, 1.25rem) per DESIGN.md hierarchy first."
       }
     ]
   }

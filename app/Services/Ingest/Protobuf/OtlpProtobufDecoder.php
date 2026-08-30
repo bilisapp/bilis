@@ -3,14 +3,19 @@
 namespace App\Services\Ingest\Protobuf;
 
 /**
- * Decodes an OTLP `ExportLogsServiceRequest` from protobuf into the array
- * shape the OTLP/JSON endpoint already produces.
+ * Decodes an OTLP `ExportLogsServiceRequest` or `ExportTraceServiceRequest`
+ * from protobuf into the array shape the OTLP/JSON endpoint already produces.
  *
  * Nothing downstream changes: the output is what `json_decode` would have
- * returned for the same export in JSON encoding, so `OtlpLogMapper` maps it
- * without knowing which encoding arrived. That equivalence is the property the
- * tests assert, against fixtures captured from a real Go `otlploghttp`
- * exporter (`tests/Fixtures/otlp`).
+ * returned for the same export in JSON encoding, so `OtlpLogMapper` and
+ * `OtlpTraceMapper` map it without knowing which encoding arrived. That
+ * equivalence is the property the tests assert, against fixtures captured from
+ * real Go exporters (`tests/Fixtures/otlp`).
+ *
+ * Enums (`severityNumber`, `kind`, `status.code`) come out as integers, which
+ * is what protojson emits with `UseEnumNumbers` and what the fixtures hold. A
+ * JSON sender may instead spell them as enum names, so the mappers accept both
+ * — the decoder never has to.
  *
  * Auditing this file: there is one private method per protobuf message, each
  * named after it and taking a `ProtobufReader` over that message's bytes, each
@@ -90,6 +95,71 @@ class OtlpProtobufDecoder
 
     private const RECORD_EVENT_NAME = 12;
 
+    /** ExportTraceServiceRequest: `repeated ResourceSpans resource_spans = 1`. */
+    private const REQUEST_RESOURCE_SPANS = 1;
+
+    /** ResourceSpans: resource = 1, scope_spans = 2, schema_url = 3. */
+    private const RESOURCE_SPANS_RESOURCE = 1;
+
+    private const RESOURCE_SPANS_SCOPE_SPANS = 2;
+
+    private const RESOURCE_SPANS_SCHEMA_URL = 3;
+
+    /** ScopeSpans: scope = 1, spans = 2, schema_url = 3. */
+    private const SCOPE_SPANS_SCOPE = 1;
+
+    private const SCOPE_SPANS_SPANS = 2;
+
+    private const SCOPE_SPANS_SCHEMA_URL = 3;
+
+    /** Span: trace_id = 1 .. flags = 16. */
+    private const SPAN_TRACE_ID = 1;
+
+    private const SPAN_SPAN_ID = 2;
+
+    private const SPAN_TRACE_STATE = 3;
+
+    private const SPAN_PARENT_SPAN_ID = 4;
+
+    private const SPAN_NAME = 5;
+
+    private const SPAN_KIND = 6;
+
+    private const SPAN_START_TIME_UNIX_NANO = 7;
+
+    private const SPAN_END_TIME_UNIX_NANO = 8;
+
+    private const SPAN_ATTRIBUTES = 9;
+
+    private const SPAN_EVENTS = 11;
+
+    private const SPAN_LINKS = 13;
+
+    private const SPAN_STATUS = 15;
+
+    private const SPAN_FLAGS = 16;
+
+    /** Span.Event: time_unix_nano = 1, name = 2, attributes = 3. */
+    private const EVENT_TIME_UNIX_NANO = 1;
+
+    private const EVENT_NAME = 2;
+
+    private const EVENT_ATTRIBUTES = 3;
+
+    /** Span.Link: trace_id = 1, span_id = 2, trace_state = 3, attributes = 4. */
+    private const LINK_TRACE_ID = 1;
+
+    private const LINK_SPAN_ID = 2;
+
+    private const LINK_TRACE_STATE = 3;
+
+    private const LINK_ATTRIBUTES = 4;
+
+    /** Status: message = 2, code = 3. Field 1 is the deprecated code. */
+    private const STATUS_MESSAGE = 2;
+
+    private const STATUS_CODE = 3;
+
     /** KeyValue: key = 1, value = 2. */
     private const KEY_VALUE_KEY = 1;
 
@@ -114,15 +184,27 @@ class OtlpProtobufDecoder
     private const VALUES = 1;
 
     /**
-     * Decode an export request body.
+     * Decode an `ExportLogsServiceRequest` body.
      *
      * @return array{resourceLogs: array<int, array<string, mixed>>}
      *
      * @throws MalformedProtobufException
      */
-    public function decode(string $body): array
+    public function decodeLogs(string $body): array
     {
         return $this->request(new ProtobufReader($body));
+    }
+
+    /**
+     * Decode an `ExportTraceServiceRequest` body.
+     *
+     * @return array{resourceSpans: array<int, array<string, mixed>>}
+     *
+     * @throws MalformedProtobufException
+     */
+    public function decodeTraces(string $body): array
+    {
+        return $this->traceRequest(new ProtobufReader($body));
     }
 
     /**
@@ -330,6 +412,258 @@ class OtlpProtobufDecoder
         }
 
         return $record;
+    }
+
+    /**
+     * ExportTraceServiceRequest.
+     *
+     * @return array{resourceSpans: array<int, array<string, mixed>>}
+     *
+     * @throws MalformedProtobufException
+     */
+    private function traceRequest(ProtobufReader $reader): array
+    {
+        $resourceSpans = [];
+
+        while (! $reader->atEnd()) {
+            [$field, $wireType] = $reader->readTag();
+
+            if ($field === self::REQUEST_RESOURCE_SPANS && $wireType === ProtobufReader::WIRE_LENGTH_DELIMITED) {
+                $resourceSpans[] = $this->resourceSpans($reader->readMessage());
+
+                continue;
+            }
+
+            $reader->skip($wireType);
+        }
+
+        return ['resourceSpans' => $resourceSpans];
+    }
+
+    /**
+     * ResourceSpans.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws MalformedProtobufException
+     */
+    private function resourceSpans(ProtobufReader $reader): array
+    {
+        $resourceSpans = [];
+        $scopeSpans = [];
+
+        while (! $reader->atEnd()) {
+            [$field, $wireType] = $reader->readTag();
+
+            if ($wireType !== ProtobufReader::WIRE_LENGTH_DELIMITED) {
+                $reader->skip($wireType);
+
+                continue;
+            }
+
+            match ($field) {
+                self::RESOURCE_SPANS_RESOURCE => $resourceSpans['resource'] = $this->resource($reader->readMessage()),
+                self::RESOURCE_SPANS_SCOPE_SPANS => $scopeSpans[] = $this->scopeSpans($reader->readMessage()),
+                self::RESOURCE_SPANS_SCHEMA_URL => $resourceSpans['schemaUrl'] = $this->utf8($reader->readLengthDelimited()),
+                default => $reader->skip($wireType),
+            };
+        }
+
+        $resourceSpans['scopeSpans'] = $scopeSpans;
+
+        return $resourceSpans;
+    }
+
+    /**
+     * ScopeSpans.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws MalformedProtobufException
+     */
+    private function scopeSpans(ProtobufReader $reader): array
+    {
+        $scopeSpans = [];
+        $spans = [];
+
+        while (! $reader->atEnd()) {
+            [$field, $wireType] = $reader->readTag();
+
+            if ($wireType !== ProtobufReader::WIRE_LENGTH_DELIMITED) {
+                $reader->skip($wireType);
+
+                continue;
+            }
+
+            match ($field) {
+                self::SCOPE_SPANS_SCOPE => $scopeSpans['scope'] = $this->scope($reader->readMessage()),
+                self::SCOPE_SPANS_SPANS => $spans[] = $this->span($reader->readMessage()),
+                self::SCOPE_SPANS_SCHEMA_URL => $scopeSpans['schemaUrl'] = $this->utf8($reader->readLengthDelimited()),
+                default => $reader->skip($wireType),
+            };
+        }
+
+        $scopeSpans['spans'] = $spans;
+
+        return $scopeSpans;
+    }
+
+    /**
+     * Span.
+     *
+     * Trace, span and parent span ids are hex rather than base64, for the same
+     * reason they are on a LogRecord: the OTLP/JSON encoding makes the id
+     * fields an explicit exception to its own base64 rule.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws MalformedProtobufException
+     */
+    private function span(ProtobufReader $reader): array
+    {
+        $span = [];
+        $attributes = [];
+        $events = [];
+        $links = [];
+
+        while (! $reader->atEnd()) {
+            [$field, $wireType] = $reader->readTag();
+
+            if ($field === self::SPAN_START_TIME_UNIX_NANO && $wireType === ProtobufReader::WIRE_FIXED64) {
+                $span['startTimeUnixNano'] = $reader->readFixed64();
+            } elseif ($field === self::SPAN_END_TIME_UNIX_NANO && $wireType === ProtobufReader::WIRE_FIXED64) {
+                $span['endTimeUnixNano'] = $reader->readFixed64();
+            } elseif ($field === self::SPAN_KIND && $wireType === ProtobufReader::WIRE_VARINT) {
+                $span['kind'] = $reader->readVarint();
+            } elseif ($field === self::SPAN_FLAGS && $wireType === ProtobufReader::WIRE_FIXED32) {
+                $span['flags'] = $reader->readFixed32();
+            } elseif ($wireType !== ProtobufReader::WIRE_LENGTH_DELIMITED) {
+                $reader->skip($wireType);
+            } else {
+                match ($field) {
+                    self::SPAN_TRACE_ID => $span['traceId'] = bin2hex($reader->readLengthDelimited()),
+                    self::SPAN_SPAN_ID => $span['spanId'] = bin2hex($reader->readLengthDelimited()),
+                    self::SPAN_PARENT_SPAN_ID => $span['parentSpanId'] = bin2hex($reader->readLengthDelimited()),
+                    self::SPAN_TRACE_STATE => $span['traceState'] = $this->utf8($reader->readLengthDelimited()),
+                    self::SPAN_NAME => $span['name'] = $this->utf8($reader->readLengthDelimited()),
+                    self::SPAN_ATTRIBUTES => $attributes[] = $this->keyValue($reader->readMessage()),
+                    self::SPAN_EVENTS => $events[] = $this->spanEvent($reader->readMessage()),
+                    self::SPAN_LINKS => $links[] = $this->spanLink($reader->readMessage()),
+                    self::SPAN_STATUS => $span['status'] = $this->status($reader->readMessage()),
+                    default => $reader->skip($wireType),
+                };
+            }
+        }
+
+        if ($attributes !== []) {
+            $span['attributes'] = $attributes;
+        }
+
+        if ($events !== []) {
+            $span['events'] = $events;
+        }
+
+        if ($links !== []) {
+            $span['links'] = $links;
+        }
+
+        return $span;
+    }
+
+    /**
+     * Span.Event.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws MalformedProtobufException
+     */
+    private function spanEvent(ProtobufReader $reader): array
+    {
+        $event = [];
+        $attributes = [];
+
+        while (! $reader->atEnd()) {
+            [$field, $wireType] = $reader->readTag();
+
+            if ($field === self::EVENT_TIME_UNIX_NANO && $wireType === ProtobufReader::WIRE_FIXED64) {
+                $event['timeUnixNano'] = $reader->readFixed64();
+            } elseif ($field === self::EVENT_NAME && $wireType === ProtobufReader::WIRE_LENGTH_DELIMITED) {
+                $event['name'] = $this->utf8($reader->readLengthDelimited());
+            } elseif ($field === self::EVENT_ATTRIBUTES && $wireType === ProtobufReader::WIRE_LENGTH_DELIMITED) {
+                $attributes[] = $this->keyValue($reader->readMessage());
+            } else {
+                $reader->skip($wireType);
+            }
+        }
+
+        if ($attributes !== []) {
+            $event['attributes'] = $attributes;
+        }
+
+        return $event;
+    }
+
+    /**
+     * Span.Link.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws MalformedProtobufException
+     */
+    private function spanLink(ProtobufReader $reader): array
+    {
+        $link = [];
+        $attributes = [];
+
+        while (! $reader->atEnd()) {
+            [$field, $wireType] = $reader->readTag();
+
+            if ($wireType !== ProtobufReader::WIRE_LENGTH_DELIMITED) {
+                $reader->skip($wireType);
+
+                continue;
+            }
+
+            match ($field) {
+                self::LINK_TRACE_ID => $link['traceId'] = bin2hex($reader->readLengthDelimited()),
+                self::LINK_SPAN_ID => $link['spanId'] = bin2hex($reader->readLengthDelimited()),
+                self::LINK_TRACE_STATE => $link['traceState'] = $this->utf8($reader->readLengthDelimited()),
+                self::LINK_ATTRIBUTES => $attributes[] = $this->keyValue($reader->readMessage()),
+                default => $reader->skip($wireType),
+            };
+        }
+
+        if ($attributes !== []) {
+            $link['attributes'] = $attributes;
+        }
+
+        return $link;
+    }
+
+    /**
+     * Status.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws MalformedProtobufException
+     */
+    private function status(ProtobufReader $reader): array
+    {
+        $status = [];
+
+        while (! $reader->atEnd()) {
+            [$field, $wireType] = $reader->readTag();
+
+            if ($field === self::STATUS_CODE && $wireType === ProtobufReader::WIRE_VARINT) {
+                $status['code'] = $reader->readVarint();
+            } elseif ($field === self::STATUS_MESSAGE && $wireType === ProtobufReader::WIRE_LENGTH_DELIMITED) {
+                $status['message'] = $this->utf8($reader->readLengthDelimited());
+            } else {
+                $reader->skip($wireType);
+            }
+        }
+
+        return $status;
     }
 
     /**

@@ -1,7 +1,7 @@
 ---
 title: Linux host
 description: A Collector config that ships auth, syslog, fail2ban, UFW and container logs off a VPS with real event times and filterable attributes.
-order: 7
+order: 8
 ---
 
 This is the configuration running on the box that hosts Bilis itself: one

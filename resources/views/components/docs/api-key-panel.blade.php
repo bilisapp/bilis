@@ -96,9 +96,12 @@
     // The panel sits above the prose it rewrites, so wait for the parse to finish.
     document.addEventListener('DOMContentLoaded', function () {
         const panel = document.querySelector('[data-docs-api-key]');
-        const prose = document.querySelector('.docs-prose');
 
-        if (!panel || !prose) {
+        // The prose, plus anything else on the page built out of the same
+        // placeholders — the copy-as-a-prompt block, for one.
+        const targets = document.querySelectorAll('.docs-prose, [data-docs-api-key-target]');
+
+        if (!panel || targets.length === 0) {
             return;
         }
 
@@ -128,23 +131,25 @@
 
         /** Rewrite the placeholder key and example host in the rendered page. */
         function apply(value) {
-            const walker = document.createTreeWalker(prose, NodeFilter.SHOW_TEXT);
+            targets.forEach((target) => {
+                const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT);
 
-            for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
-                let text = node.nodeValue;
+                for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+                    let text = node.nodeValue;
 
-                if (text.includes(placeholder)) {
-                    text = text.split(placeholder).join(value.key);
+                    if (text.includes(placeholder)) {
+                        text = text.split(placeholder).join(value.key);
+                    }
+
+                    if (value.endpoint && text.includes(sampleEndpoint)) {
+                        text = text.split(sampleEndpoint).join(value.endpoint);
+                    }
+
+                    if (text !== node.nodeValue) {
+                        node.nodeValue = text;
+                    }
                 }
-
-                if (value.endpoint && text.includes(sampleEndpoint)) {
-                    text = text.split(sampleEndpoint).join(value.endpoint);
-                }
-
-                if (text !== node.nodeValue) {
-                    node.nodeValue = text;
-                }
-            }
+            });
 
             const active = panel.querySelector('[data-active]');
 

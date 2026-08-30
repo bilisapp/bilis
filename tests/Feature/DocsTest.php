@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\DocsController;
 use App\Services\Docs\DocsRepository;
 use App\Services\Markdown\FrontMatter;
 use App\Services\Markdown\MarkdownRenderer;
@@ -41,6 +42,36 @@ it('renders the Go guide with both ingest routes', function () {
         ->assertSee('slog handler')
         ->assertSee('otlploghttp')
         ->assertSee('/api/v1/ingest');
+});
+
+it('renders the Claude Code guide with the three defaults that send nothing', function () {
+    get(route('docs.show', ['section' => 'ingestion', 'page' => 'claude-code']))
+        ->assertOk()
+        ->assertSee('CLAUDE_CODE_ENABLE_TELEMETRY')
+        ->assertSee('OTEL_EXPORTER_OTLP_LOGS_ENDPOINT')
+        // The per-signal endpoints matter because Bilis serves /api/v1, not /v1.
+        ->assertSee('/api/v1/traces')
+        ->assertSee('OTEL_METRICS_EXPORTER');
+});
+
+it('offers the page as a prompt, carrying the key placeholder, wherever a key is needed', function () {
+    $response = get(route('docs.show', ['section' => 'ingestion', 'page' => 'claude-code']))->assertOk();
+
+    $html = html($response);
+
+    expect($html)->toContain('Copy as a prompt')
+        // The prompt points at the raw markdown rather than repeating the guide.
+        ->toContain(route('docs.markdown', ['section' => 'ingestion', 'page' => 'claude-code']))
+        // The placeholder is what the API key panel rewrites in place.
+        ->toContain(DocsController::API_KEY_PLACEHOLDER)
+        ->toContain('data-docs-api-key-target')
+        ->toContain(rtrim(url('/'), '/'));
+});
+
+it('leaves the prompt block off a page that needs no API key', function () {
+    get(route('docs.show', ['section' => 'ingestion', 'page' => 'severity']))
+        ->assertOk()
+        ->assertDontSee('Copy as a prompt');
 });
 
 it('serves a page as raw markdown, without its front matter', function () {
@@ -98,7 +129,7 @@ it('lists every section and page in front matter order', function () {
 
     expect($pages)->toBe([
         'getting-started' => ['overview', 'quickstart'],
-        'ingestion' => ['endpoints', 'api-keys', 'timestamps', 'severity', 'shippers', 'go', 'linux-host', 'sentry'],
+        'ingestion' => ['endpoints', 'traces', 'api-keys', 'timestamps', 'severity', 'shippers', 'go', 'linux-host', 'sentry', 'claude-code'],
         'reference' => ['limits-and-behavior'],
     ]);
 });

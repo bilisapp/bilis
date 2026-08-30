@@ -46,20 +46,6 @@ function logRowsResponse(string $body = 'boom'): string
     ])."\n";
 }
 
-/**
- * Pull the query string of the last ClickHouse request as an array.
- *
- * @return array<string, string>
- */
-function clickHouseQuery(Request $request): array
-{
-    $query = [];
-    parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
-
-    /** @var array<string, string> $query */
-    return $query;
-}
-
 beforeEach(function () {
     config([
         'clickhouse.host' => '127.0.0.1',
@@ -143,7 +129,7 @@ test('filters are sent to clickhouse as bound query parameters', function () {
             && str_contains($request->body(), 'Timestamp <= {to:DateTime64(9)}')
             && ! str_contains($request->body(), 'toStartOfFiveMinutes')
             // R5, <26.2 branch: the expression must be the indexed one.
-            && str_contains($request->body(), 'hasToken(lower(Body), lower({search:String}))')
+            && str_contains($request->body(), 'hasAnyTokens(lower(Body), [lower({search:String})])')
             && str_contains($request->body(), 'ORDER BY Timestamp DESC LIMIT {rowLimit:UInt32}')
             && ! str_contains($request->body(), 'timeout"')
             && $query['param_projectIds'] === "['".$project->id."']"
@@ -157,7 +143,7 @@ test('filters are sent to clickhouse as bound query parameters', function () {
     });
 });
 
-test('a multi word search falls back to an escaped ilike match', function () {
+test('a multi word search falls back to an escaped substring match on the indexed expression', function () {
     Http::fake(['127.0.0.1:8123/*' => Http::response(logRowsResponse())]);
 
     [$user, $team] = logTeam();
@@ -175,7 +161,7 @@ test('a multi word search falls back to an escaped ilike match', function () {
     Http::assertSent(function (Request $request) {
         $query = clickHouseQuery($request);
 
-        return str_contains($request->body(), 'Body ILIKE {search:String}')
+        return str_contains($request->body(), 'lower(Body) LIKE lower({search:String})')
             && $query['param_search'] === '%connection refused 100\%%';
     });
 });
@@ -330,7 +316,7 @@ test('the histogram groups by severity with bound parameters only', function () 
         return str_contains($request->body(), 'toIntervalSecond({bucketSeconds:UInt32})')
             && str_contains($request->body(), 'ProjectId IN {projectIds:Array(String)}')
             && str_contains($request->body(), 'ServiceName = {service:String}')
-            && str_contains($request->body(), 'hasToken(lower(Body), lower({search:String}))')
+            && str_contains($request->body(), 'hasAnyTokens(lower(Body), [lower({search:String})])')
             && ! str_contains($request->body(), 'timeout"')
             && $query['param_bucketSeconds'] === '300'
             && $query['param_projectIds'] === "['".$project->id."']"
@@ -588,4 +574,31 @@ test('the deployment switch takes the whole offer off the page', function () {
             ->where('autofix.connected', false)
             ->where('autofix.credentials', []),
         );
+});
+
+/*
+ * The log row must ASK for the trace, not navigate to it: the panel exists so a
+ * reader keeps their place in the stream, and a row that carried its own <Link>
+ * would take that away again. There is no JS test runner in this project, so
+ * this is a source pin in the same spirit as the DDL assertions in
+ * ClickHouseMigrateCommandTest — it fails loudly if the row is ever wired back
+ * to a direct link.
+ */
+test('a log row emits its trace instead of navigating to it', function () {
+    $row = (string) file_get_contents(resource_path('js/components/LogRowActions.vue'));
+
+    expect($row)
+        // The button announces itself as a preview and reports upward.
+        ->toContain("emit('trace', entry.traceId)")
+        ->toContain('data-test="log-row-trace"')
+        // No route helper, no <Link>: the page owns where this goes.
+        ->not->toContain('@/routes/traces')
+        ->and($row)->not->toContain('traceShow');
+
+    $page = (string) file_get_contents(resource_path('js/pages/logs/Index.vue'));
+
+    // And the page is actually listening, or the emit goes nowhere.
+    expect($page)
+        ->toContain('@trace="onRowTrace(entry)"')
+        ->toContain('<TracePanel');
 });

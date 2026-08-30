@@ -1,0 +1,168 @@
+{
+    "resourceSpans": [
+        {
+            "resource": {
+                "attributes": [
+                    {
+                        "key": "service.name",
+                        "value": {
+                            "stringValue": "checkout"
+                        }
+                    },
+                    {
+                        "key": "deployment.generation",
+                        "value": {
+                            "intValue": "41"
+                        }
+                    }
+                ]
+            },
+            "schemaUrl": "https://opentelemetry.io/schemas/1.27.0",
+            "scopeSpans": [
+                {
+                    "schemaUrl": "https://opentelemetry.io/schemas/1.27.0",
+                    "scope": {
+                        "name": "checkout.payments",
+                        "version": "1.4.0"
+                    },
+                    "spans": [
+                        {
+                            "attributes": [
+                                {
+                                    "key": "http.method",
+                                    "value": {
+                                        "stringValue": "POST"
+                                    }
+                                },
+                                {
+                                    "key": "http.status_code",
+                                    "value": {
+                                        "intValue": "500"
+                                    }
+                                },
+                                {
+                                    "key": "checkout.guest",
+                                    "value": {
+                                        "boolValue": true
+                                    }
+                                },
+                                {
+                                    "key": "cart.total",
+                                    "value": {
+                                        "doubleValue": 19.5
+                                    }
+                                },
+                                {
+                                    "key": "payload",
+                                    "value": {
+                                        "bytesValue": "AQI="
+                                    }
+                                },
+                                {
+                                    "key": "tags",
+                                    "value": {
+                                        "arrayValue": {
+                                            "values": [
+                                                {
+                                                    "stringValue": "card"
+                                                },
+                                                {
+                                                    "stringValue": "declined"
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
+                            ],
+                            "endTimeUnixNano": "1756211400250000000",
+                            "events": [
+                                {
+                                    "attributes": [
+                                        {
+                                            "key": "exception.type",
+                                            "value": {
+                                                "stringValue": "RuntimeException"
+                                            }
+                                        }
+                                    ],
+                                    "name": "exception",
+                                    "timeUnixNano": "1756211400010000000"
+                                },
+                                {
+                                    "name": "retrying",
+                                    "timeUnixNano": "1756211400020000000"
+                                }
+                            ],
+                            "kind": 2,
+                            "links": [
+                                {
+                                    "attributes": [
+                                        {
+                                            "key": "link.kind",
+                                            "value": {
+                                                "stringValue": "follows"
+                                            }
+                                        }
+                                    ],
+                                    "spanId": "0102030405060708",
+                                    "traceId": "5b8efff798038103d269b633813fc60c",
+                                    "traceState": "linked=1"
+                                }
+                            ],
+                            "name": "POST /checkout",
+                            "parentSpanId": "0000000000000000",
+                            "spanId": "eee19b7ec3c1b174",
+                            "startTimeUnixNano": "1756211400000000000",
+                            "status": {
+                                "code": 2,
+                                "message": "checkout failed"
+                            },
+                            "traceId": "5b8efff798038103d269b633813fc60c",
+                            "traceState": "vendor=1,other=2"
+                        },
+                        {
+                            "endTimeUnixNano": "1756211400200000000",
+                            "kind": 3,
+                            "name": "charge card",
+                            "parentSpanId": "eee19b7ec3c1b174",
+                            "spanId": "0102030405060708",
+                            "startTimeUnixNano": "1756211400005000000",
+                            "status": {
+                                "code": 1
+                            },
+                            "traceId": "5b8efff798038103d269b633813fc60c"
+                        },
+                        {
+                            "endTimeUnixNano": "1756211400040000000",
+                            "kind": 4,
+                            "name": "emit receipt",
+                            "parentSpanId": "deadbeefdeadbeef",
+                            "spanId": "1112131415161718",
+                            "startTimeUnixNano": "1756211400030000000",
+                            "status": {},
+                            "traceId": "5b8efff798038103d269b633813fc60c"
+                        },
+                        {
+                            "endTimeUnixNano": "1756211400044000000",
+                            "kind": 5,
+                            "name": "consume receipt",
+                            "parentSpanId": "eee19b7ec3c1b174",
+                            "spanId": "2122232425262728",
+                            "startTimeUnixNano": "1756211400045000000",
+                            "traceId": "5b8efff798038103d269b633813fc60c"
+                        },
+                        {
+                            "endTimeUnixNano": "1756211400060000000",
+                            "kind": 1,
+                            "name": "internal work",
+                            "parentSpanId": "eee19b7ec3c1b174",
+                            "spanId": "3132333435363738",
+                            "startTimeUnixNano": "1756211400050000000",
+                            "traceId": "5b8efff798038103d269b633813fc60c"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

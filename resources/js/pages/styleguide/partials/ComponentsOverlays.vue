@@ -380,5 +380,14 @@ const showResourceAttributes = ref(true);
             cookie). The live example is the rail on the left of this page — see
             AppSidebar.vue for how the pieces fit together.
         </p>
+        <p class="text-sm text-muted-foreground">
+            The rail carries one level of sub-menu (NavMain.vue): a nav item
+            with <code class="font-mono">items</code> keeps its own link and
+            gains a chevron that opens the pages beneath it — Traces is the
+            worked example. The section you are on opens itself, a section you
+            close by hand stays closed for the session, and the whole sub-list
+            folds away when the rail collapses to icons, where there is no room
+            to say more than the icon does.
+        </p>
     </DemoBlock>
 </template>

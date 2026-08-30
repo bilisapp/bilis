@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"os"
 
-	collogs "go.opentelemetry.io/proto/otlp/collector/logs/v1"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
@@ -14,7 +13,7 @@ import (
 // writePair writes the protobuf body and its OTLP/JSON equivalent. protojson
 // base64s bytes fields; the OTLP JSON spec wants hex for trace and span ids,
 // which is what a real JSON sender emits, so they are converted here.
-func writePair(name string, request *collogs.ExportLogsServiceRequest) {
+func writePair(name string, request proto.Message) {
 	raw, err := proto.Marshal(request)
 	if err != nil {
 		panic(err)
@@ -44,7 +43,7 @@ func hexIds(node any) {
 	switch value := node.(type) {
 	case map[string]any:
 		for key, child := range value {
-			if (key == "traceId" || key == "spanId") && child != nil {
+			if (key == "traceId" || key == "spanId" || key == "parentSpanId") && child != nil {
 				if encoded, ok := child.(string); ok {
 					if decoded, err := base64.StdEncoding.DecodeString(encoded); err == nil {
 						value[key] = hex.EncodeToString(decoded)

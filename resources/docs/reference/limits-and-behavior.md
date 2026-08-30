@@ -34,8 +34,15 @@ Logs are dropped after **30 days** by default, by a table TTL on the event
 timestamp. Expiry is a partition drop rather than a rewrite
 (`ttl_only_drop_parts = 1` with daily partitions), so it costs almost nothing.
 
-Retention is a property of the ClickHouse table, not a per-project setting in
-v1. Changing it means altering the TTL on `otel_logs`.
+**Spans** are dropped after **30 days** on the same terms. **Trace summaries** —
+one row per trace carrying its root operation, duration, span count and error
+count — are kept for **90 days**, so a trace outlives its own detail: after 30
+days it still appears in the trace list, but its waterfall can no longer be
+drawn. The interface says so rather than showing an empty chart.
+
+Retention is a property of the ClickHouse tables, not a per-project setting.
+Changing it means altering the TTL on `otel_logs`, `otel_traces` or
+`trace_summary`.
 
 ## Sizing
 
@@ -122,8 +129,10 @@ counts of what was shipped — Bilis does not extrapolate.
   that adds a failure mode without adding redundancy.
 - **Replication is not a backup either.** Back the table up to object storage
   from day one; it is the only thing that protects against a bad `ALTER`.
-- **Full-text search is token-based** over the log body, backed by a token bloom
-  filter index. It matches whole tokens, case-insensitively — not substrings.
+- **Full-text search is token-based** over the log body, backed by a text index.
+  It matches whole tokens, case-insensitively. A search term that is not a
+  single token falls back to a slower substring "contains" match, which still
+  reads the index but prunes less.
 - **No per-project ingest quota yet.** The per-key rate limit shapes request
   rate, but nothing caps how much a well-batched project can store — a noisy
   project can still fill the disk.
@@ -132,6 +141,10 @@ counts of what was shipped — Bilis does not extrapolate.
 
 Bilis talks to ClickHouse over its HTTP interface, so there is no driver or PHP
 extension to install:
+
+**ClickHouse 26.2 or newer is required.** The log body index is a `text` index,
+which older servers do not have. Check with `SELECT version()` before upgrading
+Bilis; on an older server, body search would silently stop using its index.
 
 ```bash
 CLICKHOUSE_SCHEME=http
@@ -147,7 +160,7 @@ CLICKHOUSE_CONNECT_TIMEOUT=3
 Timeouts are deliberately short so an overloaded cluster fails fast and ingest
 returns a retryable `503` instead of holding a PHP worker.
 
-Create or update the log table with the idempotent migration command:
+Create or update the tables with the idempotent migration command:
 
 ```bash
 php artisan clickhouse:migrate
@@ -155,5 +168,21 @@ php artisan clickhouse:migrate
 
 It applies `database/clickhouse/*.sql` in filename order. That directory, and
 `database/clickhouse/SCHEMA.md` alongside it, are the source of truth for the
-`otel_logs` table — the column names and types are the upstream OpenTelemetry
-exporter's, which is what keeps the storage readable by tools other than Bilis.
+`otel_logs` and `otel_traces` tables — the column names and types are the
+upstream OpenTelemetry exporter's, which is what keeps the storage readable by
+tools other than Bilis.
+
+### Upgrading an install that predates the text body index
+
+If you have been running Bilis since before the ClickHouse 26.2 floor, your
+`otel_logs` still carries the old token bloom filter index. `clickhouse:migrate`
+swaps the index definition for you — instantly, and without interrupting search.
+Rows written before the swap keep answering body searches by full scan until you
+rebuild their index files:
+
+```bash
+php artisan clickhouse:materialize-index
+```
+
+Run it once, deliberately, when the box has I/O to spare. It is deliberately not
+part of `clickhouse:migrate`, which runs on every container start.

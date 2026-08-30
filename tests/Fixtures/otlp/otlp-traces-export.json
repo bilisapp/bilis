@@ -1,0 +1,105 @@
+{
+    "resourceSpans": [
+        {
+            "resource": {
+                "attributes": [
+                    {
+                        "key": "deployment.generation",
+                        "value": {
+                            "intValue": "41"
+                        }
+                    },
+                    {
+                        "key": "service.canary",
+                        "value": {
+                            "boolValue": true
+                        }
+                    },
+                    {
+                        "key": "service.name",
+                        "value": {
+                            "stringValue": "checkout"
+                        }
+                    }
+                ]
+            },
+            "scopeSpans": [
+                {
+                    "scope": {
+                        "name": "checkout.payments",
+                        "version": "1.4.0"
+                    },
+                    "spans": [
+                        {
+                            "endTimeUnixNano": "1788078743487356583",
+                            "events": [
+                                {
+                                    "attributes": [
+                                        {
+                                            "key": "attempt",
+                                            "value": {
+                                                "intValue": "3"
+                                            }
+                                        }
+                                    ],
+                                    "name": "retrying",
+                                    "timeUnixNano": "1788078743487355000"
+                                }
+                            ],
+                            "flags": 257,
+                            "kind": 3,
+                            "name": "charge card",
+                            "parentSpanId": "349e46efaf8ad4d5",
+                            "spanId": "f5c40ddf0b32d069",
+                            "startTimeUnixNano": "1788078743487353000",
+                            "status": {
+                                "code": 2,
+                                "message": "card declined"
+                            },
+                            "traceId": "416739a97500d4cba89bbe719665f6ef"
+                        },
+                        {
+                            "attributes": [
+                                {
+                                    "key": "http.method",
+                                    "value": {
+                                        "stringValue": "POST"
+                                    }
+                                },
+                                {
+                                    "key": "http.status_code",
+                                    "value": {
+                                        "intValue": "500"
+                                    }
+                                },
+                                {
+                                    "key": "checkout.guest",
+                                    "value": {
+                                        "boolValue": false
+                                    }
+                                },
+                                {
+                                    "key": "cart.total",
+                                    "value": {
+                                        "doubleValue": 19.5
+                                    }
+                                }
+                            ],
+                            "endTimeUnixNano": "1788078743487357917",
+                            "flags": 257,
+                            "kind": 2,
+                            "name": "POST /checkout",
+                            "spanId": "349e46efaf8ad4d5",
+                            "startTimeUnixNano": "1788078743487321000",
+                            "status": {
+                                "code": 2,
+                                "message": "checkout failed"
+                            },
+                            "traceId": "416739a97500d4cba89bbe719665f6ef"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

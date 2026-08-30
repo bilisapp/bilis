@@ -1,6 +1,6 @@
 <x-layouts.marketing
     title="Features"
-    description="What Bilis does today: log ingest that works with what you already run, storage in an open format, a viewer built for answers — plus the honest limits and where the stack goes next."
+    description="What Bilis does today: log and trace ingest that works with what you already run, storage in open formats, viewers built for answers — plus the honest limits and where the stack goes next."
     current="features"
 >
     {{-- The page a sceptical engineer reads after the landing page.
@@ -18,11 +18,11 @@
         </h1>
 
         <p class="mt-5 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Bilis keeps every log line your systems produce on hardware you own, and gets you to
-            the one line that explains what went wrong. Nothing about it asks you to trust a
-            format, a vendor, or a landing page: everything below is in the product today, the
-            limits are stated plainly, and the direction — more signals, with AI that helps you
-            act on them — is named rather than implied.
+            Bilis keeps every log line and every span your systems produce on hardware you own,
+            and gets you to the one that explains what went wrong. Nothing about it asks you to
+            trust a format, a vendor, or a landing page: everything below is in the product today,
+            the limits are stated plainly, and the direction — metrics next, with AI that helps you
+            act on what the signals show — is named rather than implied.
         </p>
 
         {{-- A contents strip. The page is long on purpose; the reader should
@@ -54,11 +54,13 @@
         <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '01', 'label' => 'Ingest'])
 
-            <h2 class="mt-4 text-xl font-semibold tracking-tight">If it can log, Bilis can take it</h2>
+            <h2 class="mt-4 text-xl font-semibold tracking-tight">If your stack can emit it, Bilis can take
+                it</h2>
             <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                Your applications already know how to talk to Bilis. Whatever they speak, getting
-                logs in is a configuration change rather than a rewrite — one API key per project,
-                one table underneath, and a promise that a bad payload never becomes your problem.
+                Your applications already know how to talk to Bilis. Logs and spans, whatever dialect
+                they speak — getting them in is a configuration change rather than a rewrite. One API
+                key per project, standard OpenTelemetry tables underneath, and a promise that a bad
+                payload never becomes your problem.
             </p>
 
             @include('marketing.features.endpoints')
@@ -86,6 +88,19 @@
                         land as <code class="font-mono text-xs">ERROR</code>
                         records beside the logs that explain them. That is ingestion, not error tracking:
                         no issue list, no grouping, no resolve button.
+                    </p>
+                </div>
+
+                <div>
+                    <h3 class="text-base font-semibold tracking-tight">The coding agent, as well as the app</h3>
+                    <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
+                        Claude Code has OpenTelemetry built in, so pointing it here is configuration
+                        rather than a plugin: every prompt, tool call, token and dollar it spends lands
+                        beside the logs and traces of the application it is editing, with the turn
+                        that took nine seconds showing you whether the time went into the model or the
+                        tools. Prompt text stays redacted unless you ask for it.
+                        <a href="{{ route('docs.show', ['section' => 'ingestion', 'page' => 'claude-code']) }}"
+                           class="underline underline-offset-2 hover:text-foreground">Set it up &rarr;</a>
                     </p>
                 </div>
             </div>
@@ -173,10 +188,11 @@ curl -X POST https://bilis.example.com/api/v1/ingest \
             <h2 class="mt-4 text-xl font-semibold tracking-tight">Your data stays yours, in a format everything can
                 read</h2>
             <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                Logs live in one table, <code class="font-mono text-xs">otel_logs</code>, whose column names
-                and types belong to the OpenTelemetry project rather than to us — pinned to an upstream
-                release and re-checked on every upgrade. Any tool that understands that standard, from your
-                scripts to your AI assistants, can read your data today. And if you ever leave, leaving is a
+                Logs live in <code class="font-mono text-xs">otel_logs</code>, spans in
+                <code class="font-mono text-xs">otel_traces</code> — tables whose column names and types
+                belong to the OpenTelemetry project rather than to us, pinned to an upstream release and
+                re-checked on every upgrade. Any tool that understands that standard, from your scripts to
+                your AI assistants, can read your data today. And if you ever leave, leaving is a
                 <code class="font-mono text-xs">SELECT</code>, not a migration project.
             </p>
 
@@ -210,7 +226,7 @@ curl -X POST https://bilis.example.com/api/v1/ingest \
                             'A ProjectId column, written only from the authenticated key',
                             'ORDER BY (ProjectId, Timestamp, ServiceName)',
                             'PARTITION BY day, so expiry is a partition drop rather than a rewrite',
-                            'A 30-day TTL by default, and the indexes search runs on',
+                            'A 30-day TTL by default — 90 for trace summaries — and the indexes search runs on',
                         ] as $item)
                             <li class="flex items-baseline gap-3 py-2.5 text-sm">
                                 <span class="font-mono text-severity-debug"
@@ -267,6 +283,25 @@ curl -X POST https://bilis.example.com/api/v1/ingest \
                 </div>
 
                 <div>
+                    <h3 class="text-base font-semibold tracking-tight">Every trace, drawn as a waterfall</h3>
+                    <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
+                        Spans in order, durations to scale, the failing span marked — you see where the
+                        request spent its time instead of guessing. Behind it, the trace list shows each
+                        trace's root operation, duration, span count and errors, with a live tail and a
+                        per-service latency view for spotting the service that is quietly getting slower.
+                    </p>
+                </div>
+
+                <div>
+                    <h3 class="text-base font-semibold tracking-tight">Two signals, one click apart</h3>
+                    <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
+                        A log line that carries a trace id links straight to its waterfall, and a span links
+                        back to the logs filtered to that exact trace. The error and the slow query that
+                        caused it stop being two investigations.
+                    </p>
+                </div>
+
+                <div>
                     <h3 class="text-base font-semibold tracking-tight">Watch the deploy as it happens</h3>
                     <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
                         Leave the live tail open and new lines arrive at the top under the filters you
@@ -280,8 +315,8 @@ curl -X POST https://bilis.example.com/api/v1/ingest \
                     <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
                         Severity is the only colour on the page, so the eye goes to what matters. Expand any
                         line for its full body and every attribute that arrived with it — trace and span ids
-                        included, ready to correlate with the tracing backend you already use. Older pages
-                        load a hundred lines at a time, as fast as you can read.
+                        included, one click from the waterfall they belong to. Older pages load a hundred
+                        lines at a time, as fast as you can read.
                     </p>
                 </div>
             </div>
@@ -289,9 +324,21 @@ curl -X POST https://bilis.example.com/api/v1/ingest \
             <div class="mt-10 overflow-hidden rounded-xl border border-border bg-background">
                 <picture>
                     <source media="(prefers-color-scheme: dark)"
+                            srcset="/screenshot-trace-dark.png">
+                    <img src="/screenshot-trace-light.png"
+                         alt="A trace waterfall in Bilis: a deploy request across three services, each span's duration drawn to scale, with a detail panel listing the selected span's attributes."
+                         width="1440"
+                         height="900"
+                         loading="lazy">
+                </picture>
+            </div>
+
+            <div class="mt-6 overflow-hidden rounded-xl border border-border bg-background">
+                <picture>
+                    <source media="(prefers-color-scheme: dark)"
                             srcset="/screenshot-logs-dark.png">
                     <img src="/screenshot-logs-light.png"
-                         alt="The Bilis log viewer: time-range, project, service and severity filters above a scrolling stream of timestamped, severity-coloured log lines."
+                         alt="The Bilis log viewer: severity-coloured log lines under a volume histogram, with full-text search, scope, time-window and severity filters above the stream."
                          width="1440"
                          height="900"
                          loading="lazy">
@@ -483,7 +530,7 @@ php artisan clickhouse:migrate</pre>
             <ul class="mt-8 divide-y divide-border border-t border-b border-border">
                 @foreach ([
                     'An acknowledgement is not durability' => 'Rows are inserted with async_insert=1 and wait_for_async_insert=0, so a 200 or 202 means the batch reached the insert buffer. A crash in the window before the flush loses that buffer. The trade is throughput, because small frequent inserts are exactly what ClickHouse handles badly without it. If a line matters more than that, keep a local copy too.',
-                    'Retention is one table-wide TTL' => 'Thirty days by default, dropped a whole partition at a time. It is a property of the ClickHouse table, not a per-project setting.',
+                    'Retention is one table-wide TTL' => 'Thirty days by default, dropped a whole partition at a time. Spans get the same 30; trace summaries — the rows behind the trace list — keep 90, so a trace outlives its own waterfall. It is a property of the ClickHouse tables, not a per-project setting.',
                     'Search is token-based' => 'Whole tokens, case-insensitively, over the log body. Not substrings and not regular expressions.',
                     'One node, and no replication' => 'Plain MergeTree on a single box. Replication needs Keeper, and a replicated table with unreachable Keeper goes read-only — a failure mode without redundancy on one machine. Replication would not be a backup anyway; back the table up to object storage from day one.',
                     'Volume control belongs to the sender' => 'Bilis stores what arrives. There is no server-side sampling and no ingest-side downsampling, and none is planned — dropping data you deliberately sent is a surprising way to protect a disk you own. Filter and sample in the SDK or collector instead.',
@@ -524,7 +571,7 @@ php artisan clickhouse:migrate</pre>
 
                     <ul class="mt-3 divide-y divide-border border-t border-border">
                         @foreach ([
-                            ['Traces and metrics', 'The same open standards, on the same box. Today every log line already carries its trace and span ids, so it correlates with the tracing backend you use now.'],
+                            ['Metrics', 'The same open standards, on the same box. Logs and traces are already here; metrics complete the picture. Until then, your existing metrics stack keeps its job.'],
                             ['Alerting', 'The stack should tell you when to look. Until it does, keep whatever already pages you.'],
                             ['AI that reads your logs', 'The point of the roadmap: software that spots the error that matters, explains it, and helps you fix it — on your infrastructure, where your data already is.'],
                             ['Dashboards you can shape yourself', 'For now: the built-in overview, and a URL — every filter combination is a link you can bookmark.'],

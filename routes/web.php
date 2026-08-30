@@ -19,6 +19,7 @@ use App\Http\Controllers\ProjectRepositoryController;
 use App\Http\Controllers\Settings\GitHubInstallationController;
 use App\Http\Controllers\StyleguideController;
 use App\Http\Controllers\Teams\TeamInvitationController;
+use App\Http\Controllers\TracesController;
 use App\Http\Controllers\Webhooks\GitHubWebhookController;
 use App\Http\Middleware\EnsureTeamMembership;
 use Illuminate\Support\Facades\Route;
@@ -96,6 +97,34 @@ Route::prefix('{current_team}')
         Route::get('logs', [LogsController::class, 'index'])->name('logs.index');
         Route::get('logs/tail', [LogsController::class, 'tail'])->name('logs.tail');
         Route::get('logs/older', [LogsController::class, 'older'])->name('logs.older');
+
+        /*
+         * Traces. The `{trace}` segment is a 32-character hex id, pinned so the
+         * list route can never be shadowed by a trace whose id happens to spell
+         * a word, and so a malformed id is a 404 rather than a query.
+         */
+        Route::get('traces', [TracesController::class, 'index'])->name('traces.index');
+
+        /*
+         * The traces surface's second tab, and the list's live poll. Both sit
+         * before the `{trace}` route for readability only — a 32-character hex
+         * constraint cannot match either word.
+         */
+        Route::get('traces/latency', [TracesController::class, 'latency'])->name('traces.latency');
+        Route::get('traces/tail', [TracesController::class, 'tail'])->name('traces.tail');
+
+        /*
+         * The log viewer's trace preview, over XHR. It sits before the page
+         * route only for readability — the two cannot collide, one is a single
+         * segment and the other two.
+         */
+        Route::get('traces/{trace}/panel', [TracesController::class, 'panel'])
+            ->where('trace', '[0-9a-fA-F]{32}')
+            ->name('traces.panel');
+
+        Route::get('traces/{trace}', [TracesController::class, 'show'])
+            ->where('trace', '[0-9a-fA-F]{32}')
+            ->name('traces.show');
 
         Route::get('projects', [ProjectController::class, 'index'])->name('projects.index');
         Route::post('projects', [ProjectController::class, 'store'])->name('projects.store');

@@ -10,13 +10,13 @@ it('renders a complete social card on a marketing page', function () {
     expect(html($response))->toContain('<meta property="og:type" content="website">')
         ->toContain('<meta property="og:site_name" content="'.config('app.name').'">')
         ->toContain('<meta property="og:url" content="'.route('home').'">')
-        ->toContain('<meta property="og:title" content="'.config('app.name').' — self-hosted log storage and search">')
+        ->toContain('<meta property="og:title" content="'.config('app.name').' — self-hosted logs and traces">')
         ->toContain('<meta property="og:image" content="'.asset('og.png').'">')
         ->toContain('<meta property="og:image:width" content="1200">')
         ->toContain('<meta property="og:image:height" content="630">')
         ->toContain('<meta property="og:image:alt"')
         ->toContain('<meta name="twitter:card" content="summary_large_image">')
-        ->toContain('<meta name="twitter:title" content="'.config('app.name').' — self-hosted log storage and search">')
+        ->toContain('<meta name="twitter:title" content="'.config('app.name').' — self-hosted logs and traces">')
         ->toContain('<meta name="twitter:image" content="'.asset('og.png').'">');
 });
 

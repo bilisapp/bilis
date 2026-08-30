@@ -1,7 +1,7 @@
 ---
 title: API keys
 description: Every key is a pair — a secret half for shippers and a public half for clients that carry their credentials in a URL.
-order: 2
+order: 3
 ---
 
 An API key belongs to one project, and the project it belongs to is the only one

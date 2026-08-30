@@ -36,19 +36,19 @@
 
         <div class="relative mx-auto max-w-5xl px-6 pt-16 pb-12 sm:pt-24">
             <p class="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                Self-hosted observability, starting with your logs
+                Self-hosted observability: logs and traces
             </p>
 
             <h1 class="mt-4 max-w-3xl text-3xl leading-tight font-semibold tracking-tight sm:text-5xl">
-                Your logs, on your own box.
+                Your logs and traces, on your own box.
             </h1>
 
             <p class="mt-5 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-                When something breaks, the answer is already in your logs. Bilis gets you from
-                “something is wrong” to the exact line that explains it, in seconds, on hardware
-                you own — with no per-gigabyte bill for the privilege. And it is only the start:
-                Bilis is growing into a self-hosted observability stack where AI reads alongside
-                you, spotting what matters and helping you fix it.
+                When something breaks, the answer is already in your telemetry. Bilis gets you from
+                “something is wrong” to the exact log line — or the exact span — that explains it,
+                in seconds, on hardware you own, with no per-gigabyte bill for the privilege. And it
+                is only the start: Bilis is growing into a self-hosted observability stack where AI
+                reads alongside you, spotting what matters and helping you fix it.
             </p>
 
             <div class="mt-8 flex flex-wrap items-center gap-3">
@@ -83,24 +83,54 @@
         </div>
     </section>
 
-    {{-- The viewer --}}
+    {{-- The viewers: traces lead, logs follow. Two views of the same
+         incident — the waterfall says where the time went, the stream says
+         what the code said about it. --}}
     <section class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
-        @include('marketing.partials.section-label', ['number' => '01', 'label' => 'The viewer'])
+        @include('marketing.partials.section-label', ['number' => '01', 'label' => 'The viewers'])
 
-        <h2 class="mt-4 text-xl font-semibold tracking-tight">From “something is wrong” to the line that
+        <h2 class="mt-4 text-xl font-semibold tracking-tight">See the whole request, then the line that
             explains it</h2>
+        <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+            Two views of the same incident. The waterfall shows where a request spent its time —
+            every span in order, durations to scale, the failure marked. The log stream shows what
+            the code said about it. A trace id on a log line joins the two: one click either way.
+        </p>
+
+        <p class="mt-8 font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+            Traces — the waterfall
+        </p>
+
+        <div class="mt-3 overflow-hidden rounded-xl border border-border bg-card">
+            <picture>
+                <source media="(prefers-color-scheme: dark)"
+                        srcset="/screenshot-trace-dark.png">
+                <img src="/screenshot-trace-light.png"
+                     alt="A trace waterfall in Bilis: a deploy request across three services — keel-api, keel-db and keel-worker — with each span's duration drawn to scale and a detail panel listing the selected span's attributes."
+                     width="1440"
+                     height="900"
+                     loading="lazy">
+            </picture>
+        </div>
+
+        <div class="mt-12 flex items-end justify-between gap-6">
+            <p class="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+                Logs — the stream
+            </p>
+        </div>
+
         <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
             No query language to learn. Narrow by time, project, service or severity, search the
             text of every line, and keep a live tail open while the deploy goes out. The search
             that finds the answer is a link you can paste into the incident channel.
         </p>
 
-        <div class="mt-8 overflow-hidden rounded-xl border border-border bg-card">
+        <div class="mt-3 overflow-hidden rounded-xl border border-border bg-card">
             <picture>
                 <source media="(prefers-color-scheme: dark)"
                         srcset="/screenshot-logs-dark.png">
                 <img src="/screenshot-logs-light.png"
-                     alt="The Bilis log viewer: a live tail with time-range, project, service and severity filters above a scrolling stream of timestamped, severity-coloured log lines."
+                     alt="The Bilis log viewer: severity-coloured log lines under a volume histogram, with full-text search, scope, time-window and severity filters above the stream."
                      width="1440"
                      height="900"
                      loading="lazy">
@@ -115,10 +145,10 @@
 
             <h2 class="mt-4 text-xl font-semibold tracking-tight">Works with the stack you already run</h2>
             <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                If your tooling speaks OpenTelemetry — and most already does — sending logs to Bilis
-                is a configuration change, not a project. No agents to deploy, no SDK to adopt,
-                nothing to rewrite. For everything else there is a plain JSON endpoint, and your
-                existing Sentry SDKs can report straight to it too.
+                If your tooling speaks OpenTelemetry — and most already does — sending logs and
+                traces to Bilis is a configuration change, not a project. No agents to deploy, no SDK
+                to adopt, nothing to rewrite. For everything else there is a plain JSON endpoint, and
+                your existing Sentry SDKs can report straight to it too.
             </p>
 
             {{-- A round trip, not a snippet: the request and what actually
@@ -164,6 +194,17 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs</pre>
             <p class="mt-4 max-w-2xl text-xs leading-relaxed text-muted-foreground">
                 Ingest never blames the client: malformed records are skipped with a count rather than
                 failing the batch. Writes are queued asynchronously, so a success means accepted, not yet durable.
+            </p>
+
+            {{-- Coding agents are a stack most teams now run and nobody watches.
+                 Benefit first; the variables live in the docs. --}}
+            <p class="mt-8 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                Your coding agent counts too. Claude Code speaks OpenTelemetry out of the box, so a
+                few lines of configuration put every prompt, tool call, token and dollar it spends in
+                the same viewer as the logs of the application it is editing — no plugin, nothing to
+                run in between.
+                <a href="{{ route('docs.show', ['section' => 'ingestion', 'page' => 'claude-code']) }}"
+                   class="underline underline-offset-2 hover:text-foreground">Point Claude Code at Bilis &rarr;</a>
             </p>
 
             <p class="mt-8 max-w-2xl text-sm leading-relaxed text-muted-foreground">
@@ -227,12 +268,13 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs</pre>
         <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '04', 'label' => 'Where it goes'])
 
-            <h2 class="mt-4 text-xl font-semibold tracking-tight">Logs today. Observability that acts, next.</h2>
+            <h2 class="mt-4 text-xl font-semibold tracking-tight">Logs and traces today. Observability that
+                acts, next.</h2>
             <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                Right now Bilis does one thing well: log storage and search you can self-host. The
-                direction is bigger — more signals, and AI that reads what arrives and helps you fix
-                it, so the stack does not just show you the problem. Self-hosting stays the
-                first-class way to run all of it.
+                Right now Bilis keeps two signals on your box — logs and traces, linked so each
+                explains the other. The direction is bigger: metrics, and AI that reads what arrives
+                and helps you fix it, so the stack does not just show you the problem. Self-hosting
+                stays the first-class way to run all of it.
             </p>
 
             {{-- A ledger, not two cards: two columns read across as one table,
@@ -247,7 +289,8 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs</pre>
                         @foreach ([
                             'Every way in your stack already speaks: OTLP, plain JSON, Sentry SDKs',
                             'Fast full-text search across every log body',
-                            'Filters for time, project, service and severity',
+                            'Distributed traces, drawn as a span waterfall',
+                            'Logs and traces linked in both directions',
                             'Live tail for deploys and incidents',
                             'Teams, projects, and revocable API keys',
                             'Your data in an open, portable format',
@@ -267,7 +310,7 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs</pre>
 
                     <ul class="mt-3 divide-y divide-border border-t border-border">
                         @foreach ([
-                            'Traces and metrics, same box, same open standards',
+                            'Metrics, same box, same open standards',
                             'Alerting, so the stack tells you when to look',
                             'Dashboards and saved searches',
                             'AI that spots the error that matters and helps you fix it',
@@ -296,9 +339,9 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs</pre>
 
             <h2 class="mt-4 text-xl font-semibold tracking-tight">Bilis is early</h2>
             <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                There is no hosted tier yet and nothing to buy. What exists today is the log
-                product — run it on your own infrastructure and read your logs — and what is being
-                built on top of it is the part to watch. If a hosted option lands later,
+                There is no hosted tier yet and nothing to buy. What exists today is the logs and
+                traces product — run it on your own infrastructure and watch your systems — and what
+                is being built on top of it is the part to watch. If a hosted option lands later,
                 self-hosting stays the first-class way to use Bilis.
             </p>
 

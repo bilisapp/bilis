@@ -5,11 +5,20 @@ use App\Http\Controllers\Api\AutofixEventController;
 use App\Http\Controllers\Api\EnvelopeIngestController;
 use App\Http\Controllers\Api\LogIngestController;
 use App\Http\Controllers\Api\OtlpLogController;
+use App\Http\Controllers\Api\OtlpTraceController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['project.api-key', 'throttle:ingest'])->prefix('v1')->group(function () {
     Route::post('logs', [OtlpLogController::class, 'store'])->name('api.v1.logs.store');
     Route::post('ingest', [LogIngestController::class, 'store'])->name('api.v1.ingest.store');
+
+    /*
+     * OTLP/HTTP only, on the path the spec gives it. Collectors default to gRPC
+     * on 4317, which this application deliberately does not speak — see
+     * resources/docs/ingestion/traces.md, because the failure otherwise looks
+     * like Bilis being down rather than a protocol mismatch.
+     */
+    Route::post('traces', [OtlpTraceController::class, 'store'])->name('api.v1.traces.store');
 });
 
 /*

@@ -14,6 +14,13 @@
         ],
         [
             'method' => 'POST',
+            'path' => '/api/v1/traces',
+            'status' => '200',
+            'payload' => 'OTLP ExportTraceServiceRequest, JSON or protobuf',
+            'note' => 'Spans from the same SDKs, on the same key, under the same contract.',
+        ],
+        [
+            'method' => 'POST',
             'path' => '/api/v1/ingest',
             'status' => '202',
             'payload' => 'Plain JSON: one object or a list of them',

@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
-import { FolderKanban, LayoutGrid, ScrollText, Wrench } from '@lucide/vue';
+import {
+    FolderKanban,
+    LayoutGrid,
+    ScrollText,
+    Waypoints,
+    Wrench,
+} from '@lucide/vue';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
 import NavMain from '@/components/NavMain.vue';
@@ -19,6 +25,10 @@ import { dashboard } from '@/routes';
 import { index as autofixIndex } from '@/routes/autofix';
 import { index as logsIndex } from '@/routes/logs';
 import { index as projectsIndex } from '@/routes/projects';
+import {
+    index as tracesIndex,
+    latency as tracesLatency,
+} from '@/routes/traces';
 import type { NavItem } from '@/types';
 
 const page = usePage();
@@ -37,6 +47,16 @@ const autofixUrl = computed(() =>
         : '/',
 );
 
+const tracesUrl = computed(() =>
+    page.props.currentTeam ? tracesIndex(page.props.currentTeam.slug).url : '/',
+);
+
+const tracesLatencyUrl = computed(() =>
+    page.props.currentTeam
+        ? tracesLatency(page.props.currentTeam.slug).url
+        : '/',
+);
+
 const projectsUrl = computed(() =>
     page.props.currentTeam
         ? projectsIndex(page.props.currentTeam.slug).url
@@ -45,9 +65,10 @@ const projectsUrl = computed(() =>
 
 /**
  * Logs sits above Projects on purpose: the viewer is the surface people come
- * back to, projects are the thing you set up once. Autofix comes last: it is
- * downstream of both, and reads as a consequence of the logs rather than a
- * place you go first.
+ * back to, projects are the thing you set up once. Traces sits directly under
+ * Logs because the two are one investigation read two ways, and a reader moves
+ * between them constantly. Autofix comes last: it is downstream of both, and
+ * reads as a consequence of the logs rather than a place you go first.
  */
 const mainNavItems = computed<NavItem[]>(() => [
     {
@@ -59,6 +80,28 @@ const mainNavItems = computed<NavItem[]>(() => [
         title: 'Logs',
         href: logsUrl.value,
         icon: ScrollText,
+    },
+    {
+        title: 'Traces',
+        href: tracesUrl.value,
+        icon: Waypoints,
+        /*
+         * Traces is the one section with two views of the same window: the
+         * list answers "what happened to this request", latency answers
+         * "which service is slow". Both are places, so both get a line in the
+         * rail; the in-page tabs remain the way to move between them carrying
+         * the filters you already set.
+         */
+        items: [
+            {
+                title: 'All traces',
+                href: tracesUrl.value,
+            },
+            {
+                title: 'Service latency',
+                href: tracesLatencyUrl.value,
+            },
+        ],
     },
 
     // Autofix is off for a deployment that has no control plane configured,

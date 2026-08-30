@@ -35,10 +35,13 @@ CREATE TABLE IF NOT EXISTS otel_logs
 
     INDEX idx_service ServiceName TYPE set(100) GRANULARITY 4,
 
-    -- ClickHouse < 26.2 only. On >= 26.2 this becomes a `text` index on Body with the
-    -- lower() wrapper dropped, and LogQuery must switch to hasAnyTokens/hasAllTokens.
-    -- See SCHEMA.md R5 before upgrading: the query expression must match this one exactly.
-    INDEX idx_lower_body lower(Body) TYPE tokenbf_v1(32768, 3, 0) GRANULARITY 8
+    -- ClickHouse >= 26.2. The expression is lower(Body), not Body: the tokenizer
+    -- splits, it does NOT fold case, so an index on the bare column would miss
+    -- every search whose case differs from the stored line. LogQuery must query
+    -- hasAnyTokens(lower(Body), ...) / hasAllTokens(lower(Body), ...) character
+    -- for character, or the index is silently skipped. See SCHEMA.md R5.
+    -- Deployed databases get here through 0005, not through this file.
+    INDEX idx_lower_body lower(Body) TYPE text(tokenizer = 'splitByNonAlpha') GRANULARITY 8
 )
 -- Deliberate divergence from upstream. Upstream leads with
 -- toStartOfFiveMinutes(Timestamp) because it has no tenant column; with

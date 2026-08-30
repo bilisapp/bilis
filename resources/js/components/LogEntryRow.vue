@@ -47,6 +47,8 @@ const props = withDefaults(
 const emit = defineEmits<{
     (event: 'toggle'): void;
     (event: 'copied'): void;
+    /** Forwarded from the actions cluster; the page owns the trace panel. */
+    (event: 'trace', traceId: string): void;
 }>();
 
 const level = computed(() => severityLevelFor(props.entry));
@@ -155,6 +157,7 @@ const attributeGroups = computed(() => [
                 :team-slug="teamSlug"
                 :autofix="autofix"
                 :credentials="credentials"
+                @trace="emit('trace', $event)"
                 :class="
                     cn(
                         // Floating, so it costs the log line no width. Its own

@@ -1,6 +1,6 @@
 <x-layouts.docs
     :title="$page->title"
-    :description="$page->description ?? 'Documentation for Bilis — self-hosted log storage and search.'"
+    :description="$page->description ?? 'Documentation for Bilis — self-hosted logs and traces.'"
     :sections="$sections"
     :current="$page"
     :toc="$rendered->tableOfContents"
@@ -24,6 +24,7 @@
 
         @if ($needsApiKey)
             <x-docs.api-key-panel :projects="$projects" />
+            <x-docs.copy-prompt :page="$page" />
         @endif
 
         <div class="docs-prose mt-10">

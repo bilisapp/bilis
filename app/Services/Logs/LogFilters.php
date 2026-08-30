@@ -28,6 +28,8 @@ class LogFilters
         public readonly ?string $service = null,
         public readonly array $severities = [],
         public readonly ?string $search = null,
+        public readonly ?string $traceId = null,
+        public readonly ?string $spanId = null,
         public readonly Carbon $from = new Carbon,
         public readonly Carbon $to = new Carbon,
         public readonly ?string $cursor = null,
@@ -46,6 +48,14 @@ class LogFilters
             'severity' => ['nullable', 'array'],
             'severity.*' => ['string', 'in:'.implode(',', SeverityLevel::values())],
             'search' => ['nullable', 'string', 'max:255'],
+            /*
+             * Trace and span ids are lowercase hex of a fixed width on the wire.
+             * Pinning the shape here keeps a malformed one from reaching a
+             * ClickHouse predicate that would scan for something that cannot
+             * exist, and makes the "logs for this span" link unforgeable noise.
+             */
+            'trace_id' => ['nullable', 'string', 'regex:/^[0-9a-fA-F]{32}$/'],
+            'span_id' => ['nullable', 'string', 'regex:/^[0-9a-fA-F]{16}$/'],
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date'],
             'cursor' => ['nullable', 'date'],
@@ -71,6 +81,8 @@ class LogFilters
                 $severity,
             ))),
             search: self::trimmedOrNull($validated['search'] ?? null),
+            traceId: self::lowercasedOrNull($validated['trace_id'] ?? null),
+            spanId: self::lowercasedOrNull($validated['span_id'] ?? null),
             from: $from,
             to: $to,
             cursor: isset($validated['cursor']) ? Carbon::parse((string) $validated['cursor'])->format('Y-m-d H:i:s.u') : null,
@@ -81,7 +93,7 @@ class LogFilters
     /**
      * The filters as they should be handed back to the client.
      *
-     * @return array{project: string|null, service: string|null, severity: list<string>, search: string|null, from: string, to: string, cursor: string|null}
+     * @return array{project: string|null, service: string|null, severity: list<string>, search: string|null, traceId: string|null, spanId: string|null, from: string, to: string, cursor: string|null}
      */
     public function toArray(): array
     {
@@ -90,10 +102,22 @@ class LogFilters
             'service' => $this->service,
             'severity' => array_map(fn (SeverityLevel $level): string => $level->value, $this->severities),
             'search' => $this->search,
+            'traceId' => $this->traceId,
+            'spanId' => $this->spanId,
             'from' => $this->from->toIso8601String(),
             'to' => $this->to->toIso8601String(),
             'cursor' => $this->cursor,
         ];
+    }
+
+    /**
+     * Read a hex id as lowercase, which is the casing the ingest mappers store.
+     */
+    private static function lowercasedOrNull(mixed $value): ?string
+    {
+        $value = self::trimmedOrNull($value);
+
+        return $value === null ? null : strtolower($value);
     }
 
     private static function trimmedOrNull(mixed $value): ?string
