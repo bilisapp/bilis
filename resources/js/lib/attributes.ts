@@ -177,7 +177,12 @@ const GROUPS: GroupDefinition[] = [
     },
 ];
 
-const OTHER_GROUP = { id: 'other', title: 'Other' };
+/** The catch-all. Claims nothing; everything unclaimed lands here. */
+const OTHER_GROUP: GroupDefinition = {
+    id: 'other',
+    title: 'Other',
+    claims: () => false,
+};
 
 /** Keys whose value is a program, a query, or something a person wrote. */
 const CODE_KEYS = [
@@ -359,9 +364,6 @@ export function groupAttributes(
             id: group.id,
             title: group.title,
             attributes: groups.get(group.id) ?? [],
-            collapsedByDefault:
-                'collapsedByDefault' in group
-                    ? (group.collapsedByDefault ?? false)
-                    : false,
+            collapsedByDefault: group.collapsedByDefault ?? false,
         }));
 }

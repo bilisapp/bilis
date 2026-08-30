@@ -906,8 +906,13 @@ export const DEMO_AGENT_SPANS: Span[] = [
         durationMs: 13780,
         statusCode: 'Ok',
         statusMessage: '',
+        // The full twenty-nine-key shape a real exporter sends, so the
+        // attributes panel is exercised here rather than only in production:
+        // enough keys to earn the filter, and two groups' worth of identity and
+        // environment boilerplate to fold away.
         attributes: {
             'gen_ai.system': 'anthropic',
+            'gen_ai.request.model': 'claude-opus-5[1m]',
             model: 'claude-opus-5[1m]',
             input_tokens: '2',
             output_tokens: '352',
@@ -915,6 +920,23 @@ export const DEMO_AGENT_SPANS: Span[] = [
             cache_read_tokens: '120212',
             stop_reason: 'tool_use',
             ttft_ms: '1023',
+            speed: 'normal',
+            attempt: '1',
+            success: 'true',
+            duration_ms: '13780',
+            request_id: 'req_011CQx8kZ2p',
+            client_request_id: '8d21f0c4bd7e4a1d9f3b',
+            'llm_request.context': 'interaction',
+            'session.id': '511d9f06-1008-4582-8751-bd58bf809138',
+            'span.type': 'llm_request',
+            'user.id':
+                '0c19bf9175c76a54505e2f704f44af1e06c3b07a88ff8f3398789ff3138fc6fa',
+            'user.email': 'samo@vrablik.eu',
+            'user.account_uuid': 'ddeb8dbb-8ad8-46e6-ae7b-f04ea4385929',
+            'organization.id': 'aac9e11f-32a1-4067-ae1c-36576c065a19',
+            'host.name': 'Samuels-MacBook-Pro-2',
+            'terminal.type': 'iTerm.app',
+            'service.name': 'claude-code',
         },
         events: [],
         childCount: 0,
@@ -934,7 +956,7 @@ export const DEMO_AGENT_SPANS: Span[] = [
         attributes: {
             tool_name: 'Bash',
             full_command:
-                'go get go.opentelemetry.io/otel/exporters/otlp/otlptrace 2>&1 | tail -6',
+                'cat > internal/support/telemetry/traces.go <<\'EOF\'\npackage telemetry\n\nimport (\n\t"context"\n\t"go.opentelemetry.io/otel"\n)\n\nfunc Tracer() trace.Tracer {\n\treturn otel.Tracer("bilis")\n}\nEOF',
             'gen_ai.tool.call.id': 'toolu_01QQ',
         },
         events: [],
@@ -972,6 +994,8 @@ export const DEMO_AGENT_SPANS: Span[] = [
             tool_name: 'Agent',
             subagent_type: 'general-purpose',
             'gen_ai.tool.call.id': 'toolu_01RR',
+            success: 'false',
+            error: 'subagent exceeded its turn budget',
         },
         events: [],
         childCount: 0,

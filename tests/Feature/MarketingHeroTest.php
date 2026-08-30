@@ -31,7 +31,8 @@ test('the hero and the live tail share one shader band', function () {
     $band = substr($page, strpos($page, 'data-fold-gradient'));
     $band = substr($band, 0, strpos($band, '</section>'));
 
-    expect($band)->toContain('Your logs and traces, on your own box.')
+    expect($band)->toContain('Your logs and traces.')
+        ->toContain('On your own box.')
         ->toContain('data-live-tail-list');
 });
 
@@ -72,10 +73,11 @@ test('the ingest snippet shows the round trip and can be copied', function () {
         ->assertSee('{"accepted":', false);
 });
 
-test('every section below the hero is numbered', function () {
+test('every section below the hero has a stable landmark', function () {
     $page = $this->get(route('home'))->assertOk()->getContent();
 
-    foreach (['01', '02', '03', '04', '05'] as $number) {
-        expect($page)->toContain(">{$number}</span>");
+    foreach (['product', 'ingest', 'why', 'direction', 'start'] as $section) {
+        expect($page)->toContain("id=\"{$section}\"")
+            ->toContain('data-marketing-section');
     }
 });

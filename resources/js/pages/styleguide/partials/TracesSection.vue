@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import ServiceLatencySection from '@/components/ServiceLatencySection.vue';
+import SpanAttributes from '@/components/SpanAttributes.vue';
 import SpanDetailPanel from '@/components/SpanDetailPanel.vue';
 import SpanNamingToggle from '@/components/SpanNamingToggle.vue';
 import SpanWaterfall from '@/components/SpanWaterfall.vue';
@@ -102,6 +103,35 @@ const demoLive = ref(true);
                     team-slug="acme"
                     :colour="colours.get(DEMO_SPANS[1].serviceName)"
                 />
+            </div>
+        </DemoBlock>
+
+        <DemoBlock
+            title="SpanAttributes"
+            description="the span's own record, which arrives as a flat map of stringified values and reads as a wall unless something sorts it. Keys are grouped by what they describe — Outcome first, because it answers the question that opened the panel, then the work, then the machinery, then the paperwork — and Identity and Environment arrive folded, since they are eight of these twenty-five keys and never what a reader came for. The namespace of each key is dimmed so the last segment, which is the part being scanned for, keeps the weight. Values are drawn by what the key declares them to be rather than by guessing at the string: a duration reads 13.78 s, a token count carries separators and tabular-nums, a command or a prompt gets a wrapped block clamped to a few lines, an id recedes. Colour appears on exactly one thing — an attribute stating a failure — and it borrows the span-failure token rather than introducing a family. Past a dozen keys a filter appears, and a filter opens every group, because a hit hidden inside a folded one is indistinguishable from no hit."
+        >
+            <div class="flex flex-wrap items-start gap-4">
+                <div class="w-full max-w-sm rounded-lg border bg-card p-4">
+                    <SpanAttributes
+                        :attributes="DEMO_AGENT_SPANS[1].attributes"
+                        :reset-key="DEMO_AGENT_SPANS[1].spanId"
+                    />
+                </div>
+
+                <!-- The other two value treatments: a wrapped, clamped command
+                     block, and the one row allowed a colour. -->
+                <div class="w-full max-w-sm rounded-lg border bg-card p-4">
+                    <SpanAttributes
+                        :attributes="DEMO_AGENT_SPANS[2].attributes"
+                        :reset-key="DEMO_AGENT_SPANS[2].spanId"
+                    />
+                    <div class="mt-4 border-t pt-4">
+                        <SpanAttributes
+                            :attributes="DEMO_AGENT_SPANS[4].attributes"
+                            :reset-key="DEMO_AGENT_SPANS[4].spanId"
+                        />
+                    </div>
+                </div>
             </div>
         </DemoBlock>
 

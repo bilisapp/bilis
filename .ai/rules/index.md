@@ -12,7 +12,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | docker-entrypoint.sh, docker-healthcheck.sh | .ai/rules/general.md |
 | app/Services/Ingest/** | .ai/rules/ingest.md |
 | resources/js/** | .ai/rules/js.md |
-| resources/js/lib/traces.ts | .ai/rules/lib.md |
+| resources/js/lib/traces.ts, resources/js/lib/attributes.ts | .ai/rules/lib.md |
 | app/Logging/** | .ai/rules/logging.md |
 | app/Services/Logs/** | .ai/rules/logs.md |
 | resources/js/marketing/** | .ai/rules/marketing.md |

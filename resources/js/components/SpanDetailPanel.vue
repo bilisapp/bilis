@@ -3,6 +3,7 @@ import { Link } from '@inertiajs/vue3';
 import { Check, Copy, ScrollText } from '@lucide/vue';
 import { useClipboard } from '@vueuse/core';
 import { computed, ref, watch } from 'vue';
+import SpanAttributes from '@/components/SpanAttributes.vue';
 import TraceFact from '@/components/TraceFact.vue';
 import { Button } from '@/components/ui/button';
 import { useSpanNaming } from '@/composables/useSpanNaming';
@@ -233,23 +234,10 @@ const logsHref = computed(() => {
                   list; stacked, each value gets the full width and wraps once
                   instead of three times.
                 -->
-                <dl v-if="tabs[0].count > 0" class="flex flex-col gap-2.5">
-                    <div
-                        v-for="(value, key) in span.attributes"
-                        :key="key"
-                        class="flex flex-col gap-0.5"
-                    >
-                        <dt
-                            class="font-mono text-xs break-all text-muted-foreground"
-                        >
-                            {{ key }}
-                        </dt>
-                        <dd class="font-mono text-xs break-all">{{ value }}</dd>
-                    </div>
-                </dl>
-                <p v-else class="text-xs text-muted-foreground">
-                    This span carries no attributes.
-                </p>
+                <SpanAttributes
+                    :attributes="span.attributes"
+                    :reset-key="span.spanId"
+                />
             </section>
 
             <section
@@ -274,25 +262,13 @@ const logsHref = computed(() => {
                             {{ formatTimestamp(event.timestamp) }}
                         </span>
                     </div>
-                    <dl
+                    <SpanAttributes
                         v-if="Object.keys(event.attributes).length > 0"
-                        class="mt-1.5 flex flex-col gap-2"
-                    >
-                        <div
-                            v-for="(value, key) in event.attributes"
-                            :key="key"
-                            class="flex flex-col gap-0.5"
-                        >
-                            <dt
-                                class="font-mono text-xs break-all text-muted-foreground"
-                            >
-                                {{ key }}
-                            </dt>
-                            <dd class="font-mono text-xs break-all">
-                                {{ value }}
-                            </dd>
-                        </div>
-                    </dl>
+                        class="mt-1.5"
+                        :attributes="event.attributes"
+                        :reset-key="span.spanId"
+                        flat
+                    />
                 </div>
 
                 <p

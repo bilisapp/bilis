@@ -34,12 +34,12 @@
     $now = now();
 @endphp
 
-<div class="overflow-hidden rounded-xl border border-border bg-card shadow-sm dark:border-foreground/10 dark:shadow-[0_32px_90px_-24px_rgb(0_0_0/0.9)]"
+<div class="overflow-hidden rounded-lg border border-border bg-card dark:border-foreground/15"
      data-live-tail>
     {{-- Chrome enough to place the pane, not so much that it cosplays a browser. --}}
     <div class="flex items-center justify-between gap-4 border-b border-border px-4 py-2.5 dark:border-foreground/10">
         <div class="flex min-w-0 items-center gap-3">
-            <span class="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border px-2 py-0.5 font-mono text-[10px] tracking-[0.14em] uppercase dark:border-foreground/15">
+            <span class="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border px-2 py-0.5 font-mono text-[11px] tracking-[0.14em] uppercase dark:border-foreground/15">
                 <span class="size-1.5 rounded-full bg-severity-info"
                       data-live-tail-pulse></span>
                 Live
