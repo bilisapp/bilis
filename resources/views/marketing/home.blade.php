@@ -37,11 +37,11 @@
         <div class="relative mx-auto max-w-5xl px-6 pt-20 pb-12 sm:pt-28 sm:pb-16">
             <h1 class="max-w-4xl text-4xl leading-[0.96] font-semibold tracking-[-0.04em] text-balance sm:text-6xl lg:text-7xl">
                 <span class="block">Your logs and traces.</span>
-                <span class="block sm:pl-[17%]">On your own box.</span>
+                <span class="block">On your own box.</span>
             </h1>
 
-            <div class="mt-10 grid gap-8 border-t border-foreground/15 pt-6 sm:grid-cols-12 sm:items-start dark:border-foreground/20">
-                <p class="max-w-2xl text-sm leading-relaxed text-muted-foreground sm:col-span-7 sm:col-start-3 sm:text-base">
+            <div class="mt-10 grid gap-8 border-t border-foreground/15 pt-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start dark:border-foreground/20">
+                <p class="max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
                     When something breaks, the answer is already in your telemetry. Bilis gets you from
                     “something is wrong” to the exact log line — or the exact span — that explains it,
                     in seconds, on hardware you own, with no per-gigabyte bill for the privilege. And it
@@ -49,7 +49,7 @@
                     reads alongside you, spotting what matters and helping you fix it.
                 </p>
 
-                <div class="flex flex-wrap gap-3 sm:col-span-3 sm:justify-end">
+                <div class="flex flex-wrap gap-3 sm:flex-nowrap sm:justify-end">
                     @auth
                         @if ($team = auth()->user()->currentTeam)
                             <a href="{{ route('dashboard', $team) }}"

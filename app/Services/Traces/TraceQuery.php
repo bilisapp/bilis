@@ -25,7 +25,7 @@ class TraceQuery
     /**
      * The columns a waterfall needs from a span.
      */
-    private const SPAN_COLUMNS = 'Timestamp, TraceId, SpanId, ParentSpanId, SpanName, SpanKind, ServiceName, Duration, StatusCode, StatusMessage, SpanAttributes, `Events.Timestamp`, `Events.Name`, `Events.Attributes`';
+    private const SPAN_COLUMNS = 'Timestamp, TraceId, SpanId, ParentSpanId, SpanName, SpanKind, ServiceName, Duration, StatusCode, StatusMessage, SpanAttributes, `Events.Timestamp`, `Events.Name`, `Events.Attributes`, `Links.TraceId`, `Links.SpanId`, `Links.TraceState`, `Links.Attributes`';
 
     /**
      * The most spans a single waterfall will read.
@@ -302,6 +302,72 @@ class TraceQuery
             'trace' => $rows === [] ? null : $this->mapTrace($rows[0]),
             'unavailable' => false,
         ];
+    }
+
+    /**
+     * Which of the given trace ids this instance actually holds.
+     *
+     * A span link names a trace, and naming one is not the same as having it: a
+     * link routinely points at a trace produced by another process that never
+     * shipped to this endpoint, or at one that has aged out. The UI has to tell
+     * those apart from a trace it can open, and it cannot do that from the link
+     * alone.
+     *
+     * Answered from `trace_summary`, whose key is `(ProjectId, TraceId)`, so it
+     * is a point lookup per id rather than a scan — and it comes back with each
+     * trace's start, which is what makes the outgoing link carry a `ts` and stay
+     * bounded. Re-aggregated like every other read of that table (R11).
+     *
+     * @param  list<string>  $projectIds
+     * @param  list<string>  $traceIds
+     * @return array<string, array<string, mixed>>
+     */
+    public function linkedTraces(array $projectIds, array $traceIds): array
+    {
+        $traceIds = array_values(array_unique(array_filter(array_map(strtolower(...), $traceIds))));
+
+        if ($projectIds === [] || $traceIds === []) {
+            return [];
+        }
+
+        $rows = $this->select(
+            'SELECT
+                TraceId,
+                max(RootName)    AS TraceRootName,
+                max(RootService) AS TraceRootService,
+                min(Start)       AS Started,
+                max(End)         AS Ended,
+                sum(SpanCount)   AS TraceSpanCount,
+                sum(ErrorCount)  AS TraceErrorCount
+             FROM trace_summary
+             WHERE ProjectId IN {projectIds:Array(String)} AND TraceId IN {traceIds:Array(String)}
+             GROUP BY ProjectId, TraceId
+             LIMIT {rowLimit:UInt32}',
+            [
+                'projectIds' => $this->stringArrayParameter($projectIds),
+                'traceIds' => $this->stringArrayParameter($traceIds),
+                'rowLimit' => count($traceIds),
+            ],
+        );
+
+        /*
+         * An overloaded ClickHouse yields "none of them", which renders as links
+         * that cannot be followed rather than as a page that failed. The link
+         * target text says the trace is not stored *here*, which stays true
+         * either way.
+         */
+        if ($rows === null) {
+            return [];
+        }
+
+        $traces = [];
+
+        foreach ($rows as $row) {
+            $trace = $this->mapTrace($row);
+            $traces[(string) $trace['traceId']] = $trace;
+        }
+
+        return $traces;
     }
 
     /**
@@ -585,7 +651,50 @@ class TraceQuery
             'statusMessage' => (string) ($row['StatusMessage'] ?? ''),
             'attributes' => $attributes,
             'events' => $this->events($row),
+            'links' => $this->links($row),
         ];
+    }
+
+    /**
+     * Rebuild a span's links from the parallel arrays (R12).
+     *
+     * Read exactly like the events beside them, and for the same reason: the
+     * four columns are position aligned, so they are zipped by index and only up
+     * to the shortest, and a row that lost part of one array yields fewer links
+     * rather than a link wearing another one's target.
+     *
+     * A link is how an exporter says "this span belongs with that one" across a
+     * trace boundary — Claude Code, for one, marks its `llm_request` spans
+     * `link.type: parent_of` pointing at a span in another trace. Without these
+     * columns a root span that *does* know where it came from renders as a lone
+     * bar with nothing to say.
+     *
+     * @param  array<string, mixed>  $row
+     * @return list<array<string, mixed>>
+     */
+    private function links(array $row): array
+    {
+        $traceIds = is_array($row['Links.TraceId'] ?? null) ? array_values($row['Links.TraceId']) : [];
+        $spanIds = is_array($row['Links.SpanId'] ?? null) ? array_values($row['Links.SpanId']) : [];
+        $traceStates = is_array($row['Links.TraceState'] ?? null) ? array_values($row['Links.TraceState']) : [];
+        $attributes = is_array($row['Links.Attributes'] ?? null) ? array_values($row['Links.Attributes']) : [];
+
+        $count = min(count($traceIds), count($spanIds), count($traceStates), count($attributes));
+
+        $links = [];
+
+        for ($index = 0; $index < $count; $index++) {
+            $linkAttributes = $attributes[$index];
+
+            $links[] = [
+                'traceId' => (string) $traceIds[$index],
+                'spanId' => (string) $spanIds[$index],
+                'traceState' => (string) $traceStates[$index],
+                'attributes' => is_array($linkAttributes) ? $linkAttributes : [],
+            ];
+        }
+
+        return $links;
     }
 
     /**

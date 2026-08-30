@@ -774,6 +774,20 @@ export const DEMO_SPANS: Span[] = [
             'http.status_code': '500',
         },
         events: [],
+        /*
+         * A root that is not really a root: its parent lives in a trace this
+         * instance never received, named through a link. The waterfall marks the
+         * row "linked parent" so the top of the chart is not mistaken for the
+         * top of the work.
+         */
+        links: [
+            {
+                traceId: 'c41d0aa7b4e1290b3c7e5f10d8a449f2',
+                spanId: '7c1f9a04bb62d3e5',
+                traceState: '',
+                attributes: { 'link.type': 'parent_of' },
+            },
+        ],
         childCount: 2,
         depth: 0,
     },
@@ -808,6 +822,24 @@ export const DEMO_SPANS: Span[] = [
                 },
             },
         ],
+        /*
+         * Both link states in one span: the first target is a trace this
+         * instance holds and can open, the second is one it does not.
+         */
+        links: [
+            {
+                traceId: '9f2c41d0aa7b4e1290b3c7e5f10d8a44',
+                spanId: 'a1b2c3d4e5f60718',
+                traceState: '',
+                attributes: { 'link.type': 'follows_from' },
+            },
+            {
+                traceId: 'd8a449f2c41d0aa7b4e1290b3c7e5f10',
+                spanId: '0b1c2d3e4f506172',
+                traceState: 'vendor=1',
+                attributes: { 'link.type': 'parent_of' },
+            },
+        ],
         childCount: 1,
         depth: 1,
     },
@@ -827,6 +859,7 @@ export const DEMO_SPANS: Span[] = [
             'db.table': 'payment_methods',
         },
         events: [],
+        links: [],
         childCount: 0,
         depth: 2,
     },
@@ -843,6 +876,7 @@ export const DEMO_SPANS: Span[] = [
         statusMessage: '',
         attributes: { 'messaging.system': 'rabbitmq' },
         events: [],
+        links: [],
         childCount: 0,
         depth: 1,
     },
@@ -860,6 +894,7 @@ export const DEMO_SPANS: Span[] = [
         statusMessage: '',
         attributes: {},
         events: [],
+        links: [],
         childCount: 0,
         depth: 0,
     },
@@ -892,6 +927,7 @@ export const DEMO_AGENT_SPANS: Span[] = [
             'span.type': 'interaction',
         },
         events: [],
+        links: [],
         childCount: 3,
         depth: 0,
     },
@@ -939,6 +975,7 @@ export const DEMO_AGENT_SPANS: Span[] = [
             'service.name': 'claude-code',
         },
         events: [],
+        links: [],
         childCount: 0,
         depth: 1,
     },
@@ -960,6 +997,7 @@ export const DEMO_AGENT_SPANS: Span[] = [
             'gen_ai.tool.call.id': 'toolu_01QQ',
         },
         events: [],
+        links: [],
         childCount: 1,
         depth: 1,
     },
@@ -976,6 +1014,7 @@ export const DEMO_AGENT_SPANS: Span[] = [
         statusMessage: '',
         attributes: { decision: 'accept', source: 'config' },
         events: [],
+        links: [],
         childCount: 0,
         depth: 2,
     },
@@ -998,6 +1037,7 @@ export const DEMO_AGENT_SPANS: Span[] = [
             error: 'subagent exceeded its turn budget',
         },
         events: [],
+        links: [],
         childCount: 0,
         depth: 1,
     },

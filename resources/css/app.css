@@ -72,6 +72,11 @@
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
 
+    --color-magnitude-1: var(--magnitude-1);
+    --color-magnitude-2: var(--magnitude-2);
+    --color-magnitude-3: var(--magnitude-3);
+    --color-magnitude-4: var(--magnitude-4);
+
     --color-severity-trace: var(--severity-trace);
     --color-severity-debug: var(--severity-debug);
     --color-severity-info: var(--severity-info);
@@ -301,6 +306,26 @@
     --severity-warn: hsl(41 92% 33%);
     --severity-error: hsl(354 66% 47%);
     --severity-fatal: hsl(330 60% 42%);
+
+    /*
+      The magnitude ramp: how big a number is, not what it means.
+
+      Severity and the chart palette are categorical — adjacent members differ
+      by hue so they read as different *things*. Magnitude is the opposite: one
+      hue walking in a straight line, so four steps read as one scale and can
+      never be mistaken for a set of categories.
+
+      It starts at the interface's own neutral cast (hue 225) and departs from
+      it toward violet as the number grows, which is the whole idea — a small
+      number is chrome and says nothing, a large one has pulled away from the
+      page. The path is also the one stretch of the wheel that severity and the
+      chart slots leave empty (they occupy 41, 167, 214, 330 and 354), so a
+      tinted numeral can never be misread as a severity.
+    */
+    --magnitude-1: hsl(225 10% 48%);
+    --magnitude-2: hsl(242 40% 54%);
+    --magnitude-3: hsl(264 60% 50%);
+    --magnitude-4: hsl(280 80% 42%);
 }
 
 .dark {
@@ -368,6 +393,16 @@
     --severity-warn: hsl(45 85% 61%);
     --severity-error: hsl(354 74% 66%);
     --severity-fatal: hsl(330 72% 72%);
+
+    /*
+      Authored against the dark card, not lightened from the light values. The
+      first step has to land on the muted-foreground it is standing in for, or
+      a table of small numbers looks tinted rather than quiet.
+    */
+    --magnitude-1: hsl(225 10% 58%);
+    --magnitude-2: hsl(242 45% 70%);
+    --magnitude-3: hsl(264 65% 75%);
+    --magnitude-4: hsl(280 82% 78%);
 }
 
 @layer base {

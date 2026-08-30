@@ -4,6 +4,7 @@ import { computed } from 'vue';
 import { useSpanNaming } from '@/composables/useSpanNaming';
 import {
     formatDuration,
+    parentLink,
     SPAN_STATUS_BAR_CLASS,
     spanDetail,
     spanLabel,
@@ -38,6 +39,19 @@ const emit = defineEmits<{
 const { naming } = useSpanNaming();
 
 const status = computed(() => spanStatus(props.span));
+
+/**
+ * This span has no parent in the tree, but names one through a link.
+ *
+ * The distinction from `orphan` is the whole point: an orphan's parent is
+ * missing, this one's parent is elsewhere and was told to us.
+ */
+const externalParent = computed(
+    () =>
+        props.span.parentSpanId === '' &&
+        parentLink(props.span) !== undefined &&
+        parentLink(props.span)?.traceId !== props.span.traceId,
+);
 const label = computed(() => spanLabel(props.span, naming.value));
 const detail = computed(() => spanDetail(props.span, naming.value));
 
@@ -174,6 +188,21 @@ const labelAfterBar = computed(
                 title="This span's parent is not in this result — it may have aged out, still be in flight, or fall past the row cap."
             >
                 orphan
+            </span>
+
+            <!--
+              A root that names its parent through a link. Not an orphan — this
+              span knows exactly where it came from, but the parent is in another
+              trace, which a tree cannot draw. Marked so the top of a waterfall
+              is never mistaken for the top of the work.
+            -->
+            <span
+                v-else-if="externalParent"
+                class="shrink-0 rounded border px-1 text-muted-foreground"
+                data-test="span-external-parent"
+                title="This span's parent is in another trace, named by a span link. Open the span for its target."
+            >
+                linked parent
             </span>
         </div>
 

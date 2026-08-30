@@ -37,7 +37,7 @@ const demoLive = ref(true);
     <div class="space-y-6">
         <DemoBlock
             title="SpanWaterfall"
-            description="the trace detail's centrepiece: a fixed Span and Detail column against a timeline whose header doubles as a labelled time axis, with gridlines running continuously behind every row so a bar can be read against a number without a ruler. Ticks land on a 1/2/5 ladder, so the axis says 250ms rather than 237ms. Bars are coloured by service — a service is a data series, so it spends the sanctioned --chart-* palette rather than inventing a colour family, and the legend above is the key that makes those colours mean something. A failed span overrides to severity-error, because 'this broke' has to win over 'this belongs to payments'. Rows carry a disclosure triangle and, once collapsed, a count of the children they are hiding; bar geometry is computed against the full set, so collapsing a subtree never moves a bar that is still on screen. The last row is an orphan — its parent aged out, is still in flight, or fell past the row cap — drawn at the top level with a marker rather than dropped."
+            description="the trace detail's centrepiece: a fixed Span and Detail column against a timeline whose header doubles as a labelled time axis, with gridlines running continuously behind every row so a bar can be read against a number without a ruler. Ticks land on a 1/2/5 ladder, so the axis says 250ms rather than 237ms. Bars are coloured by service — a service is a data series, so it spends the sanctioned --chart-* palette rather than inventing a colour family, and the legend above is the key that makes those colours mean something. A failed span overrides to severity-error, because 'this broke' has to win over 'this belongs to payments'. Rows carry a disclosure triangle and, once collapsed, a count of the children they are hiding; bar geometry is computed against the full set, so collapsing a subtree never moves a bar that is still on screen. The last row is an orphan — its parent aged out, is still in flight, or fell past the row cap — drawn at the top level with a marker rather than dropped. The first row wears the other marker: 'linked parent' means the span is not really a root, its parent is in another trace and was named through a span link, which a tree cannot draw."
         >
             <div class="overflow-hidden rounded-md border">
                 <SpanWaterfall
@@ -95,13 +95,16 @@ const demoLive = ref(true);
 
         <DemoBlock
             title="SpanDetailPanel"
-            description="what one span carries, beside the waterfall: its facts as a two-column grid, its status message when it failed, and its attributes and events behind tabs so a span with two hundred attributes cannot push the events out of reach. Attribute keys sit above their values rather than beside them: in a 22rem panel a two-column grid gives every value whatever the longest key leaves behind, so one long attribute name starves the whole list. The 'View logs for this span' link is the reason both signals live in one product — the span already knows its trace and span ids, so the log viewer gets an exact predicate rather than a search."
+            description="what one span carries, beside the waterfall: its facts as a two-column grid, its status message when it failed, and its attributes, events and links behind tabs so a span with two hundred attributes cannot push the rest out of reach. The Links tab is how a span says it belongs with one in another trace — the relationship comes from the link's own attributes (`link.type: parent_of` is what Claude Code writes on every llm_request) — and a link is only offered as a way out when this instance actually holds the trace it names. The second link here is one it does not: naming a trace is not the same as having received it. Attribute keys sit above their values rather than beside them: in a 22rem panel a two-column grid gives every value whatever the longest key leaves behind, so one long attribute name starves the whole list. The 'View logs for this span' link is the reason both signals live in one product — the span already knows its trace and span ids, so the log viewer gets an exact predicate rather than a search."
         >
             <div class="max-w-sm">
                 <SpanDetailPanel
                     :span="DEMO_SPANS[1]"
                     team-slug="acme"
                     :colour="colours.get(DEMO_SPANS[1].serviceName)"
+                    :linked-traces="{
+                        [DEMO_TRACES[1].traceId]: DEMO_TRACES[1],
+                    }"
                 />
             </div>
         </DemoBlock>
@@ -158,7 +161,7 @@ const demoLive = ref(true);
 
         <DemoBlock
             title="TraceListRow"
-            description="one row per trace, reading from trace_summary rather than from the spans themselves. A trace containing an error takes the severity-error token — the same one an error log line wears — and everything else stays achromatic. The last row is a trace whose spans have passed the 30-day retention window while its 90-day summary survived: it keeps its place in the list, loses its link, and says why. Every live row links to the waterfall with the trace's own start time in the query string, which is what keeps the span lookup bounded to seconds instead of scanning a month."
+            description="one row per trace, reading from trace_summary rather than from the spans themselves. A trace containing an error takes the severity-error token — the same one an error log line wears — while the duration column carries the magnitude ramp, so “this broke” and “this was slow” are two different facts wearing two different families and a row can say both at once. Everything else stays achromatic. The last row is a trace whose spans have passed the 30-day retention window while its 90-day summary survived: it keeps its place in the list, loses its link, and says why. Every live row links to the waterfall with the trace's own start time in the query string, which is what keeps the span lookup bounded to seconds instead of scanning a month."
         >
             <div class="overflow-hidden rounded-md border">
                 <TraceListRow
@@ -173,7 +176,7 @@ const demoLive = ref(true);
 
         <DemoBlock
             title="ServiceLatencySection"
-            description="p95 and p99 per service over the selected window, drawn through ChartCanvas like every other chart. The two series take the first two chart slots rather than borrowing a severity hue: latency is not a log level. The error-rate column is the one place the severity-error token appears here, because a non-zero error rate is the same kind of fact a failed span is."
+            description="p95 and p99 per service over the selected window, drawn through ChartCanvas like every other chart. The two series take the first two chart slots rather than borrowing a severity hue: latency is not a log level. The p95 and p99 columns carry the magnitude ramp on absolute thresholds, so a slow service surfaces before the table is read and 241ms means the same thing here as it does in the trace list. The error-rate column is the one place the severity-error token appears here, because a non-zero error rate is the same kind of fact a failed span is — and the two families never collide, since one measures size and the other names a state."
         >
             <ServiceLatencySection :latency="DEMO_SERVICE_LATENCY" />
         </DemoBlock>

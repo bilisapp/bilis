@@ -2,7 +2,7 @@
 import { Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import { formatTimestamp, formatUtcTimestamp } from '@/lib/logs';
-import { formatDuration } from '@/lib/traces';
+import { durationClass, formatDuration } from '@/lib/traces';
 import { cn } from '@/lib/utils';
 import { show as traceShow } from '@/routes/traces';
 import type { TraceSummary } from '@/types';
@@ -99,7 +99,20 @@ const operation = computed(
             </div>
         </div>
 
-        <div class="text-right font-mono tabular-nums sm:text-left">
+        <!--
+          The duration carries its own magnitude, so a slow trace is visible
+          before it is read. A failed trace still says so in severity-error on
+          the row's dot and its error count: "this broke" and "this was slow"
+          are different facts and each keeps its own family.
+        -->
+        <div
+            :class="
+                cn(
+                    'text-right font-mono tabular-nums sm:text-left',
+                    durationClass(trace.durationMs),
+                )
+            "
+        >
             {{ formatDuration(trace.durationMs) }}
         </div>
 

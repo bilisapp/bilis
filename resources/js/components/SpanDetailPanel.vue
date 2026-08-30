@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { Check, Copy, ScrollText } from '@lucide/vue';
+import { Check, Copy, ExternalLink, ScrollText } from '@lucide/vue';
 import { useClipboard } from '@vueuse/core';
 import { computed, ref, watch } from 'vue';
 import SpanAttributes from '@/components/SpanAttributes.vue';
@@ -9,23 +9,34 @@ import { Button } from '@/components/ui/button';
 import { useSpanNaming } from '@/composables/useSpanNaming';
 import { formatTimestamp, formatUtcTimestamp } from '@/lib/logs';
 import {
+    durationClass,
     formatDuration,
     spanDetail,
     spanLabel,
     SPAN_KIND_LABEL,
     SPAN_STATUS_BAR_CLASS,
     SPAN_STATUS_TEXT_CLASS,
+    linkRelation,
     spanStatus,
 } from '@/lib/traces';
 import { cn } from '@/lib/utils';
 import { index as logsIndex } from '@/routes/logs';
-import type { Span } from '@/types';
+import { show as traceShow } from '@/routes/traces';
+import type { LinkedTrace, Span, SpanLink } from '@/types';
 
 const props = defineProps<{
     span: Span;
     teamSlug: string;
     /** The palette utility for this span's service, matching its bar. */
     colour?: string;
+    /**
+     * The linked traces this instance actually holds, keyed by trace id.
+     *
+     * Absent where nothing resolved them — the styleguide, the log viewer's
+     * preview panel — in which case every link is offered as unresolved rather
+     * than claimed to be missing.
+     */
+    linkedTraces?: Record<string, LinkedTrace>;
 }>();
 
 const { naming } = useSpanNaming();
@@ -46,9 +57,34 @@ const tabs = computed(() => [
         count: Object.keys(props.span.attributes).length,
     },
     { id: 'events' as const, label: 'Events', count: props.span.events.length },
+    { id: 'links' as const, label: 'Links', count: props.span.links.length },
 ]);
 
-const activeTab = ref<'attributes' | 'events'>('attributes');
+const activeTab = ref<'attributes' | 'events' | 'links'>('attributes');
+
+/**
+ * What one link resolves to, if anything.
+ *
+ * Three states, and they are not the same: a trace we hold and can open, a
+ * trace this instance never received (another process's, or one past the 30-day
+ * span window), and a link back into the trace already on screen.
+ */
+const resolve = (link: SpanLink) => {
+    const self = link.traceId === props.span.traceId;
+    const trace = self ? undefined : props.linkedTraces?.[link.traceId];
+
+    return {
+        self,
+        trace,
+        relation: linkRelation(link),
+        href: trace
+            ? traceShow({
+                  current_team: props.teamSlug,
+                  trace: link.traceId,
+              }).url.concat(`?ts=${encodeURIComponent(trace.startedAt)}`)
+            : null,
+    };
+};
 
 // A different span is a different set of tabs; start from the top.
 watch(
@@ -161,7 +197,11 @@ const logsHref = computed(() => {
             <TraceFact
                 label="Duration"
                 :value="formatDuration(span.durationMs)"
-            />
+            >
+                <span :class="durationClass(span.durationMs)">
+                    {{ formatDuration(span.durationMs) }}
+                </span>
+            </TraceFact>
             <TraceFact label="Detail" :value="detail || '—'" />
             <TraceFact label="Status" :value="span.statusCode || 'Unset'" />
             <TraceFact label="Span ID" :value="span.spanId" mono copyable />
@@ -241,7 +281,7 @@ const logsHref = computed(() => {
             </section>
 
             <section
-                v-else
+                v-else-if="activeTab === 'events'"
                 role="tabpanel"
                 class="flex flex-col gap-2"
                 data-test="span-events"
@@ -276,6 +316,109 @@ const logsHref = computed(() => {
                     class="text-xs text-muted-foreground"
                 >
                     This span recorded no events.
+                </p>
+            </section>
+
+            <!--
+              Links are the other way a span says where it belongs, and the only
+              way one whose parent lives in a different trace can say it at all.
+              Each is offered as a way out only when this instance actually holds
+              the trace it names — a link is a claim about a trace, not proof we
+              received it.
+            -->
+            <section
+                v-else
+                role="tabpanel"
+                class="flex flex-col gap-2"
+                data-test="span-links"
+            >
+                <template
+                    v-for="(link, index) in span.links"
+                    :key="`${link.traceId}-${link.spanId}-${index}`"
+                >
+                    <component
+                        :is="resolve(link).href ? Link : 'div'"
+                        v-bind="
+                            resolve(link).href
+                                ? { href: resolve(link).href }
+                                : {}
+                        "
+                        :class="
+                            cn(
+                                'flex flex-col gap-1 rounded-md border p-2',
+                                resolve(link).href
+                                    ? 'transition-colors hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:outline-none'
+                                    : '',
+                            )
+                        "
+                        :data-test="`span-link-${link.spanId}`"
+                    >
+                        <div class="flex items-baseline justify-between gap-2">
+                            <span class="text-xs font-medium break-words">
+                                {{ resolve(link).relation || 'linked span' }}
+                            </span>
+                            <ExternalLink
+                                v-if="resolve(link).href"
+                                class="size-3.5 shrink-0 text-muted-foreground"
+                                aria-hidden="true"
+                            />
+                        </div>
+
+                        <p
+                            v-if="resolve(link).trace"
+                            class="text-xs break-words text-muted-foreground"
+                        >
+                            {{
+                                resolve(link).trace?.rootName ||
+                                'Root span not received'
+                            }}
+                            <span v-if="resolve(link).trace?.rootService">
+                                · {{ resolve(link).trace?.rootService }}
+                            </span>
+                        </p>
+
+                        <p
+                            class="font-mono text-xs break-all text-muted-foreground"
+                        >
+                            {{ link.traceId }} / {{ link.spanId }}
+                        </p>
+
+                        <!--
+                          Three states, three sentences. "Not stored here" is a
+                          fact about this instance, not about the trace: it is
+                          normally another process's trace that was never sent,
+                          or one whose spans have passed the 30-day window.
+                        -->
+                        <p
+                            v-if="resolve(link).self"
+                            class="text-xs text-muted-foreground"
+                        >
+                            Points at a span in this same trace.
+                        </p>
+                        <p
+                            v-else-if="!resolve(link).trace"
+                            class="text-xs text-muted-foreground"
+                            data-test="span-link-unresolved"
+                        >
+                            That trace is not stored here — it was never sent to
+                            this instance, or its spans have aged out.
+                        </p>
+
+                        <SpanAttributes
+                            v-if="Object.keys(link.attributes).length > 0"
+                            class="mt-0.5"
+                            :attributes="link.attributes"
+                            :reset-key="span.spanId"
+                            flat
+                        />
+                    </component>
+                </template>
+
+                <p
+                    v-if="span.links.length === 0"
+                    class="text-xs text-muted-foreground"
+                >
+                    This span links to no others.
                 </p>
             </section>
         </div>

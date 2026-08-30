@@ -108,9 +108,18 @@ class TracesController extends Controller
 
         $resolved = $this->resolve($traces, $projectIds, $traceId, $validated['ts'] ?? null);
 
+        $spans = SpanTree::flatten($resolved['spans']['spans']);
+
         return Inertia::render('traces/Show', [
             'traceId' => $traceId,
             'summary' => $resolved['summary'],
+            /*
+             * The traces this one's spans point at with a link, and whether we
+             * hold them. A link names a trace; naming one is not having it, and
+             * a reader following a dead link deserves to be told that rather
+             * than dropped on an empty waterfall.
+             */
+            'linkedTraces' => $traces->linkedTraces($projectIds, $this->linkedTraceIds($spans, $traceId)),
             /*
              * Read once from the root span rather than carried on every row: a
              * resource map is identical across a service's spans, so shipping it
@@ -119,7 +128,7 @@ class TracesController extends Controller
             'resource' => $resolved['around'] === null
                 ? null
                 : $traces->rootResource($projectIds, $traceId, $resolved['around']),
-            'spans' => SpanTree::flatten($resolved['spans']['spans']),
+            'spans' => $spans,
             'truncated' => $resolved['spans']['truncated'],
             'unavailable' => $resolved['spans']['unavailable'],
             'spanLimit' => TraceQuery::SPAN_LIMIT,
@@ -218,6 +227,36 @@ class TracesController extends Controller
         $spans['unavailable'] = $spans['unavailable'] || $found['unavailable'];
 
         return ['summary' => $summary, 'around' => $around, 'spans' => $spans];
+    }
+
+    /**
+     * Every distinct trace a span in this set links to, except this one.
+     *
+     * A link back into the trace being read needs no lookup — the reader is
+     * already there — and dropping it keeps the `IN` list to the traces the
+     * page might actually have to offer a way out to.
+     *
+     * @param  list<array<string, mixed>>  $spans
+     * @return list<string>
+     */
+    private function linkedTraceIds(array $spans, string $traceId): array
+    {
+        $ids = [];
+
+        foreach ($spans as $span) {
+            /** @var list<array<string, mixed>> $links */
+            $links = is_array($span['links'] ?? null) ? $span['links'] : [];
+
+            foreach ($links as $link) {
+                $linked = strtolower((string) ($link['traceId'] ?? ''));
+
+                if ($linked !== '' && $linked !== $traceId) {
+                    $ids[$linked] = true;
+                }
+            }
+        }
+
+        return array_keys($ids);
     }
 
     /**

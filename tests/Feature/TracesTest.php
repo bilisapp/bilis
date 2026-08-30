@@ -721,3 +721,140 @@ test('the tail endpoint requires membership of the team', function () {
         ->getJson(route('traces.tail', ['current_team' => $team->slug]))
         ->assertForbidden();
 });
+
+/*
+ * Span links, the other way a span says where it belongs. A root whose parent
+ * lives in a different trace cannot point at it through the tree, so the
+ * exporter records a link instead — and until the query selected these columns
+ * the page had no way to say so.
+ */
+test('the waterfall carries each span links, position aligned', function () {
+    [$user, $team] = traceTeam();
+
+    $linked = str_repeat('c', 32);
+
+    Http::fake(function (Request $request) use ($linked) {
+        if (str_contains($request->body(), 'FROM otel_traces')) {
+            return Http::response(spanResponse([
+                'Links.TraceId' => [$linked, str_repeat('d', 32)],
+                'Links.SpanId' => [str_repeat('e', 16), str_repeat('f', 16)],
+                'Links.TraceState' => ['vendor=1', ''],
+                'Links.Attributes' => [['link.type' => 'parent_of'], []],
+            ]));
+        }
+
+        return Http::response(traceSummaryResponse(['TraceId' => $linked]));
+    });
+
+    $this->actingAs($user)
+        ->get(route('traces.show', [
+            'current_team' => $team->slug,
+            'trace' => str_repeat('a', 32),
+            'ts' => '2026-08-30T09:14:02Z',
+        ]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('spans.0.links', 2)
+            ->where('spans.0.links.0.traceId', $linked)
+            ->where('spans.0.links.0.spanId', str_repeat('e', 16))
+            ->where('spans.0.links.0.traceState', 'vendor=1')
+            // Asserted whole: the attribute key itself contains a dot, which
+            // the fluent path syntax would otherwise read as nesting.
+            ->where('spans.0.links.0.attributes', ['link.type' => 'parent_of'])
+            // The second link's empty attribute map must stay its own, not
+            // borrow the first one's (R12).
+            ->where('spans.0.links.1.attributes', [])
+            /*
+             * A link names a trace; naming one is not having it. The page is
+             * told which of them this instance actually holds, because the
+             * difference decides whether the link is offered as a way out.
+             */
+            ->has('linkedTraces.'.$linked)
+            ->where('linkedTraces.'.$linked.'.rootName', 'POST /checkout')
+            ->etc()
+        );
+
+    Http::assertSent(function (Request $request) {
+        $body = $request->body();
+
+        // The waterfall query, not the root-resource lookup beside it.
+        if (! str_contains($body, 'SpanAttributes')) {
+            return false;
+        }
+
+        expect($body)->toContain('`Links.TraceId`')
+            ->toContain('`Links.SpanId`')
+            ->toContain('`Links.TraceState`')
+            ->toContain('`Links.Attributes`');
+
+        return true;
+    });
+});
+
+test('a linked trace this instance does not hold is reported as absent', function () {
+    [$user, $team] = traceTeam();
+
+    Http::fake(function (Request $request) {
+        if (str_contains($request->body(), 'FROM otel_traces')) {
+            return Http::response(spanResponse([
+                'Links.TraceId' => [str_repeat('c', 32)],
+                'Links.SpanId' => [str_repeat('e', 16)],
+                'Links.TraceState' => [''],
+                'Links.Attributes' => [['link.type' => 'parent_of']],
+            ]));
+        }
+
+        // The trace's own summary exists; the linked one does not.
+        if (str_contains($request->body(), 'TraceId IN {traceIds:Array(String)}')) {
+            return Http::response('');
+        }
+
+        return Http::response(traceSummaryResponse());
+    });
+
+    $this->actingAs($user)
+        ->get(route('traces.show', [
+            'current_team' => $team->slug,
+            'trace' => str_repeat('a', 32),
+            'ts' => '2026-08-30T09:14:02Z',
+        ]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('spans.0.links', 1)
+            // Empty, not missing: the page distinguishes "we hold it" from
+            // "it was named", and renders the second as a dead end that says so.
+            ->where('linkedTraces', [])
+            ->etc()
+        );
+});
+
+test('a link back into the same trace is never looked up', function () {
+    [$user, $team] = traceTeam();
+
+    Http::fake(function (Request $request) {
+        if (str_contains($request->body(), 'FROM otel_traces')) {
+            return Http::response(spanResponse([
+                'Links.TraceId' => [str_repeat('a', 32)],
+                'Links.SpanId' => [str_repeat('e', 16)],
+                'Links.TraceState' => [''],
+                'Links.Attributes' => [[]],
+            ]));
+        }
+
+        return Http::response(traceSummaryResponse());
+    });
+
+    $this->actingAs($user)
+        ->get(route('traces.show', [
+            'current_team' => $team->slug,
+            'trace' => str_repeat('a', 32),
+            'ts' => '2026-08-30T09:14:02Z',
+        ]))
+        ->assertOk();
+
+    // The reader is already in that trace, so there is nothing to resolve.
+    Http::assertNotSent(fn (Request $request) => str_contains(
+        $request->body(),
+        'TraceId IN {traceIds:Array(String)}',
+    ));
+});

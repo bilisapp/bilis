@@ -1,5 +1,11 @@
 import { RANGE_PRESETS } from '@/lib/logs';
-import type { LogRangePreset, Span, SpanStatus, TraceFilters } from '@/types';
+import type {
+    LogRangePreset,
+    Span,
+    SpanLink,
+    SpanStatus,
+    TraceFilters,
+} from '@/types';
 
 /**
  * Status colour comes from the severity ladder, not from a new hue.
@@ -20,6 +26,74 @@ export const SPAN_STATUS_BAR_CLASS: Record<string, string> = {
     Ok: 'bg-severity-info',
     Unset: 'bg-muted-foreground/50',
 };
+
+/**
+ * How large a duration is, on a fixed four-step ladder.
+ *
+ * Fixed, not relative to the rows on screen. A scale computed from whatever
+ * happens to be in the current result would repaint every page load — the same
+ * 250ms trace cool on one screen and hot on the next — and a colour that means
+ * something different each time it is drawn is worse than no colour, because it
+ * still gets believed. These thresholds are absolute, so 3.2 s looks the same
+ * on the trace list, the latency table and the span panel, and two screenshots
+ * taken a week apart are comparable.
+ *
+ * The steps are roughly half-decades around the boundaries that matter to a
+ * person reading a distributed system: under 50ms is local work, under 500ms is
+ * a call that still feels instant, under 5s is a request someone is waiting
+ * through, and past that is a request someone has given up on.
+ */
+export const MAGNITUDE_THRESHOLDS_MS = [50, 500, 5000] as const;
+
+export type MagnitudeLevel = 1 | 2 | 3 | 4;
+
+export function magnitudeLevel(milliseconds: number): MagnitudeLevel {
+    if (!Number.isFinite(milliseconds)) {
+        return 1;
+    }
+
+    if (milliseconds < MAGNITUDE_THRESHOLDS_MS[0]) {
+        return 1;
+    }
+
+    if (milliseconds < MAGNITUDE_THRESHOLDS_MS[1]) {
+        return 2;
+    }
+
+    return milliseconds < MAGNITUDE_THRESHOLDS_MS[2] ? 3 : 4;
+}
+
+/**
+ * The magnitude ramp as text utilities.
+ *
+ * Step 1 is deliberately the neutral cast rather than a hue: most numbers in a
+ * healthy system are small, and a table where every row is tinted has spent the
+ * colour before reaching the row worth looking at.
+ */
+export const MAGNITUDE_TEXT_CLASS: Record<MagnitudeLevel, string> = {
+    1: 'text-magnitude-1',
+    2: 'text-magnitude-2',
+    3: 'text-magnitude-3',
+    4: 'text-magnitude-4',
+};
+
+/**
+ * The same ramp as fills, for swatches and any future bar that encodes size.
+ *
+ * Written out rather than composed from the level, because Tailwind scans for
+ * whole class names — `bg-magnitude-${level}` is never emitted into the CSS.
+ */
+export const MAGNITUDE_BG_CLASS: Record<MagnitudeLevel, string> = {
+    1: 'bg-magnitude-1',
+    2: 'bg-magnitude-2',
+    3: 'bg-magnitude-3',
+    4: 'bg-magnitude-4',
+};
+
+/** The text class for a duration, in one call. */
+export function durationClass(milliseconds: number): string {
+    return MAGNITUDE_TEXT_CLASS[magnitudeLevel(milliseconds)];
+}
 
 /**
  * A short label for a span kind.
@@ -654,4 +728,28 @@ export function traceFilterQuery(
     }
 
     return query;
+}
+
+/**
+ * What a link says the relationship is.
+ *
+ * There is no standard attribute for this — OTel leaves link semantics to the
+ * producer — so this reads the two spellings seen in the wild and otherwise
+ * says nothing rather than inventing a relationship the exporter did not claim.
+ */
+export function linkRelation(link: SpanLink): string {
+    return link.attributes['link.type'] ?? link.attributes['link.kind'] ?? '';
+}
+
+/**
+ * The link a span uses to name a parent it could not point at directly.
+ *
+ * A root span with one of these is not really a root: the exporter knows where
+ * it came from, but the parent lives in another trace, so the tree cannot hold
+ * it. Claude Code does exactly this — every `claude_code.llm_request` carries
+ * `link.type: parent_of` — and without surfacing it a standalone request reads
+ * as a span from nowhere.
+ */
+export function parentLink(span: Span): SpanLink | undefined {
+    return span.links.find((link) => linkRelation(link) === 'parent_of');
 }

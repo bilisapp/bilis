@@ -5,6 +5,7 @@ import AutofixSection from './partials/AutofixSection.vue';
 import ChartsSection from './partials/ChartsSection.vue';
 import ComponentsBasics from './partials/ComponentsBasics.vue';
 import ComponentsOverlays from './partials/ComponentsOverlays.vue';
+import MagnitudeSection from './partials/MagnitudeSection.vue';
 import PaletteSection from './partials/PaletteSection.vue';
 import SeveritySection from './partials/SeveritySection.vue';
 import TokensSection from './partials/TokensSection.vue';
@@ -73,6 +74,13 @@ export const STYLEGUIDE_CATEGORIES: StyleguideCategory[] = [
                 description:
                     'Six buckets, mapped from the OpenTelemetry severity number. The dot and text utilities live in app.css and are exposed through SEVERITY_DOT_CLASS and SEVERITY_TEXT_CLASS in resources/js/lib/logs.ts — always import those maps rather than writing the class strings by hand, because the values differ between light and dark mode.',
                 component: SeveritySection,
+            },
+            {
+                id: 'magnitude',
+                name: 'Magnitude scale',
+                description:
+                    "The third family, and the only one that is not categorical. Severity and the chart slots separate adjacent members by hue so they read as different things; magnitude is one hue walking in a straight line, so four steps read as one scale and can never be mistaken for a set of categories. It starts at the interface's own neutral cast and departs from it toward violet as the number grows — a small number is chrome and says nothing, a large one has pulled away from the page — along the one stretch of the wheel severity and the chart palette leave empty. The thresholds are absolute rather than relative to whatever is on screen: a scale recomputed per page would paint the same 250ms trace cool on one screen and hot on the next, and a colour that means something different each time it is drawn still gets believed. Use durationClass() from resources/js/lib/traces.ts rather than writing the utilities by hand.",
+                component: MagnitudeSection,
             },
             {
                 id: 'typography',

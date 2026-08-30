@@ -4,7 +4,7 @@ import ChartCanvas from '@/components/ChartCanvas.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useChartTokens } from '@/composables/useChartTokens';
 import type { BilisChartOption } from '@/lib/echarts';
-import { formatDuration, formatErrorRate } from '@/lib/traces';
+import { durationClass, formatDuration, formatErrorRate } from '@/lib/traces';
 import { cn } from '@/lib/utils';
 import type { ServiceLatencyResult } from '@/types';
 
@@ -149,12 +149,22 @@ const chartHeight = computed(
                                 {{ row.spans.toLocaleString() }}
                             </td>
                             <td
-                                class="py-1.5 pr-3 text-right font-mono tabular-nums"
+                                :class="
+                                    cn(
+                                        'py-1.5 pr-3 text-right font-mono tabular-nums',
+                                        durationClass(row.p95Ms),
+                                    )
+                                "
                             >
                                 {{ formatDuration(row.p95Ms) }}
                             </td>
                             <td
-                                class="py-1.5 pr-3 text-right font-mono tabular-nums"
+                                :class="
+                                    cn(
+                                        'py-1.5 pr-3 text-right font-mono tabular-nums',
+                                        durationClass(row.p99Ms),
+                                    )
+                                "
                             >
                                 {{ formatDuration(row.p99Ms) }}
                             </td>

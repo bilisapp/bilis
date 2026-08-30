@@ -16,6 +16,31 @@ export type SpanEvent = {
     attributes: Record<string, string>;
 };
 
+/**
+ * One span link: another span, usually in another trace, that this span says it
+ * belongs with.
+ *
+ * `attributes` is where the exporter says what the relationship means — Claude
+ * Code writes `link.type: parent_of` on every `claude_code.llm_request` — and
+ * the target trace may or may not be stored here, which is why the page asks
+ * before offering to open it.
+ */
+export type SpanLink = {
+    traceId: string;
+    spanId: string;
+    traceState: string;
+    attributes: Record<string, string>;
+};
+
+/**
+ * A trace this instance actually holds, keyed by id in the `linkedTraces` prop.
+ *
+ * A `TraceSummary` rather than a bare "yes": the link needs the trace's start
+ * time to keep the span query it opens bounded, and showing the root operation
+ * beats showing 32 hex characters.
+ */
+export type LinkedTrace = TraceSummary;
+
 export type Span = {
     /** The span's start, as a naive UTC ClickHouse timestamp. */
     timestamp: string;
@@ -36,6 +61,11 @@ export type Span = {
     statusMessage: string;
     attributes: Record<string, string>;
     events: SpanEvent[];
+    /**
+     * Spans in other traces this one points at. Position-aligned parallel
+     * arrays in ClickHouse (R12), rebuilt into objects by `TraceQuery`.
+     */
+    links: SpanLink[];
     /** Nesting level, assigned server-side by `SpanTree::flatten()`. */
     depth: number;
     /** Direct children, for the disclosure triangle and the count badge. */

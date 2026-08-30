@@ -98,3 +98,8 @@ The traces surface is two pages: `traces.index` (the list, polling `traces.tail`
 Their shared props come from `TracesController::shared()` and every link between them carries the full filter query, built once by `traceFilterQuery()` in `resources/js/lib/traces.ts`. Switching tabs must never change the window being read; two query builders would drift, and the drift would look like a bug in the data.
 
 `TracesToolbar`'s Live control is optional (`live` prop) and only the list passes it — a latency quantile that redrew every five seconds is unreadable, not current.
+
+## A span link names a trace; naming one is not holding it
+`TraceQuery::SPAN_COLUMNS` selects `Links.*` and `mapSpan()` rebuilds them the same position-aligned way events are (R12). They matter: a span whose parent lives in another trace cannot point at it through the tree, so exporters record a `parent_of` link instead. Claude Code does this on every `claude_code.llm_request` — one link each, to a trace id and span id unique per request that this instance will never hold (it is the remote side of the API call). Without the columns, such a span renders as a bar from nowhere.
+
+`TracesController::show()` therefore resolves link targets through `TraceQuery::linkedTraces()` — a point lookup on `trace_summary`'s own key, re-aggregated like every read of that table — and passes `linkedTraces` to the page. A link is only offered as a way out when the target is actually stored; otherwise the UI says the trace is not stored *here*. Links back into the trace being read are dropped before the lookup. Never render a link as followable just because it exists.

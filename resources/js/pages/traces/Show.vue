@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Head, usePage } from '@inertiajs/vue3';
+import { Head, Link, usePage } from '@inertiajs/vue3';
+import { ExternalLink } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import SpanDetailPanel from '@/components/SpanDetailPanel.vue';
 import SpanWaterfall from '@/components/SpanWaterfall.vue';
@@ -7,13 +8,20 @@ import TraceFact from '@/components/TraceFact.vue';
 import { formatTimestamp, formatUtcTimestamp } from '@/lib/logs';
 import {
     formatDuration,
+    parentLink,
     serviceColours,
     SPAN_STATUS_BAR_CLASS,
     SPAN_STATUS_TEXT_CLASS,
 } from '@/lib/traces';
 import { cn } from '@/lib/utils';
-import { index as tracesIndex } from '@/routes/traces';
-import type { Span, Team, TraceResource, TraceSummary } from '@/types';
+import { index as tracesIndex, show as traceShow } from '@/routes/traces';
+import type {
+    LinkedTrace,
+    Span,
+    Team,
+    TraceResource,
+    TraceSummary,
+} from '@/types';
 
 const props = defineProps<{
     traceId: string;
@@ -23,6 +31,11 @@ const props = defineProps<{
     resource: TraceResource | null;
     /** Already flattened depth-first by SpanTree, orphans at root level. */
     spans: Span[];
+    /**
+     * The traces this one's spans link to that are actually stored here, keyed
+     * by trace id. A link names a trace; this says which of them can be opened.
+     */
+    linkedTraces: Record<string, LinkedTrace>;
     /** The trace has more spans than the cap allows. */
     truncated: boolean;
     unavailable: boolean;
@@ -57,6 +70,42 @@ const selectedSpan = computed(
 );
 
 const colours = computed(() => serviceColours(props.spans));
+
+/**
+ * Where this trace came from, when it says so with a link rather than a parent.
+ *
+ * A span whose parent lives in another trace cannot point at it through the
+ * tree, so the exporter records a `parent_of` link instead — Claude Code does
+ * this on every `llm_request`. Read from the trace's own root, because that is
+ * the span whose missing parent explains the whole trace: without this the page
+ * shows a bar from nowhere and has no way to say otherwise.
+ */
+const inboundLink = computed(() => {
+    const root = props.spans.find((span) => span.depth === 0);
+
+    if (!root) {
+        return null;
+    }
+
+    const link = parentLink(root);
+
+    if (!link || link.traceId === props.traceId) {
+        return null;
+    }
+
+    const trace = props.linkedTraces[link.traceId] ?? null;
+
+    return {
+        link,
+        trace,
+        href: trace
+            ? traceShow({
+                  current_team: teamSlug.value,
+                  trace: link.traceId,
+              }).url.concat(`?ts=${encodeURIComponent(trace.startedAt)}`)
+            : null,
+    };
+});
 
 /**
  * The trace's own status, from its spans rather than from a status column.
@@ -217,6 +266,54 @@ const heading = computed(
             </dl>
         </header>
 
+        <!--
+          Why this trace starts where it does. A root span that names a parent
+          through a link is not really a root — the parent is in another trace —
+          and saying so is the difference between "a span from nowhere" and "the
+          rest of this is somewhere else".
+        -->
+        <component
+            :is="inboundLink?.href ? Link : 'div'"
+            v-if="inboundLink"
+            v-bind="inboundLink.href ? { href: inboundLink.href } : {}"
+            :class="
+                cn(
+                    'flex items-start gap-2 rounded-lg border bg-card px-4 py-3 text-xs text-muted-foreground',
+                    inboundLink.href &&
+                        'transition-colors hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:outline-none',
+                )
+            "
+            data-test="trace-inbound-link"
+        >
+            <span class="min-w-0 flex-1">
+                <template v-if="inboundLink.trace">
+                    Continues
+                    <span class="font-medium text-foreground">
+                        {{
+                            inboundLink.trace.rootName ||
+                            'a trace with no root span'
+                        }}
+                    </span>
+                    — this trace's root links to it as its parent.
+                </template>
+                <template v-else>
+                    This trace's root names a parent span in trace
+                    <span class="font-mono break-all">
+                        {{ inboundLink.link.traceId }}
+                    </span>
+                    , which is not stored here — it was never sent to this
+                    instance, or its spans have aged out. That is why the
+                    waterfall starts where it does.
+                </template>
+            </span>
+
+            <ExternalLink
+                v-if="inboundLink.href"
+                class="mt-0.5 size-3.5 shrink-0"
+                aria-hidden="true"
+            />
+        </component>
+
         <p
             v-if="unavailable"
             class="rounded-lg border bg-card p-6 text-sm text-muted-foreground"
@@ -274,6 +371,7 @@ const heading = computed(
                 :span="selectedSpan"
                 :team-slug="teamSlug"
                 :colour="colours.get(selectedSpan.serviceName || 'unknown')"
+                :linked-traces="linkedTraces"
             />
         </div>
     </div>
