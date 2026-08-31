@@ -2,6 +2,12 @@
 #
 # Bilis pre-commit hook: run CI's static checks (lint, format, types) so a
 # commit never lands with code CI would reject on style or type grounds.
+#
+# It is a *fixer*, not a gate: anything a formatter can repair on its own
+# (eslint --fix, prettier, pint) is repaired and re-staged, so a commit is only
+# ever blocked by something a human has to decide — a type error, a lint rule
+# with no autofix, a file that is only half staged.
+#
 # The Pest suite is deliberately not run here — it belongs in CI, not in the
 # commit path.
 #
@@ -17,28 +23,66 @@ fi
 
 cd "$(git rev-parse --show-toplevel)"
 
-# Only the staged tree should be checked, not unstaged work in progress.
-STASH_NAME="bilis-pre-commit-$(date +%s)"
-UNSTAGED=0
-if ! git diff --quiet; then
-    UNSTAGED=1
-    git stash push --keep-index --include-untracked --quiet --message "$STASH_NAME"
-fi
-
-restore() {
-    if [ "$UNSTAGED" = "1" ]; then
-        STASH_REF=$(git stash list --format='%gd %gs' | grep -F "$STASH_NAME" | head -n1 | cut -d' ' -f1)
-        if [ -n "$STASH_REF" ]; then
-            git stash pop --quiet "$STASH_REF" || echo "pre-commit: could not restore $STASH_REF automatically — run 'git stash pop' yourself."
-        fi
-    fi
-}
-trap restore EXIT
-
 STAGED=$(git diff --cached --name-only --diff-filter=ACMR)
 
 php_changed=$(printf '%s\n' "$STAGED" | grep -E '\.php$' || true)
-js_changed=$(printf '%s\n' "$STAGED" | grep -E '\.(ts|tsx|js|mjs|vue|css)$' || true)
+code_changed=$(printf '%s\n' "$STAGED" | grep -E '\.(ts|tsx|js|mjs|vue)$' || true)
+# Prettier only runs over resources/, so a Markdown or JSON file outside it is
+# nobody's business here.
+fmt_changed=$(printf '%s\n' "$STAGED" | grep -E '\.(ts|tsx|js|mjs|vue|css)$|^resources/.*\.(md|json|yml|yaml)$' || true)
+
+if [ -z "$php_changed" ] && [ -z "$code_changed" ] && [ -z "$fmt_changed" ]; then
+    echo "pre-commit: ok (nothing to check)"
+    exit 0
+fi
+
+RUN_DIR=$(mktemp -d)
+STAGED_LIST="$RUN_DIR/staged"
+DIRTY_LIST="$RUN_DIR/dirty"
+PATCH="$RUN_DIR/unstaged.patch"
+RESTORED=0
+
+printf '%s\n' "$STAGED" >"$STAGED_LIST"
+
+# What the checks below judge is the staged tree, not work in progress, so the
+# unstaged half of every file is parked first and put back on the way out.
+#
+# `git stash --keep-index` is the obvious way to do that, and it is a trap: a
+# stash always records the *staged* changes too and replays them on pop, which
+# conflicts the moment a formatter has rewritten a staged file. (`git stash push
+# -- <pathspec>` carries them along as well.) A plain patch of the unstaged diff
+# carries exactly what it says and nothing else. Untracked files are left where
+# they are: parking those would mean moving a file the hook does not own.
+git diff --name-only >"$DIRTY_LIST"
+DIRTY=$(cat "$DIRTY_LIST")
+
+restore() {
+    if [ "$RESTORED" = "1" ]; then
+        return
+    fi
+    RESTORED=1
+
+    if [ -s "$PATCH" ]; then
+        if git apply --whitespace=nowarn "$PATCH" 2>/dev/null; then
+            rm -rf "$RUN_DIR"
+        else
+            KEPT="$(git rev-parse --git-dir)/bilis-pre-commit-unstaged.patch"
+            cp "$PATCH" "$KEPT"
+            rm -rf "$RUN_DIR"
+            echo "pre-commit: could not put your unstaged changes back — apply them yourself:"
+            echo "  git apply --3way $KEPT"
+        fi
+    else
+        rm -rf "$RUN_DIR"
+    fi
+}
+trap restore EXIT
+trap 'restore; exit 1' INT TERM HUP
+
+if [ -n "$DIRTY" ]; then
+    git diff --binary --no-color --output="$PATCH"
+    tr '\n' '\0' <"$DIRTY_LIST" | xargs -0 git checkout-index -f --
+fi
 
 fail() {
     echo ""
@@ -46,21 +90,88 @@ fail() {
     exit 1
 }
 
-if [ -n "$js_changed" ]; then
+# Read a newline-separated list of paths on stdin and keep the ones listed in
+# $2 — or, with -v as $1, drop them. An empty list file makes grep match
+# nothing, so both directions are guarded.
+filter() {
+    if [ -s "$2" ]; then
+        grep -Fx $1 -f "$2" || true
+    elif [ "$1" = "-v" ]; then
+        cat
+    fi
+}
+
+if [ -n "$code_changed" ]; then
     echo "pre-commit: eslint"
-    npm run --silent lint:check || fail "eslint"
+    # --fix repairs what it can and still exits non-zero on what it cannot.
+    npm run --silent lint || fail "eslint"
+fi
 
+if [ -n "$fmt_changed" ]; then
     echo "pre-commit: prettier"
-    npm run --silent format:check || fail "prettier"
+    npm run --silent format -- --log-level warn || fail "prettier"
+fi
 
+if [ -n "$php_changed" ]; then
+    echo "pre-commit: pint"
+    vendor/bin/pint --parallel || fail "pint"
+fi
+
+# The worktree matched the index when the formatters started, so whatever
+# differs now is exactly what they rewrote.
+FIXED=$(git diff --name-only)
+HALF_STAGED=''
+
+if [ -n "$FIXED" ]; then
+    # Files carrying unstaged work go back to their staged content: the rest of
+    # the file is in the patch above, and rewriting the base it applies to would
+    # turn the restore into a conflict.
+    PUT_BACK=$(printf '%s\n' "$FIXED" | filter '' "$DIRTY_LIST")
+    if [ -n "$PUT_BACK" ]; then
+        printf '%s\n' "$PUT_BACK" | tr '\n' '\0' | xargs -0 git checkout-index -f --
+        HALF_STAGED=$(printf '%s\n' "$PUT_BACK" | filter '' "$STAGED_LIST")
+    fi
+
+    RESTAGE=$(printf '%s\n' "$FIXED" | filter '' "$STAGED_LIST" | filter -v "$DIRTY_LIST")
+    if [ -n "$RESTAGE" ]; then
+        printf '%s\n' "$RESTAGE" | tr '\n' '\0' | xargs -0 git add --
+        echo "pre-commit: formatted, re-staged: $(printf '%s' "$RESTAGE" | tr '\n' ' ')"
+    fi
+
+    # Whatever the formatters fixed that this commit does not touch: drift that
+    # had accumulated in the tree. Fixed, and left for a commit of its own.
+    OTHERS=$(git diff --name-only | filter -v "$DIRTY_LIST")
+    if [ -n "$OTHERS" ]; then
+        echo "pre-commit: formatted, left unstaged (not part of this commit): $(printf '%s' "$OTHERS" | tr '\n' ' ')"
+    fi
+fi
+
+# A file staged only in part could not be formatted in place, so its staged half
+# is the one thing the hook cannot fix for you. Judge those files alone: an
+# unformatted file nowhere near this commit is none of its business.
+if [ -n "$HALF_STAGED" ]; then
+    echo "pre-commit: staged only in part, left alone: $(printf '%s' "$HALF_STAGED" | tr '\n' ' ')"
+
+    HALF_JS=$(printf '%s\n' "$HALF_STAGED" | grep -E '\.(ts|tsx|js|mjs|vue|css)$|^resources/.*\.(md|json|yml|yaml)$' || true)
+    if [ -n "$HALF_JS" ]; then
+        printf '%s\n' "$HALF_JS" | tr '\n' '\0' |
+            xargs -0 npx --no-install prettier --check --ignore-unknown --log-level warn ||
+            fail "prettier — stage the rest of the file, or run 'npm run format'"
+    fi
+
+    HALF_PHP=$(printf '%s\n' "$HALF_STAGED" | grep -E '\.php$' || true)
+    if [ -n "$HALF_PHP" ]; then
+        printf '%s\n' "$HALF_PHP" | tr '\n' '\0' | xargs -0 vendor/bin/pint --test ||
+            fail "pint — stage the rest of the file, or run 'vendor/bin/pint'"
+    fi
+fi
+
+if [ -n "$code_changed" ]; then
     echo "pre-commit: vue-tsc"
     npm run --silent types:check || fail "vue-tsc"
 fi
 
 if [ -n "$php_changed" ]; then
-    echo "pre-commit: pint"
-    vendor/bin/pint --parallel --test || fail "pint"
-
     echo "pre-commit: phpstan"
     vendor/bin/phpstan analyse --no-progress || fail "phpstan"
 fi

@@ -98,7 +98,7 @@ vendor/bin/phpstan analyse    # larastan level per phpstan.neon — keep it clea
 php artisan clickhouse:migrate
 php artisan clickhouse:materialize-index   # one-off, operator-run; never on boot
 npm run build                 # must pass (vue-tsc + vite)
-composer hooks:install       # enable .githooks/pre-commit (lint/format/types before every commit, no tests; `composer setup` does this too)
+composer hooks:install       # enable .githooks/pre-commit (autofixes lint/format and re-stages, then gates on types; no tests; `composer setup` does this too)
 php artisan wayfinder:generate --with-form   # ALWAYS --with-form; without it .form() is stripped from every generated route and ~19 files break
 ```
 

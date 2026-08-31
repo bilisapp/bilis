@@ -56,7 +56,7 @@ bytes/day ≈ lines/second × 86400 × 100
 Which gives, at 30-day retention:
 
 | Lines/second | Per day | 30 days |
-|--------------|---------|---------|
+| ------------ | ------- | ------- |
 | 10           | ~86 MB  | ~2.6 GB |
 | 100          | ~864 MB | ~26 GB  |
 | 1,000        | ~8.6 GB | ~260 GB |
@@ -68,7 +68,7 @@ reasonable planning assumption, so traces tend to dominate the disk budget. At
 30-day span retention:
 
 | Spans/second | Per day | 30 days |
-|--------------|---------|---------|
+| ------------ | ------- | ------- |
 | 100          | ~600 MB | ~18 GB  |
 | 1,000        | ~6 GB   | ~180 GB |
 | 10,000       | ~60 GB  | ~1.8 TB |
@@ -125,7 +125,7 @@ Ingest is throttled per API key, so one runaway client cannot starve the
 others:
 
 | Requests                            | Limit                     | Counted per |
-|-------------------------------------|---------------------------|-------------|
+| ----------------------------------- | ------------------------- | ----------- |
 | With a valid `Authorization` header | **1,200 requests/minute** | API key     |
 | Without one                         | **60 requests/minute**    | client IP   |
 
