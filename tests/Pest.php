@@ -6,6 +6,7 @@ use App\Models\Project;
 use App\Models\ProjectRepository;
 use App\Models\Team;
 use App\Services\Autofix\RunDriver;
+use App\Services\Ingest\Protobuf\ProtobufReader;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -89,6 +90,54 @@ function insertedRows(Request $request): array
         fn (string $line): array => json_decode($line, true),
         array_values($lines),
     );
+}
+
+/**
+ * Decode an OTLP export *response* from its protobuf encoding.
+ *
+ * The response schema is the same two fields for every signal, so this reads
+ * both `ExportLogsServiceResponse` and `ExportTraceServiceResponse`:
+ *
+ *     { partial_success = 1 { rejected = 1 (varint), error_message = 2 (string) } }
+ *
+ * A complete success is zero bytes and comes back as an empty array — asserting
+ * that is asserting a protobuf export was answered in protobuf, which is what
+ * stops a spec-compliant client logging a parse error after every batch.
+ *
+ * @return array{rejected?: int, errorMessage?: string}
+ */
+function decodeOtlpResponse(string $body): array
+{
+    if ($body === '') {
+        return [];
+    }
+
+    $reader = new ProtobufReader($body);
+    $out = [];
+
+    while (! $reader->atEnd()) {
+        [$field, $wireType] = $reader->readTag();
+
+        if ($field !== 1 || $wireType !== 2) {
+            $reader->skip($wireType);
+
+            continue;
+        }
+
+        $partial = $reader->readMessage();
+
+        while (! $partial->atEnd()) {
+            [$innerField, $innerWireType] = $partial->readTag();
+
+            match ($innerField) {
+                1 => $out['rejected'] = $partial->readVarint(),
+                2 => $out['errorMessage'] = $partial->readLengthDelimited(),
+                default => $partial->skip($innerWireType),
+            };
+        }
+    }
+
+    return $out;
 }
 
 /*

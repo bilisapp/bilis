@@ -1,5 +1,6 @@
 <?php
 
+use App\Logging\AddTraceContext;
 use App\Logging\BilisLogger;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
@@ -142,6 +143,22 @@ return [
             'endpoint' => env('BILIS_ENDPOINT', 'https://bilis.app'),
             'api_key' => env('BILIS_API_KEY'),
             'level' => env('BILIS_LOG_LEVEL', 'debug'),
+
+            /*
+             * Both signals must name the service identically or the viewer
+             * shows one application twice: `Bilis` with the logs and `bilis`
+             * with the spans, filtered separately, joined by nothing. The
+             * handler falls back to the application name when this is unset,
+             * which is right for an install that ships logs and no traces.
+             */
+            'service' => env('OTEL_SERVICE_NAME'),
+
+            /*
+             * Stamps each record with the current trace and span id so a
+             * shipped line links to its waterfall. Inert when the OpenTelemetry
+             * SDK is disabled: there is no valid span to read.
+             */
+            'tap' => [AddTraceContext::class],
         ],
 
         'null' => [

@@ -33,6 +33,13 @@
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
         <!--
+            The OpenTelemetry SDK is enabled by the presence of an exporter
+            endpoint, so a developer with self-tracing configured in .env would
+            otherwise have every test run export spans to their own Bilis. Off
+            here explicitly; the tests that care turn it back on themselves.
+        -->
+        <env name="OTEL_SDK_DISABLED" value="true"/>
+        <!--
             The autofix credentials are blanked so a test never picks up the
             operator's real GitHub App or model key out of .env. A test that
             needs them configures its own throwaway pair, which is what keeps a

@@ -37,6 +37,26 @@ signal-agnostic endpoint itself — `/v1/traces` for spans, `/v1/logs` for logs 
 which is why the value above ends in `/api` and not in `/api/v1/traces`. Set to
 the bare host, an SDK would post to `/v1/traces`, which does not exist here.
 
+### The header value is url-encoded, except where it is not
+
+`OTEL_EXPORTER_OTLP_HEADERS` is specified as url-encoded, which is why the space
+in `Bearer bilis_...` is written `%20` above. The Collector and the Go SDK
+decode it. **The PHP SDK does not** — its `MapParser` splits on `=` and `,` and
+trims, and nothing else — so a PHP exporter sends the literal string
+`Bearer%20bilis_...`, which is not a bearer token, and every export comes back
+`401`. It looks exactly like a wrong key.
+
+The reliable way out is to stop needing an encoded character at all. Bilis
+accepts the key in `X-Bilis-Key` as well as in `Authorization`, and that value
+has no space in it:
+
+```bash
+OTEL_EXPORTER_OTLP_HEADERS=x-bilis-key=bilis_your_key_here
+```
+
+That line is correct in every SDK and in the Collector, with or without
+url-decoding, quoted or bare. Prefer it.
+
 The per-signal variable is used **verbatim** instead, so that one names the
 full path:
 
@@ -130,8 +150,49 @@ same service.
 
 ### PHP and Laravel
 
-The OpenTelemetry PHP SDK auto-instruments Laravel through the `opentelemetry`
-PHP extension plus one package:
+There are two ways to instrument a Laravel application, and the difference
+between them is whether you can install a PECL extension.
+
+**Without the extension — `keepsuit/laravel-opentelemetry`.** This is what Bilis
+itself uses. It instruments through Laravel's own events and container rather
+than through userland hooks, so it needs no `ext-opentelemetry`, and it knows
+about Octane, Horizon and queue workers, which is what decides whether spans
+ever get flushed in a long-running process.
+
+```bash
+composer require keepsuit/laravel-opentelemetry
+php artisan vendor:publish --tag=opentelemetry-config
+```
+
+```bash
+OTEL_SERVICE_NAME=checkout
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+OTEL_EXPORTER_OTLP_ENDPOINT=https://your-bilis-host/api
+OTEL_EXPORTER_OTLP_HEADERS=x-bilis-key=bilis_your_key_here
+OTEL_METRICS_EXPORTER=null
+OTEL_LOGS_EXPORTER=null
+```
+
+Two of those lines are load-bearing and are not defaults. The package ships
+with the metrics and logs exporters set to `otlp`: left alone, it posts metrics
+to `/v1/metrics`, which Bilis does not serve — metrics are out of scope — and
+retries three times before printing a stack trace, once per request. Set both
+to `null`. Logs should leave a Laravel app through the
+[Monolog channel](/docs/ingestion/shippers#laravel) instead, which is where the
+correlation between those lines and these spans is described.
+
+Two more worth knowing before you go looking for missing spans:
+
+- **Console instrumentation is a whitelist.** `ConsoleInstrumentation` is
+  enabled by default but its `commands` list is empty, and an empty list traces
+  nothing. Name the commands you care about, or `'*'`-suffixed prefixes.
+- **Exclude whatever path you export to**, if you are exporting to an
+  application that is itself instrumented. Tracing the receiving endpoint means
+  each export produces spans, which are exported, which produce spans. Bilis
+  ships with `api/v1/traces` in `excluded_paths` for exactly this reason.
+
+**With the extension — the official `opentelemetry-auto-laravel`.** Vendor
+neutral, supports older Laravel versions, and requires `ext-opentelemetry`:
 
 ```bash
 pecl install opentelemetry
@@ -147,14 +208,11 @@ OTEL_METRICS_EXPORTER=none
 OTEL_LOGS_EXPORTER=none
 OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf   # http/json if you skip the protobuf dependency
 OTEL_EXPORTER_OTLP_ENDPOINT=https://your-bilis-host/api
-OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer bilis_your_key_here"
+OTEL_EXPORTER_OTLP_HEADERS=x-bilis-key=bilis_your_key_here
 ```
 
-Requests, queued jobs, console commands, Eloquent queries, cache calls and
-outbound HTTP become spans without a code change. `OTEL_LOGS_EXPORTER=none`
-because a Laravel app's log lines are better shipped through the
-[Monolog channel](/docs/ingestion/shippers#laravel), which is where the
-correlation between those lines and these spans is described.
+Either way, requests, queued jobs, Eloquent queries, cache calls and outbound
+HTTP become spans without a code change.
 
 ## Collector configuration
 

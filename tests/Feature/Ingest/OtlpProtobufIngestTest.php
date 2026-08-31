@@ -36,7 +36,7 @@ function postOtlp(string $body, array $headers = []): TestResponse
 test('a protobuf export is stored exactly like its json twin', function () {
     Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
 
-    postOtlp($this->body)->assertOk()->assertExactJson([]);
+    expect(decodeOtlpResponse(postOtlp($this->body)->assertOk()->getContent()))->toBe([]);
 
     Http::assertSent(function (Request $request) {
         $rows = insertedRows($request);
@@ -71,9 +71,10 @@ test('a protobuf export is stored exactly like its json twin', function () {
 test('a gzipped protobuf export is inflated first', function () {
     Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
 
-    postOtlp((string) gzencode($this->body), ['HTTP_CONTENT_ENCODING' => 'gzip'])
-        ->assertOk()
-        ->assertExactJson([]);
+    $response = postOtlp((string) gzencode($this->body), ['HTTP_CONTENT_ENCODING' => 'gzip'])
+        ->assertOk();
+
+    expect(decodeOtlpResponse($response->getContent()))->toBe([]);
 
     Http::assertSent(fn (Request $request) => count(insertedRows($request)) === 2);
 });
@@ -93,9 +94,11 @@ test('the protobuf encoding can be turned off', function () {
 test('a malformed protobuf body is skipped, never rejected', function (string $body) {
     Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
 
-    postOtlp($body)
-        ->assertOk()
-        ->assertJsonPath('partialSuccess.errorMessage', 'Request body could not be read as an OTLP ExportLogsServiceRequest.');
+    $response = postOtlp($body)
+        ->assertOk();
+
+    expect(decodeOtlpResponse($response->getContent()))
+        ->toBe(['errorMessage' => 'Request body could not be read as an OTLP ExportLogsServiceRequest.']);
 
     Http::assertNothingSent();
 })->with([
@@ -107,9 +110,11 @@ test('a malformed protobuf body is skipped, never rejected', function (string $b
 test('a body that claims gzip but is not gzipped is skipped, never rejected', function () {
     Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
 
-    postOtlp($this->body, ['HTTP_CONTENT_ENCODING' => 'gzip'])
-        ->assertOk()
-        ->assertJsonPath('partialSuccess.errorMessage', 'Request body could not be read as an OTLP ExportLogsServiceRequest.');
+    $response = postOtlp($this->body, ['HTTP_CONTENT_ENCODING' => 'gzip'])
+        ->assertOk();
+
+    expect(decodeOtlpResponse($response->getContent()))
+        ->toBe(['errorMessage' => 'Request body could not be read as an OTLP ExportLogsServiceRequest.']);
 
     Http::assertNothingSent();
 });
@@ -132,9 +137,11 @@ test('a decompressed body larger than the cap is refused rather than half read',
     // Compresses to a few hundred bytes and expands well past the cap.
     $payload = (string) json_encode(['resourceLogs' => []]).str_repeat(' ', 4096);
 
-    postOtlp((string) gzencode($payload), ['HTTP_CONTENT_ENCODING' => 'gzip'])
-        ->assertOk()
-        ->assertJsonPath('partialSuccess.errorMessage', 'Request body could not be read as an OTLP ExportLogsServiceRequest.');
+    $response = postOtlp((string) gzencode($payload), ['HTTP_CONTENT_ENCODING' => 'gzip'])
+        ->assertOk();
+
+    expect(decodeOtlpResponse($response->getContent()))
+        ->toBe(['errorMessage' => 'Request body could not be read as an OTLP ExportLogsServiceRequest.']);
 
     Http::assertNothingSent();
 });
@@ -153,7 +160,7 @@ test('a record with invalid UTF-8 does not fail its batch', function () {
     $scopeLogs = $field(2, $bad).$field(2, $good);
     $body = $field(1, $field(2, $scopeLogs));            // request → resourceLogs → scopeLogs
 
-    postOtlp($body)->assertOk()->assertExactJson([]);
+    expect(decodeOtlpResponse(postOtlp($body)->assertOk()->getContent()))->toBe([]);
 
     Http::assertSent(function (Request $request) {
         $rows = insertedRows($request);

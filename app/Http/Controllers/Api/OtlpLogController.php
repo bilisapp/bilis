@@ -7,6 +7,7 @@ use App\Http\Middleware\AuthenticateProjectApiKey;
 use App\Services\ClickHouse\ClickHouseException;
 use App\Services\Ingest\LogWriter;
 use App\Services\Ingest\OtlpLogMapper;
+use App\Services\Ingest\OtlpResponse;
 use App\Services\Ingest\Protobuf\MalformedProtobufException;
 use App\Services\Ingest\Protobuf\OtlpProtobufDecoder;
 use App\Services\Ingest\RequestBody;
@@ -40,12 +41,13 @@ class OtlpLogController extends Controller
         private readonly OtlpLogMapper $mapper,
         private readonly LogWriter $writer,
         private readonly OtlpProtobufDecoder $protobuf,
+        private readonly OtlpResponse $responses,
     ) {}
 
     /**
      * Accept an OTLP `ExportLogsServiceRequest`.
      */
-    public function store(Request $request): JsonResponse
+    public function store(Request $request): Response
     {
         $protobuf = $this->isProtobuf($request);
 
@@ -78,15 +80,15 @@ class OtlpLogController extends Controller
         }
 
         if (! $mapped->hasRejections()) {
-            return new JsonResponse((object) [], Response::HTTP_OK);
+            return $this->responses->success($protobuf);
         }
 
-        return new JsonResponse([
-            'partialSuccess' => [
-                'rejectedLogRecords' => $mapped->rejected,
-                'errorMessage' => $mapped->errorMessage ?? 'Some log records could not be parsed and were skipped.',
-            ],
-        ], Response::HTTP_OK);
+        return $this->responses->partialSuccess(
+            $protobuf,
+            'rejectedLogRecords',
+            $mapped->rejected,
+            $mapped->errorMessage ?? 'Some log records could not be parsed and were skipped.',
+        );
     }
 
     /**

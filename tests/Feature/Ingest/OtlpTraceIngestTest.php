@@ -155,7 +155,7 @@ test('empty attribute maps are serialized as JSON objects', function () {
 test('numeric attribute keys still reach ClickHouse as JSON objects', function () {
     Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
 
-    $this->withHeaders(['Authorization' => 'Bearer ' . $this->plainTextKey])
+    $this->withHeaders(['Authorization' => 'Bearer '.$this->plainTextKey])
         ->postJson('/api/v1/traces', traceExport([
             'attributes' => [['key' => '0', 'value' => ['stringValue' => 'x']]],
             'events' => [['timeUnixNano' => '1735689600100000000', 'name' => 'e', 'attributes' => [['key' => '1', 'value' => ['stringValue' => 'y']]]]],
@@ -177,7 +177,7 @@ test('numeric attribute keys still reach ClickHouse as JSON objects', function (
 test('a span with an unusable id or start time is counted as rejected, never stored or 400', function (array $overrides) {
     Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
 
-    $this->withHeaders(['Authorization' => 'Bearer ' . $this->plainTextKey])
+    $this->withHeaders(['Authorization' => 'Bearer '.$this->plainTextKey])
         ->postJson('/api/v1/traces', traceExport($overrides))
         ->assertOk()
         ->assertJsonPath('partialSuccess.rejectedSpans', 1);
@@ -235,9 +235,17 @@ test('a malformed payload is reported as a partial success, never a 400', functi
 test('an unreadable protobuf body is a rejected payload, not a client error', function () {
     Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
 
-    postTraces('definitely not protobuf', ['CONTENT_TYPE' => 'application/x-protobuf'])
-        ->assertOk()
-        ->assertJsonPath('partialSuccess.rejectedSpans', 0);
+    $response = postTraces('definitely not protobuf', ['CONTENT_TYPE' => 'application/x-protobuf'])
+        ->assertOk();
+
+    /*
+     * Answered in the encoding it arrived in, and with no `rejected` field:
+     * proto3 omits a zero, and an unreadable body rejects the payload without
+     * ever learning how many spans were inside it.
+     */
+    expect($response->headers->get('Content-Type'))->toBe('application/x-protobuf')
+        ->and(decodeOtlpResponse($response->getContent()))
+        ->toBe(['errorMessage' => 'Request body could not be read as an OTLP ExportTraceServiceRequest.']);
 });
 
 test('a clickhouse failure answers 503 with a retry hint, never 4xx', function () {

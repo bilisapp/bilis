@@ -1,6 +1,7 @@
 ---
 paths:
   - 'app/Services/Ingest/**'
+  - app/Services/Ingest/OtlpResponse.php
 ---
 
 # Ingest
@@ -81,3 +82,10 @@ kept verbatim rather than lost.
 
 ## Reading the ingest throttle's counters back
 `ThrottleRequests::handleRequestUsingNamedLimiter()` does not hand the limiter's bucket to `RateLimiter` as written: it stores the counter under `md5($limiterName.$limit->key)` (`$shouldHashKeys` is true by default). So the dashboard reads `RateLimiter::attempts(md5('ingest'.'ingest:key:'.$keyHash))` — `IngestRateUsage::counterKey()`/`bucketForKeyHash()`. AppServiceProvider builds the same bucket through those helpers so the two can never drift; get it wrong and the panel silently reports 0 forever instead of failing. `ProjectApiKey::key_hash` *is* the sha256 the limiter buckets on, so usage is readable without the plaintext key. Covered by tests/Feature/Ingest/IngestRateUsageTest.php, which posts through the real throttle stack.
+
+## An OTLP response carries the encoding of its request
+OTLP/HTTP is symmetric: a protobuf export must be answered with a protobuf `ExportServiceResponse`, a JSON one with JSON. Bilis used to answer everything in JSON — the spans stored fine and it returned 200, but every spec-compliant client logged a wire-format error after each batch because it was parsing `{}` as protobuf. It looked broken to the operator and fine to the server, which is why it survived until Bilis was pointed at itself.
+
+Both OTLP controllers go through `App\Services\Ingest\OtlpResponse`. `OtlpProtobufEncoder` is the hand-rolled counterpart to the decoder — no composer package, no ext-protobuf, same as the decode side. The response schema is two fields wide and the field *numbers* are identical for logs and traces, so one encoder serves both; only the JSON branch has to know `rejectedSpans` from `rejectedLogRecords`.
+
+A complete success is the empty message: zero bytes, `Content-Type: application/x-protobuf`. That is the wire form, not a shortcut. Error responses (415/401/503) stay JSON — they carry a human-readable `message` that OTLP has no field for.

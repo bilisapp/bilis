@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Middleware\AuthenticateProjectApiKey;
 use App\Services\ClickHouse\ClickHouseException;
+use App\Services\Ingest\OtlpResponse;
 use App\Services\Ingest\OtlpTraceMapper;
 use App\Services\Ingest\Protobuf\MalformedProtobufException;
 use App\Services\Ingest\Protobuf\OtlpProtobufDecoder;
@@ -46,12 +47,13 @@ class OtlpTraceController extends Controller
         private readonly OtlpTraceMapper $mapper,
         private readonly SpanWriter $writer,
         private readonly OtlpProtobufDecoder $protobuf,
+        private readonly OtlpResponse $responses,
     ) {}
 
     /**
      * Accept an OTLP `ExportTraceServiceRequest`.
      */
-    public function store(Request $request): JsonResponse
+    public function store(Request $request): Response
     {
         $protobuf = $this->isProtobuf($request);
 
@@ -84,15 +86,15 @@ class OtlpTraceController extends Controller
         }
 
         if (! $mapped->hasRejections()) {
-            return new JsonResponse((object) [], Response::HTTP_OK);
+            return $this->responses->success($protobuf);
         }
 
-        return new JsonResponse([
-            'partialSuccess' => [
-                'rejectedSpans' => $mapped->rejected,
-                'errorMessage' => $mapped->errorMessage ?? 'Some spans could not be parsed and were skipped.',
-            ],
-        ], Response::HTTP_OK);
+        return $this->responses->partialSuccess(
+            $protobuf,
+            'rejectedSpans',
+            $mapped->rejected,
+            $mapped->errorMessage ?? 'Some spans could not be parsed and were skipped.',
+        );
     }
 
     /**
