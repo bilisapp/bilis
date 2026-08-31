@@ -12,6 +12,7 @@ WORKDIR /app
 ENV APP_ENV=production \
     APP_DEBUG=false \
     COMPOSER_ALLOW_SUPERUSER=1 \
+    COMPOSER_CACHE_DIR=/cache/composer \
     LOG_CHANNEL=stderr
 
 RUN apt-get update \
@@ -53,15 +54,20 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 FROM php-base AS php-deps
 
-COPY composer.json composer.lock ./
+# Optional: a GitHub token (a bare `public_repo`/no-scope PAT is enough — this
+# only reads public archives). Anonymous downloads share one rate-limit bucket
+# with everything else leaving the build host's IP, which is what makes
+# codeload return 400 under load. Pass it as a build arg, or as a BuildKit
+# secret (`--secret id=github_token,env=GITHUB_TOKEN`). It stays in this stage;
+# the production image copies only `vendor` out of it.
+ARG GITHUB_TOKEN=""
 
-RUN composer install \
-    --no-dev \
-    --prefer-dist \
-    --no-interaction \
-    --no-progress \
-    --no-scripts \
-    --optimize-autoloader
+COPY composer.json composer.lock ./
+COPY --chmod=755 docker-composer-install.sh /usr/local/bin/bilis-composer-install
+
+RUN --mount=type=cache,target=/cache/composer,sharing=locked \
+    --mount=type=secret,id=github_token,required=false \
+    bilis-composer-install
 
 FROM php-base AS app-source
 
@@ -79,7 +85,9 @@ WORKDIR /app
 ENV WAYFINDER_COMMAND=true
 
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/cache/npm,sharing=locked \
+    npm ci --cache /cache/npm --prefer-offline --no-audit --fund=false \
+        --fetch-retries=5 --fetch-retry-maxtimeout=60000
 
 COPY --from=app-source /app ./
 
