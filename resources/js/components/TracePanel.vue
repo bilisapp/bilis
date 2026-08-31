@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
+import { Link, router } from '@inertiajs/vue3';
 import { ArrowUpRight, X } from '@lucide/vue';
 import { computed } from 'vue';
 import SpanWaterfall from '@/components/SpanWaterfall.vue';
@@ -10,9 +10,9 @@ import {
     formatDuration,
     SPAN_STATUS_BAR_CLASS,
     SPAN_STATUS_TEXT_CLASS,
+    traceHref,
 } from '@/lib/traces';
 import { cn } from '@/lib/utils';
-import { show as traceShow } from '@/routes/traces';
 import type { TracePanelResult } from '@/types';
 
 const props = defineProps<{
@@ -54,16 +54,28 @@ const spansExpired = computed(
  * side is bounded to minutes, without it ClickHouse hunts a trace id through
  * the whole retention window.
  */
-const detailHref = computed(() => {
-    const url = traceShow({
-        current_team: props.teamSlug,
-        trace: props.traceId,
-    }).url;
+const detailHref = computed(() =>
+    traceHref(props.teamSlug, props.traceId, {
+        ts: summary.value?.startedAt ?? null,
+    }),
+);
 
-    return summary.value === null
-        ? url
-        : `${url}?ts=${encodeURIComponent(summary.value.startedAt)}`;
-});
+/**
+ * A row in the preview is a door to that row on the page.
+ *
+ * The compact waterfall has no detail panel of its own, so selecting a span
+ * here can only mean "show me this one properly": the full page opens with
+ * `?span=` set, lands on that row, and carries the trace's start time so the
+ * span query on the other side stays bounded.
+ */
+function openSpan(spanId: string) {
+    router.visit(
+        traceHref(props.teamSlug, props.traceId, {
+            ts: summary.value?.startedAt ?? null,
+            span: spanId,
+        }),
+    );
+}
 </script>
 
 <template>
@@ -227,6 +239,7 @@ const detailHref = computed(() => {
                             :spans="result?.spans ?? []"
                             :selected-span-id="null"
                             compact
+                            @select="openSpan"
                         />
                     </div>
                 </template>

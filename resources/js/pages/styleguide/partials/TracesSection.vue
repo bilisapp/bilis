@@ -4,8 +4,10 @@ import ServiceLatencySection from '@/components/ServiceLatencySection.vue';
 import SpanAttributes from '@/components/SpanAttributes.vue';
 import SpanDetailPanel from '@/components/SpanDetailPanel.vue';
 import SpanNamingToggle from '@/components/SpanNamingToggle.vue';
+import SpanSearch from '@/components/SpanSearch.vue';
 import SpanWaterfall from '@/components/SpanWaterfall.vue';
 import TraceFact from '@/components/TraceFact.vue';
+import TraceHistogram from '@/components/TraceHistogram.vue';
 import TraceListRow from '@/components/TraceListRow.vue';
 import TracePanel from '@/components/TracePanel.vue';
 import TracesTabs from '@/components/TracesTabs.vue';
@@ -18,11 +20,26 @@ import {
     DEMO_TRACE_PANEL,
     DEMO_TRACE_PANEL_EXPIRED,
     DEMO_TRACES,
+    demoTraceHistogram,
 } from '@/pages/styleguide/data';
 import DemoBlock from './DemoBlock.vue';
 
 const selectedSpanId = ref(DEMO_SPANS[1].spanId);
 const selectedAgentSpanId = ref(DEMO_AGENT_SPANS[2].spanId);
+
+/**
+ * The search demo: the agent trace, searched, with the deep-link state shown
+ * alongside. `revealSpanId` is what `?span=` sets on the real page — the row
+ * is selected, its ancestors opened and it is scrolled to the centre.
+ */
+const searchSelectedSpanId = ref<string | null>(DEMO_AGENT_SPANS[3].spanId);
+const searchRevealSpanId = ref<string | null>(DEMO_AGENT_SPANS[3].spanId);
+const searchMatches = ref<Set<string> | null>(null);
+
+function stepTo(spanId: string) {
+    searchSelectedSpanId.value = spanId;
+    searchRevealSpanId.value = spanId;
+}
 
 const colours = serviceColours(DEMO_SPANS);
 
@@ -31,6 +48,16 @@ const demoService = ref<string | null>(null);
 const demoErrors = ref(false);
 const demoMinDuration = ref<number | null>(null);
 const demoLive = ref(true);
+
+const traceHistogram = demoTraceHistogram();
+const traceHistogramZoom = ref<string | null>(null);
+
+function onTraceHistogramZoom(window: { from: string; to: string }) {
+    traceHistogramZoom.value = `${window.from} → ${window.to}`;
+}
+
+/** The row the keyboard would be holding; j/k move it on the real page. */
+const cursorRow = ref(1);
 </script>
 
 <template>
@@ -58,6 +85,32 @@ const demoLive = ref(true);
                     :selected-span-id="selectedAgentSpanId"
                     @select="selectedAgentSpanId = $event"
                 />
+            </div>
+        </DemoBlock>
+
+        <DemoBlock
+            title="SpanSearch"
+            description="a search over the spans of one trace, sitting above the waterfall on the trace page. It matches case-insensitively over the derived label, the exporter's name, the service, the kind, the status message and every attribute key and value — an attribute is where a span keeps the instance behind its low-cardinality name, so `orders-db` or `/checkout` is only findable there. Rows outside the match set are dimmed rather than removed, so no bar moves while the reader types and a hit still reads against its neighbours; ancestors of every match are expanded so a hit inside a collapsed subtree cannot hide. The count is the search's verdict and is read aloud. Enter and the arrow keys step through the matches in row order, selecting each and scrolling it to the centre — the same reveal the page performs for a `?span=` deep link, which is why the fourth row here starts selected and centred. `/` focuses the field from anywhere; Esc clears it. Try `bash`, `haiku`, `error`, or `tokens`."
+        >
+            <div class="flex flex-col overflow-hidden rounded-md border">
+                <div class="border-b px-3 py-2">
+                    <SpanSearch
+                        :spans="DEMO_AGENT_SPANS"
+                        :selected-span-id="searchSelectedSpanId"
+                        :shortcut="false"
+                        @matches="searchMatches = $event"
+                        @step="stepTo"
+                    />
+                </div>
+                <div class="flex max-h-80 flex-col">
+                    <SpanWaterfall
+                        :spans="DEMO_AGENT_SPANS"
+                        :selected-span-id="searchSelectedSpanId"
+                        :reveal-span-id="searchRevealSpanId"
+                        :matches="searchMatches"
+                        @select="searchSelectedSpanId = $event"
+                    />
+                </div>
             </div>
         </DemoBlock>
 
@@ -160,16 +213,59 @@ const demoLive = ref(true);
         </DemoBlock>
 
         <DemoBlock
+            title="TraceHistogram"
+            description="the strip above the trace list, and deliberately the log histogram's twin: same height, same axis, same bucket ladder chosen server-side from the window, same click on a bar to narrow the window to it. What differs is the encoding. A log line has one of six severities, so that strip stacks six series; a trace either failed or it did not, and a failed trace is still a trace — so stacking 'errors' on 'traces' would count it twice. The failed series is drawn over the total at the same x instead, in severity-error, the token a failed row wears in the list below, while the total stays achromatic because 'how many' is a quantity and not a state. Each bar is a bucket of traces by their true start (min(Start) over every insert block, R11), nominated from trace_index by the hour and aggregated on trace_summary — never counted off the index itself, which holds one row per block and no error count. Click a bar to see what the zoom emits."
+        >
+            <div class="flex flex-col gap-3">
+                <TraceHistogram
+                    :histogram="traceHistogram"
+                    @zoom="onTraceHistogramZoom"
+                />
+                <p class="text-xs text-muted-foreground">
+                    <template v-if="traceHistogramZoom">
+                        Zoom emitted:
+                        <code class="font-mono">{{ traceHistogramZoom }}</code>
+                    </template>
+                    <template v-else>
+                        Click a bar to narrow the window to that bucket.
+                    </template>
+                </p>
+                <div class="grid gap-3 lg:grid-cols-3">
+                    <TraceHistogram />
+                    <TraceHistogram
+                        :histogram="{
+                            buckets: [],
+                            intervalSeconds: 300,
+                            total: 0,
+                            errors: 0,
+                            unavailable: true,
+                        }"
+                    />
+                    <TraceHistogram
+                        :histogram="{
+                            buckets: [],
+                            intervalSeconds: 300,
+                            total: 0,
+                            errors: 0,
+                            unavailable: false,
+                        }"
+                    />
+                </div>
+            </div>
+        </DemoBlock>
+
+        <DemoBlock
             title="TraceListRow"
-            description="one row per trace, reading from trace_summary rather than from the spans themselves. A trace containing an error takes the severity-error token — the same one an error log line wears — while the duration column carries the magnitude ramp, so “this broke” and “this was slow” are two different facts wearing two different families and a row can say both at once. Everything else stays achromatic. The last row is a trace whose spans have passed the 30-day retention window while its 90-day summary survived: it keeps its place in the list, loses its link, and says why. Every live row links to the waterfall with the trace's own start time in the query string, which is what keeps the span lookup bounded to seconds instead of scanning a month."
+            description="one row per trace, reading from trace_summary rather than from the spans themselves. A trace containing an error takes the severity-error token — the same one an error log line wears — while the duration column carries the magnitude ramp, so “this broke” and “this was slow” are two different facts wearing two different families and a row can say both at once. Everything else stays achromatic. The id is shown sixteen characters long, enough to tell rows apart, with a copy button that appears on hover, focus or the keyboard cursor and puts all thirty-two on the clipboard — the same quiet-until-needed pattern as the log row's actions. The second row is holding the keyboard cursor: j/k or the arrows move it, Enter opens the trace, `/` jumps to the service filter, the same model the log stream uses. The last row is a trace whose spans have passed the 30-day retention window while its 90-day summary survived — judged server-side and sent as `spansExpired` — so it keeps its place in the list, loses its link, and says why. Every live row links to the waterfall with the trace's own start time in the query string, which is what keeps the span lookup bounded to seconds instead of scanning a month."
         >
             <div class="overflow-hidden rounded-md border">
                 <TraceListRow
-                    v-for="trace in DEMO_TRACES"
+                    v-for="(trace, index) in DEMO_TRACES"
                     :key="trace.traceId"
                     :trace="trace"
                     team-slug="acme"
-                    :expired="trace.traceId === DEMO_TRACES[2].traceId"
+                    :expired="trace.spansExpired"
+                    :cursor="index === cursorRow"
                 />
             </div>
         </DemoBlock>
@@ -185,18 +281,19 @@ const demoLive = ref(true);
             title="TracesTabs"
             description="the two questions traces answer, split. 'What happened to this request' is a list; 'which service is slow' is a chart, and they were competing for the same screen — a chart that grows a row per service pushed the traces themselves out of view. They are two pages now, wearing one toolbar and one query string: every tab link carries the current filters, so switching views never silently changes the window being read. Links, not local state, so a tab is a place with a URL."
         >
-            <TracesTabs team-slug="acme" :query="{ from: '', to: '' }" />
+            <TracesTabs team-slug="acme" :query="() => ({})" />
         </DemoBlock>
 
         <DemoBlock
             title="TracesToolbar"
-            description="the trace list's scope and window. It shares the range presets with the log viewer's toolbar, so a reader moving between the two surfaces keeps the same window vocabulary. The service filter matches a trace's root service — all the summary table knows — and 'errors only' reads the summed error count across the whole trace rather than the root span's own status. The Live control is optional and only rendered where there is something to poll: the list tab passes it, the latency tab does not, because a quantile that redrew every five seconds would be unreadable rather than current."
+            description="the trace list's scope and window. It shares the range presets with the log viewer's toolbar, so a reader moving between the two surfaces keeps the same window vocabulary. The service field is a datalist, not a select: it suggests the root services seen in the last week (a deferred prop shared by both tabs) and still accepts a name that is not among them, because the latency tab matches any span's service. While the field is focused, the echo of its own debounced round trip is ignored so keystrokes typed during the request are never overwritten; a change from anywhere else still lands. The service filter matches a trace's root service — all the summary table knows — and 'errors only' reads the summed error count across the whole trace rather than the root span's own status. The Live control is optional and only rendered where there is something to poll: the list tab passes it, the latency tab does not, because a quantile that redrew every five seconds would be unreadable rather than current."
         >
             <TracesToolbar
                 :projects="[
                     { name: 'Checkout', slug: 'checkout' },
                     { name: 'Ledger', slug: 'ledger' },
                 ]"
+                :services="['checkout', 'ledger', 'payments', 'worker']"
                 :project="demoProject"
                 :service="demoService"
                 :errors="demoErrors"

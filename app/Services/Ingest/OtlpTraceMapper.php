@@ -2,6 +2,7 @@
 
 namespace App\Services\Ingest;
 
+use InvalidArgumentException;
 use Throwable;
 
 /**
@@ -18,13 +19,6 @@ class OtlpTraceMapper
      * The resource attribute carrying the service name.
      */
     private const SERVICE_NAME_ATTRIBUTE = 'service.name';
-
-    /**
-     * The hex width of a trace id and of a span id.
-     */
-    private const TRACE_ID_LENGTH = 32;
-
-    private const SPAN_ID_LENGTH = 16;
 
     /**
      * Map a decoded OTLP export request for the given project.
@@ -129,12 +123,25 @@ class OtlpTraceMapper
         $start = $span['startTimeUnixNano'] ?? $span['start_time_unix_nano'] ?? null;
         $end = $span['endTimeUnixNano'] ?? $span['end_time_unix_nano'] ?? null;
 
-        $timestamp = OtlpValues::nanos($start) ?? LogTimestamp::now();
+        $timestamp = $this->timestamp($start);
+
+        /*
+         * A span without a readable trace id or span id is rejected, not stored:
+         * `trace_summary_mv` keeps `WHERE TraceId != ''`, so such a row would
+         * never appear in the list, never be reachable from a log line, and
+         * still have been reported to the exporter as accepted.
+         */
+        $traceId = TraceIds::hex($span['traceId'] ?? $span['trace_id'] ?? null, TraceIds::TRACE_ID_BYTES);
+        $spanId = TraceIds::hex($span['spanId'] ?? $span['span_id'] ?? null, TraceIds::SPAN_ID_BYTES);
+
+        if ($traceId === '' || $spanId === '') {
+            throw new InvalidArgumentException('A span needs a non-zero trace id and span id.');
+        }
 
         $status = $span['status'] ?? [];
         $status = is_array($status) ? $status : [];
 
-        [$eventTimestamps, $eventNames, $eventAttributes] = $this->events($span['events'] ?? []);
+        [$eventTimestamps, $eventNames, $eventAttributes] = $this->events($span['events'] ?? [], $timestamp);
         [$linkTraceIds, $linkSpanIds, $linkTraceStates, $linkAttributes] = $this->links($span['links'] ?? []);
 
         /*
@@ -144,9 +151,9 @@ class OtlpTraceMapper
          */
         return [
             'Timestamp' => $timestamp,
-            'TraceId' => $this->hexId($span['traceId'] ?? $span['trace_id'] ?? null, self::TRACE_ID_LENGTH),
-            'SpanId' => $this->hexId($span['spanId'] ?? $span['span_id'] ?? null, self::SPAN_ID_LENGTH),
-            'ParentSpanId' => $this->hexId($span['parentSpanId'] ?? $span['parent_span_id'] ?? null, self::SPAN_ID_LENGTH),
+            'TraceId' => $traceId,
+            'SpanId' => $spanId,
+            'ParentSpanId' => TraceIds::hex($span['parentSpanId'] ?? $span['parent_span_id'] ?? null, TraceIds::SPAN_ID_BYTES),
             'TraceState' => OtlpValues::string($span['traceState'] ?? $span['trace_state'] ?? ''),
             'SpanName' => OtlpValues::string($span['name'] ?? ''),
             'SpanKind' => SpanSemantics::kind($span['kind'] ?? null),
@@ -170,27 +177,23 @@ class OtlpTraceMapper
     }
 
     /**
-     * Normalise a trace or span id to the lowercase hex the table stores.
+     * The span's start, formatted for the `Timestamp` column.
      *
-     * An all-zero id is the proto's way of spelling "absent", and so is a
-     * missing field or one of the wrong width. All of them become `''`, which
-     * matters most for `ParentSpanId`: `trace_summary_mv` decides which span is
-     * the root with `ParentSpanId = ''`, so a root arriving as sixteen zeroes
-     * would leave the trace with no root name at all.
+     * A span that carries no start at all is dated at ingest, as it always was.
+     * A span that carries one we cannot store is rejected instead: a digit
+     * string too long for `DateTime64` would have been acked and then dropped
+     * by ClickHouse, and a value before 2000 is seconds or milliseconds sent as
+     * nanoseconds — a row dated 1970 expires at the next TTL merge, so writing
+     * it with a made-up time would only hide the sender's bug.
      */
-    private function hexId(mixed $value, int $length): string
+    private function timestamp(mixed $start): string
     {
-        if (! is_string($value)) {
-            return '';
+        if ($start === null) {
+            return LogTimestamp::now();
         }
 
-        $value = strtolower(trim($value));
-
-        if (strlen($value) !== $length || preg_match('/^[0-9a-f]+$/', $value) !== 1) {
-            return '';
-        }
-
-        return trim($value, '0') === '' ? '' : $value;
+        return OtlpValues::nanos($start)
+            ?? throw new InvalidArgumentException('The span start time is not a storable nanosecond timestamp.');
     }
 
     /**
@@ -220,9 +223,13 @@ class OtlpTraceMapper
      * the same index, or every later event's name would attach to the wrong
      * event's attributes.
      *
+     * An event whose timestamp is missing or unusable takes the span's own
+     * start: it is the nearest true moment, where epoch zero would be a lie
+     * that the 30-day TTL then erases.
+     *
      * @return array{0: list<string>, 1: list<string>, 2: list<array<string, string>>}
      */
-    private function events(mixed $events): array
+    private function events(mixed $events, string $spanStart): array
     {
         $timestamps = [];
         $names = [];
@@ -238,7 +245,7 @@ class OtlpTraceMapper
             }
 
             $timestamps[] = OtlpValues::nanos($event['timeUnixNano'] ?? $event['time_unix_nano'] ?? null)
-                ?? LogTimestamp::fromNanos(0);
+                ?? $spanStart;
             $names[] = OtlpValues::string($event['name'] ?? '');
             $attributes[] = OtlpValues::attributes($event['attributes'] ?? []);
         }
@@ -267,8 +274,8 @@ class OtlpTraceMapper
                 continue;
             }
 
-            $traceIds[] = $this->hexId($link['traceId'] ?? $link['trace_id'] ?? null, self::TRACE_ID_LENGTH);
-            $spanIds[] = $this->hexId($link['spanId'] ?? $link['span_id'] ?? null, self::SPAN_ID_LENGTH);
+            $traceIds[] = TraceIds::hex($link['traceId'] ?? $link['trace_id'] ?? null, TraceIds::TRACE_ID_BYTES);
+            $spanIds[] = TraceIds::hex($link['spanId'] ?? $link['span_id'] ?? null, TraceIds::SPAN_ID_BYTES);
             $traceStates[] = OtlpValues::string($link['traceState'] ?? $link['trace_state'] ?? '');
             $attributes[] = OtlpValues::attributes($link['attributes'] ?? []);
         }

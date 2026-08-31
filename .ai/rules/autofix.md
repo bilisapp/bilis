@@ -45,3 +45,33 @@ Custom jobs name a `repository` id, not a project slug — the old `->first()` l
 `min_error_count` deliberately does NOT apply: it exists to stop an unattended loop spending on noise, and a person clicking "fix this" has made that call. `FixJobBudget::refusalReason()` still runs, and an *active* job on the same fingerprint short-circuits to that job instead of raising a duplicate.
 
 The repository is never named by the browser: `ProjectRepository::forService($projectId, $serviceName)` resolves it from the service claims (named beats catch-all, autofix-enabled only). The project id in the body is matched against the team's own projects. The rest of the row is untrusted and only ever reaches the agent through `TaskRenderer`'s untrusted-data markers.
+
+## A traced log line brings its waterfall, frozen at raise time and bounded twice
+
+When the triggering row carries a `TraceId`, `FixTriggerService::errorContext()` asks `TraceContextBuilder` for the
+trace and stores the result under `error_context['trace']`; a row without one stores no `trace` key at all, so an
+untraced job's context is byte-identical to before. `TaskRenderer::trace()` echoes the stored text after the sample log
+lines, inside the untrusted markers, under a `Trace:` heading — it never re-renders, because the job page (
+`autofix/Show.vue`, read straight off `errorContext.trace`) must show exactly what the agent was handed.
+
+It is fetched when the job is RAISED, not at dispatch, for the same reason the log row is: spans expire after 30 days
+and pull requests are reviewed later than that. Project ids are `[(string) $repository->project_id]` — the scan's own
+scope — never the row's. `TraceQuery::summary()` runs first (a point lookup on `trace_summary`'s key), and
+`TraceQuery::spansBetween()` then reads exactly `[startedAt − 1 s, endedAt + 1 s]`, so a queue job or agent session
+longer than five minutes reads whole (up to TraceQuery's window cap, reported as `truncated`). Only a summary without
+usable times falls back to `spans()` bracketed around now.
+
+Four states, four sentences, and none of them throws: `rendered`, `expired` (summary but no spans — designed, 90-day
+summaries outlive 30-day spans), `missing` (no summary), `unavailable` (storage busy, or ANY `ClickHouseException` — the
+trace is an enrichment and must never be why a fix job failed to be raised). An agent told "read the waterfall" and
+handed nothing will go looking for it, so the empty states always say why in one line.
+
+`TraceWaterfallRenderer` is pure and caps the text twice — `MAX_SPANS` (60) and `MAX_CHARS` (3,000) — because it is
+appended to a prompt whose other parts are already bounded (`STACK_LIMIT`, `SAMPLE_LIMIT`) and a 2,000-span trace would
+drown them. Over the span cap it keeps, in order: the triggering span (matched on the row's `SpanId`) and its ancestors,
+its siblings, every `StatusCode = 'Error'` span, then the slowest; rendering order is always `SpanTree::flatten()`'s, so
+the survivors still read as a waterfall. The character cap cuts whole lines only. `>>` marks the triggering span, `!!`
+an Error span, and a trailing `(N more spans omitted)` says what was cut. Attributes are a curated allow-list (
+`ATTRIBUTE_KEYS`: http/url, db, rpc, messaging, code.*, both old and stable semconv spellings, six per span), plus every
+`exception` event as `type: message` — never the environment/identity/session keys the UI groups away. Mirror
+`resources/js/lib/attributes.ts` when adding a key.

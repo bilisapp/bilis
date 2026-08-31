@@ -164,6 +164,79 @@ test('a complex otlp body is json encoded and missing timestamps fall back to no
     });
 });
 
+test('numeric attribute keys still reach ClickHouse as JSON objects', function () {
+    Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
+
+    $this->withToken($this->plainTextKey)
+        ->postJson('/api/v1/logs', [
+            'resourceLogs' => [[
+                'resource' => ['attributes' => [['key' => '0', 'value' => ['stringValue' => 'r']]]],
+                'scopeLogs' => [[
+                    'scope' => ['attributes' => [['key' => '1', 'value' => ['stringValue' => 's']]]],
+                    'logRecords' => [[
+                        'body' => ['stringValue' => 'hello'],
+                        'attributes' => [['key' => '0', 'value' => ['stringValue' => 'x']]],
+                    ]],
+                ]],
+            ]],
+        ])->assertOk()->assertExactJson([]);
+
+    Http::assertSent(function (Request $request) {
+        $body = $request->body();
+
+        // PHP stores "0" as an int key and json_encode would write ["x"]; the
+        // writer casts every Map to an object so ClickHouse gets {"0":"x"}.
+        expect($body)->toContain('"ResourceAttributes":{"0":"r"}')
+            ->and($body)->toContain('"ScopeAttributes":{"1":"s"}')
+            ->and($body)->toContain('"LogAttributes":{"0":"x"}');
+
+        return true;
+    });
+});
+
+test('a record whose supplied timestamps cannot be stored is rejected, never re-dated or 400', function () {
+    Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
+
+    $this->withToken($this->plainTextKey)
+        ->postJson('/api/v1/logs', [
+            'resourceLogs' => [['scopeLogs' => [['logRecords' => [
+                ['timeUnixNano' => str_repeat('9', 30), 'observedTimeUnixNano' => '1735689600', 'body' => ['stringValue' => 'bad clock']],
+                ['timeUnixNano' => str_repeat('9', 30), 'observedTimeUnixNano' => '1735689600500000000', 'body' => ['stringValue' => 'observed wins']],
+            ]]]]],
+        ])
+        ->assertOk()
+        ->assertJsonPath('partialSuccess.rejectedLogRecords', 1);
+
+    Http::assertSent(function (Request $request) {
+        $rows = insertedRows($request);
+
+        return count($rows) === 1
+            && $rows[0]['Body'] === 'observed wins'
+            && $rows[0]['Timestamp'] === '2025-01-01 00:00:00.500000000';
+    });
+});
+
+test('trace and span ids are stored the way the trace mapper stores them', function () {
+    Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
+
+    $this->withToken($this->plainTextKey)
+        ->postJson('/api/v1/logs', [
+            'resourceLogs' => [['scopeLogs' => [['logRecords' => [
+                ['traceId' => '5B8EFFF798038103D269B633813FC60C', 'spanId' => base64_encode(hex2bin('eee19b7ec3c1b174')), 'body' => ['stringValue' => 'linked']],
+                ['traceId' => 'request-4821', 'spanId' => '', 'body' => ['stringValue' => 'kept raw']],
+            ]]]]],
+        ])->assertOk()->assertExactJson([]);
+
+    Http::assertSent(function (Request $request) {
+        $rows = insertedRows($request);
+
+        return $rows[0]['TraceId'] === '5b8efff798038103d269b633813fc60c'
+            && $rows[0]['SpanId'] === 'eee19b7ec3c1b174'
+            && $rows[1]['TraceId'] === 'request-4821'
+            && $rows[1]['SpanId'] === '';
+    });
+});
+
 test('malformed otlp records are skipped and reported as a partial success', function () {
     Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
 

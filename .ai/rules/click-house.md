@@ -40,3 +40,26 @@ UTC. The Timestamp column is additionally declared `DateTime64(9, 'UTC')`
 because session_timezone governs parsing and now() but NOT the rendering of a
 naive DateTime64 column — without the column timezone, SELECTs return strings
 in the server's timezone (verified on 26.9). Test: "every request pins the session timezone to UTC".
+
+## Nested sub-columns are altered by their dotted name and Array type
+
+`Events.Timestamp` inside `Events Nested (...)` is a real column called `Events.Timestamp`
+of type `Array(DateTime64(9))`. To change it on a deployed table write
+`ALTER TABLE otel_traces MODIFY COLUMN IF EXISTS \`Events.Timestamp\` Array(DateTime64(9, 'UTC'))`
+— backticked dotted name, `Array(...)` wrapper, `IF EXISTS` for the per-role re-runs.
+Verified on 26.9 (`0006_alter_otel_traces_events_timestamp.sql`): metadata only, instant,
+and `SHOW CREATE TABLE` reflects it immediately. The timezone rule above applies to every
+`DateTime64` we render, nested ones included — a naive `Events.Timestamp` rendered in the
+server zone while the span `Timestamp` beside it rendered in UTC.
+
+## A migrate file may carry a guarded INSERT … SELECT, but it must decide for itself
+
+`0009_backfill_trace_index.sql` is the precedent: a backfill that re-runs on every boot
+and self-limits with a scalar-subquery predicate in its own `WHERE`. Do not guard such a
+statement on "the target is empty" — during a rolling deploy an old container keeps
+inserting and feeds a newly created view before the backfill statement runs, so the target
+is *not* empty and the whole history is skipped without a word. Compare what the target
+should hold against what it does (there, `uniqExact(ProjectId, TraceId)` on both tables),
+and make a spurious run harmless (an `AggregatingMergeTree` merges duplicate keys away).
+Alias the aggregates away from the target's column names and map by position:
+`min(Start) AS Start` over a table that has a `Start` column is `ILLEGAL_AGGREGATION`.

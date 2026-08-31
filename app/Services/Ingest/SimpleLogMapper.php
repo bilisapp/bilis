@@ -74,8 +74,9 @@ class SimpleLogMapper
          */
         return [
             'Timestamp' => LogTimestamp::parse($record['timestamp'] ?? $record['time'] ?? null) ?? $observedAt,
-            'TraceId' => $this->stringField($record['trace_id'] ?? $record['traceId'] ?? null),
-            'SpanId' => $this->stringField($record['span_id'] ?? $record['spanId'] ?? null),
+            // Normalised the way the trace mapper stores them, so the log→span link finds them.
+            'TraceId' => TraceIds::lenient($record['trace_id'] ?? $record['traceId'] ?? null, TraceIds::TRACE_ID_BYTES),
+            'SpanId' => TraceIds::lenient($record['span_id'] ?? $record['spanId'] ?? null, TraceIds::SPAN_ID_BYTES),
             'TraceFlags' => 0,
             'SeverityText' => $severityText,
             'SeverityNumber' => $severityNumber,

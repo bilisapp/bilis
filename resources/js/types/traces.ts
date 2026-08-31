@@ -95,6 +95,12 @@ export type TraceSummary = {
     durationMs: number;
     spanCount: number;
     errorCount: number;
+    /**
+     * The trace started before the span TTL, so its summary is all that is
+     * left. Judged server-side in `TraceQuery::mapTrace()` so every surface
+     * agrees; the row keeps its place and loses its link.
+     */
+    spansExpired: boolean;
 };
 
 export type TraceResult = {
@@ -113,6 +119,37 @@ export type TraceFilters = {
     from: string;
     to: string;
     cursor: string | null;
+};
+
+export type TraceHistogramBucket = {
+    /** The bucket start, as a naive UTC ClickHouse timestamp. */
+    at: string;
+    /** Traces whose true start (`min(Start)`, R11) fell in this bucket. */
+    traces: number;
+    /** Of those, the ones with at least one failed span. */
+    errors: number;
+};
+
+export type TraceHistogram = {
+    buckets: TraceHistogramBucket[];
+    /** The server-chosen bar width, used to label and to zoom into a bar. */
+    intervalSeconds: number;
+    total: number;
+    errors: number;
+    unavailable: boolean;
+};
+
+/**
+ * How many log lines a trace wrote, and the window they were counted in.
+ *
+ * The window is what the header's link opens, so the number beside the link
+ * is the number the click delivers. `count` is null when storage could not
+ * answer — "0 logs" and "could not count" are different facts.
+ */
+export type TraceLogs = {
+    count: number | null;
+    from: string;
+    to: string;
 };
 
 export type ServiceLatency = {

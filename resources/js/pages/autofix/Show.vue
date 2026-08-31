@@ -7,6 +7,7 @@ import {
     GitPullRequest,
     Radio,
     ScrollText,
+    Waypoints,
     XCircle,
 } from '@lucide/vue';
 import { computed, onMounted, ref } from 'vue';
@@ -34,6 +35,7 @@ import {
     streamToken,
 } from '@/routes/autofix';
 import { index as logsIndex } from '@/routes/logs';
+import { show as traceShow } from '@/routes/traces';
 import type { FixJobDetail, FixJobEvent, FixJobStream, Team } from '@/types';
 
 const props = defineProps<{
@@ -247,6 +249,61 @@ const stats = computed(() =>
               { label: 'Started', value: formatTime(props.job.createdAt) },
           ],
 );
+
+/**
+ * The trace the triggering log line belonged to, as `TraceContextBuilder`
+ * froze it onto the job. Mirrors that class's stored shape; it travels inside
+ * `errorContext`, which is why it is narrowed here rather than typed upstream.
+ */
+type TraceContext = {
+    trace_id: string;
+    span_id: string;
+    state: 'rendered' | 'expired' | 'missing' | 'unavailable';
+    root_name: string;
+    root_service: string;
+    started_at: string;
+    span_count: number;
+    error_count: number;
+    rendered_spans: number;
+    omitted_spans: number;
+    waterfall: string | null;
+};
+
+const trace = computed<TraceContext | null>(() => {
+    const candidate = props.job.errorContext?.trace;
+
+    return candidate && typeof candidate === 'object' && 'state' in candidate
+        ? (candidate as TraceContext)
+        : null;
+});
+
+/** The waterfall page for the trace, bounded by the time the summary gave. */
+const traceHref = computed(() =>
+    trace.value
+        ? traceShow(
+              { current_team: props.teamSlug, trace: trace.value.trace_id },
+              {
+                  query: trace.value.started_at
+                      ? { ts: toIso(trace.value.started_at, 0) ?? undefined }
+                      : undefined,
+              },
+          )
+        : null,
+);
+
+/** One sentence on why there is no waterfall, in the state's own words. */
+const traceNotice = computed(() => {
+    switch (trace.value?.state) {
+        case 'expired':
+            return 'The trace was referenced by the log line, but its spans have expired. Only the summary remains.';
+        case 'missing':
+            return 'The trace was referenced by the log line, but no trace with that id is stored.';
+        case 'unavailable':
+            return 'The trace was referenced by the log line, but trace storage could not be read when this job was raised.';
+        default:
+            return null;
+    }
+});
 
 /** Long requests fold away; short ones are never worth a disclosure control. */
 const LONG_REQUEST = 320;
@@ -528,6 +585,61 @@ const expanded = ref(false);
                             max-height="20rem"
                             hide-header
                             data-test="fix-job-stack"
+                        />
+                    </CardContent>
+                </Card>
+
+                <!--
+                  The trace as the agent read it: the same bounded text the
+                  prompt carried, so a reviewer sees exactly what the model
+                  saw rather than a richer view of it.
+                -->
+                <Card v-if="trace" class="min-w-0" data-test="fix-job-trace">
+                    <CardHeader>
+                        <div
+                            class="flex flex-wrap items-start justify-between gap-3"
+                        >
+                            <div class="min-w-0 space-y-1.5">
+                                <CardTitle>Trace</CardTitle>
+                                <CardDescription>
+                                    <template v-if="trace.state === 'rendered'">
+                                        The waterfall the agent was handed —
+                                        {{ trace.rendered_spans }} of
+                                        {{ trace.span_count }} spans,
+                                        {{ trace.error_count }} with Error
+                                        status. <code>&gt;&gt;</code> marks the
+                                        span that emitted the log line,
+                                        <code>!!</code> a span that failed.
+                                    </template>
+                                    <template v-else>{{
+                                        traceNotice
+                                    }}</template>
+                                </CardDescription>
+                            </div>
+
+                            <Button
+                                v-if="traceHref && trace.state !== 'missing'"
+                                variant="outline"
+                                size="sm"
+                                as-child
+                            >
+                                <Link
+                                    :href="traceHref"
+                                    data-test="fix-job-trace-link"
+                                >
+                                    <Waypoints /> Open trace
+                                </Link>
+                            </Button>
+                        </div>
+                    </CardHeader>
+
+                    <CardContent v-if="trace.waterfall">
+                        <CodeCanvas
+                            :code="trace.waterfall"
+                            filename="trace.txt"
+                            max-height="24rem"
+                            hide-header
+                            data-test="fix-job-trace-waterfall"
                         />
                     </CardContent>
                 </Card>

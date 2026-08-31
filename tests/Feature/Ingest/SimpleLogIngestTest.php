@@ -153,3 +153,33 @@ test('empty attribute maps are serialized as JSON objects, not arrays', function
             && ! str_contains($line, '":[]');
     });
 });
+
+test('numeric context keys still reach ClickHouse as JSON objects', function () {
+    Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
+
+    $this->withToken($this->plainTextKey)
+        ->postJson('/api/v1/ingest', ['message' => 'hello', 'context' => ['0' => 'x', 'order' => '42']])
+        ->assertStatus(202);
+
+    Http::assertSent(fn(Request $request) => str_contains($request->body(), '"LogAttributes":{"0":"x","order":"42"}'));
+});
+
+test('trace and span ids are normalised like the trace mapper, and kept raw when unreadable', function () {
+    Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
+
+    $this->withToken($this->plainTextKey)
+        ->postJson('/api/v1/ingest', [
+            ['message' => 'a', 'trace_id' => '5B8EFFF798038103D269B633813FC60C', 'span_id' => ' EEE19B7EC3C1B174 '],
+            ['message' => 'b', 'trace_id' => 'request-4821', 'span_id' => str_repeat('0', 16)],
+        ])
+        ->assertStatus(202);
+
+    Http::assertSent(function (Request $request) {
+        $rows = insertedRows($request);
+
+        return $rows[0]['TraceId'] === '5b8efff798038103d269b633813fc60c'
+            && $rows[0]['SpanId'] === 'eee19b7ec3c1b174'
+            && $rows[1]['TraceId'] === 'request-4821'
+            && $rows[1]['SpanId'] === '';
+    });
+});

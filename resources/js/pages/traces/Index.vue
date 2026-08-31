@@ -1,23 +1,27 @@
 <script setup lang="ts">
 import { Head, router, useHttp, usePage } from '@inertiajs/vue3';
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import TraceHistogram from '@/components/TraceHistogram.vue';
 import TraceListRow from '@/components/TraceListRow.vue';
 import TracesTabs from '@/components/TracesTabs.vue';
 import TracesToolbar from '@/components/TracesToolbar.vue';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useListCursor } from '@/composables/useListCursor';
 import {
     DEFAULT_RANGE_PRESET,
     presetForRange,
     RANGE_PRESETS,
     timeZoneNotice,
 } from '@/lib/logs';
-import { traceFilterQuery } from '@/lib/traces';
+import { traceFilterQuery, traceHref } from '@/lib/traces';
 import { index as tracesIndex, tail as tracesTail } from '@/routes/traces';
 import type {
     LogProject,
     LogRangePreset,
     Team,
     TraceFilters,
+    TraceHistogram as TraceHistogramData,
     TraceResult,
     TraceSummary,
 } from '@/types';
@@ -27,7 +31,11 @@ const props = defineProps<{
     filters: TraceFilters;
     /** Has this team ever sent a span? A fact about the team, not the window. */
     hasTraces: boolean;
+    /** Root services seen lately, for the toolbar's picker; deferred. */
+    services?: string[];
     traces?: TraceResult;
+    /** Volume and failures over the window; deferred in its own group. */
+    histogram?: TraceHistogramData;
 }>();
 
 defineOptions({
@@ -62,8 +70,15 @@ const canReset = computed(
         range.value !== DEFAULT_RANGE_PRESET,
 );
 
-/** The filters as the tabs and the poll both have to spell them. */
-const query = computed(() => traceFilterQuery(props.filters, range.value));
+/**
+ * The filters as the tabs and the poll both have to spell them.
+ *
+ * A function, not a computed: a preset window is relative — "last hour" is the
+ * hour ending *now* — so anything that cached the query string at render time
+ * would hand the other tab, and every poll, a window frozen at the moment the
+ * page loaded. Each caller asks at the moment it needs it.
+ */
+const query = () => traceFilterQuery(props.filters, range.value);
 
 /**
  * Push a filter change into the URL.
@@ -106,6 +121,16 @@ function reset() {
     );
 }
 
+/**
+ * Clicking a histogram bar narrows the list to that bucket.
+ *
+ * An absolute window, so the range control reads "custom" and the query string
+ * carries the bounds themselves — the same thing the log viewer does.
+ */
+function onZoom(window: { from: string; to: string }) {
+    apply({ from: window.from, to: window.to });
+}
+
 /*
  * Live polling.
  *
@@ -121,7 +146,22 @@ function reset() {
  */
 const POLL_INTERVAL_MS = 5_000;
 
+/**
+ * How many polls may fail in a row before the page stops asking.
+ *
+ * One failed poll is a blip and the next tick is its retry. Three in a row is
+ * a server that cannot be reached, and a Live dot that keeps pulsing over a
+ * list that has silently stopped growing is a lie — so Live is switched off
+ * and the page says why, with the retry one click away.
+ */
+const POLL_FAILURE_LIMIT = 3;
+
 const live = ref(true);
+
+const pollFailures = ref(0);
+
+/** Live was switched off by failures, not by the reader. */
+const pollPaused = ref(false);
 
 /**
  * Traces the poll has brought in, keyed by id in `rows` below.
@@ -197,8 +237,10 @@ const fetchNewTraces = async () => {
 
     try {
         const result = await pollRequest.get(
-            tracesTail(teamSlug.value, { query: query.value }).url,
+            tracesTail(teamSlug.value, { query: query() }).url,
         );
+
+        pollFailures.value = 0;
 
         if (result?.rows?.length) {
             const known = new Set(rows.value.map((trace) => trace.traceId));
@@ -207,11 +249,22 @@ const fetchNewTraces = async () => {
             markFresh(result.rows.filter((trace) => !known.has(trace.traceId)));
         }
     } catch {
-        // One failed poll is not a reason to stop; the next tick is the retry.
-        // A persistent failure shows up as a list that stops growing, which is
-        // what the toggle's state already says it might.
+        pollFailures.value += 1;
+
+        if (pollFailures.value >= POLL_FAILURE_LIMIT) {
+            pollPaused.value = true;
+            live.value = false;
+        }
     }
 };
+
+/** The retry offered by the paused notice: clear the slate and ask again. */
+function resumeLive() {
+    pollFailures.value = 0;
+    pollPaused.value = false;
+    live.value = true;
+    void fetchNewTraces();
+}
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -233,6 +286,10 @@ watch(
         stopPolling();
 
         if (enabled) {
+            // The reader switched Live back on themselves, which is a retry.
+            pollFailures.value = 0;
+            pollPaused.value = false;
+
             pollTimer = setInterval(
                 () => void fetchNewTraces(),
                 POLL_INTERVAL_MS,
@@ -244,17 +301,62 @@ watch(
 
 /*
  * A filter change is a different question, so the rows the old one collected
- * are no longer answers to it.
+ * are no longer answers to it — and the row the cursor held is gone with them.
  */
 watch(
     () => props.filters,
     () => {
         polled.value = [];
         freshIds.value = new Set();
+        resetCursor();
     },
 );
 
 onBeforeUnmount(stopPolling);
+
+/**
+ * `less`-style keys over the list, the same model the log stream uses. "Open"
+ * here means following the row's link; `/` lands in the service filter. Every
+ * one of them has a pointer equivalent — this is a faster route, never the
+ * only one.
+ */
+const { cursor, reset: resetCursor } = useListCursor({
+    count: () => rows.value.length,
+    open: (index) => {
+        const trace = rows.value[index];
+
+        if (!trace || trace.spansExpired) {
+            return;
+        }
+
+        router.visit(
+            traceHref(teamSlug.value, trace.traceId, { ts: trace.startedAt }),
+        );
+    },
+    focusSearch: () => {
+        const field = document.querySelector<HTMLInputElement>(
+            "[data-test='traces-service']",
+        );
+
+        field?.focus();
+        field?.select();
+    },
+});
+
+/**
+ * Keep the cursor row on screen when it moves off the top or bottom edge.
+ */
+watch(cursor, (index) => {
+    if (index === null) {
+        return;
+    }
+
+    void nextTick(() => {
+        document
+            .querySelector(`[data-trace-index='${index}']`)
+            ?.scrollIntoView({ block: 'nearest' });
+    });
+});
 </script>
 
 <template>
@@ -271,6 +373,7 @@ onBeforeUnmount(stopPolling);
         <TracesToolbar
             :projects="projects"
             :project="filters.project"
+            :services="services"
             :service="filters.service"
             :errors="filters.errors"
             :min-duration="filters.minDuration"
@@ -286,6 +389,35 @@ onBeforeUnmount(stopPolling);
             @update:live="live = $event"
             @reset="reset"
         />
+
+        <TraceHistogram
+            v-if="hasTraces"
+            :histogram="histogram"
+            @zoom="onZoom"
+        />
+
+        <!--
+          Said once, outside the list, so it survives whatever the list is
+          showing. Three failed polls in a row switched Live off; the reader
+          is told rather than left watching a dot that stopped meaning anything.
+        -->
+        <div
+            v-if="pollPaused"
+            class="flex items-center justify-between gap-3 rounded-lg border bg-card px-4 py-2 text-xs text-muted-foreground"
+            role="status"
+            data-test="traces-live-paused"
+        >
+            <span>Live paused — could not reach the server.</span>
+            <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                data-test="traces-live-retry"
+                @click="resumeLive"
+            >
+                Retry
+            </Button>
+        </div>
 
         <section class="flex flex-col rounded-lg border bg-card">
             <header
@@ -310,10 +442,12 @@ onBeforeUnmount(stopPolling);
 
             <!--
               Three empty states, and they mean different things. Never having
-              sent a span is a setup problem; an empty window is not.
+              sent a span is a setup problem; an empty window is not. The first
+              is only shown while it is still true: a team whose first trace
+              arrives through the poll gets the list, not the setup text.
             -->
             <div
-                v-else-if="!hasTraces"
+                v-else-if="!hasTraces && rows.length === 0"
                 class="flex flex-col gap-2 p-6"
                 data-test="traces-empty-never"
             >
@@ -337,11 +471,14 @@ onBeforeUnmount(stopPolling);
 
             <div v-else>
                 <TraceListRow
-                    v-for="trace in rows"
+                    v-for="(trace, index) in rows"
                     :key="trace.traceId"
                     :trace="trace"
                     :team-slug="teamSlug"
+                    :data-trace-index="index"
+                    :expired="trace.spansExpired"
                     :fresh="freshIds.has(trace.traceId)"
+                    :cursor="cursor === index"
                 />
             </div>
         </section>

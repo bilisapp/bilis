@@ -29,6 +29,11 @@ const props = defineProps<{
      * incomplete.
      */
     orphan?: boolean;
+    /**
+     * Outside the current search's matches. Dimmed, never removed: the row
+     * keeps its place so the bars around it do not move while the reader types.
+     */
+    dimmed?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -114,14 +119,21 @@ const labelAfterBar = computed(
     <div
         :class="
             cn(
-                'group relative grid items-center gap-3 border-b border-border/50 px-3 text-xs transition-colors',
+                'group relative grid items-center gap-3 border-b border-border/50 px-3 text-xs transition-[background-color,opacity]',
                 compact
                     ? 'grid-cols-[minmax(0,10.5rem)_1fr]'
                     : 'grid-cols-[minmax(0,20rem)_8rem_1fr]',
                 selected ? 'bg-accent' : 'hover:bg-accent/40',
+                dimmed && 'opacity-35',
             )
         "
+        role="treeitem"
+        :aria-level="span.depth + 1"
+        :aria-expanded="span.childCount > 0 ? !collapsed : undefined"
+        :aria-selected="selected"
+        :data-span-id="span.spanId"
         :data-test="`span-row-${span.spanId}`"
+        :data-dimmed="dimmed ? 'true' : undefined"
     >
         <!--
           The selected row is marked on its left edge rather than by a ring: a
@@ -162,11 +174,11 @@ const labelAfterBar = computed(
             <button
                 type="button"
                 class="min-w-0 flex-1 truncate text-left font-medium focus-visible:underline focus-visible:outline-none"
-                :aria-pressed="selected"
                 :title="rawName"
                 @click="emit('select')"
             >
                 {{ label }}
+                <span v-if="status === 'Error'" class="sr-only">, failed</span>
             </button>
 
             <!--

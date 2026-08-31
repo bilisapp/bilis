@@ -57,7 +57,8 @@ test('the migrate command creates the database and the otel logs table', functio
             && ($query['database'] ?? null) === 'bilis';
     });
 
-    Http::assertSentCount(6);
+    // The database plus nine schema files.
+    Http::assertSentCount(10);
 });
 
 test('the migrate command may be run repeatedly', function () {
@@ -66,7 +67,7 @@ test('the migrate command may be run repeatedly', function () {
     $this->artisan('clickhouse:migrate')->assertSuccessful();
     $this->artisan('clickhouse:migrate')->assertSuccessful();
 
-    Http::assertSentCount(12);
+    Http::assertSentCount(20);
 });
 
 test('the migrate command fails when clickhouse rejects the schema', function () {
@@ -96,6 +97,9 @@ test('the migrate command creates the traces table, the summary table and its vi
             && str_contains($body, 'ScopeVersion        String                              CODEC(ZSTD(1))')
             && str_contains($body, 'Duration            UInt64                              CODEC(ZSTD(1))')
             && str_contains($body, 'Events Nested (')
+            // The event tick carries the same explicit zone as the span
+            // Timestamp: a naive DateTime64 renders in the SERVER zone.
+            && str_contains($body, "Timestamp  DateTime64(9, 'UTC'),")
             && str_contains($body, 'Links Nested (')
             // Ours: same sort key as the logs table.
             && str_contains($body, 'ORDER BY (ProjectId, Timestamp, ServiceName)')
@@ -148,5 +152,78 @@ test('the migrate command migrates a deployed logs table onto the text body inde
         return str_contains($body, 'ALTER TABLE otel_logs')
             && str_contains($body, 'DROP INDEX IF EXISTS idx_lower_body')
             && str_contains($body, "ADD INDEX IF NOT EXISTS idx_lower_body lower(Body) TYPE text(tokenizer = 'splitByNonAlpha') GRANULARITY 8");
+    });
+});
+
+test('the migrate command converges a deployed traces table onto a zoned event timestamp', function () {
+    Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
+
+    $this->artisan('clickhouse:migrate')->assertSuccessful();
+
+    Http::assertSent(function (Request $request) {
+        $statement = clickHouseStatement($request);
+
+        /*
+         * 0002 declares Events.Timestamp as DateTime64(9, 'UTC') for a fresh
+         * install; a deployed table shipped with the naive type and can only be
+         * converged here. Metadata only, and guarded so the per-role re-runs
+         * from docker-entrypoint.sh are no-ops.
+         */
+        return str_contains($statement, 'ALTER TABLE otel_traces')
+            && str_contains($statement, "MODIFY COLUMN IF EXISTS `Events.Timestamp` Array(DateTime64(9, 'UTC'))");
+    });
+});
+
+/*
+ * SCHEMA.md R13: the trace list's time index, its view, and the one-off
+ * backfill that re-runs on every boot and has to decide for itself.
+ */
+test('the migrate command creates the trace index, its view and the guarded backfill', function () {
+    Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
+
+    $this->artisan('clickhouse:migrate')->assertSuccessful();
+
+    Http::assertSent(function (Request $request) {
+        $statement = clickHouseStatement($request);
+
+        return str_contains($statement, 'CREATE TABLE IF NOT EXISTS trace_index')
+            && str_contains($statement, 'ENGINE = AggregatingMergeTree')
+            // Keyed by the hour, which is what the summary table is not.
+            && str_contains($statement, 'ORDER BY (ProjectId, Hour, TraceId)')
+            // Hour is part of the key, so unlike trace_summary this table may
+            // be partitioned: a merge cannot move a row's hour.
+            && str_contains($statement, 'PARTITION BY toDate(Hour)')
+            // Same retention as the summary it nominates candidates from.
+            && str_contains($statement, 'TTL Hour + toIntervalDay(90)');
+    });
+
+    Http::assertSent(function (Request $request) {
+        $statement = clickHouseStatement($request);
+
+        return str_contains($statement, 'CREATE MATERIALIZED VIEW IF NOT EXISTS trace_index_mv TO trace_index')
+            && str_contains($statement, 'toStartOfHour(min(Timestamp)) AS Hour')
+            // End is the last span's END, as in trace_summary_mv.
+            && str_contains($statement, 'max(Timestamp + toIntervalNanosecond(Duration)) AS End');
+    });
+
+    Http::assertSent(function (Request $request) {
+        $statement = clickHouseStatement($request);
+
+        /*
+         * From the summary, which outlives the spans; guarded on the index's
+         * earliest hour (cheap) rather than on emptiness alone, because a
+         * rolling deploy feeds the new view before this statement runs, and
+         * never on a distinct count of every trace pair, which would hash the
+         * whole history into memory on every boot; and aliased away from the
+         * column names, because `min(Start) AS Start` is ILLEGAL_AGGREGATION.
+         */
+        return str_contains($statement, 'INSERT INTO trace_index (ProjectId, Hour, TraceId, Start, End)')
+            && str_contains($statement, 'FROM trace_summary')
+            && str_contains($statement, '(SELECT count() FROM trace_index) = 0')
+            && str_contains($statement, 'OR (SELECT min(Hour) FROM trace_index)')
+            && str_contains($statement, '> (SELECT toStartOfHour(min(Start)) FROM trace_summary WHERE Start >= now() - toIntervalDay(89))')
+            && !str_contains($statement, 'uniqExact')
+            && !str_contains($statement, 'AS Start')
+            && str_contains($statement, 'GROUP BY ProjectId, TraceId');
     });
 });

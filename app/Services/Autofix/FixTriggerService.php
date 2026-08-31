@@ -48,6 +48,7 @@ class FixTriggerService
         private readonly LogQuery $logQuery,
         private readonly ErrorFingerprinter $fingerprinter,
         private readonly FixJobBudget $budgets,
+        private readonly TraceContextBuilder $traceContext,
     ) {}
 
     /**
@@ -343,7 +344,7 @@ class FixTriggerService
             'team_llm_credential_id' => $credentialId ?? $repository->project->team->defaultLlmCredential()?->getKey(),
             'type' => FixJobType::Error,
             'fingerprint' => $group['fingerprint'],
-            'error_context' => $this->errorContext($group, $from, $to),
+            'error_context' => $this->errorContext($repository, $group, $from, $to),
             'base_sha' => '',
             'status' => FixJobStatus::Pending,
         ]);
@@ -360,14 +361,20 @@ class FixTriggerService
      * have aged out of the retention window long before anyone reads the pull
      * request.
      *
+     * The trace is frozen alongside the row, and for the same reason: its
+     * spans age out after thirty days. It is only looked up when the row
+     * names one, and only with the repository's own project id — the same
+     * scope the scan reads logs with, never anything from the payload.
+     *
      * @param  ErrorGroup  $group
      * @return array<string, mixed>
      */
-    protected function errorContext(array $group, Carbon $from, Carbon $to): array
+    protected function errorContext(ProjectRepository $repository, array $group, Carbon $from, Carbon $to): array
     {
         $row = $group['row'];
+        $traceId = trim($row['traceId']);
 
-        return [
+        $context = [
             'fingerprint' => $group['fingerprint'],
             'service_name' => $this->fingerprinter->serviceName($row),
             'exception' => $this->fingerprinter->exceptionClass($row),
@@ -383,6 +390,16 @@ class FixTriggerService
                 'to' => $to->clone()->utc()->toIso8601ZuluString(),
             ],
         ];
+
+        if ($traceId !== '') {
+            $context['trace'] = $this->traceContext->build(
+                [(string)$repository->project_id],
+                $traceId,
+                trim($row['spanId']),
+            );
+        }
+
+        return $context;
     }
 
     /**

@@ -5,6 +5,7 @@ namespace App\Services\Ingest\Envelope;
 use App\Services\Ingest\LogSeverity;
 use App\Services\Ingest\LogTimestamp;
 use App\Services\Ingest\MappedLogs;
+use App\Services\Ingest\TraceIds;
 
 /**
  * Maps the error events an error reporting client sends into `otel_logs` rows.
@@ -425,13 +426,10 @@ class ErrorEventMapper
      */
     private function hex(mixed $value, int $length): string
     {
-        if (! is_string($value)) {
-            return '';
-        }
-
-        $value = strtolower(str_replace('-', '', trim($value)));
-
-        return preg_match('/^[0-9a-f]{'.$length.'}$/', $value) === 1 ? $value : '';
+        // The shared normaliser, so an id written here spells the same as the
+        // span it points at; the envelope's ids are hex (dashed or not), and
+        // one that is not resolvable is dropped rather than stored raw.
+        return TraceIds::hex($value, intdiv($length, 2));
     }
 
     /**

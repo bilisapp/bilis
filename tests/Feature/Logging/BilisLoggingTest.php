@@ -81,6 +81,90 @@ test('a buffered batch is shipped as one request in the ingest shape', function 
     });
 });
 
+test('a trace id and span id in the context are promoted to top-level fields', function () {
+    Http::fake([ENDPOINT => Http::response('', 202)]);
+
+    $handler = handler();
+
+    $handler->handle(record(context: [
+        'order' => '41902',
+        // Uppercase hex is normalised to the spelling the trace tables store.
+        'trace_id' => '5B8EFFF798038103D269B633813FC60C',
+        'span_id' => 'EEE19B7EC3C1B174',
+    ]));
+
+    $handler->flush();
+
+    Http::assertSent(function (Request $request) {
+        $record = $request->data()[0];
+
+        expect($record['trace_id'])->toBe('5b8efff798038103d269b633813fc60c')
+            ->and($record['span_id'])->toBe('eee19b7ec3c1b174')
+            // The ids live in their columns, not a second time as attributes.
+            ->and($record['context'])->toBe(['order' => '41902']);
+
+        return true;
+    });
+});
+
+test('camel-cased ids and ids set by a processor are promoted too', function () {
+    Http::fake([ENDPOINT => Http::response('', 202)]);
+
+    $handler = handler();
+
+    $handler->handle(record(context: ['traceId' => '5b8efff798038103d269b633813fc60c']));
+    $handler->handle(record(extra: ['span_id' => 'eee19b7ec3c1b174', 'trace_id' => '4bf92f3577b34da6a3ce929d0e0e4736', 'host' => 'web-1']));
+    $handler->handle(record(
+    // The caller's context wins over what a processor added.
+        context: ['trace_id' => '11111111111111111111111111111111'],
+        extra: ['trace_id' => '22222222222222222222222222222222'],
+    ));
+
+    $handler->flush();
+
+    Http::assertSent(function (Request $request) {
+        $records = $request->data();
+
+        expect($records[0]['trace_id'])->toBe('5b8efff798038103d269b633813fc60c')
+            ->and($records[0])->not->toHaveKey('span_id')
+            ->and($records[0]['context'])->toBe([])
+            ->and($records[1]['trace_id'])->toBe('4bf92f3577b34da6a3ce929d0e0e4736')
+            ->and($records[1]['span_id'])->toBe('eee19b7ec3c1b174')
+            ->and($records[1]['context'])->toBe(['extra.host' => 'web-1'])
+            ->and($records[2]['trace_id'])->toBe('11111111111111111111111111111111')
+            ->and($records[2]['context'])->toBe([]);
+
+        return true;
+    });
+});
+
+test('an id that is not hex is passed through and a non-string one stays in the context', function () {
+    Http::fake([ENDPOINT => Http::response('', 202)]);
+
+    $handler = handler();
+
+    $handler->handle(record(context: ['trace_id' => ' Req-2026-08-30 ', 'span_id' => '']));
+    $handler->handle(record(context: ['trace_id' => ['nested' => true]]));
+    $handler->handle(record(context: ['order' => '41902']));
+
+    $handler->flush();
+
+    Http::assertSent(function (Request $request) {
+        $records = $request->data();
+
+        expect($records[0]['trace_id'])->toBe('Req-2026-08-30')
+            // An empty id is dropped rather than shipped as an empty column.
+            ->and($records[0])->not->toHaveKey('span_id')
+            ->and($records[0]['context'])->toBe([])
+            ->and($records[1])->not->toHaveKey('trace_id')
+            ->and($records[1]['context'])->toBe(['trace_id' => ['nested' => true]])
+            ->and($records[2])->not->toHaveKey('trace_id')
+            ->and($records[2])->not->toHaveKey('span_id');
+
+        return true;
+    });
+});
+
 test('every monolog level name resolves to a bilis severity', function () {
     foreach (Level::cases() as $level) {
         expect(LogSeverity::numberForText(strtolower($level->getName())))->not->toBeNull();

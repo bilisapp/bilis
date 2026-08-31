@@ -1,6 +1,6 @@
 ---
 title: Limits and behavior
-description: What an acknowledgement means, how long logs live, how much disk they need, and the knobs a self-hosted install has.
+description: What an acknowledgement means, how long logs and spans live, how to change that, how much disk they need, and the knobs a self-hosted install has.
 order: 1
 ---
 
@@ -42,7 +42,7 @@ drawn. The interface says so rather than showing an empty chart.
 
 Retention is a property of the ClickHouse tables, not a per-project setting.
 Changing it means altering the TTL on `otel_logs`, `otel_traces` or
-`trace_summary`.
+`trace_summary` — see [Changing retention](#changing-retention) below.
 
 ## Sizing
 
@@ -56,14 +56,64 @@ bytes/day ≈ lines/second × 86400 × 100
 Which gives, at 30-day retention:
 
 | Lines/second | Per day | 30 days |
-| ------------ | ------- | ------- |
+|--------------|---------|---------|
 | 10           | ~86 MB  | ~2.6 GB |
 | 100          | ~864 MB | ~26 GB  |
 | 1,000        | ~8.6 GB | ~260 GB |
 | 10,000       | ~86 GB  | ~2.6 TB |
 
+**Spans** cost roughly **70 bytes** each after compression, and an instrumented
+application emits far more spans than log lines — ten times as many is a
+reasonable planning assumption, so traces tend to dominate the disk budget. At
+30-day span retention:
+
+| Spans/second | Per day | 30 days |
+|--------------|---------|---------|
+| 100          | ~600 MB | ~18 GB  |
+| 1,000        | ~6 GB   | ~180 GB |
+| 10,000       | ~60 GB  | ~1.8 TB |
+
+The 90-day `trace_summary` is one short row per trace and does not move these
+numbers. If spans are the problem, in order of what to try first: sample at the
+Collector, shorten the span TTL, or drop span events.
+
 Volume is the variable you actually control, so measure your own rate rather
 than trusting a tier label.
+
+### Changing retention
+
+Retention is a TTL on each table, and a TTL is changed with an online `ALTER`
+against ClickHouse directly. Set `materialize_ttl_after_modify = 0` first: with
+it, the `ALTER` is a metadata change and existing parts pick up the new TTL as
+they are next merged; without it, ClickHouse rewrites every existing part
+immediately, which on a large table is hours of I/O for no benefit.
+
+```sql
+SET
+materialize_ttl_after_modify = 0;
+
+ALTER TABLE otel_logs MODIFY TTL toDateTime(Timestamp) + toIntervalDay(30);
+ALTER TABLE otel_traces MODIFY TTL toDateTime(Timestamp) + toIntervalDay(30);
+ALTER TABLE trace_summary MODIFY TTL toDateTime(Start) + toIntervalDay(90);
+```
+
+The three values shown are the defaults; change the day counts. Keep the
+expression as it is — `otel_logs` and `otel_traces` expire by the event
+timestamp, `trace_summary` by the trace's start.
+
+Two things worth knowing:
+
+- `otel_logs` and `otel_traces` are partitioned by day and expire with
+  `ttl_only_drop_parts = 1`, so shortening a window drops whole partitions at
+  the next TTL merge and costs almost nothing. `trace_summary` has no
+  partitions — it cannot, because a trace's start is an aggregate that a merge
+  can move across midnight — so its TTL is a row-level delete-merge. It is one
+  row per trace, so that is affordable, but it is not free the way the other
+  two are.
+- `php artisan clickhouse:migrate` creates tables it does not find and never
+  rewrites one it does, so an `ALTER` you make survives every deploy. A fresh
+  install, though, gets the defaults from `database/clickhouse/*.sql`; keep the
+  statement in your own runbook.
 
 > **Note:** a full disk turns ClickHouse read-only and takes the whole product
 > down with it. Alert on disk at 70% — that will prevent more downtime than any
@@ -75,7 +125,7 @@ Ingest is throttled per API key, so one runaway client cannot starve the
 others:
 
 | Requests                            | Limit                     | Counted per |
-| ----------------------------------- | ------------------------- | ----------- |
+|-------------------------------------|---------------------------|-------------|
 | With a valid `Authorization` header | **1,200 requests/minute** | API key     |
 | Without one                         | **60 requests/minute**    | client IP   |
 
@@ -168,9 +218,9 @@ php artisan clickhouse:migrate
 
 It applies `database/clickhouse/*.sql` in filename order. That directory, and
 `database/clickhouse/SCHEMA.md` alongside it, are the source of truth for the
-`otel_logs` and `otel_traces` tables — the column names and types are the
-upstream OpenTelemetry exporter's, which is what keeps the storage readable by
-tools other than Bilis.
+`otel_logs`, `otel_traces` and `trace_summary` tables — the column names and
+types of the first two are the upstream OpenTelemetry exporter's, which is what
+keeps the storage readable by tools other than Bilis.
 
 ### Upgrading an install that predates the text body index
 

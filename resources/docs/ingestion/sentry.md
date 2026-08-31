@@ -83,8 +83,17 @@ minidumps and client reports all belong to features Bilis does not have, so they
 are counted and dropped. The SDK is never told they failed — it would only retry
 them.
 
-Tracing is out of scope, so leave `traces_sample_rate` at zero; a transaction
-that is never sent is bandwidth you keep.
+`transaction` items are among what is dropped: this endpoint stores errors, and
+Bilis takes traces over [OTLP](/docs/ingestion/traces) instead. Leave
+`traces_sample_rate` at zero, or a transaction is sent only to be discarded.
+
+Errors still join the traces you send over OTLP. When the SDK puts a
+`contexts.trace` on an event — which it does whenever it is running inside a
+propagated trace — its `trace_id` and `span_id` are stored in the log record's
+`TraceId` / `SpanId` columns, so the error links to that trace's waterfall and
+the span links back to the error. Both must be OpenTelemetry's hex spelling
+(32 and 16 characters); an id in any other shape is left empty rather than
+stored as something no trace will ever match.
 
 ## From the browser
 

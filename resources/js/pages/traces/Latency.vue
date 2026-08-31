@@ -27,6 +27,8 @@ const props = defineProps<{
     filters: TraceFilters;
     /** Has this team ever sent a span? A fact about the team, not the window. */
     hasTraces: boolean;
+    /** Root services seen lately, for the toolbar's picker; deferred. */
+    services?: string[];
     serviceLatency?: ServiceLatencyResult;
 }>();
 
@@ -66,7 +68,12 @@ const canReset = computed(
         range.value !== DEFAULT_RANGE_PRESET,
 );
 
-const query = computed(() => traceFilterQuery(props.filters, range.value));
+/**
+ * The filters as the tabs have to spell them — asked for at click time, not
+ * cached, because a preset window is relative and a query string built at
+ * render would carry the other tab back to a window that ended minutes ago.
+ */
+const query = () => traceFilterQuery(props.filters, range.value);
 
 /**
  * The same contract the list has: the query string is the state, so a window
@@ -123,6 +130,7 @@ function reset() {
         <TracesToolbar
             :projects="projects"
             :project="filters.project"
+            :services="services"
             :service="filters.service"
             :errors="filters.errors"
             :min-duration="filters.minDuration"

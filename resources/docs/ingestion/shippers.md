@@ -1,6 +1,6 @@
 ---
 title: Shippers
-description: curl, OpenTelemetry exporters, a Laravel Monolog channel, and Collector configuration that does not lose data.
+description: curl, OpenTelemetry exporters, a Laravel Monolog channel that correlates with traces, and Collector configuration that does not lose data.
 order: 6
 ---
 
@@ -44,6 +44,10 @@ OTEL_EXPORTER_OTLP_ENDPOINT=https://bilis.example.com/api
 ```
 
 Set `OTEL_SERVICE_NAME` too — it becomes the service filter in the viewer.
+
+The same base serves traces: with `OTEL_EXPORTER_OTLP_ENDPOINT` set to
+`…/api`, an SDK that also exports spans posts them to `/api/v1/traces` without
+another variable. See [Traces](/docs/ingestion/traces) for the per-SDK setup.
 
 > **Note:** OTLP over **gRPC is not supported**. Bilis is a PHP application and
 > PHP is a poor gRPC server; a Collector already bridges that hop for anything
@@ -99,12 +103,91 @@ How the channel behaves, and why it is safe to leave in a stack:
 Keep a local channel in the stack (`single,bilis`). A remote log target is not a
 place to put your only copy of the logs.
 
+### Correlating logs with traces
+
+A log line that carries the current trace and span id links straight to its
+waterfall in the trace viewer, and the span links back. The handler lifts a
+`trace_id` / `span_id` (or `traceId` / `spanId`) out of the log context — or out
+of Monolog's `extra`, where a processor puts things — onto the top-level fields
+the ingest endpoint reads, and drops it from the shipped context so the id is
+stored once, in the column the viewer joins on. Hex ids are lowercased; anything
+else is passed through as it is.
+
+If you already send traces from the same application with the
+[OpenTelemetry PHP SDK](/docs/ingestion/traces#php-and-laravel), one Monolog
+processor stamps every line with the span that was current when it was written.
+Tap the channel in `config/logging.php`:
+
+```php
+'bilis' => [
+    'driver' => 'custom',
+    'via' => App\Logging\BilisLogger::class,
+    'endpoint' => env('BILIS_ENDPOINT'),
+    'api_key' => env('BILIS_API_KEY'),
+    'level' => env('BILIS_LOG_LEVEL', 'debug'),
+    'tap' => [App\Logging\AddTraceContext::class],
+],
+```
+
+```php
+<?php
+
+namespace App\Logging;
+
+use Illuminate\Log\Logger;
+use Monolog\LogRecord;
+use OpenTelemetry\API\Trace\Span;
+
+class AddTraceContext
+{
+    public function __invoke(Logger $logger): void
+    {
+        $logger->pushProcessor(function (LogRecord $record): LogRecord {
+            $context = Span::getCurrent()->getContext();
+
+            if (! $context->isValid()) {
+                return $record;
+            }
+
+            return $record->with(extra: [
+                ...$record->extra,
+                'trace_id' => $context->getTraceId(),
+                'span_id' => $context->getSpanId(),
+            ]);
+        });
+    }
+}
+```
+
+`isValid()` is the guard that matters: outside a recorded span — a console
+command without instrumentation, say — the current span is a no-op whose ids
+are all zeroes, and an all-zero id would never join to anything.
+
+Any `trace_id` you put in the context yourself works the same way, with no
+processor at all — an id from an incoming `traceparent` header, or one you
+minted for a job:
+
+```php
+Log::info('Card declined', ['order' => 41902, 'trace_id' => $traceId]);
+```
+
 ## OpenTelemetry Collector
 
-If you already run a Collector, point its OTLP HTTP exporter at Bilis. Four
-settings decide whether you lose data under load:
+If you already run a Collector, point its OTLP HTTP exporter at Bilis. One
+exporter carries both logs and traces; this is the complete file, and the same
+one the [Traces](/docs/ingestion/traces#collector-configuration) and
+[Go](/docs/ingestion/go) pages use. Four settings decide whether you lose data
+under load:
 
 ```yaml
+receivers:
+    otlp:
+        protocols:
+            # Your services may still speak gRPC to the Collector; only the
+            # hop to Bilis has to be HTTP.
+            grpc: { endpoint: 0.0.0.0:4317 }
+            http: { endpoint: 0.0.0.0:4318 }
+
 extensions:
     file_storage:
         directory: /var/lib/otelcol/storage
@@ -112,12 +195,16 @@ extensions:
 exporters:
     otlphttp/bilis:
         logs_endpoint: https://bilis.example.com/api/v1/logs
-        encoding: json # proto also works; gzip is understood either way
+        traces_endpoint: https://bilis.example.com/api/v1/traces
         headers:
             Authorization: Bearer bilis_YOUR_API_KEY
+        # gzip is the exporter's default; Bilis inflates gzip and deflate.
+        compression: gzip
+        # Protobuf is the default encoding and is decoded in-process;
+        # `encoding: json` works too.
         sending_queue:
             enabled: true
-            storage: file_storage # survives a restart
+            storage: file_storage # survives a Collector restart
         retry_on_failure:
             enabled: true
 
@@ -127,6 +214,10 @@ service:
         logs:
             receivers: [otlp]
             processors: [] # deliberately no batch processor
+            exporters: [otlphttp/bilis]
+        traces:
+            receivers: [otlp]
+            processors: []
             exporters: [otlphttp/bilis]
 ```
 
@@ -138,6 +229,8 @@ service:
 - **Retries work because Bilis returns the right codes.** Overload and storage
   failures come back as `503` with `Retry-After`, never `400`. See
   [Endpoints](/docs/ingestion/endpoints).
+- **No `metrics` pipeline.** Bilis has nowhere to put metrics, so an exporter
+  given them would retry every export forever.
 - If you use the ClickHouse exporter directly against the same table instead,
   run it with `create_schema: false`. Bilis owns the DDL. Note that this
   suppresses schema-creation DDL but the exporter still issues `DESC TABLE` at

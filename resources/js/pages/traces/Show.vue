@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { Head, Link, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { ExternalLink } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import SpanDetailPanel from '@/components/SpanDetailPanel.vue';
+import SpanSearch from '@/components/SpanSearch.vue';
 import SpanWaterfall from '@/components/SpanWaterfall.vue';
 import TraceFact from '@/components/TraceFact.vue';
 import { formatTimestamp, formatUtcTimestamp } from '@/lib/logs';
@@ -12,13 +13,16 @@ import {
     serviceColours,
     SPAN_STATUS_BAR_CLASS,
     SPAN_STATUS_TEXT_CLASS,
+    traceHref,
 } from '@/lib/traces';
 import { cn } from '@/lib/utils';
-import { index as tracesIndex, show as traceShow } from '@/routes/traces';
+import { index as logsIndex } from '@/routes/logs';
+import { index as tracesIndex } from '@/routes/traces';
 import type {
     LinkedTrace,
     Span,
     Team,
+    TraceLogs,
     TraceResource,
     TraceSummary,
 } from '@/types';
@@ -40,6 +44,11 @@ const props = defineProps<{
     truncated: boolean;
     unavailable: boolean;
     spanLimit: number;
+    /**
+     * How many log lines this trace wrote, and the window they were counted
+     * in. Null when there is no summary and so no window to count in.
+     */
+    logs: TraceLogs | null;
 }>();
 
 defineOptions({
@@ -60,7 +69,77 @@ const page = usePage();
 
 const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
 
-const selectedSpanId = ref<string | null>(null);
+/**
+ * The span named in the URL, if it is one this page holds.
+ *
+ * `?span=` is the deep link into a waterfall — from a log line, from another
+ * trace's span link, from a colleague. Read from the location rather than
+ * from a prop so the page needs nothing from the server it does not already
+ * have, and ignored when the id is not among the spans: a link to a row that
+ * aged out or fell past the cap opens the trace normally rather than nothing.
+ */
+function spanFromUrl(): string | null {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+
+    const span = new URLSearchParams(window.location.search).get('span');
+
+    return span && props.spans.some((s) => s.spanId === span) ? span : null;
+}
+
+const selectedSpanId = ref<string | null>(spanFromUrl());
+
+/**
+ * The span the waterfall must scroll to and expand for. Set on load from the
+ * URL and whenever the search steps onto a match — never on a plain click,
+ * which selects a row that is already on screen.
+ */
+const revealSpanId = ref<string | null>(selectedSpanId.value);
+
+/** The current search's matches; `null` while nothing is being searched. */
+const matches = ref<Set<string> | null>(null);
+
+/**
+ * Keep `?span=` in step with the selection without a round trip.
+ *
+ * A client-side replace: the props are unchanged, so refetching them would be
+ * a wasted query against ClickHouse, and pushing a history entry per click
+ * would make the back button walk every row the reader ever looked at. Every
+ * other parameter — `ts` above all — is preserved.
+ */
+function syncUrl(spanId: string | null) {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+
+    if (spanId) {
+        params.set('span', spanId);
+    } else {
+        params.delete('span');
+    }
+
+    const query = params.toString();
+    const url = `${window.location.pathname}${query ? `?${query}` : ''}`;
+
+    if (url === `${window.location.pathname}${window.location.search}`) {
+        return;
+    }
+
+    router.replace({ url, preserveScroll: true, preserveState: true });
+}
+
+function select(spanId: string, options: { reveal?: boolean } = {}) {
+    selectedSpanId.value = spanId;
+
+    if (options.reveal) {
+        revealSpanId.value = spanId;
+    }
+
+    syncUrl(spanId);
+}
 
 const selectedSpan = computed(
     () =>
@@ -99,10 +178,10 @@ const inboundLink = computed(() => {
         link,
         trace,
         href: trace
-            ? traceShow({
-                  current_team: teamSlug.value,
-                  trace: link.traceId,
-              }).url.concat(`?ts=${encodeURIComponent(trace.startedAt)}`)
+            ? traceHref(teamSlug.value, link.traceId, {
+                  ts: trace.startedAt,
+                  span: link.spanId,
+              })
             : null,
     };
 });
@@ -170,6 +249,36 @@ const spansExpired = computed(
 const heading = computed(
     () => props.summary?.rootName || 'Root span not received',
 );
+
+/**
+ * The other half of the logs/traces link, from the trace side.
+ *
+ * Opens the log viewer on exactly this trace id inside the window the count
+ * was taken in, so the number beside the link is the number the click shows.
+ * The link stands even when the count could not be taken — "unavailable" hides
+ * the figure, not the way through.
+ */
+const logsHref = computed(() =>
+    props.logs
+        ? logsIndex(teamSlug.value, {
+              query: {
+                  trace_id: props.traceId,
+                  from: props.logs.from,
+                  to: props.logs.to,
+              },
+          }).url
+        : null,
+);
+
+const logsValue = computed(() => {
+    const count = props.logs?.count ?? null;
+
+    if (count === null) {
+        return 'View logs';
+    }
+
+    return `${count.toLocaleString()} ${count === 1 ? 'log' : 'logs'}`;
+});
 </script>
 
 <template>
@@ -255,6 +364,28 @@ const heading = computed(
                 />
 
                 <TraceFact v-if="sdk" label="Instrumentation" :value="sdk" />
+
+                <!--
+                  "0 logs" still renders — a trace that wrote nothing is a
+                  fact worth a glance — and the value is the link, because the
+                  count is the reason to click.
+                -->
+                <TraceFact
+                    v-if="logs && logsHref"
+                    label="Logs"
+                    :value="logsValue"
+                    :detail="
+                        logs.count === null ? 'Count unavailable' : undefined
+                    "
+                >
+                    <Link
+                        :href="logsHref"
+                        class="underline-offset-2 hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                        data-test="trace-logs-link"
+                    >
+                        {{ logsValue }}
+                    </Link>
+                </TraceFact>
 
                 <TraceFact
                     label="Trace ID"
@@ -359,10 +490,26 @@ const heading = computed(
                     parent fell outside this page are drawn at the top level.
                 </p>
 
+                <!--
+                  Search sits above the waterfall, not in the page header: it
+                  acts on these rows and nothing else. Matches dim the rest
+                  rather than filtering, so no bar moves while the reader types.
+                -->
+                <div class="border-b px-3 py-2">
+                    <SpanSearch
+                        :spans="spans"
+                        :selected-span-id="selectedSpan?.spanId ?? null"
+                        @matches="matches = $event"
+                        @step="select($event, { reveal: true })"
+                    />
+                </div>
+
                 <SpanWaterfall
                     :spans="spans"
                     :selected-span-id="selectedSpan?.spanId ?? null"
-                    @select="selectedSpanId = $event"
+                    :reveal-span-id="revealSpanId"
+                    :matches="matches"
+                    @select="select($event)"
                 />
             </section>
 

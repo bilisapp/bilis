@@ -17,11 +17,12 @@ import {
     SPAN_STATUS_BAR_CLASS,
     SPAN_STATUS_TEXT_CLASS,
     linkRelation,
+    spanStartMs,
     spanStatus,
+    traceHref,
 } from '@/lib/traces';
 import { cn } from '@/lib/utils';
 import { index as logsIndex } from '@/routes/logs';
-import { show as traceShow } from '@/routes/traces';
 import type { LinkedTrace, Span, SpanLink } from '@/types';
 
 const props = defineProps<{
@@ -77,11 +78,13 @@ const resolve = (link: SpanLink) => {
         self,
         trace,
         relation: linkRelation(link),
+        // The link names a span, not just a trace, so the page it opens can
+        // land on that row rather than on the root.
         href: trace
-            ? traceShow({
-                  current_team: props.teamSlug,
-                  trace: link.traceId,
-              }).url.concat(`?ts=${encodeURIComponent(trace.startedAt)}`)
+            ? traceHref(props.teamSlug, link.traceId, {
+                  ts: trace.startedAt,
+                  span: link.spanId,
+              })
             : null,
     };
 };
@@ -108,7 +111,7 @@ const attributesJson = computed(() =>
  * and clock skew between two services is measured in seconds.
  */
 const logsHref = computed(() => {
-    const start = Date.parse(`${props.span.timestamp}Z`);
+    const start = spanStartMs(props.span);
     const from = new Date(start - 60_000).toISOString();
     const to = new Date(start + props.span.durationMs + 60_000).toISOString();
 
@@ -226,7 +229,11 @@ const logsHref = computed(() => {
         </Button>
 
         <div class="flex min-h-0 flex-col gap-3">
-            <div class="flex items-center gap-1 border-b">
+            <div
+                class="flex items-center gap-1 border-b"
+                role="tablist"
+                aria-label="Span details"
+            >
                 <button
                     v-for="tab in tabs"
                     :key="tab.id"
@@ -240,7 +247,10 @@ const logsHref = computed(() => {
                         )
                     "
                     :aria-selected="activeTab === tab.id"
+                    :aria-controls="`span-tabpanel-${tab.id}`"
+                    :id="`span-tab-${tab.id}`"
                     role="tab"
+                    :tabindex="activeTab === tab.id ? 0 : -1"
                     :data-test="`span-tab-${tab.id}`"
                     @click="activeTab = tab.id"
                 >
@@ -266,7 +276,12 @@ const logsHref = computed(() => {
                 </button>
             </div>
 
-            <section v-if="activeTab === 'attributes'" role="tabpanel">
+            <section
+                v-if="activeTab === 'attributes'"
+                id="span-tabpanel-attributes"
+                role="tabpanel"
+                aria-labelledby="span-tab-attributes"
+            >
                 <!--
                   Key above value rather than beside it. In a 22rem panel a
                   two-column grid gives every value whatever the longest key
@@ -282,7 +297,9 @@ const logsHref = computed(() => {
 
             <section
                 v-else-if="activeTab === 'events'"
+                id="span-tabpanel-events"
                 role="tabpanel"
+                aria-labelledby="span-tab-events"
                 class="flex flex-col gap-2"
                 data-test="span-events"
             >
@@ -328,7 +345,9 @@ const logsHref = computed(() => {
             -->
             <section
                 v-else
+                id="span-tabpanel-links"
                 role="tabpanel"
+                aria-labelledby="span-tab-links"
                 class="flex flex-col gap-2"
                 data-test="span-links"
             >

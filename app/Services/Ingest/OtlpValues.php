@@ -83,7 +83,13 @@ final class OtlpValues
         if (array_key_exists('kvlistValue', $value)) {
             $values = is_array($value['kvlistValue']) ? ($value['kvlistValue']['values'] ?? []) : [];
 
-            return self::attributes($values);
+            /*
+             * An object, not an array, so that it always renders as one: PHP
+             * turns the keys "0", "1" into integers, and `json_encode` writes an
+             * array with such keys as a JSON list — `{"0":"x"}` would come out
+             * as `["x"]`, keys gone. An empty kvlist is `{}` for the same reason.
+             */
+            return (object)self::attributes($values);
         }
 
         return $value;
@@ -114,18 +120,23 @@ final class OtlpValues
 
     /**
      * Format a nanosecond timestamp field, if it holds a usable value.
+     *
+     * Usable means everything {@see nanosAsInt} accepts that also lands inside
+     * the window `LogTimestamp` keeps: a digit string too long for an integer
+     * used to saturate under `(int)` into a year ClickHouse refuses — after the
+     * async insert had been acked, so the whole block vanished silently. The
+     * proto's zero value ("unset") is null here like any other unusable value;
+     * it is the caller that knows what to fall back to.
      */
     public static function nanos(mixed $value): ?string
     {
-        if (is_int($value)) {
-            return $value > 0 ? LogTimestamp::fromNanos($value) : null;
+        $nanos = self::nanosAsInt($value);
+
+        if ($nanos === null || $nanos === 0) {
+            return null;
         }
 
-        if (is_string($value) && $value !== '' && ctype_digit($value) && ltrim($value, '0') !== '') {
-            return LogTimestamp::fromNanos($value);
-        }
-
-        return null;
+        return LogTimestamp::fromNanos($nanos);
     }
 
     /**

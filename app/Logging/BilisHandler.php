@@ -114,6 +114,16 @@ class BilisHandler extends AbstractProcessingHandler
     }
 
     /**
+     * The context keys that name a trace id, in order of precedence.
+     */
+    private const TRACE_ID_KEYS = ['trace_id', 'traceId'];
+
+    /**
+     * The context keys that name a span id, in order of precedence.
+     */
+    private const SPAN_ID_KEYS = ['span_id', 'spanId'];
+
+    /**
      * Map a Monolog record onto the simple ingest shape.
      *
      * Monolog's level names are already Bilis severity aliases once
@@ -122,23 +132,85 @@ class BilisHandler extends AbstractProcessingHandler
      * of our own. Processor output (`extra`) is merged into `context` under an
      * `extra.` prefix so it can never shadow a key the caller passed.
      *
+     * A trace or span id is lifted out of `context` (or `extra`) onto the
+     * top-level `trace_id` / `span_id` fields, because that is where the ingest
+     * endpoint reads them from: left inside `context` they would land as plain
+     * attributes and the log line would never link to its span. The key is
+     * removed from the shipped context so the id is stored once, in the column
+     * the viewer joins on, rather than a second time as an attribute. The
+     * caller's context wins over a processor's `extra`; both are always
+     * stripped, so the losing spelling does not survive as an attribute either.
+     *
      * @return array<string, mixed>
      */
     private function map(LogRecord $record): array
     {
         $context = $record->context;
+        $extra = $record->extra;
 
-        foreach ($record->extra as $key => $value) {
+        $contextTraceId = $this->takeId($context, self::TRACE_ID_KEYS);
+        $contextSpanId = $this->takeId($context, self::SPAN_ID_KEYS);
+        $extraTraceId = $this->takeId($extra, self::TRACE_ID_KEYS);
+        $extraSpanId = $this->takeId($extra, self::SPAN_ID_KEYS);
+
+        $traceId = $contextTraceId ?? $extraTraceId;
+        $spanId = $contextSpanId ?? $extraSpanId;
+
+        foreach ($extra as $key => $value) {
             $context['extra.'.$key] = $value;
         }
 
-        return [
+        $mapped = [
             'message' => $record->message,
             'level' => strtolower($record->level->getName()),
             'timestamp' => $record->datetime->format('Y-m-d\TH:i:s.uP'),
             'service' => $this->service,
-            'context' => $context,
         ];
+
+        if ($traceId !== null) {
+            $mapped['trace_id'] = $traceId;
+        }
+
+        if ($spanId !== null) {
+            $mapped['span_id'] = $spanId;
+        }
+
+        $mapped['context'] = $context;
+
+        return $mapped;
+    }
+
+    /**
+     * Pull the first non-empty string id under any of the given keys out of a
+     * bag, removing every one of those keys from it.
+     *
+     * A hex id is lowercased, because that is the spelling the trace tables
+     * store and the join is a plain string comparison; anything else is passed
+     * through untouched, since the ingest endpoint stores what it is given. A
+     * value that is not a string is left where it was — it is context, not an
+     * id.
+     *
+     * @param array<string, mixed> $bag
+     * @param list<string> $keys
+     */
+    private function takeId(array &$bag, array $keys): ?string
+    {
+        $id = null;
+
+        foreach ($keys as $key) {
+            if (!array_key_exists($key, $bag) || !is_string($bag[$key])) {
+                continue;
+            }
+
+            $value = trim($bag[$key]);
+            unset($bag[$key]);
+
+            if ($id === null && $value !== '') {
+                $id = preg_match('/^[0-9A-Fa-f]+$/', $value) === 1 ? strtolower($value) : $value;
+            }
+        }
+
+        return $id;
     }
 
     /**

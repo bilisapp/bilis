@@ -6,12 +6,18 @@ use App\Services\Ingest\SpanSemantics;
 /**
  * A minimal export request wrapping one span.
  *
+ * The span gets a trace id and a span id unless the test supplies its own:
+ * a span without either is rejected (nothing could ever reach it), and most
+ * tests here are about some other column.
+ *
  * @param  array<string, mixed>  $span
  * @param  array<string, mixed>  $resourceAttributes
  * @return array<string, mixed>
  */
 function traceRequest(array $span, array $resourceAttributes = ['service.name' => 'checkout']): array
 {
+    $span = array_merge(['traceId' => str_repeat('a', 32), 'spanId' => str_repeat('b', 16)], $span);
+
     $attributes = [];
 
     foreach ($resourceAttributes as $key => $value) {
@@ -176,7 +182,7 @@ it('takes the project id from the caller and never from the payload', function (
 it('skips the spans it cannot read and keeps the rest', function () {
     $payload = traceRequest(['spanId' => 'eee19b7ec3c1b174']);
     $payload['resourceSpans'][0]['scopeSpans'][0]['spans'][] = 'not-a-span';
-    $payload['resourceSpans'][0]['scopeSpans'][0]['spans'][] = ['spanId' => 'aaaaaaaaaaaaaaaa'];
+    $payload['resourceSpans'][0]['scopeSpans'][0]['spans'][] = ['traceId' => str_repeat('c', 32), 'spanId' => 'aaaaaaaaaaaaaaaa'];
 
     $mapped = (new OtlpTraceMapper)->map($payload, '7');
 
@@ -218,4 +224,122 @@ it('accepts the snake_case spelling a hand written payload may use', function ()
     expect($row['ServiceName'])->toBe('ledger')
         ->and($row['TraceId'])->toBe(str_repeat('a', 32))
         ->and($row['Duration'])->toBe(1_000_000_000);
+});
+
+/*
+ * A span whose ids do not resolve is rejected, not stored. `trace_summary_mv`
+ * keeps `WHERE TraceId != ''`, so such a row would be invisible in the list,
+ * unreachable from any log line, and still reported to the exporter as
+ * accepted — the worst of both.
+ */
+it('rejects a span whose trace id or span id is unusable', function (string $field, mixed $value) {
+    $mapped = (new OtlpTraceMapper)->map(traceRequest([$field => $value]), '7');
+
+    expect($mapped->rows)->toBe([])
+        ->and($mapped->rejected)->toBe(1);
+})->with([
+    'trace id too short' => ['traceId', 'abc'],
+    'trace id all zeroes' => ['traceId', str_repeat('0', 32)],
+    'trace id not hex' => ['traceId', str_repeat('z', 32)],
+    'trace id absent' => ['traceId', null],
+    'trace id base64 of the wrong width' => ['traceId', base64_encode(str_repeat("\x01", 8))],
+    'span id too short' => ['spanId', 'abc'],
+    'span id all zeroes' => ['spanId', str_repeat('0', 16)],
+    'span id not hex' => ['spanId', str_repeat('z', 16)],
+    'span id absent' => ['spanId', null],
+    'span id not a string' => ['spanId', 12345],
+]);
+
+it('accepts uppercase hex and protojson base64 ids, storing lowercase hex', function (string $field, string $value, string $expected) {
+    expect(mapOneSpan([$field => $value])[ucfirst($field)])->toBe($expected);
+})->with([
+    'uppercase trace id' => ['traceId', '5B8EFFF798038103D269B633813FC60C', '5b8efff798038103d269b633813fc60c'],
+    'uppercase span id' => ['spanId', 'EEE19B7EC3C1B174', 'eee19b7ec3c1b174'],
+    // Stock protojson renders a bytes field as padded base64: 24 chars for 16 bytes.
+    'base64 trace id' => ['traceId', base64_encode(hex2bin('5b8efff798038103d269b633813fc60c')), '5b8efff798038103d269b633813fc60c'],
+    // …and 12 chars for 8 bytes.
+    'base64 span id' => ['spanId', base64_encode(hex2bin('eee19b7ec3c1b174')), 'eee19b7ec3c1b174'],
+]);
+
+it('decodes a base64 parent span id and link ids the same way', function () {
+    $row = mapOneSpan([
+        'parentSpanId' => base64_encode(hex2bin('aaaaaaaaaaaaaaaa')),
+        'links' => [['traceId' => base64_encode(hex2bin(str_repeat('c', 32))), 'spanId' => base64_encode(hex2bin(str_repeat('d', 16)))]],
+    ]);
+
+    expect($row['ParentSpanId'])->toBe('aaaaaaaaaaaaaaaa')
+        ->and($row['Links.TraceId'])->toBe([str_repeat('c', 32)])
+        ->and($row['Links.SpanId'])->toBe([str_repeat('d', 16)]);
+});
+
+/*
+ * A start the table cannot hold is a rejected span, never a span dated now().
+ * The over-long string is the one that used to saturate under (int) into the
+ * year 292277026596 — acked by ClickHouse, then dropped with the whole block.
+ * The small ones are seconds or milliseconds sent as nanoseconds: a row dated
+ * 1970 expires at the next TTL merge, so a fake timestamp would only hide it.
+ */
+it('rejects a span whose start time cannot be stored', function (mixed $start) {
+    $mapped = (new OtlpTraceMapper)->map(traceRequest(['startTimeUnixNano' => $start]), '7');
+
+    expect($mapped->rows)->toBe([])
+        ->and($mapped->rejected)->toBe(1);
+})->with([
+    'thirty digits' => [str_repeat('9', 30)],
+    'just past the int range' => ['9223372036854775808'],
+    'past 2261' => ['9183110400000000000'],
+    'seconds mistaken for nanos' => ['1756550400'],
+    'milliseconds mistaken for nanos' => ['1756550400000'],
+    'before 2000' => ['946684799999999999'],
+    'negative' => [-5],
+    'not digits' => ['soon'],
+]);
+
+it('still dates a span that carries no start at all at ingest time', function () {
+    $row = mapOneSpan(['endTimeUnixNano' => '1756550400000000000']);
+
+    expect($row['Timestamp'])->toMatch('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{9}$/')
+        ->and($row['Duration'])->toBe(0);
+});
+
+it('dates an event with a missing or unusable timestamp at the span start', function () {
+    $row = mapOneSpan([
+        'startTimeUnixNano' => '1756550400000000000',
+        'events' => [
+            ['name' => 'no-time'],
+            ['name' => 'zero', 'timeUnixNano' => '0'],
+            ['name' => 'overflow', 'timeUnixNano' => str_repeat('9', 30)],
+            ['name' => 'seconds', 'timeUnixNano' => '1756550400'],
+            ['name' => 'fine', 'timeUnixNano' => '1756550400500000000'],
+        ],
+    ]);
+
+    expect($row['Events.Timestamp'])->toBe([
+        '2025-08-30 10:40:00.000000000',
+        '2025-08-30 10:40:00.000000000',
+        '2025-08-30 10:40:00.000000000',
+        '2025-08-30 10:40:00.000000000',
+        '2025-08-30 10:40:00.500000000',
+    ]);
+});
+
+it('reads an integral float as the enum number it spells', function () {
+    $row = mapOneSpan(['kind' => 2.0, 'status' => ['code' => 2.0]]);
+
+    expect($row['SpanKind'])->toBe('Server')
+        ->and($row['StatusCode'])->toBe('Error')
+        ->and(SpanSemantics::kind(2.5))->toBe('Unspecified')
+        ->and(SpanSemantics::statusCode('1.0'))->toBe('Ok');
+});
+
+it('keeps a numeric attribute key so the writer can serialise it as a map', function () {
+    $row = mapOneSpan([
+        'attributes' => [['key' => '0', 'value' => ['stringValue' => 'x']]],
+        'events' => [['name' => 'e', 'attributes' => [['key' => '1', 'value' => ['stringValue' => 'y']]]]],
+    ]);
+
+    // PHP has already turned the key into an int; that is exactly why the writer
+    // casts every map to an object rather than trusting json_encode.
+    expect($row['SpanAttributes'])->toBe([0 => 'x'])
+        ->and($row['Events.Attributes'])->toBe([[1 => 'y']]);
 });

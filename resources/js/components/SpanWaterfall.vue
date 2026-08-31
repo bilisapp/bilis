@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { ChevronsDownUp, ChevronsUpDown } from '@lucide/vue';
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import SpanNamingToggle from '@/components/SpanNamingToggle.vue';
 import SpanWaterfallRow from '@/components/SpanWaterfallRow.vue';
 import {
     axisTicks,
     collapsibleSpanIds,
     serviceColours,
+    spanAncestors,
     traceExtentMs,
     visibleSpans,
+    waterfallGeometry,
 } from '@/lib/traces';
 import { cn } from '@/lib/utils';
 import type { Span } from '@/types';
@@ -23,11 +25,26 @@ const props = defineProps<{
      * so it is the part that survives.
      */
     compact?: boolean;
+    /**
+     * A span the reader must be able to see right now — from `?span=` in the
+     * URL, or from stepping through search matches. Its ancestors are expanded
+     * and its row scrolled to the centre. Distinct from `selectedSpanId`: a
+     * click selects a row that is already on screen and must not scroll it.
+     */
+    revealSpanId?: string | null;
+    /**
+     * The result of a search over this trace: the ids that matched, or `null`
+     * when nothing is being searched. Rows outside the set are dimmed rather
+     * than removed, so no bar moves while the reader types, and every match's
+     * ancestors are expanded so a hit inside a collapsed subtree is visible.
+     */
+    matches?: Set<string> | null;
 }>();
 
 const emit = defineEmits<{ (event: 'select', spanId: string): void }>();
 
 const collapsed = ref<Set<string>>(new Set());
+const tree = ref<HTMLElement | null>(null);
 
 // A different trace is a different tree; keep no collapse state across them.
 watch(
@@ -59,34 +76,7 @@ const presentIds = computed(
 );
 
 /** Bar geometry, computed against the full set so collapsing never moves a bar. */
-const geometry = computed(() => {
-    const starts = new Map<string, number>();
-
-    for (const span of props.spans) {
-        starts.set(span.spanId, Date.parse(`${span.timestamp}Z`));
-    }
-
-    const earliest = Math.min(...starts.values());
-
-    return new Map(
-        props.spans.map((span) => {
-            const offset =
-                (((starts.get(span.spanId) ?? earliest) - earliest) /
-                    extentMs.value) *
-                100;
-            const width = (span.durationMs / extentMs.value) * 100;
-
-            return [
-                span.spanId,
-                {
-                    offsetPercent: Math.max(0, Math.min(100, offset)),
-                    // A floor so an instantaneous span is still a visible mark.
-                    widthPercent: Math.max(0.4, Math.min(100 - offset, width)),
-                },
-            ];
-        }),
-    );
-});
+const geometry = computed(() => waterfallGeometry(props.spans));
 
 /** The services in this trace, in the order the palette assigned them. */
 const legend = computed(() => [...colours.value.entries()]);
@@ -116,6 +106,77 @@ function collapseAll() {
 function expandAll() {
     collapsed.value = new Set();
 }
+
+/** Open every collapsed ancestor of the given spans, in one state change. */
+function expandAncestors(spanIds: Iterable<string>) {
+    if (collapsed.value.size === 0) {
+        return;
+    }
+
+    const next = new Set(collapsed.value);
+
+    for (const spanId of spanIds) {
+        for (const ancestor of spanAncestors(props.spans, spanId)) {
+            next.delete(ancestor);
+        }
+    }
+
+    if (next.size !== collapsed.value.size) {
+        collapsed.value = next;
+    }
+}
+
+function prefersReducedMotion(): boolean {
+    return (
+        typeof window !== 'undefined' &&
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    );
+}
+
+/**
+ * Bring a row to the centre of the scroll area.
+ *
+ * Centre rather than nearest, because a revealed row is one the reader has not
+ * seen yet — from a link, or a match several screens away — and its context
+ * above and below is what makes it legible. Smooth only when the reader has
+ * not asked otherwise.
+ */
+async function scrollTo(spanId: string) {
+    await nextTick();
+
+    const row = tree.value?.querySelector<HTMLElement>(
+        `[data-span-id="${CSS.escape(spanId)}"]`,
+    );
+
+    row?.scrollIntoView({
+        block: 'center',
+        behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+    });
+}
+
+watch(
+    () => props.revealSpanId,
+    (spanId) => {
+        if (!spanId || !presentIds.value.has(spanId)) {
+            return;
+        }
+
+        expandAncestors([spanId]);
+        void scrollTo(spanId);
+    },
+    { immediate: true },
+);
+
+watch(
+    () => props.matches,
+    (matches) => {
+        if (matches && matches.size > 0) {
+            expandAncestors(matches);
+        }
+    },
+    { immediate: true },
+);
 </script>
 
 <template>
@@ -249,29 +310,47 @@ function expandAll() {
                         </div>
                     </div>
 
-                    <SpanWaterfallRow
-                        v-for="span in rows"
-                        :key="span.spanId"
-                        :span="span"
-                        :geometry="
-                            geometry.get(span.spanId) ?? {
-                                offsetPercent: 0,
-                                widthPercent: 0.4,
-                            }
-                        "
-                        :colour="
-                            colours.get(span.serviceName || 'unknown') ?? ''
-                        "
-                        :compact="compact"
-                        :collapsed="collapsed.has(span.spanId)"
-                        :orphan="
-                            span.parentSpanId !== '' &&
-                            !presentIds.has(span.parentSpanId)
-                        "
-                        :selected="selectedSpanId === span.spanId"
-                        @select="emit('select', span.spanId)"
-                        @toggle="toggle(span.spanId)"
-                    />
+                    <!--
+                      The rows are a tree to assistive tech — depth, expanded
+                      and selected are all announced — while staying a flat list
+                      in the DOM, because a 2,000-node component tree is what
+                      the server-side flatten exists to avoid.
+                    -->
+                    <div
+                        ref="tree"
+                        role="tree"
+                        aria-label="Spans"
+                        data-test="span-tree"
+                    >
+                        <SpanWaterfallRow
+                            v-for="span in rows"
+                            :key="span.spanId"
+                            :span="span"
+                            :geometry="
+                                geometry.get(span.spanId) ?? {
+                                    offsetPercent: 0,
+                                    widthPercent: 0.4,
+                                }
+                            "
+                            :colour="
+                                colours.get(span.serviceName || 'unknown') ?? ''
+                            "
+                            :compact="compact"
+                            :collapsed="collapsed.has(span.spanId)"
+                            :orphan="
+                                span.parentSpanId !== '' &&
+                                !presentIds.has(span.parentSpanId)
+                            "
+                            :selected="selectedSpanId === span.spanId"
+                            :dimmed="
+                                matches !== null &&
+                                matches !== undefined &&
+                                !matches.has(span.spanId)
+                            "
+                            @select="emit('select', span.spanId)"
+                            @toggle="toggle(span.spanId)"
+                        />
+                    </div>
                 </div>
             </div>
         </div>

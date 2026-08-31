@@ -19,6 +19,13 @@ import type { LogProject, LogRangePreset } from '@/types';
 const props = defineProps<{
     projects: LogProject[];
     project: string | null;
+    /**
+     * The root services seen for the projects in scope; deferred, so it can
+     * arrive late. Suggestions, not a constraint: the field stays free text,
+     * because the latency tab matches any span's service and a service that
+     * never roots a trace is still worth asking about.
+     */
+    services?: string[];
     /** Matches the trace's root service — all the summary table knows. */
     service: string | null;
     errors: boolean;
@@ -54,9 +61,31 @@ const durationTerm = ref(
     props.minDuration === null ? '' : String(props.minDuration),
 );
 
+/**
+ * The last values this toolbar sent up, so their echo can be told apart from a
+ * change that came from somewhere else.
+ *
+ * Each field is debounced, so a reader typing "checkout" sends "check" first
+ * and keeps typing while that round trip is in flight. When it lands, the prop
+ * becomes "check" — and syncing the field to the prop would delete the "out"
+ * the reader typed in the meantime. The echo of our own emit is therefore
+ * ignored; a value that is *not* our echo (a reset, the back button, a shared
+ * link) is a real change and is written into the field. Once the field has
+ * lost focus there is nothing to protect and the prop always wins.
+ */
+const lastEmittedService = ref<string | null>(props.service);
+const lastEmittedDuration = ref<number | null>(props.minDuration);
+
+const isFocused = (id: string) =>
+    typeof document !== 'undefined' && document.activeElement?.id === id;
+
 watch(
     () => props.service,
     (value) => {
+        if (isFocused('traces-service') && value === lastEmittedService.value) {
+            return;
+        }
+
         serviceTerm.value = value ?? '';
     },
 );
@@ -64,22 +93,48 @@ watch(
 watch(
     () => props.minDuration,
     (value) => {
+        if (
+            isFocused('traces-min-duration') &&
+            value === lastEmittedDuration.value
+        ) {
+            return;
+        }
+
         durationTerm.value = value === null ? '' : String(value);
     },
 );
 
 const emitService = useDebounceFn(() => {
-    emit('update:service', serviceTerm.value.trim() || null);
+    const value = serviceTerm.value.trim() || null;
+
+    lastEmittedService.value = value;
+    emit('update:service', value);
 }, 350);
 
 const emitDuration = useDebounceFn(() => {
     const parsed = Number.parseInt(durationTerm.value, 10);
+    const value = Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 
-    emit(
-        'update:minDuration',
-        Number.isFinite(parsed) && parsed > 0 ? parsed : null,
-    );
+    lastEmittedDuration.value = value;
+    emit('update:minDuration', value);
 }, 350);
+
+/**
+ * The options the picker offers.
+ *
+ * A service the reader arrived with — from a shared link, or one that has gone
+ * quiet since — is kept in the list, so the control never suggests less than
+ * it is showing.
+ */
+const serviceOptions = computed(() => {
+    const names = new Set(props.services ?? []);
+
+    if (props.service) {
+        names.add(props.service);
+    }
+
+    return [...names].sort((a, b) => a.localeCompare(b));
+});
 
 const projectValue = computed({
     get: () => props.project ?? ALL_PROJECTS,
@@ -103,14 +158,31 @@ const rangeValue = computed({
                 <Label class="sr-only" for="traces-service">
                     Filter by root service
                 </Label>
+                <!--
+                  A datalist rather than a select: the list is a suggestion
+                  drawn from the last week's root services, and the field has
+                  to accept a name that is not in it.
+                -->
                 <Input
                     id="traces-service"
                     v-model="serviceTerm"
                     data-test="traces-service"
+                    list="traces-service-options"
+                    autocomplete="off"
                     placeholder="Root service…"
                     class="h-10 text-sm"
                     @input="emitService"
                 />
+                <datalist
+                    id="traces-service-options"
+                    data-test="traces-service-options"
+                >
+                    <option
+                        v-for="name in serviceOptions"
+                        :key="name"
+                        :value="name"
+                    />
+                </datalist>
             </div>
 
             <!--

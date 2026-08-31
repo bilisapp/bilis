@@ -21,3 +21,16 @@ The **key** decides the kind, not the value: `2` is a token count under `input_t
 `formatValue()` only ever *reformats* — never truncates. Shortening is CSS, so selecting or copying a value still yields the stored value; `SpanAttribute.value` is what a copy must produce and `display` is only what is drawn.
 
 Exactly one thing here gets colour: an attribute stating a failure (`isFailure()` — deliberately narrow), and it borrows `SPAN_STATUS_TEXT_CLASS.Error` rather than introducing a family. A panel that tints half its rows points at nothing.
+
+## Span timestamps go through `parseClickHouseTimestamp`, never `Date.parse`
+
+ClickHouse renders `DateTime64(9)` as `2026-08-30 20:34:07.438000000` — space-separated with nine fraction digits, which
+is outside the ECMAScript date grammar. V8 tolerates `Date.parse(`${ts}Z`)`; Safari returns `NaN`, and a NaN start turns
+every bar's offset and width into NaN, so the whole waterfall collapses with no error. `parseClickHouseTimestamp()` /
+`spanStartMs()` in `resources/js/lib/traces.ts` split the string themselves and return float milliseconds with
+nanosecond resolution; every span-time read (extent, geometry, `logsHref`, the detail panel) uses them, and
+`waterfallGeometry()` — the one geometry implementation, returning a `Map` keyed by span id — is what
+`SpanWaterfall.vue` renders from. Covered by `resources/js/lib/__tests__/traces.test.ts` (`npm test`).
+
+`traceHref(teamSlug, traceId, { ts, span })` is the one builder for links into the waterfall; `?span=` preselects and
+reveals a row, and selecting a span keeps the URL in sync without an Inertia visit. Do not string-concatenate `?ts=`.

@@ -292,6 +292,58 @@ class LogQuery
     }
 
     /**
+     * How many log lines one trace wrote inside a window.
+     *
+     * The trace header's "N logs for this trace". A count rather than a page:
+     * the reader is on the trace and the number is what tells them whether the
+     * logs are worth the click. It follows R4 like every read of the table —
+     * the base predicate from `conditions()`, ProjectId IN plus a plain range
+     * on raw Timestamp — with `TraceId = ...` appended, never substituted; the
+     * window (the trace's own extent, from its summary) is what keeps a
+     * TraceId lookup from scanning the retention period.
+     *
+     * Null when ClickHouse is overloaded: "0 logs" and "could not count" are
+     * different answers, and the header must hide the number for the second
+     * rather than print a zero it cannot stand behind.
+     *
+     * @param list<string> $projectIds
+     */
+    public function countForTrace(array $projectIds, string $traceId, Carbon $from, Carbon $to): ?int
+    {
+        if ($projectIds === []) {
+            return 0;
+        }
+
+        [$conditions, $params] = $this->conditions(
+            $projectIds,
+            new LogFilters(from: $from, to: $to),
+            withUserFilters: false,
+        );
+
+        $conditions[] = 'TraceId = {traceId:String}';
+        $params['traceId'] = strtolower($traceId);
+
+        $sql = sprintf(
+            'SELECT count() AS Total FROM otel_logs WHERE %s',
+            implode(' AND ', $conditions),
+        );
+
+        try {
+            $rows = $this->client->select($sql, $params);
+        } catch (ClickHouseException $exception) {
+            if (!$exception->isOverload()) {
+                throw $exception;
+            }
+
+            report($exception);
+
+            return null;
+        }
+
+        return (int)($rows[0]['Total'] ?? 0);
+    }
+
+    /**
      * Fetch recent error rows for the autofix trigger, newest first.
      *
      * The autofix scan needs raw error records rather than a page of the

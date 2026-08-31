@@ -44,6 +44,69 @@ it('renders the Go guide with both ingest routes', function () {
         ->assertSee('/api/v1/ingest');
 });
 
+it('tells the overview truthfully what v1 ships, traces included', function () {
+    $response = get(route('docs.show', ['section' => 'getting-started', 'page' => 'overview']))->assertOk();
+
+    $response->assertSee('POST /api/v1/traces')
+        ->assertSee('How a span travels')
+        ->assertSee('otel_traces')
+        ->assertSee('trace_summary')
+        ->assertDontSee('No traces and no metrics')
+        ->assertDontSee('no OTLP protobuf encoding');
+});
+
+it('renders the traces guide with a base endpoint the SDKs can append to and a complete Collector file', function () {
+    $response = get(route('docs.show', ['section' => 'ingestion', 'page' => 'traces']))->assertOk();
+
+    $html = html($response);
+
+    // The signal-agnostic endpoint ends in /api, so an SDK appending /v1/traces lands on the route.
+    expect($html)->toContain('OTEL_EXPORTER_OTLP_ENDPOINT=https://your-bilis-host/api')
+        ->not->toContain('OTEL_EXPORTER_OTLP_ENDPOINT=https://your-bilis-host\n')
+        ->toContain('OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=https://your-bilis-host/api/v1/traces')
+        // The Collector file declares everything it references.
+        ->toContain('traces_endpoint: https://your-bilis-host/api/v1/traces')
+        ->toContain('logs_endpoint: https://your-bilis-host/api/v1/logs')
+        ->toContain('extensions: [file_storage]')
+        ->toContain('storage: file_storage')
+        ->toContain('receivers: [otlp]')
+        // One quickstart per SDK the logs docs cover.
+        ->toContain('auto-instrumentations-node')
+        ->toContain('opentelemetry-instrument')
+        ->toContain('otlptracehttp.New')
+        ->toContain('opentelemetry-auto-laravel');
+});
+
+it('shows the Laravel shipper how to correlate log lines with spans', function () {
+    $response = get(route('docs.show', ['section' => 'ingestion', 'page' => 'shippers']))->assertOk();
+
+    expect(html($response))->toContain('Correlating logs with traces')
+        ->toContain('Span::getCurrent()')
+        ->toContain('isValid()')
+        ->toContain('AddTraceContext')
+        // The Collector example is the same complete file as on the traces page.
+        ->toContain('traces_endpoint: https://bilis.example.com/api/v1/traces')
+        ->toContain('extensions: [file_storage]');
+});
+
+it('says what the envelope endpoint does with transactions and trace contexts', function () {
+    get(route('docs.show', ['section' => 'ingestion', 'page' => 'sentry']))
+        ->assertOk()
+        ->assertSee('contexts.trace')
+        ->assertDontSee('Tracing is out of scope');
+});
+
+it('documents span retention and the statements that change it', function () {
+    $response = get(route('docs.show', ['section' => 'reference', 'page' => 'limits-and-behavior']))->assertOk();
+
+    expect(html($response))->toContain('Changing retention')
+        ->toContain('materialize_ttl_after_modify = 0')
+        ->toContain('ALTER TABLE otel_logs')
+        ->toContain('ALTER TABLE otel_traces')
+        ->toContain('ALTER TABLE trace_summary')
+        ->toContain('toDateTime(Start) + toIntervalDay(90)');
+});
+
 it('renders the Claude Code guide with the three defaults that send nothing', function () {
     get(route('docs.show', ['section' => 'ingestion', 'page' => 'claude-code']))
         ->assertOk()

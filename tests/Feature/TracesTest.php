@@ -5,6 +5,7 @@ use App\Models\Project;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -98,9 +99,14 @@ test('the trace list renders the team traces', function () {
 });
 
 /*
- * The read half of SCHEMA.md R11. trace_summary is an AggregatingMergeTree, so
- * a trace's rows collapse only when parts merge; a reader without this GROUP BY
- * shows the same trace once per insert block with partial counts.
+ * The read half of SCHEMA.md R11, and R13 beside it. trace_summary is an
+ * AggregatingMergeTree, so a trace's rows collapse only when parts merge; a
+ * reader without this GROUP BY shows the same trace once per insert block with
+ * partial counts. And the window is decided on the whole trace's min(Start) in
+ * HAVING, never on one block's Start in WHERE: a boundary that falls between two
+ * of a trace's blocks would otherwise aggregate the late block alone. The
+ * candidates come from trace_index, which is keyed by the hour, so the read is
+ * bounded by the window rather than by the project's history.
  */
 test('the trace list re-aggregates the summary table on read', function () {
     [$user, $team] = traceTeam();
@@ -126,7 +132,13 @@ test('the trace list re-aggregates the summary table on read', function () {
             ->toContain('sum(SpanCount)')
             ->toContain('sum(ErrorCount)')
             ->toContain('max(RootName)    AS TraceRootName')
-            ->toContain('min(Start)');
+            ->toContain('min(Start)')
+            // R13: candidates by the hour, membership on the exact aggregate.
+            ->toContain('FROM trace_index')
+            ->toContain('Hour >= toStartOfHour({candidateFrom:DateTime64(9)})')
+            ->toContain('HAVING min(Start) >= {from:DateTime64(9)} AND min(Start) <= {to:DateTime64(9)}')
+            ->not->toContain('WHERE Start >=')
+            ->not->toContain('AND Start >= {from:DateTime64(9)}');
 
         return true;
     });
@@ -195,10 +207,16 @@ test('the errors-only and duration filters are applied after aggregation', funct
     });
 });
 
-test('the waterfall bounds its span query to the given timestamp', function () {
+test('the waterfall bounds its span query to the window the summary reports', function () {
     [$user, $team] = traceTeam();
 
-    Http::fake(['127.0.0.1:8123/*' => Http::response(spanResponse())]);
+    Http::fake(function (Request $request) {
+        return Http::response(
+            str_contains($request->body(), 'FROM trace_summary')
+                ? traceSummaryResponse()
+                : spanResponse(),
+        );
+    });
 
     $this->actingAs($user)
         ->get(route('traces.show', [
@@ -221,18 +239,153 @@ test('the waterfall bounds its span query to the given timestamp', function () {
     Http::assertSent(function (Request $request) {
         $body = $request->body();
 
-        if (! str_contains($body, 'FROM otel_traces')) {
+        // The waterfall query, not the root-resource lookup beside it.
+        if (!str_contains($body, 'SpanAttributes')) {
             return false;
         }
 
         /*
-         * The whole reason the timestamp is in the URL: the sort key leads with
-         * (ProjectId, Timestamp), so without a range this is a scan of the
-         * retention window rather than a seek.
+         * The sort key leads with (ProjectId, Timestamp), so without a range
+         * this is a scan of the retention window rather than a seek. The range
+         * is the trace's own, from its summary, with a second of slack either
+         * side — the `ts` in the URL is a hint and does not narrow it.
          */
+        $query = clickHouseQuery($request);
+
         expect($body)->toContain('Timestamp >= {from:DateTime64(9)}')
             ->toContain('Timestamp <= {to:DateTime64(9)}')
-            ->toContain('TraceId = {traceId:String}');
+            ->toContain('TraceId = {traceId:String}')
+            // Siblings that started on the same nanosecond come back in one
+            // order on every read.
+            ->toContain('ORDER BY Timestamp ASC, SpanId ASC')
+            ->and($query['param_from'] ?? '')->toBe('2026-08-30 09:14:01.184000')
+            ->and($query['param_to'] ?? '')->toBe('2026-08-30 09:14:03.436000');
+
+        return true;
+    });
+});
+
+/*
+ * The reason the window comes from the summary and not from the `ts`: the
+ * bracket around a `ts` reached one minute back and five forward, so a log line
+ * a minute into a trace, or any trace longer than five minutes — a queue job,
+ * an agent session — came back as a rootless fragment with no fallback, because
+ * the fragment was not empty.
+ */
+test('a trace longer than the timestamp bracket is read whole', function () {
+    [$user, $team] = traceTeam();
+
+    Http::fake(function (Request $request) {
+        return Http::response(
+            str_contains($request->body(), 'FROM trace_summary')
+                ? traceSummaryResponse(['Ended' => '2026-08-30 09:34:02.436000000'])
+                : spanResponse(),
+        );
+    });
+
+    $this->actingAs($user)
+        ->get(route('traces.show', [
+            'current_team' => $team->slug,
+            'trace' => str_repeat('a', 32),
+            // From a log line eighteen minutes into the trace.
+            'ts' => '2026-08-30T09:32:00Z',
+        ]))
+        ->assertOk()
+        ->assertInertia(fn(Assert $page) => $page
+            ->has('spans', 1)
+            ->where('truncated', false)
+            ->etc()
+        );
+
+    Http::assertSent(function (Request $request) {
+        if (!str_contains($request->body(), 'SpanAttributes')) {
+            return false;
+        }
+
+        $query = clickHouseQuery($request);
+
+        // Twenty minutes, root to last span end, plus a second either side.
+        expect($query['param_from'] ?? '')->toBe('2026-08-30 09:14:01.184000')
+            ->and($query['param_to'] ?? '')->toBe('2026-08-30 09:34:03.436000');
+
+        return true;
+    });
+});
+
+test('a trace longer than the window cap is cut at the cap and says so', function () {
+    [$user, $team] = traceTeam();
+
+    Http::fake(function (Request $request) {
+        return Http::response(
+            str_contains($request->body(), 'FROM trace_summary')
+                ? traceSummaryResponse(['Ended' => '2026-08-30 16:14:02.436000000'])
+                : spanResponse(),
+        );
+    });
+
+    $this->actingAs($user)
+        ->get(route('traces.show', [
+            'current_team' => $team->slug,
+            'trace' => str_repeat('a', 32),
+        ]))
+        ->assertOk()
+        ->assertInertia(fn(Assert $page) => $page
+            ->has('spans', 1)
+            // The window was cut, so the tree is incomplete and the page must
+            // say so the same way it does for a span-count cut.
+            ->where('truncated', true)
+            ->etc()
+        );
+
+    Http::assertSent(function (Request $request) {
+        if (!str_contains($request->body(), 'SpanAttributes')) {
+            return false;
+        }
+
+        $query = clickHouseQuery($request);
+
+        // Seven hours asked for, six granted, from the trace's start.
+        expect($query['param_from'] ?? '')->toBe('2026-08-30 09:14:01.184000')
+            ->and($query['param_to'] ?? '')->toBe('2026-08-30 15:14:01.184000');
+
+        return true;
+    });
+});
+
+/*
+ * When there is no summary to trust — none stored, or storage too busy to say —
+ * the `ts` is all there is, and it is bracketed the old way.
+ */
+test('without a summary the timestamp bracket bounds the span query', function () {
+    [$user, $team] = traceTeam();
+
+    Http::fake(function (Request $request) {
+        return Http::response(
+            str_contains($request->body(), 'FROM trace_summary')
+                ? ''
+                : spanResponse(),
+        );
+    });
+
+    $this->actingAs($user)
+        ->get(route('traces.show', [
+            'current_team' => $team->slug,
+            'trace' => str_repeat('a', 32),
+            'ts' => '2026-08-30T09:14:02Z',
+        ]))
+        ->assertOk()
+        ->assertInertia(fn(Assert $page) => $page->has('spans', 1)->etc());
+
+    Http::assertSent(function (Request $request) {
+        if (!str_contains($request->body(), 'SpanAttributes')) {
+            return false;
+        }
+
+        $query = clickHouseQuery($request);
+
+        // One minute back, five forward.
+        expect($query['param_from'] ?? '')->toBe('2026-08-30 09:13:02.000000')
+            ->and($query['param_to'] ?? '')->toBe('2026-08-30 09:19:02.000000');
 
         return true;
     });
@@ -361,26 +514,27 @@ test('the traces page requires authentication', function () {
 
 /*
  * `ts` is a hint from a link, not a fact: it can be stale, hand-edited, or
- * written in the reader's timezone. A wrong one lands the span query on an empty
- * window, which looks exactly like expired spans — so an empty result is retried
- * against the time the summary itself reports before that conclusion is drawn.
+ * written in the reader's timezone. It used to bound the span query and be
+ * retried against the summary only when it found nothing; now the summary's own
+ * window is the one read whenever a summary exists, so a wrong `ts` costs
+ * nothing and cannot be mistaken for expired spans.
  */
-test('a stale timestamp falls back to the summary window instead of claiming the spans expired', function () {
+test('a stale timestamp never narrows the window the summary already reports', function () {
     [$user, $team] = traceTeam();
 
     $spanQueries = 0;
+    $windows = [];
 
-    Http::fake(function (Request $request) use (&$spanQueries) {
+    Http::fake(function (Request $request) use (&$spanQueries, &$windows) {
         if (str_contains($request->body(), 'FROM trace_summary')) {
             return Http::response(traceSummaryResponse());
         }
 
-        if (str_contains($request->body(), 'FROM otel_traces')) {
+        if (str_contains($request->body(), 'SpanAttributes')) {
             $spanQueries++;
+            $windows[] = clickHouseQuery($request)['param_from'] ?? '';
 
-            // The window the bad `ts` produced finds nothing; the summary's own
-            // window finds the trace.
-            return Http::response($spanQueries === 1 ? '' : spanResponse());
+            return Http::response(spanResponse());
         }
 
         return Http::response('');
@@ -399,8 +553,9 @@ test('a stale timestamp falls back to the summary window instead of claiming the
             ->etc()
         );
 
-    // Once for the bad window, once for the summary's own.
-    expect($spanQueries)->toBeGreaterThanOrEqual(2);
+    // Once, against the summary's window — never against the bad `ts`.
+    expect($spanQueries)->toBe(1)
+        ->and($windows)->toBe(['2026-08-30 09:14:01.184000']);
 });
 
 test('a timestamp that finds spans is not queried twice', function () {
@@ -522,23 +677,23 @@ test('the panel endpoint reports an overloaded clickhouse rather than failing', 
 });
 
 /*
- * The panel reaches the shared resolver, so a stale `ts` self-heals here too —
+ * The panel reaches the shared resolver, so a stale `ts` is harmless here too —
  * this is the assertion that would fail if the logic were ever copied instead of
  * shared.
  */
-test('the panel endpoint recovers from a stale timestamp', function () {
+test('the panel endpoint reads the summary window regardless of the timestamp', function () {
     [$user, $team] = traceTeam();
 
-    $spanQueries = 0;
+    $windows = [];
 
-    Http::fake(function (Request $request) use (&$spanQueries) {
+    Http::fake(function (Request $request) use (&$windows) {
         if (str_contains($request->body(), 'FROM trace_summary')) {
             return Http::response(traceSummaryResponse());
         }
 
-        $spanQueries++;
+        $windows[] = clickHouseQuery($request)['param_from'] ?? '';
 
-        return Http::response($spanQueries === 1 ? '' : spanResponse());
+        return Http::response(spanResponse());
     });
 
     $this->actingAs($user)
@@ -551,7 +706,7 @@ test('the panel endpoint recovers from a stale timestamp', function () {
         ->assertOk()
         ->assertJsonCount(1, 'spans');
 
-    expect($spanQueries)->toBeGreaterThanOrEqual(2);
+    expect($windows)->toBe(['2026-08-30 09:14:01.184000']);
 });
 
 test('the panel endpoint requires membership of the team', function () {
@@ -657,9 +812,17 @@ test('the tail endpoint reads forward from the cursor with no upper bound', func
 
         $query = clickHouseQuery($request);
 
-        expect($body)->toContain('Start > {after:DateTime64(9)}')
+        // A trace changes whenever a block of its spans lands, so the
+        // candidate is any trace with a block that ENDS after the cursor —
+        // which is what re-sends a trace whose root arrived last — and it
+        // comes back aggregated over every block it has (R13).
+        expect($body)->toContain('FROM trace_index')
+            ->toContain('End > {after:DateTime64(9)}')
+            ->not->toContain('Start > {after:DateTime64(9)}')
             // The bound the list carries, and the one the tail must not.
             ->not->toContain('Start <= {to:DateTime64(9)}')
+            // The window's start still holds, on the whole trace's min(Start).
+            ->toContain('HAVING min(Start) >= {from:DateTime64(9)}')
             // R11 applies just as much to a poll: a trace this fresh is exactly
             // the one whose rows have not been merged yet.
             ->toContain('GROUP BY ProjectId, TraceId')
@@ -857,4 +1020,327 @@ test('a link back into the same trace is never looked up', function () {
         $request->body(),
         'TraceId IN {traceIds:Array(String)}',
     ));
+});
+
+/*
+ * The strip above the list. Read the way the list reads (R13): candidates from
+ * trace_index by the hour, every candidate re-aggregated over all its blocks on
+ * trace_summary (R11), and only then placed in the bucket its true min(Start)
+ * falls in. Counting index rows would count a split trace twice and could not
+ * count errors at all.
+ */
+test('the trace histogram is deferred, bucketed over the window and read the R13 way', function () {
+    [$user, $team, $project] = traceTeam();
+
+    Http::fake(function (Request $request) {
+        if (str_contains($request->body(), 'FailedTraces')) {
+            return Http::response(collect([
+                    ['Bucket' => '2026-08-30 09:00:00.000000000', 'Traces' => 12, 'FailedTraces' => 2],
+                    ['Bucket' => '2026-08-30 09:30:00.000000000', 'Traces' => 5, 'FailedTraces' => 0],
+                ])->map(fn(array $row): string => (string)json_encode($row))->implode("\n") . "\n");
+        }
+
+        return Http::response(traceSummaryResponse());
+    });
+
+    $this->actingAs($user)
+        ->get(route('traces.index', [
+            'current_team' => $team->slug,
+            'from' => '2026-08-30T09:00:00Z',
+            'to' => '2026-08-30T10:00:00Z',
+        ]))
+        ->assertOk()
+        ->assertInertia(fn(Assert $page) => $page
+            ->component('traces/Index')
+            ->missing('histogram')
+            ->loadDeferredProps(fn(Assert $reload) => $reload
+                ->where('histogram.unavailable', false)
+                // A one hour window lands on 300 second buckets: 12 plus the
+                // closing edge, every one present even where nothing happened.
+                ->where('histogram.intervalSeconds', 300)
+                ->has('histogram.buckets', 13)
+                ->where('histogram.total', 17)
+                ->where('histogram.errors', 2)
+                ->where('histogram.buckets.0.at', '2026-08-30 09:00:00.000000')
+                ->where('histogram.buckets.0.traces', 12)
+                ->where('histogram.buckets.0.errors', 2)
+                ->where('histogram.buckets.1.traces', 0)
+                ->where('histogram.buckets.6.traces', 5)
+                ->etc()
+            )
+        );
+
+    Http::assertSent(function (Request $request) use ($project) {
+        $body = $request->body();
+
+        if (!str_contains($body, 'FailedTraces')) {
+            return false;
+        }
+
+        $query = clickHouseQuery($request);
+
+        expect($body)->toContain('toStartOfInterval(Started, toIntervalSecond({bucketSeconds:UInt32}))')
+            ->toContain('countIf(Errors > 0) AS FailedTraces')
+            ->toContain('FROM trace_summary')
+            ->toContain('FROM trace_index')
+            ->toContain('Hour >= toStartOfHour({candidateFrom:DateTime64(9)})')
+            ->toContain('GROUP BY ProjectId, TraceId')
+            ->toContain('HAVING min(Start) >= {from:DateTime64(9)} AND min(Start) <= {to:DateTime64(9)}')
+            ->not->toContain('WHERE Start >=')
+            ->and($query['param_bucketSeconds'] ?? '')->toBe('300')
+            ->and($query['param_projectIds'] ?? '')->toBe("['" . $project->id . "']");
+
+        return true;
+    });
+});
+
+test('the trace histogram keeps the list filters and stays off the latency page', function () {
+    [$user, $team] = traceTeam();
+
+    Http::fake(['127.0.0.1:8123/*' => Http::response(traceSummaryResponse())]);
+
+    $this->actingAs($user)
+        ->get(route('traces.index', [
+            'current_team' => $team->slug,
+            'errors' => '1',
+            'service' => 'checkout',
+            'min_duration' => 250,
+        ]))
+        ->assertOk()
+        ->assertInertia(fn(Assert $page) => $page->loadDeferredProps(
+            fn(Assert $reload) => $reload->has('histogram.buckets'),
+        ));
+
+    Http::assertSent(function (Request $request) {
+        $body = $request->body();
+
+        if (!str_contains($body, 'FailedTraces')) {
+            return false;
+        }
+
+        expect($body)->toContain('sum(ErrorCount) > 0')
+            ->toContain('max(RootService) = {service:String}')
+            ->toContain("dateDiff('millisecond', min(Start), max(End)) >= {minDuration:UInt32}")
+            ->and(clickHouseQuery($request)['param_service'] ?? '')->toBe('checkout');
+
+        return true;
+    });
+
+    $this->actingAs($user)
+        ->get(route('traces.latency', ['current_team' => $team->slug]))
+        ->assertOk()
+        ->assertInertia(fn(Assert $page) => $page->missing('histogram')->etc());
+});
+
+test('an overloaded clickhouse leaves the histogram unavailable with every bucket present', function () {
+    [$user, $team] = traceTeam();
+
+    Http::fake(['127.0.0.1:8123/*' => Http::response('Service Unavailable', 503)]);
+
+    $this->actingAs($user)
+        ->get(route('traces.index', [
+            'current_team' => $team->slug,
+            'from' => '2026-08-30T09:00:00Z',
+            'to' => '2026-08-30T10:00:00Z',
+        ]))
+        ->assertOk()
+        ->assertInertia(fn(Assert $page) => $page->loadDeferredProps(
+            fn(Assert $reload) => $reload
+                ->where('histogram.unavailable', true)
+                ->has('histogram.buckets', 13)
+                ->where('histogram.total', 0)
+                ->etc()
+        ));
+});
+
+/*
+ * The toolbar's service picker. Shared by both tabs through shared(), so the
+ * same names are offered on both, and read from the cheapest pair of tables
+ * that can answer: trace_index nominates the week's traces by the hour, and
+ * trace_summary is asked for the distinct non-empty root services among them.
+ */
+test('the toolbar service list is deferred, shared by both tabs and read through the index', function () {
+    [$user, $team, $project] = traceTeam();
+
+    Http::fake(function (Request $request) {
+        if (str_contains($request->body(), 'SELECT DISTINCT RootService')) {
+            return Http::response("{\"RootService\":\"checkout\"}\n{\"RootService\":\"ledger\"}\n");
+        }
+
+        return Http::response(traceSummaryResponse());
+    });
+
+    $this->actingAs($user)
+        ->get(route('traces.index', ['current_team' => $team->slug]))
+        ->assertOk()
+        ->assertInertia(fn(Assert $page) => $page
+            ->missing('services')
+            ->loadDeferredProps(fn(Assert $reload) => $reload
+                ->where('services', ['checkout', 'ledger'])
+                ->etc()
+            )
+        );
+
+    Http::assertSent(function (Request $request) use ($project) {
+        $body = $request->body();
+
+        if (!str_contains($body, 'SELECT DISTINCT RootService')) {
+            return false;
+        }
+
+        $query = clickHouseQuery($request);
+
+        expect($body)->toContain('FROM trace_summary')
+            ->toContain("RootService != ''")
+            ->toContain('FROM trace_index')
+            ->toContain('Hour >= toStartOfHour({from:DateTime64(9)})')
+            ->and($query['param_projectIds'] ?? '')->toBe("['" . $project->id . "']")
+            ->and($query['param_rowLimit'] ?? '')->toBe('200');
+
+        return true;
+    });
+
+    $this->actingAs($user)
+        ->get(route('traces.latency', ['current_team' => $team->slug]))
+        ->assertOk()
+        ->assertInertia(fn(Assert $page) => $page
+            ->component('traces/Latency')
+            ->loadDeferredProps(fn(Assert $reload) => $reload
+                ->where('services', ['checkout', 'ledger'])
+                ->etc()
+            )
+        );
+});
+
+/*
+ * Summaries outlive spans (90 days against 30). Whether a row can still be
+ * opened is judged once, server-side, so the list, the poll and every link
+ * agree about the same row.
+ */
+test('a trace older than the span retention is flagged as expired', function () {
+    [$user, $team] = traceTeam();
+
+    $old = Carbon::now()->subDays(40)->format('Y-m-d H:i:s.000000000');
+    $fresh = Carbon::now()->subHours(2)->format('Y-m-d H:i:s.000000000');
+
+    Http::fake(function (Request $request) use ($old, $fresh) {
+        if (str_contains($request->body(), 'sum(SpanCount)')) {
+            return Http::response(
+                traceSummaryResponse(['TraceId' => str_repeat('a', 32), 'Started' => $old, 'Ended' => $old]) . "\n"
+                . traceSummaryResponse(['TraceId' => str_repeat('b', 32), 'Started' => $fresh, 'Ended' => $fresh]) . "\n",
+            );
+        }
+
+        return Http::response('');
+    });
+
+    $this->actingAs($user)
+        ->getJson(route('traces.tail', ['current_team' => $team->slug]))
+        ->assertOk()
+        ->assertJsonPath('rows.0.spansExpired', true)
+        ->assertJsonPath('rows.1.spansExpired', false);
+});
+
+/*
+ * "N logs for this trace" in the trace header. Counted in the trace's own
+ * window with a minute of slack, the same window the link opens, so the
+ * number beside the link is the number the click delivers. R4 throughout: the
+ * ProjectId and time predicates stay and TraceId is appended to them.
+ */
+test('the trace page counts the logs the trace wrote inside its own window', function () {
+    [$user, $team, $project] = traceTeam();
+
+    Http::fake(function (Request $request) {
+        if (str_contains($request->body(), 'FROM otel_logs')) {
+            return Http::response('{"Total":7}');
+        }
+
+        return Http::response(
+            str_contains($request->body(), 'FROM trace_summary')
+                ? traceSummaryResponse()
+                : spanResponse(),
+        );
+    });
+
+    $this->actingAs($user)
+        ->get(route('traces.show', [
+            'current_team' => $team->slug,
+            'trace' => str_repeat('a', 32),
+        ]))
+        ->assertOk()
+        ->assertInertia(fn(Assert $page) => $page
+            ->where('logs.count', 7)
+            // 09:14:02.184 – 09:14:02.436, a minute either side.
+            ->where('logs.from', '2026-08-30T09:13:02+00:00')
+            ->where('logs.to', '2026-08-30T09:15:02+00:00')
+            ->etc()
+        );
+
+    Http::assertSent(function (Request $request) use ($project) {
+        $body = $request->body();
+
+        if (!str_contains($body, 'FROM otel_logs')) {
+            return false;
+        }
+
+        $query = clickHouseQuery($request);
+
+        expect($body)->toContain('SELECT count() AS Total')
+            ->toContain('ProjectId IN {projectIds:Array(String)}')
+            ->toContain('Timestamp >= {from:DateTime64(9)}')
+            ->toContain('Timestamp <= {to:DateTime64(9)}')
+            ->toContain('TraceId = {traceId:String}')
+            ->and($query['param_projectIds'] ?? '')->toBe("['" . $project->id . "']")
+            ->and($query['param_traceId'] ?? '')->toBe(str_repeat('a', 32))
+            ->and($query['param_from'] ?? '')->toBe('2026-08-30 09:13:02.184000')
+            ->and($query['param_to'] ?? '')->toBe('2026-08-30 09:15:02.436000');
+
+        return true;
+    });
+});
+
+test('a trace with no summary has no log count to offer', function () {
+    [$user, $team] = traceTeam();
+
+    Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
+
+    $this->actingAs($user)
+        ->get(route('traces.show', [
+            'current_team' => $team->slug,
+            'trace' => str_repeat('f', 32),
+        ]))
+        ->assertOk()
+        ->assertInertia(fn(Assert $page) => $page->where('logs', null)->etc());
+
+    Http::assertNotSent(fn(Request $request) => str_contains($request->body(), 'FROM otel_logs'));
+});
+
+test('an overloaded log store withholds the count but keeps the window for the link', function () {
+    [$user, $team] = traceTeam();
+
+    Http::fake(function (Request $request) {
+        if (str_contains($request->body(), 'FROM otel_logs')) {
+            return Http::response('Service Unavailable', 503);
+        }
+
+        return Http::response(
+            str_contains($request->body(), 'FROM trace_summary')
+                ? traceSummaryResponse()
+                : spanResponse(),
+        );
+    });
+
+    $this->actingAs($user)
+        ->get(route('traces.show', [
+            'current_team' => $team->slug,
+            'trace' => str_repeat('a', 32),
+        ]))
+        ->assertOk()
+        ->assertInertia(fn(Assert $page) => $page
+            // Null, not zero: "could not count" must not read as "wrote nothing".
+            ->where('logs.count', null)
+            ->where('logs.from', '2026-08-30T09:13:02+00:00')
+            ->where('unavailable', false)
+            ->etc()
+        );
 });

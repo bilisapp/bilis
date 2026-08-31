@@ -9,6 +9,7 @@ import type {
     SeverityLevel,
     Span,
     TeamLlmCredential,
+    TraceHistogram,
     TracePanelResult,
     TraceSummary,
 } from '@/types';
@@ -728,6 +729,7 @@ export const DEMO_TRACES: TraceSummary[] = [
         durationMs: 252,
         spanCount: 14,
         errorCount: 2,
+        spansExpired: false,
     },
     {
         traceId: '9f2c41d0aa7b4e1290b3c7e5f10d8a44',
@@ -738,6 +740,7 @@ export const DEMO_TRACES: TraceSummary[] = [
         durationMs: 37,
         spanCount: 6,
         errorCount: 0,
+        spansExpired: false,
     },
     {
         traceId: '3ac1be77045f4d0f8e6b21c9d4a70e13',
@@ -748,8 +751,45 @@ export const DEMO_TRACES: TraceSummary[] = [
         durationMs: 1877,
         spanCount: 21,
         errorCount: 0,
+        spansExpired: true,
     },
 ];
+
+/**
+ * An hour of trace volume with one bad ten minutes in it, on the log
+ * histogram's clock so the two strips line up in the showcase.
+ */
+export function demoTraceHistogram(): TraceHistogram {
+    const intervalSeconds = 60;
+    const start = Date.UTC(2026, 7, 26, 8, 26, 0);
+
+    const buckets = Array.from({ length: 48 }, (_, index) => {
+        const spike = index >= 30 && index <= 38;
+        const traces = 22 + ((index * 7) % 9) + (spike ? 14 : 0);
+        const errors = spike
+            ? Math.max(1, 9 - Math.abs(34 - index) * 2)
+            : index % 11 === 0
+              ? 1
+              : 0;
+
+        return {
+            at: new Date(start + index * intervalSeconds * 1_000)
+                .toISOString()
+                .replace('T', ' ')
+                .replace('Z', ''),
+            traces,
+            errors,
+        };
+    });
+
+    return {
+        buckets,
+        intervalSeconds,
+        total: buckets.reduce((sum, bucket) => sum + bucket.traces, 0),
+        errors: buckets.reduce((sum, bucket) => sum + bucket.errors, 0),
+        unavailable: false,
+    };
+}
 
 /**
  * One trace's spans, already flattened the way SpanTree hands them over: depth

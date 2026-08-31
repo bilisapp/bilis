@@ -105,12 +105,22 @@ final class SpanSemantics
             return $value;
         }
 
+        // A JSON encoder that writes every number as a float sends `2.0`; an
+        // integral float is the integer it spells, anything fractional is not.
+        if (is_float($value)) {
+            return is_finite($value) && floor($value) === $value ? (int)$value : 0;
+        }
+
         if (! is_string($value) || $value === '') {
             return 0;
         }
 
         if (ctype_digit($value)) {
             return (int) $value;
+        }
+
+        if (is_numeric($value)) {
+            return self::enum((float)$value, $names, $literals);
         }
 
         $upper = strtoupper($value);

@@ -114,7 +114,17 @@ the same `(ProjectId, Timestamp, ServiceName)` the logs table uses, a deliberate
 divergence from upstream's `(ServiceName, SpanName, toDateTime(Timestamp))` — upstream has
 no tenant column, and with `ProjectId` leading a trace list or a waterfall is a seek.
 
-Shipped DDL: `database/clickhouse/0002_create_otel_traces_table.sql`.
+Both timestamps carry an explicit zone: `Timestamp DateTime64(9, 'UTC')` and, inside the
+`Nested`, `Events.Timestamp DateTime64(9, 'UTC')`. The second shipped naive at first, and
+that is a bug on any host not running UTC: `session_timezone` governs parsing but not how a
+naive `DateTime64` is *rendered* (verified on 26.9), so event ticks came back in the server
+zone while the span around them came back in UTC, and the UI — which appends `Z` — placed
+them wrong. `0006_alter_otel_traces_events_timestamp.sql` converges a deployed table with
+`ALTER TABLE otel_traces MODIFY COLUMN IF EXISTS \`Events.Timestamp\` Array(DateTime64(9, 'UTC'))`
+— the `Nested` sub-column is addressed by its dotted name and its `Array(...)` type; the
+change is metadata only (the stored epoch is the same either way) and instant.
+
+Shipped DDL: `database/clickhouse/0002_create_otel_traces_table.sql`, `0006_alter_otel_traces_events_timestamp.sql`.
 
 ### 2.3 `trace_summary` and `trace_summary_mv`
 
@@ -128,6 +138,53 @@ deliberately outlives its spans — see R11 and R9.
 Shipped DDL: `database/clickhouse/0003_create_trace_summary_table.sql` and
 `0004_create_trace_summary_mv.sql`. **Read R11 before editing either.** Every choice in
 them fails silently when changed.
+
+### 2.4 `trace_index`, `trace_index_mv` and the backfill
+
+The trace list's *time* index. `trace_summary` is keyed `(ProjectId, TraceId)`, which
+makes a pasted id a point lookup and makes "the newest traces in this window" a scan of
+the project's whole 90 days: `TraceId` is random, so a `Start` range prunes nothing
+(measured: `Granules N/N`, only `ProjectId` used from the primary key, on every page load
+and every five-second poll). This table is keyed by the hour instead and holds, per trace
+per hour a block of its spans started in, that block's first span start and last span end
+— no counts, no root, nothing a reader answers from alone.
+
+```sql
+CREATE TABLE trace_index
+(
+    ProjectId LowCardinality(String),
+    Hour      DateTime('UTC'),                                   -- toStartOfHour of the block's earliest span
+    TraceId   String                                          CODEC(ZSTD(1)),
+    Start     SimpleAggregateFunction(min, DateTime64(9, 'UTC')),
+    End       SimpleAggregateFunction(max, DateTime64(9, 'UTC'))
+)
+ENGINE = AggregatingMergeTree
+PARTITION BY toDate(Hour)
+ORDER BY (ProjectId, Hour, TraceId)
+TTL Hour + toIntervalDay(90)
+SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
+
+CREATE MATERIALIZED VIEW trace_index_mv TO trace_index AS
+SELECT ProjectId,
+       toStartOfHour(min(Timestamp)) AS Hour,
+       TraceId,
+       min(Timestamp)                AS Start,
+       max(Timestamp + toIntervalNanosecond(Duration)) AS End
+FROM otel_traces
+WHERE TraceId != ''
+GROUP BY ProjectId, TraceId;
+```
+
+`PARTITION BY` is safe here where it is not on `trace_summary` (R11): `Hour` is part of the
+key, so a merge cannot move a row's hour. Retention matches the summary, so every
+candidate the index nominates is still there to aggregate.
+
+`0009_backfill_trace_index.sql` fills it from `trace_summary` (which outlives the spans)
+on a deployed database. It re-runs on every boot and guards itself by comparing distinct
+trace counts between the two tables rather than testing for emptiness — see R13 for why.
+
+Shipped DDL: `0007_create_trace_index_table.sql`, `0008_create_trace_index_mv.sql`,
+`0009_backfill_trace_index.sql`. Governed by R13.
 
 
 ---
@@ -372,7 +429,8 @@ Four things, all of which fail **silently**.
   affordable at one row per trace.
 
 **Read side, and just as load-bearing.** Rows collapse only when parts merge, so *every*
-query re-aggregates:
+query re-aggregates, and every predicate on an aggregated column — **the time window
+included** — goes in `HAVING`:
 
 ```sql
 SELECT TraceId,
@@ -380,8 +438,10 @@ SELECT TraceId,
        min(Start) AS Started, max(End) AS Ended,
        sum(SpanCount) AS SpanCount, sum(ErrorCount) AS ErrorCount
 FROM trace_summary
-WHERE ProjectId IN {projectIds:Array(String)} AND Start >= {from:DateTime64(9)} AND Start <= {to:DateTime64(9)}
+WHERE ProjectId IN {projectIds:Array(String)}
+  AND (ProjectId, TraceId) IN (/* candidates from trace_index, R13 */)
 GROUP BY ProjectId, TraceId
+HAVING min(Start) >= {from:DateTime64(9)} AND min(Start) <= {to:DateTime64(9)}
 ORDER BY Started DESC
 ```
 
@@ -389,7 +449,13 @@ ORDER BY Started DESC
 whose spans arrived in three batches is returned three times, each with a `SpanCount` of 1
 and two of them with an empty root name — and only under the load that splits batches,
 which is when nobody is watching. Anything computed from these columns (an error-only
-filter, a duration bound, a cursor) belongs in `HAVING`, not `WHERE`.
+filter, a duration bound, a cursor, **the window itself**) belongs in `HAVING`, not `WHERE`.
+An earlier version put `Start >= {from} AND Start <= {to}` in `WHERE`, which is a
+*row-level* test: a trace whose later spans landed in a second block has a second row with
+a later `Start` and an empty root, and a window boundary that fell between the blocks passed
+only that row and aggregated a fragment — reproduced on 26.9 as root name `''`, 2 of 4
+spans, 2 s for a 31 s trace — which the client, replacing rows by id, then wrote over the
+good row.
 
 Do not alias an aggregate to its own column name (`sum(ErrorCount) AS ErrorCount`): the
 alias shadows the column, so the `sum(ErrorCount)` in a `HAVING` resolves to
@@ -425,6 +491,57 @@ a span with no events; it is each **element** that must serialize as `{}` rather
 `SpanWriter::normalise()` is the only implementation of that rule; everything writing
 spans goes through it, tests included.
 
+### R13 — The trace list is answered from `trace_index` candidates, aggregated on `trace_summary`
+
+Two tables, one question, always in this order:
+
+1. **Nominate** from `trace_index` (§2.4), keyed `(ProjectId, Hour, TraceId)`, so the read
+   is pruned by the window's hours rather than the project's history. Measured on 26.9
+   against 400k traces over 90 days: a one-hour window reads `Granules 1/93` of the index
+   (`PrimaryKey Keys: ProjectId, Hour`, plus the daily partition key) where the same window
+   on `trace_summary` read every granule.
+2. **Decide and aggregate** on `trace_summary`, over *every* block the nominated traces
+   have — `(ProjectId, TraceId) IN (…)` on its own key — with the window in `HAVING` on
+   `min(Start)` (R11).
+
+The index is a superset by construction: a trace whose true start is in the window has a
+block whose start is in the window, filed under an hour in the window. The converse is not
+true — a trace that began before the window and had spans start inside it is nominated
+too — which is exactly why membership is decided on the summary's `min(Start)` and never
+on an index row. `TraceQuery::list()` looks back six hours before `from` in the candidate
+query so such a trace's real start is usually visible there and it never takes a candidate
+slot; a page then costs at most `limit + 150` point lookups. When a filter can only be
+judged on the aggregate (errors-only, minimum duration, root service) the candidate query
+is not limited, and the read is bounded by the window's width instead.
+
+**The tail nominates on `End`, not `Start`.** A poll asks "which traces changed since my
+cursor", and a trace changes whenever a block of its spans lands. `End > {after}` catches
+a root span that started minutes before the cursor and ended after it — a session, a queue
+job — which `Start > {after}` never could, because the root's start is older than the
+cursor by definition. What comes back is the whole aggregate, and the client's
+replace-by-id merge is what makes re-sending it the right thing.
+
+**The index is fed two ways and must agree with the summary.** `trace_index_mv` fires on
+every insert alongside `trace_summary_mv`; `0009_backfill_trace_index.sql` covers
+everything written before the index existed. The backfill re-runs on every boot and
+decides for itself, cheaply: it runs while the index is empty or its `min(Hour)` is later
+than the summary's earliest trace start (bounded to the summary's last 89 days, because
+expiry is lazy on both tables and not in step — the index drops whole day partitions at
+90–91 days, so in steady state its earliest hour sits below any summary trace in that band
+and the guard stays false). Two column mins, never `uniqExact` over every trace pair: that
+would hash the whole history into memory at every container start. It is **not** guarded on emptiness alone, because
+during a
+rolling deploy an old container keeps ingesting and feeds the new view before the backfill
+statement runs — an "is it empty" test would then skip the whole history silently. A
+spurious run only inserts rows that share their key with existing ones and merge away.
+The backfill aliases its aggregates away from the column names (`min(Start) AS FirstStart`,
+mapped by position) for the R11 alias reason: `min(Start) AS Start` is
+`ILLEGAL_AGGREGATION`.
+
+Covered live by `TraceSummaryTest` ("aggregates every block of a trace whose blocks
+straddle the window boundary"), which writes one trace as two synchronous blocks thirty
+seconds apart and asserts that a list window opening between them returns nothing, and a
+tail cursor between them returns the trace whole.
 
 ---
 

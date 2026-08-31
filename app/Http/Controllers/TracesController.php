@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Models\Team;
+use App\Services\Logs\LogQuery;
 use App\Services\Traces\SpanTree;
 use App\Services\Traces\TraceFilters;
 use App\Services\Traces\TraceQuery;
@@ -27,8 +28,12 @@ class TracesController extends Controller
         $projectIds = $this->projectIds($projects, $filters->project);
 
         return Inertia::render('traces/Index', [
-            ...$this->shared($projects, $filters, $traces),
+            ...$this->shared($projects, $filters, $traces, $projectIds),
             'traces' => Inertia::defer(fn (): array => $traces->list($projectIds, $filters)),
+            'histogram' => Inertia::defer(
+                fn(): array => $traces->histogram($projectIds, $filters),
+                'histogram',
+            ),
         ]);
     }
 
@@ -50,7 +55,7 @@ class TracesController extends Controller
         $projectIds = $this->projectIds($projects, $filters->project);
 
         return Inertia::render('traces/Latency', [
-            ...$this->shared($projects, $filters, $traces),
+            ...$this->shared($projects, $filters, $traces, $projectIds),
             'serviceLatency' => Inertia::defer(
                 fn (): array => $traces->serviceLatency($projectIds, $filters),
                 'latency',
@@ -94,7 +99,7 @@ class TracesController extends Controller
      * costs one point lookup and is still far cheaper than scanning the
      * retention window.
      */
-    public function show(Request $request, string $currentTeam, string $traceId, TraceQuery $traces): Response
+    public function show(Request $request, string $currentTeam, string $traceId, TraceQuery $traces, LogQuery $logs): Response
     {
         $team = $this->team($request);
         $projects = $this->projects($team);
@@ -132,7 +137,46 @@ class TracesController extends Controller
             'truncated' => $resolved['spans']['truncated'],
             'unavailable' => $resolved['spans']['unavailable'],
             'spanLimit' => TraceQuery::SPAN_LIMIT,
+            /*
+             * How many log lines this trace wrote, and the window the count was
+             * taken in — the same window the header's link opens, so the number
+             * beside the link is the number the click delivers.
+             */
+            'logs' => $this->traceLogs($logs, $projectIds, $traceId, $resolved['summary']),
         ]);
+    }
+
+    /**
+     * The log count for a trace, with the window it was counted in.
+     *
+     * The window is the trace's own extent with a minute of slack either side
+     * — the same generosity the span panel's log link uses, because a line is
+     * written at some point during the work and two services' clocks disagree
+     * by seconds. No summary means no window to count in, so no count; an
+     * overloaded ClickHouse yields a null count with the window intact, so the
+     * link still works while the number is withheld.
+     *
+     * @param list<string> $projectIds
+     * @param array<string, mixed>|null $summary
+     * @return array{count: int|null, from: string, to: string}|null
+     */
+    private function traceLogs(LogQuery $logs, array $projectIds, string $traceId, ?array $summary): ?array
+    {
+        if ($summary === null) {
+            return null;
+        }
+
+        $started = Carbon::parse((string)$summary['startedAt'], 'UTC');
+        $ended = $summary['endedAt'] === '' ? $started->clone() : Carbon::parse((string)$summary['endedAt'], 'UTC');
+
+        $from = $started->clone()->subMinute();
+        $to = $ended->clone()->addMinute();
+
+        return [
+            'count' => $logs->countForTrace($projectIds, $traceId, $from, $to),
+            'from' => $from->toIso8601String(),
+            'to' => $to->toIso8601String(),
+        ];
     }
 
     /**
@@ -184,39 +228,48 @@ class TracesController extends Controller
         $found = $traces->summary($projectIds, $traceId);
         $summary = $found['trace'];
 
-        $around = $ts !== null
-            ? Carbon::parse($ts)->utc()
-            : ($summary === null ? null : Carbon::parse($summary['startedAt'], 'UTC'));
+        if ($summary !== null) {
+            /*
+             * The summary is the fact; a `ts` in the URL is only a hint. It
+             * rides in from a link that may be old, hand-edited, written in the
+             * reader's own timezone, or taken from a log line a minute into the
+             * trace — and bracketing it would cut the head off anything long,
+             * a queue job or an agent session, with no fallback because the
+             * bracket was not empty. So once the summary is known the spans
+             * are read between the trace's own Start and End, exactly, with a
+             * second of slack for the clocks that produced them; the `ts` costs
+             * nothing and changes nothing. The cap on that window is the
+             * query's, and it reports itself as truncation.
+             */
+            $started = Carbon::parse($summary['startedAt'], 'UTC');
+            $ended = $summary['endedAt'] === '' ? $started->clone() : Carbon::parse($summary['endedAt'], 'UTC');
 
-        /*
-         * A summary with no resolvable time means nothing is stored for this id
-         * at all. A summary that resolves but whose spans have aged out is a
-         * different, designed state: the row is shown and the waterfall says so.
-         */
-        $spans = $around === null
-            ? ['spans' => [], 'truncated' => false, 'unavailable' => false]
-            : $traces->spans($projectIds, $traceId, $around);
+            $around = $started;
+            $window = $traces->spansBetween($projectIds, $traceId, $started->clone()->subSecond(), $ended->clone()->addSecond());
 
-        /*
-         * `ts` is a hint, not a fact. It rides in from a link that may be old,
-         * hand-edited, or written in the reader's own timezone, and a wrong one
-         * lands the span query on an empty window — which is indistinguishable
-         * from expired spans unless we look again. So when a supplied `ts` finds
-         * nothing, fall back to the time the summary itself reports and retry
-         * once. The optimisation stays (a good `ts` still costs one bounded
-         * query), and the "spans have expired" message now only appears when the
-         * trace's own recorded window is empty too, which is the one case where
-         * it is true.
-         */
-        if ($spans['spans'] === [] && ! $spans['unavailable'] && $summary !== null && $ts !== null) {
-            $recorded = Carbon::parse($summary['startedAt'], 'UTC');
-
-            if (! $recorded->equalTo($around)) {
-                $spans = $traces->spans($projectIds, $traceId, $recorded);
-                // Everything downstream reads the window that actually found
-                // spans, or the resource lookup repeats the same wrong query.
-                $around = $recorded;
-            }
+            $spans = [
+                'spans' => $window['spans'],
+                'truncated' => $window['truncated'] || $window['capped'],
+                'unavailable' => $window['unavailable'],
+            ];
+        } elseif ($ts !== null) {
+            /*
+             * No summary — nothing stored under this id, or storage was too busy
+             * to say. The hint is all there is, so it is bracketed the old way:
+             * a bounded query that usually finds the trace when the summary
+             * merely could not be read.
+             */
+            $around = Carbon::parse($ts)->utc();
+            $spans = $traces->spans($projectIds, $traceId, $around);
+        } else {
+            /*
+             * No summary and no time means nothing is stored for this id at
+             * all. A summary that resolves but whose spans have aged out is a
+             * different, designed state: the row is shown and the waterfall
+             * says so.
+             */
+            $around = null;
+            $spans = ['spans' => [], 'truncated' => false, 'unavailable' => false];
         }
 
         /*
@@ -268,9 +321,10 @@ class TracesController extends Controller
      * rather than twice with a chance to drift.
      *
      * @param  Collection<int, Project>  $projects
+     * @param list<string> $projectIds the projects the query may read, already narrowed by the filter
      * @return array<string, mixed>
      */
-    private function shared(Collection $projects, TraceFilters $filters, TraceQuery $traces): array
+    private function shared(Collection $projects, TraceFilters $filters, TraceQuery $traces, array $projectIds): array
     {
         return [
             'projects' => $projects
@@ -286,6 +340,7 @@ class TracesController extends Controller
              * "traces are not set up".
              */
             'hasTraces' => $traces->hasAnyTraces($this->projectIds($projects, null)),
+            'services' => Inertia::defer(fn(): array => $traces->services($projectIds, $filters)),
         ];
     }
 

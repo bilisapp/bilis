@@ -2,6 +2,7 @@
 
 namespace App\Services\Ingest;
 
+use InvalidArgumentException;
 use Throwable;
 
 /**
@@ -127,11 +128,11 @@ class OtlpLogMapper
         array $scope,
         string $observedAt,
     ): array {
-        $observedTimestamp = $this->nanos($logRecord['observedTimeUnixNano'] ?? $logRecord['observed_time_unix_nano'] ?? null)
-            ?? $observedAt;
-
-        $timestamp = $this->nanos($logRecord['timeUnixNano'] ?? $logRecord['time_unix_nano'] ?? null)
-            ?? $observedTimestamp;
+        $timestamp = $this->timestamp(
+            $logRecord['timeUnixNano'] ?? $logRecord['time_unix_nano'] ?? null,
+            $logRecord['observedTimeUnixNano'] ?? $logRecord['observed_time_unix_nano'] ?? null,
+            $observedAt,
+        );
 
         $severityNumber = $logRecord['severityNumber'] ?? $logRecord['severity_number'] ?? null;
         $severityText = $logRecord['severityText'] ?? $logRecord['severity_text'] ?? null;
@@ -159,8 +160,8 @@ class OtlpLogMapper
          */
         return [
             'Timestamp' => $timestamp,
-            'TraceId' => $this->string($logRecord['traceId'] ?? $logRecord['trace_id'] ?? ''),
-            'SpanId' => $this->string($logRecord['spanId'] ?? $logRecord['span_id'] ?? ''),
+            'TraceId' => TraceIds::lenient($logRecord['traceId'] ?? $logRecord['trace_id'] ?? null, TraceIds::TRACE_ID_BYTES),
+            'SpanId' => TraceIds::lenient($logRecord['spanId'] ?? $logRecord['span_id'] ?? null, TraceIds::SPAN_ID_BYTES),
             'TraceFlags' => is_numeric($traceFlags) ? max(0, min(255, (int) $traceFlags)) : 0,
             'SeverityText' => $severityText,
             'SeverityNumber' => $severityNumber,
@@ -179,11 +180,28 @@ class OtlpLogMapper
     }
 
     /**
-     * Format a nanosecond timestamp field, if it holds a usable value.
+     * The record's timestamp: the event time, else the observed time.
+     *
+     * A record that names neither is dated at ingest. A record that names a
+     * time we cannot store — a digit string too long for `DateTime64`, which
+     * ClickHouse would ack and then drop, or a pre-2000 value that is seconds
+     * mislabelled as nanoseconds — falls through to the observed time, and is
+     * rejected (counted, never a 400) when that is unusable too: re-dating a
+     * line the sender did stamp would hide the sender's bug behind a wrong time.
      */
-    private function nanos(mixed $value): ?string
+    private function timestamp(mixed $time, mixed $observedTime, string $observedAt): string
     {
-        return OtlpValues::nanos($value);
+        $timestamp = OtlpValues::nanos($time) ?? OtlpValues::nanos($observedTime);
+
+        if ($timestamp !== null) {
+            return $timestamp;
+        }
+
+        if ($time === null && $observedTime === null) {
+            return $observedAt;
+        }
+
+        throw new InvalidArgumentException('Neither the event time nor the observed time is a storable nanosecond timestamp.');
     }
 
     /**

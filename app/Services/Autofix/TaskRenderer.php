@@ -166,7 +166,7 @@ class TaskRenderer
             ),
             '',
             'Your task:',
-            '1. Read the stack trace and sample log lines in the context block and locate the code that raises this error.',
+            '1. Read the stack trace, the sample log lines and — when one is present — the trace waterfall in the context block, and locate the code that raises this error.',
             '2. Make the smallest change that stops it, keeping the existing behaviour of everything around it.',
             '3. Do not fix unrelated problems you notice on the way, and do not reformat code you did not have to change.',
             '4. Do not add dependencies, and do not weaken a check or swallow the error to make the symptom disappear.',
@@ -205,9 +205,83 @@ class TaskRenderer
             '',
             'Sample log lines:',
             ...$this->samples($context),
+            ...$this->trace($context),
         ];
 
         return $this->delimit(implode("\n", $body));
+    }
+
+    /**
+     * The trace the triggering log line belonged to, when it named one.
+     *
+     * Absent entirely for a row with no `TraceId`, so a job raised from an
+     * untraced log reads exactly as it did before traces existed. When the
+     * row did name a trace, something is always said — the waterfall itself,
+     * or one line on why there is none — because an agent told "read the
+     * waterfall" and given nothing will go looking for it.
+     *
+     * The waterfall text is already bounded by `TraceWaterfallRenderer`
+     * (span count and characters) at the moment the job was raised; it is
+     * echoed here rather than re-rendered because it is what the job page
+     * shows, and the agent and the reviewer must be reading the same thing.
+     *
+     * @param array<string, mixed> $context
+     * @return list<string>
+     */
+    protected function trace(array $context): array
+    {
+        $trace = $context['trace'] ?? null;
+
+        if (!is_array($trace)) {
+            return [];
+        }
+
+        $traceId = $this->string($trace, 'trace_id');
+        $state = $this->string($trace, 'state');
+
+        $lines = ['', 'Trace:'];
+
+        if ($state === TraceContextBuilder::STATE_RENDERED) {
+            $spanCount = $this->integer($trace, 'span_count');
+            $errorCount = $this->integer($trace, 'error_count');
+            $root = trim($this->string($trace, 'root_service') . ' ' . $this->string($trace, 'root_name'));
+
+            $lines[] = sprintf(
+                'Trace %s%s: %d span%s, %d with Error status, %s total.',
+                $traceId,
+                $root !== '' ? ' (' . $root . ')' : '',
+                $spanCount,
+                $spanCount === 1 ? '' : 's',
+                $errorCount,
+                $this->traceDuration($trace),
+            );
+            $lines[] = 'One line per span, indented by depth: service, name, [kind], duration, status, then the attributes that locate it.';
+            $lines[] = $this->string($trace, 'waterfall') ?: '(no spans rendered)';
+
+            return $lines;
+        }
+
+        $lines[] = match ($state) {
+            TraceContextBuilder::STATE_EXPIRED => sprintf('Trace %s was referenced by the log line but its spans have expired; only its summary remains (%d spans, %d with Error status).', $traceId, $this->integer($trace, 'span_count'), $this->integer($trace, 'error_count')),
+            TraceContextBuilder::STATE_MISSING => sprintf('Trace %s was referenced by the log line but no trace with that id is stored.', $traceId),
+            default => sprintf('Trace %s was referenced by the log line but trace storage could not be read when this job was raised.', $traceId),
+        };
+
+        return $lines;
+    }
+
+    /**
+     * A trace's wall-clock length, printed the way the waterfall prints spans.
+     *
+     * @param array<string, mixed> $trace
+     */
+    private function traceDuration(array $trace): string
+    {
+        $ms = is_numeric($trace['duration_ms'] ?? null) ? (float)$trace['duration_ms'] : 0.0;
+
+        return $ms >= 1000
+            ? rtrim(rtrim(number_format($ms / 1000, 2, '.', ''), '0'), '.') . 's'
+            : sprintf('%dms', (int)round($ms));
     }
 
     /**

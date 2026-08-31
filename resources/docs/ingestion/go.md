@@ -406,6 +406,10 @@ func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 }
 ```
 
+With the ids on the line, the log viewer links it to the span's waterfall and
+the waterfall links back. Sending the spans themselves is covered in
+[Traces](/docs/ingestion/traces#go).
+
 ## 3. With a Collector in front
 
 Bilis no longer needs a Collector to translate — but a Collector is still worth
@@ -425,8 +429,10 @@ OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 receivers:
     otlp:
         protocols:
-            http: { endpoint: 0.0.0.0:4318 }
+            # Your services may still speak gRPC to the Collector; only the
+            # hop to Bilis has to be HTTP.
             grpc: { endpoint: 0.0.0.0:4317 }
+            http: { endpoint: 0.0.0.0:4318 }
 
 extensions:
     file_storage:
@@ -435,12 +441,16 @@ extensions:
 exporters:
     otlphttp/bilis:
         logs_endpoint: https://bilis.example.com/api/v1/logs
-        encoding: json
+        traces_endpoint: https://bilis.example.com/api/v1/traces
         headers:
             Authorization: Bearer bilis_YOUR_API_KEY
+        # gzip is the exporter's default; Bilis inflates gzip and deflate.
+        compression: gzip
+        # Protobuf is the default encoding and is decoded in-process;
+        # `encoding: json` works too.
         sending_queue:
             enabled: true
-            storage: file_storage
+            storage: file_storage # survives a Collector restart
         retry_on_failure:
             enabled: true
 
@@ -449,12 +459,19 @@ service:
     pipelines:
         logs:
             receivers: [otlp]
+            processors: [] # deliberately no batch processor
+            exporters: [otlphttp/bilis]
+        traces:
+            receivers: [otlp]
             processors: []
             exporters: [otlphttp/bilis]
 ```
 
-The Collector settings that decide whether you lose data under load are
-explained in [Shippers](/docs/ingestion/shippers). If your Go service runs in
+This is the same file the [Shippers](/docs/ingestion/shippers#opentelemetry-collector)
+and [Traces](/docs/ingestion/traces#collector-configuration) pages use; the
+settings that decide whether you lose data under load are explained there. The
+`traces` pipeline carries the spans an `otlptracehttp` exporter sends to the
+same Collector — see [Traces](/docs/ingestion/traces#go) for that side. If your Go service runs in
 Docker and simply writes to stdout, you can skip the SDK entirely and have the
 Collector tail the container log files instead — see
 [Linux host](/docs/ingestion/linux-host).

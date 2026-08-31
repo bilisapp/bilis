@@ -3,7 +3,6 @@
 namespace App\Services\Ingest;
 
 use App\Services\ClickHouse\ClickHouseClient;
-use stdClass;
 
 /**
  * Writes mapped span rows into ClickHouse.
@@ -21,9 +20,11 @@ class SpanWriter
     /**
      * Columns with a ClickHouse Map type.
      *
-     * JSONEachRow requires a Map to be a JSON object; an empty PHP array encodes
-     * as `[]` and the row is discarded server-side *after* the async-insert has
-     * already been acked, so the loss is silent. Same trap as
+     * JSONEachRow requires a Map to be a JSON object, and a PHP array is not
+     * reliably one: `[]` encodes as a list, and so does `['0' => 'x']` because
+     * PHP stores that key as the integer 0. Either way the row is discarded
+     * server-side *after* the async insert has been acked, so the loss is
+     * silent. Every Map is cast to an object unconditionally. Same trap as
      * {@see LogWriter::MAP_COLUMNS}.
      */
     private const MAP_COLUMNS = [
@@ -59,6 +60,11 @@ class SpanWriter
     /**
      * Make a row's Map columns serialize the way JSONEachRow requires.
      *
+     * `(object) ['0' => 'x']` encodes as `{"0":"x"}`, `(object) []` as `{}`;
+     * the bare arrays would be `["x"]` and `[]`, and ClickHouse accepts neither
+     * for a Map. The cast is unconditional because the numeric-key case cannot
+     * be told apart from a legitimate list once it is a PHP array.
+     *
      * Public and static because it is the only implementation of a rule that
      * fails silently: anything writing spans has to go through it, tests
      * included, or it is testing a shape ClickHouse would have thrown away.
@@ -70,8 +76,8 @@ class SpanWriter
     {
         foreach ($rows as &$row) {
             foreach (self::MAP_COLUMNS as $column) {
-                if (($row[$column] ?? null) === []) {
-                    $row[$column] = new stdClass;
+                if (is_array($row[$column] ?? null)) {
+                    $row[$column] = (object)$row[$column];
                 }
             }
 
@@ -84,7 +90,7 @@ class SpanWriter
                 $maps = $row[$column];
 
                 $row[$column] = array_map(
-                    fn (mixed $map): mixed => $map === [] ? new stdClass : $map,
+                    fn(mixed $map): mixed => is_array($map) ? (object)$map : $map,
                     $maps,
                 );
             }

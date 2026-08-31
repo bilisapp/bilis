@@ -31,13 +31,53 @@ Nothing in front of it does: not Traefik, not FrankenPHP — and the Collector's
 
 ## Map columns must serialize as JSON objects
 
-Empty PHP arrays encode as `[]`, but ClickHouse JSONEachRow requires `{}` for
-Map columns — and with `wait_for_async_insert=0` the server acks first and
-discards the unparseable row silently. `LogWriter::write()` normalises the
-three Map columns (`ResourceAttributes`, `ScopeAttributes`, `LogAttributes`)
-to `stdClass` when empty; any new Map column must be added to
-`LogWriter::MAP_COLUMNS`. Regression test: "empty attribute maps are
-serialized as JSON objects" in `SimpleLogIngestTest`.
+ClickHouse JSONEachRow requires a `Map` to be a JSON object, and a PHP array is
+not reliably one. `[]` encodes as `[]`; worse, `['0' => 'x']` encodes as
+`["x"]`, because PHP stores the key `"0"` as the integer 0 and `json_encode`
+writes an array with sequential integer keys as a list. Either way the server
+refuses the row — and with `wait_for_async_insert=0` it does so *after* the
+insert was acked, discarding the whole block silently. Attribute keys like `0`
+are not exotic: an SDK flattening an array attribute produces them.
+
+So the cast is **unconditional**: `LogWriter::normalise()` and
+`SpanWriter::normalise()` turn every Map column into `(object)` whenever it is
+an array — `(object) ['0' => 'x']` encodes as `{"0":"x"}`, `(object) []` as
+`{}` — and `SpanWriter` does the same to every element of the `Array(Map)`
+columns (`Events.Attributes`, `Links.Attributes`; the outer list stays a list).
+A new Map column goes into the writer's `MAP_COLUMNS`. The cast cannot be made
+conditional on "looks like a list", because once it is a PHP array the two are
+indistinguishable. `OtlpValues::anyValue()` returns a nested `kvlistValue` as an
+object for the same reason.
+
+Covered by `tests/Unit/Ingest/WriterNormaliseTest.php`, the "numeric attribute
+keys" feature tests, and `tests/Feature/Ingest/LiveIngestRoundTripTest.php`,
+which is the only one that inserts into a real server and reads the map back.
+A live insert test must date its rows inside the table's TTL (30 days): a row
+past it never comes out of the async flush, which looks exactly like the drop
+the test is hunting. The OTLP fixtures are from 2025, so that test shifts every
+`*UnixNano` to now first (`datedNow()`).
+
+## Timestamps and ids are validated, and a bad one is a rejection, not a guess
+
+`LogTimestamp::fromNanos()` refuses anything outside 2000-01-01 .. 2261-01-01
+(`MIN_SECONDS` / `MAX_SECONDS_EXCLUSIVE`), and `OtlpValues::nanos()` refuses
+whatever `nanosAsInt()` refuses. Before this, a 30-digit `*UnixNano` string
+saturated under `(int)` into year 292277026596, which ClickHouse rejected after
+the ack; and seconds sent as nanos landed in 1970 and expired at the next TTL
+merge. A span whose *start* is present but unusable is counted as rejected
+(never dated `now()`); an event's unusable timestamp falls back to the span
+start; a log record's unusable event time falls back to the observed time and
+is rejected only when both were supplied and neither is storable. A record
+that supplies no time at all is still dated at ingest.
+
+Trace and span ids go through `App\Services\Ingest\TraceIds` in every mapper:
+lowercase hex out, accepting hex (any case, dashed or not) and the padded base64
+a stock protojson sender writes for a `bytes` field (24 / 12 chars). Traces use
+the strict `hex()` and reject a span whose `TraceId` or `SpanId` resolves to
+`''` — `trace_summary_mv` keeps `WHERE TraceId != ''`, so it could never be
+reached. Logs use `lenient()`: a normalisable id is normalised so the log→span
+link (`TraceId = {lowercase}` in `LogQuery`) finds it, and anything else is
+kept verbatim rather than lost.
 
 ## Reading the ingest throttle's counters back
 `ThrottleRequests::handleRequestUsingNamedLimiter()` does not hand the limiter's bucket to `RateLimiter` as written: it stores the counter under `md5($limiterName.$limit->key)` (`$shouldHashKeys` is true by default). So the dashboard reads `RateLimiter::attempts(md5('ingest'.'ingest:key:'.$keyHash))` — `IngestRateUsage::counterKey()`/`bucketForKeyHash()`. AppServiceProvider builds the same bucket through those helpers so the two can never drift; get it wrong and the panel silently reports 0 forever instead of failing. `ProjectApiKey::key_hash` *is* the sha256 the limiter buckets on, so usage is readable without the plaintext key. Covered by tests/Feature/Ingest/IngestRateUsageTest.php, which posts through the real throttle stack.

@@ -1,4 +1,5 @@
 import { RANGE_PRESETS } from '@/lib/logs';
+import { show as traceShow } from '@/routes/traces';
 import type {
     LogRangePreset,
     Span,
@@ -168,41 +169,119 @@ export function spanStatus(span: Span): SpanStatus {
 }
 
 /**
- * The geometry of a waterfall bar, as percentages of the trace's own span.
+ * A naive UTC ClickHouse timestamp as epoch milliseconds, fraction included.
+ *
+ * ClickHouse prints `DateTime64(9)` as `2026-08-30 20:34:07.438000000`: a
+ * space instead of a `T`, nine fractional digits, no zone. That is outside the
+ * ECMAScript date grammar. V8 happens to tolerate it, Safari returns `NaN`, and
+ * a waterfall built on `NaN` collapses to nothing without an error — so the
+ * string is taken apart here rather than handed to `Date.parse` whole. The
+ * fraction is parsed separately and kept, because spans are routinely shorter
+ * than a millisecond and a bar's offset should not be rounded to one.
+ */
+export function parseClickHouseTimestamp(timestamp: string): number {
+    const match =
+        /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:\.(\d+))?\s*(Z|[+-]\d{2}:?\d{2})?$/i.exec(
+            timestamp.trim(),
+        );
+
+    if (!match) {
+        return Date.parse(timestamp);
+    }
+
+    const [, date, time, fraction = '', zone = 'Z'] = match;
+    const whole = Date.parse(`${date}T${time}${zone.toUpperCase()}`);
+
+    if (!Number.isFinite(whole)) {
+        return Number.NaN;
+    }
+
+    // Right-pad so `.4` means 400ms, not 4ns; cut at nanoseconds, which is
+    // all the column can hold.
+    const nanos = Number(fraction.padEnd(9, '0').slice(0, 9));
+
+    return whole + nanos / 1_000_000;
+}
+
+/** A span's start as epoch milliseconds, parsed the way the column is printed. */
+export function spanStartMs(span: Span): number {
+    return parseClickHouseTimestamp(span.timestamp);
+}
+
+/**
+ * The earliest start and the total extent of the spans present, in ms.
+ *
+ * Measured from the spans rather than the summary, so a truncated trace, or one
+ * whose root has aged out, still draws an axis that matches the bars under it.
+ * A span whose timestamp will not parse is placed at the start rather than
+ * poisoning every other bar's geometry.
+ */
+function traceBounds(spans: Span[]): { earliestMs: number; totalMs: number } {
+    let earliest = Number.POSITIVE_INFINITY;
+    let latest = Number.NEGATIVE_INFINITY;
+
+    for (const span of spans) {
+        const start = spanStartMs(span);
+
+        if (!Number.isFinite(start)) {
+            continue;
+        }
+
+        earliest = Math.min(earliest, start);
+        latest = Math.max(latest, start + Math.max(span.durationMs, 0));
+    }
+
+    if (!Number.isFinite(earliest)) {
+        return { earliestMs: 0, totalMs: 1 };
+    }
+
+    // A trace whose spans all share one instant still has to draw something.
+    return { earliestMs: earliest, totalMs: Math.max(latest - earliest, 1) };
+}
+
+export type WaterfallGeometry = {
+    offsetPercent: number;
+    widthPercent: number;
+};
+
+/**
+ * The geometry of every waterfall bar, keyed by span id, as percentages of the
+ * trace's own extent.
  *
  * Offsets are measured against the earliest span present rather than against
  * the summary's Start: when a trace is truncated or its root has aged out, the
  * bars must still line up with each other, and a bar starting at -4% would be
- * drawn off the left edge.
+ * drawn off the left edge. Computed once against the full set, so collapsing a
+ * subtree never moves a bar that is still on screen.
  */
-export function waterfallGeometry(spans: Span[]): {
-    offsetPercent: number;
-    widthPercent: number;
-}[] {
+export function waterfallGeometry(
+    spans: Span[],
+): Map<string, WaterfallGeometry> {
+    const geometry = new Map<string, WaterfallGeometry>();
+
     if (spans.length === 0) {
-        return [];
+        return geometry;
     }
 
-    const starts = spans.map((span) => Date.parse(`${span.timestamp}Z`));
-    const earliest = Math.min(...starts);
-    const latest = Math.max(
-        ...spans.map((span, index) => starts[index] + span.durationMs),
-    );
+    const { earliestMs, totalMs } = traceBounds(spans);
 
-    // A trace whose spans all share one instant still has to draw something.
-    const total = Math.max(latest - earliest, 1);
+    for (const span of spans) {
+        const start = spanStartMs(span);
+        const offset = Number.isFinite(start)
+            ? ((start - earliestMs) / totalMs) * 100
+            : 0;
+        const width = (Math.max(span.durationMs, 0) / totalMs) * 100;
+        const offsetPercent = Math.max(0, Math.min(100, offset));
 
-    return spans.map((span, index) => {
-        const offset = ((starts[index] - earliest) / total) * 100;
-        const width = (span.durationMs / total) * 100;
-
-        return {
-            offsetPercent: Math.max(0, Math.min(100, offset)),
+        geometry.set(span.spanId, {
+            offsetPercent,
             // A floor of 0.4% so an instantaneous span is still a visible mark
             // rather than a bar of zero width.
-            widthPercent: Math.max(0.4, Math.min(100 - offset, width)),
-        };
-    });
+            widthPercent: Math.max(0.4, Math.min(100 - offsetPercent, width)),
+        });
+    }
+
+    return geometry;
 }
 
 /**
@@ -614,17 +693,7 @@ export function axisTicks(totalMs: number, target = 6): AxisTick[] {
  * has aged out, must still draw an axis that matches the bars underneath it.
  */
 export function traceExtentMs(spans: Span[]): number {
-    if (spans.length === 0) {
-        return 0;
-    }
-
-    const starts = spans.map((span) => Date.parse(`${span.timestamp}Z`));
-    const earliest = Math.min(...starts);
-    const latest = Math.max(
-        ...spans.map((span, index) => starts[index] + span.durationMs),
-    );
-
-    return Math.max(latest - earliest, 1);
+    return spans.length === 0 ? 0 : traceBounds(spans).totalMs;
 }
 
 /**
@@ -752,4 +821,122 @@ export function linkRelation(link: SpanLink): string {
  */
 export function parentLink(span: Span): SpanLink | undefined {
     return span.links.find((link) => linkRelation(link) === 'parent_of');
+}
+
+/**
+ * The link to a trace's waterfall, with whatever the caller knows about it.
+ *
+ * `ts` keeps the span query on the other side bounded to minutes — without it
+ * ClickHouse hunts a trace id through the whole retention window — and `span`
+ * opens the page on one row rather than the root. Built through Wayfinder's
+ * query option rather than by concatenating `?ts=` so every surface encodes the
+ * same way, and so a link from a span row, a log line or a span link cannot
+ * drift from the page they all point at.
+ */
+export function traceHref(
+    teamSlug: string,
+    traceId: string,
+    options: { ts?: string | null; span?: string | null } = {},
+): string {
+    const query: Record<string, string> = {};
+
+    if (options.ts) {
+        query.ts = options.ts;
+    }
+
+    if (options.span) {
+        query.span = options.span;
+    }
+
+    return traceShow({ current_team: teamSlug, trace: traceId }, { query }).url;
+}
+
+/**
+ * Every ancestor of a span that is present in this result, nearest first.
+ *
+ * Walks `parentSpanId` rather than depth, so an orphan — whose parent is not in
+ * the set — simply has no ancestors, and a cycle (which `SpanTree` has already
+ * broken server-side, but a client should not trust) terminates.
+ */
+export function spanAncestors(spans: Span[], spanId: string): string[] {
+    const byId = new Map(spans.map((span) => [span.spanId, span]));
+    const ancestors: string[] = [];
+    const seen = new Set<string>([spanId]);
+    let current = byId.get(spanId);
+
+    while (current && current.parentSpanId !== '') {
+        const parent = byId.get(current.parentSpanId);
+
+        if (!parent || seen.has(parent.spanId)) {
+            break;
+        }
+
+        ancestors.push(parent.spanId);
+        seen.add(parent.spanId);
+        current = parent;
+    }
+
+    return ancestors;
+}
+
+/**
+ * Everything a search over a trace should be able to hit on one span, folded
+ * to lower case once.
+ *
+ * The derived label and the exporter's own name both go in, because a reader
+ * types whichever one they are looking at; so do the service, the kind, the
+ * status message, and every attribute key and value — an attribute is where a
+ * span keeps the instance behind its low-cardinality name, so `/checkout` or
+ * `orders-db` is only findable there.
+ */
+export function spanHaystack(span: Span): string {
+    const parts = [
+        span.name,
+        spanLabel(span),
+        spanDetail(span),
+        span.serviceName,
+        span.kind,
+        span.statusCode,
+        span.statusMessage,
+        span.spanId,
+    ];
+
+    for (const [key, value] of Object.entries(span.attributes)) {
+        parts.push(key, value);
+    }
+
+    for (const event of span.events) {
+        parts.push(event.name);
+    }
+
+    return parts.join('\n').toLowerCase();
+}
+
+/**
+ * The span ids whose haystack contains every word of the query.
+ *
+ * `null` for an empty query: "no search" and "a search that matched nothing"
+ * are different states — the first dims no rows, the second dims all of them.
+ * Words are matched independently so `checkout error` finds a failed checkout
+ * span without the reader knowing which order the two appear in.
+ */
+export function matchingSpanIds(
+    haystacks: Map<string, string>,
+    query: string,
+): Set<string> | null {
+    const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+
+    if (words.length === 0) {
+        return null;
+    }
+
+    const matches = new Set<string>();
+
+    for (const [spanId, haystack] of haystacks) {
+        if (words.every((word) => haystack.includes(word))) {
+            matches.add(spanId);
+        }
+    }
+
+    return matches;
 }

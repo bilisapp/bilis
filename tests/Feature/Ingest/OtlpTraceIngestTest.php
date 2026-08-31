@@ -147,6 +147,49 @@ test('empty attribute maps are serialized as JSON objects', function () {
     });
 });
 
+/*
+ * PHP turns the attribute key "0" into the integer 0, and json_encode then
+ * writes the map as the list ["x"]. ClickHouse refuses that for a Map — after
+ * the async insert has been acked — and the whole block is lost with it.
+ */
+test('numeric attribute keys still reach ClickHouse as JSON objects', function () {
+    Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
+
+    $this->withHeaders(['Authorization' => 'Bearer ' . $this->plainTextKey])
+        ->postJson('/api/v1/traces', traceExport([
+            'attributes' => [['key' => '0', 'value' => ['stringValue' => 'x']]],
+            'events' => [['timeUnixNano' => '1735689600100000000', 'name' => 'e', 'attributes' => [['key' => '1', 'value' => ['stringValue' => 'y']]]]],
+            'links' => [['traceId' => str_repeat('c', 32), 'spanId' => str_repeat('d', 16), 'attributes' => [['key' => '0', 'value' => ['stringValue' => 'z']]]]],
+        ]))
+        ->assertOk()->assertExactJson([]);
+
+    Http::assertSent(function (Request $request) {
+        $body = $request->body();
+
+        expect($body)->toContain('"SpanAttributes":{"0":"x"}')
+            ->and($body)->toContain('"Events.Attributes":[{"1":"y"}]')
+            ->and($body)->toContain('"Links.Attributes":[{"0":"z"}]');
+
+        return true;
+    });
+});
+
+test('a span with an unusable id or start time is counted as rejected, never stored or 400', function (array $overrides) {
+    Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
+
+    $this->withHeaders(['Authorization' => 'Bearer ' . $this->plainTextKey])
+        ->postJson('/api/v1/traces', traceExport($overrides))
+        ->assertOk()
+        ->assertJsonPath('partialSuccess.rejectedSpans', 1);
+
+    Http::assertNothingSent();
+})->with([
+    'short trace id' => [['traceId' => 'abc']],
+    'all-zero span id' => [['spanId' => str_repeat('0', 16)]],
+    'thirty-digit start' => [['startTimeUnixNano' => str_repeat('9', 30)]],
+    'seconds as nanos' => [['startTimeUnixNano' => '1735689600']],
+]);
+
 test('the protobuf encoding is accepted and maps identically to json', function () {
     Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
 

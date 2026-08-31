@@ -25,8 +25,19 @@ CREATE TABLE IF NOT EXISTS otel_traces
     -- `Events.Attributes` columns the insert names. Never reorder or filter one
     -- sub-column without the others -- an event's name would silently attach to
     -- another event's attributes.
+    --
+    -- Events.Timestamp carries the same explicit 'UTC' as the span Timestamp,
+    -- and for the same reason: session_timezone governs parsing but NOT the
+    -- rendering of a naive DateTime64, so on a server not running UTC a naive
+    -- event tick would come back shifted while the span around it did not.
+    -- 0006 converges a deployed table onto the same type.
     Events Nested (
-        Timestamp  DateTime64(9),
+                      Timestamp
+                      DateTime64
+(
+                      9,
+                      'UTC'
+),
         Name       LowCardinality(String),
         Attributes Map(LowCardinality(String), String)
     ) CODEC(ZSTD(1)),
