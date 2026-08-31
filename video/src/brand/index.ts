@@ -19,6 +19,8 @@ export { Callout } from "./Callout";
 export { CodeBlock, type Lang } from "./CodeBlock";
 export { FormatProvider, LANDSCAPE, PORTRAIT, useFormat, type Format } from "./format";
 export { Grid, type GridItem } from "./Grid";
+export { Music } from "./Music";
+export { PunchIn, StepChip, Ticker, WordPop } from "./punch";
 export { Column, Stage } from "./Stage";
 export { Terminal, type TerminalLine } from "./Terminal";
 export { Body, Display, Rise, Strong, Title } from "./Type";

@@ -1,5 +1,9 @@
 # Bilis video template
 
+**Making a new video or scene? Read [`guide.md`](./guide.md) first.** It carries
+the brand rules, the safe-area arithmetic, the render and audio settings, and the
+mistakes already paid for. This file is only the orientation.
+
 Remotion project for Bilis-branded videos. Separate from the Laravel app: its
 own `package.json` and `node_modules`, nothing shared, nothing added to the
 application's dependencies.
@@ -16,13 +20,58 @@ npx remotion render OtelSetup --codec=h264 --crf=18 --output=out/name.mp4
 ```
 src/brand/       the template — reusable, brand-locked, not video-specific
 src/otel/        the long cut, 1920×1080, 79s
-src/otel-short/  the YouTube Short, 1080×1920, 36s
+src/otel-short/  the calm Short, 1080×1920, 36s
+src/otel-punchy/ the high-energy Short, 1080×1920, 27s
 ```
 
 ```bash
 npx remotion render OtelSetup --codec=h264 --crf=18 --output=out/long.mp4
 npx remotion render OtelShort --codec=h264 --crf=18 --output=out/short.mp4
+npx remotion render OtelShortPunchy --codec=h264 --crf=18 --output=out/punchy.mp4
+npx remotion still  YouTubeBanner --output=out/bilis-youtube-banner.png
 ```
+
+## The two Shorts
+
+`OtelShort` follows the design system: one crossfade, no decorative motion,
+room to read. `OtelShortPunchy` deliberately does not — hard cuts every one to
+three seconds, a scale punch on each, word-by-word captions on springs, a
+progress bar, and a loop-friendly last frame. They are the same product and
+opposite pacing, meant to be A/B tested.
+
+The mechanics live in `brand/punch.tsx` and are used by exactly one composition.
+Keep it that way: everything in that file breaks the restraint the rest of the
+template exists to enforce, and it is quarantined so it cannot leak into the
+app's own surfaces.
+
+## Music
+
+`src/soundtrack.ts` maps each composition to a track, or to `null` for silence.
+Drop an `.mp3` in `public/music/`, point the entry at it, and re-render — the
+`Music` component trims the track to the composition's own length and fades
+both ends, so the file can be any duration.
+
+Two things decide whether it sounds finished. **Where you start** — set
+`startAtSeconds` past the track's intro, because most library tracks spend
+their first bars arriving and a 27-second Short cannot afford that. And
+**attribution** — if the YouTube Audio Library says a track requires credit,
+put its exact line in `attribution` *and* in the video description; the licence
+only holds if the credit ships with the video.
+
+## Channel banner
+
+`src/channel/Banner.tsx`, rendered as a Still at 2560×1440. YouTube crops one
+uploaded image three ways, and the layout is driven by the crops, not the
+canvas: 2560×1440 on a TV, a 2560×423 centre strip on desktop, and 1546×423 on
+a phone. Only that last rectangle is guaranteed everywhere, so the mark, the
+wordmark and the tagline all live inside it — anything outside is decoration,
+never information. Render `YouTubeBanner-Guides` to see both boundaries drawn.
+
+`public/banner-art.png` is the background, generated with OpenAI `gpt-image-2`
+and then desaturated and darkened in the component. The generator produced the
+composition — a quiet centre with waterfall-like bars at the edges — but not the
+palette; the neutral cast and the centre darkening are applied here so the
+wordmark has something quiet to sit on.
 
 ## The template
 

@@ -1,6 +1,9 @@
 import { linearTiming, TransitionSeries } from "@remotion/transitions";
 import { fade } from "@remotion/transitions/fade";
 import React from "react";
+import { AbsoluteFill } from "remotion";
+import { Music } from "../brand";
+import { SOUNDTRACK } from "../soundtrack";
 import { Correlate } from "./scenes/Correlate";
 import { Endpoint } from "./scenes/Endpoint";
 import { Install } from "./scenes/Install";
@@ -39,7 +42,10 @@ export const OTEL_DURATION =
   CUT * (OTEL_SCENES.length - 1);
 
 export const OtelSetup: React.FC = () => {
+  const music = SOUNDTRACK.OtelSetup;
+
   return (
+    <AbsoluteFill>
     <TransitionSeries>
       <TransitionSeries.Sequence durationInFrames={150} name="Title">
         <Title />
@@ -109,5 +115,16 @@ export const OtelSetup: React.FC = () => {
         <Outro />
       </TransitionSeries.Sequence>
     </TransitionSeries>
+
+    {music ? (
+      <Music
+        src={music.src}
+        startAtSeconds={music.startAtSeconds}
+        volume={music.volume}
+        fadeInFrames={music.fadeInFrames}
+        fadeOutFrames={music.fadeOutFrames}
+      />
+    ) : null}
+    </AbsoluteFill>
   );
 };

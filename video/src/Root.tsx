@@ -1,7 +1,8 @@
 import React from "react";
-import { Composition, Folder } from "remotion";
+import { Composition, Folder, Still } from "remotion";
 import "./index.css";
 import { video } from "./brand";
+import { Banner, BannerWithGuides } from "./channel/Banner";
 import { OtelSetup, OTEL_DURATION } from "./otel/OtelSetup";
 import { Correlate } from "./otel/scenes/Correlate";
 import { Endpoint } from "./otel/scenes/Endpoint";
@@ -12,6 +13,7 @@ import { Outro } from "./otel/scenes/Outro";
 import { Production } from "./otel/scenes/Production";
 import { Signals } from "./otel/scenes/Signals";
 import { Title } from "./otel/scenes/Title";
+import { OtelPunchy, PUNCHY_DURATION } from "./otel-punchy/OtelPunchy";
 import {
   CtaPortrait,
   FourLinesPortrait,
@@ -39,10 +41,29 @@ export const RemotionRoot: React.FC = () => {
         height={video.height}
       />
 
+      <Folder name="Channel">
+        <Still id="YouTubeBanner" component={Banner} width={2560} height={1440} />
+        <Still
+          id="YouTubeBanner-Guides"
+          component={BannerWithGuides}
+          width={2560}
+          height={1440}
+        />
+      </Folder>
+
       <Composition
         id="OtelShort"
         component={OtelShort}
         durationInFrames={SHORT_DURATION}
+        fps={30}
+        width={1080}
+        height={1920}
+      />
+
+      <Composition
+        id="OtelShortPunchy"
+        component={OtelPunchy}
+        durationInFrames={PUNCHY_DURATION}
         fps={30}
         width={1080}
         height={1920}

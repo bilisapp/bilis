@@ -1,7 +1,9 @@
 import { linearTiming, TransitionSeries } from "@remotion/transitions";
 import { fade } from "@remotion/transitions/fade";
 import React from "react";
-import { FormatProvider, PORTRAIT } from "../brand";
+import { AbsoluteFill } from "remotion";
+import { FormatProvider, Music, PORTRAIT } from "../brand";
+import { SOUNDTRACK } from "../soundtrack";
 import { Cta } from "./scenes/Cta";
 import { FourLines } from "./scenes/FourLines";
 import { Free } from "./scenes/Free";
@@ -53,8 +55,12 @@ export const FourLinesPortrait = inPortrait(FourLines);
 export const FreePortrait = inPortrait(Free);
 export const CtaPortrait = inPortrait(Cta);
 
-export const OtelShort: React.FC = () => (
+export const OtelShort: React.FC = () => {
+  const music = SOUNDTRACK.OtelShort;
+
+  return (
   <FormatProvider format={PORTRAIT}>
+    <AbsoluteFill>
     <TransitionSeries>
       <TransitionSeries.Sequence durationInFrames={180} name="Hook">
         <Hook />
@@ -92,5 +98,17 @@ export const OtelShort: React.FC = () => (
         <Cta />
       </TransitionSeries.Sequence>
     </TransitionSeries>
+
+    {music ? (
+      <Music
+        src={music.src}
+        startAtSeconds={music.startAtSeconds}
+        volume={music.volume}
+        fadeInFrames={music.fadeInFrames}
+        fadeOutFrames={music.fadeOutFrames}
+      />
+    ) : null}
+    </AbsoluteFill>
   </FormatProvider>
-);
+  );
+};

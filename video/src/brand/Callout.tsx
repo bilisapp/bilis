@@ -7,10 +7,13 @@ import { EASE, neutral, severity } from "./theme";
 /**
  * The "read this or you will lose an hour" panel.
  *
- * Three tones, and the colour is carried by a 4px rule and the label only — the
- * surface stays neutral. A fully tinted card would put a large field of hue on
- * screen and make the data in the next scene read as less important than the
- * warning about it.
+ * **The tone is carried by the label alone.** Not by a tinted surface, which
+ * would put a large field of hue on screen and make the data in the next scene
+ * read as less important than the warning about it — and not by a thick
+ * coloured rule down one side, which is off-brand twice over: the chrome is
+ * achromatic, and the app's own doc callouts are
+ * `border-left: 1px solid var(--border)` on a plain card, with the word
+ * "Note:" doing the work. Match the app; it already solved this.
  */
 export const Callout: React.FC<{
   tone?: "warn" | "error" | "note";
@@ -40,7 +43,6 @@ export const Callout: React.FC<{
         backgroundColor: neutral.card,
         borderRadius: 16,
         border: `1px solid ${neutral.border}`,
-        borderLeft: `4px solid ${accent}`,
         padding: "32px 40px",
         flexShrink: 0,
         opacity: interpolate(frame, [delay, delay + 14], [0, 1], {

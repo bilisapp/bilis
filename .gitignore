@@ -27,3 +27,7 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+
+# Audio sources. Library tracks are large and their licence travels with the
+# download, not the repo — video/public/music/README.md says how to add one.
+*.mp3
