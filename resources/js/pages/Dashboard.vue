@@ -6,6 +6,7 @@ import DitherSparkline from '@/components/DitherSparkline.vue';
 import GetStartedPanel from '@/components/GetStartedPanel.vue';
 import IngestRateCard from '@/components/IngestRateCard.vue';
 import PendingInvitationsModal from '@/components/PendingInvitationsModal.vue';
+import PlanUsageCard from '@/components/PlanUsageCard.vue';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -35,6 +36,7 @@ import type {
     LogProject,
     LogStorageProject,
     LogStorageSummary,
+    PlanUsage,
     Team,
 } from '@/types';
 
@@ -45,6 +47,7 @@ const props = defineProps<{
     storage: LogStorageSummary | null;
     digest: LogDigest | null;
     ingestRate: IngestRateUsage | null;
+    planUsage: PlanUsage;
 }>();
 
 defineOptions({
@@ -707,6 +710,14 @@ function storageBarWidth(project: LogStorageProject): number {
               inside the 24 hour digest above.
             -->
             <IngestRateCard v-if="ingestRate" :usage="ingestRate" />
+
+            <!--
+              Where the team stands on the Free plan. It sits with the other
+              two capacity cards rather than at the top of the page: it is a
+              report on headroom, not an ask, and it is present from the first
+              visit because "0 of 3 projects" is already the answer.
+            -->
+            <PlanUsageCard :usage="planUsage" />
         </div>
     </div>
 </template>

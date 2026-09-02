@@ -10,6 +10,7 @@ use App\Models\ProjectRepositoryService;
 use App\Models\Team;
 use App\Services\Logs\LogFilters;
 use App\Services\Logs\LogQuery;
+use App\Services\Plans\PlanLimits;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -26,11 +27,19 @@ class ProjectController extends Controller
     /**
      * List the current team's projects.
      */
-    public function index(Request $request): Response
+    public function index(Request $request, PlanLimits $limits): Response
     {
         $team = $this->team($request);
 
         return Inertia::render('projects/Index', [
+            /*
+             * How many of the Free plan's projects are spent. A soft number:
+             * the create button never disables, the modal only mentions it.
+             */
+            'planProjects' => [
+                'used' => $team->projects()->count(),
+                'limit' => $limits->projectsPerTeam(),
+            ],
             'projects' => $team->projects()
                 ->withCount('apiKeys')
                 ->orderBy('name')

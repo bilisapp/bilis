@@ -11,6 +11,8 @@
 $surfaces = [
     'home' => fn () => route('home'),
     'features' => fn () => route('features'),
+    'pricing' => fn () => route('pricing'),
+    'contact' => fn () => route('contact.show'),
     'blog' => fn () => route('blog.index'),
     'docs' => fn () => route('docs.show', ['section' => 'getting-started', 'page' => 'overview']),
     'styleguide' => fn () => route('styleguide'),
@@ -23,8 +25,9 @@ test('every public surface renders the shared header', function (string $name) u
         // The animated mark, which only works because the logo is inline SVG.
         ->toContain('mark-live')
         ->toContain('data-mark-stripe')
-        // The same three section links, in the same order.
+        // The same four section links, in the same order.
         ->toContain(route('features'))
+        ->toContain(route('pricing'))
         ->toContain(route('docs.index'))
         ->toContain(route('blog.index'));
 })->with(array_keys($surfaces));
@@ -35,6 +38,8 @@ test('every public surface renders the shared footer', function (string $name) u
     expect($page)
         // The styleguide is a resource, so it lives in the footer.
         ->toContain(route('styleguide'))
+        ->toContain(route('pricing'))
+        ->toContain(route('contact.show'))
         ->toContain(route('terms'))
         ->toContain(route('privacy'))
         ->toContain(config('legal.operator.name'));

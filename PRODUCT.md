@@ -70,7 +70,7 @@ These are the incumbent state recorded from the codebase, not constraints the us
 
 **Does not exist, and must never be fabricated:** customers, users, testimonials, customer logos, case studies, press mentions, adoption or volume numbers, benchmarks, uptime figures, GitHub stars. Bilis is pre-launch with no users yet. Any marketing surface has to persuade on the product and the position alone.
 
-**Pricing:** a hosted tier is planned but does not exist. Pricing, plans, and trial language are legitimate as *future* product direction, but nothing may be presented as currently purchasable until it is.
+**Pricing:** the hosted service at bilis.app has one plan — **Free**, with published limits (`config/plans.php`, read through `App\Services\Plans\PlanLimits`) and no card. Every allowance is **soft**: it is measured and warned about, never enforced, and no telemetry is dropped or blocked for being over it. Anything larger is a **Team** plan arranged by contact (`/contact?topic=upgrade`); there is no checkout and no self-serve billing, so nothing may be presented as currently purchasable. Self-hosting stays first-class and free, and has no plan at all.
 
 ## Product Principles
 

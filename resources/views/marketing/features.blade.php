@@ -440,9 +440,14 @@ curl -X POST https://bilis.example.com/api/v1/ingest \
 
             <h2 class="mt-4 text-xl font-semibold tracking-tight">You can run the whole thing yourself</h2>
             <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                Bilis is self-hosted, and that is not a fallback — there is no hosted tier, nothing to buy,
-                and no per-gigabyte bill at the end of a noisy month. What retention costs you is disk you
-                already pay for; what it costs your team to operate is close to nothing.
+                Bilis is self-hosted, and that is not a fallback: there is no per-gigabyte bill at the end
+                of a noisy month, and what retention costs you is disk you already pay for. There is a
+                hosted service at bilis.app with a
+                <a href="{{ route('pricing') }}"
+                   class="underline underline-offset-2 hover:text-foreground">Free plan whose limits are
+                    published</a>
+                and anything larger arranged by contact — no checkout, no self-serve billing. Running it
+                yourself stays first-class and free, and has no plan at all.
             </p>
 
             <div class="mt-8 overflow-hidden rounded-xl border border-border bg-card">
@@ -597,7 +602,7 @@ php artisan clickhouse:migrate</pre>
                             ['Error tracking', 'Sentry itself. The envelope endpoint accepts what its SDKs send, but there is no issue list, no grouping and no resolve button.'],
                             ['OTLP over gRPC', 'A Collector, which already bridges that hop. PHP is a poor gRPC server and this will not change.'],
                             ['eBPF collection, S3 tiering, replication', 'A larger platform. All three add operating surface a one-box deployment cannot pay for.'],
-                            ['Billing and a hosted tier', 'Nothing — there is no hosted Bilis to buy. Self-hosting is the way to use it, and stays first-class even if a hosted option lands.'],
+                            ['Self-serve billing', 'A conversation. bilis.app has a Free plan with published limits and no card; a team that outgrows it writes to us and we size something. There is no checkout, and self-hosting stays first-class and free.'],
                         ] as [$item, $instead])
                             <li class="grid gap-1 py-4">
                                 <span class="flex items-baseline gap-3 text-sm text-muted-foreground">

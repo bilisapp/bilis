@@ -55,7 +55,12 @@ it('keeps the storage and limits claims that make the page honest', function () 
         ->assertOk()
         ->assertSee('ORDER BY (ProjectId, Timestamp, ServiceName)')
         ->assertSee('An acknowledgement is not durability')
-        ->assertSee('there is no hosted tier, nothing to buy')
+        // The hosted Free tier exists now; what stays pinned is that nothing
+        // is purchasable and that self-hosting is not the consolation prize.
+        ->assertSee('Free plan whose limits are')
+        ->assertSee('no checkout, no self-serve billing')
+        ->assertSee('Running it')
+        ->assertDontSee('there is no hosted tier, nothing to buy')
         ->assertSee('On the')
         ->assertSee('way')
         ->assertSee('Out on')

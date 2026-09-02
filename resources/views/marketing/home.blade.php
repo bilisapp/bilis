@@ -355,9 +355,11 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs</pre>
 
             <div class="lg:col-span-4 lg:col-start-9">
                 <p class="text-sm leading-relaxed text-muted-foreground">
-                    There is no hosted tier yet and nothing to buy. Run the logs and traces product on
-                    your own infrastructure today. If a hosted option lands later, self-hosting stays
-                    the first-class way to use Bilis.
+                    Run it on your own box today, or sign up on bilis.app — the Free plan has
+                    published limits and no card. Self-hosting stays the first-class way to use
+                    Bilis. <a href="{{ route('pricing') }}"
+                       class="underline underline-offset-2 transition-colors hover:text-foreground">See
+                        pricing</a>.
                 </p>
                 <p class="mt-4 text-sm leading-relaxed text-muted-foreground">
                     The whole thing is open on GitHub, so you can read exactly what it does with your

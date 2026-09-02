@@ -27,6 +27,15 @@ it('states the configured log retention period on both documents', function () {
     get(route('privacy'))->assertSee($days.' days');
 });
 
+it('sends the terms\' plan-limits clause to the pricing page', function () {
+    // The terms promise the limits are "published on the site"; that promise
+    // is only true while the sentence links to the page that publishes them.
+    get(route('terms'))
+        ->assertOk()
+        ->assertSee(route('pricing'), false)
+        ->assertSee('pricing page');
+});
+
 it('links the legal pages from the marketing footer', function () {
     get(route('home'))
         ->assertOk()

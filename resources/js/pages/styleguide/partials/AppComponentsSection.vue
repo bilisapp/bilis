@@ -20,6 +20,7 @@ import LogsHistogram from '@/components/LogsHistogram.vue';
 import LogsShortcutsDialog from '@/components/LogsShortcutsDialog.vue';
 import LogsToolbar from '@/components/LogsToolbar.vue';
 import PlaceholderPattern from '@/components/PlaceholderPattern.vue';
+import PlanUsageCard from '@/components/PlanUsageCard.vue';
 import RunAutofixModal from '@/components/RunAutofixModal.vue';
 import TextLink from '@/components/TextLink.vue';
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,10 @@ import {
     demoIngestRate,
     demoIngestRateDisabled,
     demoLogEntry,
+    demoPlanUsage,
+    demoPlanUsageOver,
+    demoPlanUsageUnavailable,
+    demoPlanUsageWarn,
 } from '@/pages/styleguide/data';
 import { styleguide } from '@/routes';
 import type {
@@ -378,6 +383,22 @@ const onHistogramZoom = (window: { from: string; to: string }) => {
             <IngestRateCard
                 :usage="{ limit: 1200, disabled: false, keys: [] }"
             />
+        </DemoBlock>
+
+        <DemoBlock
+            title="PlanUsageCard"
+            description='where a team stands on the hosted Free plan: projects, seats, and today&apos;s logs + spans since midnight UTC. Same meter grammar as IngestRateCard — a resting bar is chart data, warn and over borrow the severity ramp — because both cards answer "how much headroom is left". Every limit is soft: the card reports, it never gates.'
+        >
+            <PlanUsageCard :usage="demoPlanUsage" />
+        </DemoBlock>
+
+        <DemoBlock
+            title="PlanUsageCard — close, over, and unmeasurable"
+            description='at the warn threshold the card names the allowance without alarm; past it, it says plainly that nothing was dropped and offers a conversation. When ClickHouse cannot answer, the events meter reads "not measurable" and draws no bar rather than showing a zero someone might believe.'
+        >
+            <PlanUsageCard :usage="demoPlanUsageWarn" />
+            <PlanUsageCard :usage="demoPlanUsageOver" />
+            <PlanUsageCard :usage="demoPlanUsageUnavailable" />
         </DemoBlock>
 
         <div class="grid items-start gap-4 xl:grid-cols-2">

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Form } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,12 +16,27 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { store } from '@/routes/projects';
+import { show as contactShow } from '@/routes/contact';
+import type { PlanAllowance } from '@/types';
 
 type Props = {
     teamSlug: string;
+    /**
+     * How many of the Free plan's projects are spent. Optional, and never a
+     * gate: the caption below appears once the allowance is used up and the
+     * submit button carries on working exactly as before.
+     */
+    allowance?: PlanAllowance;
 };
 
 const props = defineProps<Props>();
+
+const atAllowance = computed(
+    () =>
+        !!props.allowance &&
+        props.allowance.limit > 0 &&
+        props.allowance.used >= props.allowance.limit,
+);
 
 const open = ref(false);
 const formKey = ref(0);
@@ -67,6 +82,23 @@ const handleOpenChange = (value: boolean) => {
                     />
                     <InputError :message="errors.name" />
                 </div>
+
+                <p
+                    v-if="atAllowance && props.allowance"
+                    class="text-xs leading-relaxed text-muted-foreground"
+                    data-test="create-project-allowance"
+                >
+                    This team already has
+                    {{ props.allowance.used }} of the
+                    {{ props.allowance.limit }} projects the Free plan
+                    publishes. You can still create one — nothing is blocked —
+                    but it is time to
+                    <a
+                        :href="contactShow.url({ query: { topic: 'upgrade' } })"
+                        class="underline underline-offset-2 hover:text-foreground"
+                        >talk about a Team plan</a
+                    >.
+                </p>
 
                 <DialogFooter class="gap-2">
                     <DialogClose as-child>

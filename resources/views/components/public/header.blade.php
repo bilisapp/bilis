@@ -18,6 +18,7 @@
 @php
     $links = [
         'features' => ['label' => 'Features', 'href' => route('features')],
+        'pricing' => ['label' => 'Pricing', 'href' => route('pricing')],
         'docs' => ['label' => 'Docs', 'href' => route('docs.index')],
         'blog' => ['label' => 'Blog', 'href' => route('blog.index')],
     ];

@@ -6,6 +6,7 @@ use App\Http\Controllers\DocsController;
 use App\Services\Docs\DocsRepository;
 use App\Services\Markdown\FrontMatter;
 use App\Services\Markdown\MarkdownRenderer;
+use App\Services\Plans\PlanLimits;
 
 use function Pest\Laravel\get;
 
@@ -250,4 +251,31 @@ it('links the docs from the marketing pages', function () {
     get(route('home'))
         ->assertOk()
         ->assertSee(route('docs.index'), false);
+});
+
+it('states the hosted Free plan numbers the app actually measures against', function () {
+    /*
+     * A trip-wire, not a rendering test. The docs are static markdown, so the
+     * plan numbers on the limits page are typed by hand; this fails the
+     * moment a BILIS_PLAN_FREE_* default moves and the page is not edited,
+     * rather than letting the published number quietly become a lie.
+     *
+     * Asserted against the raw markdown, where the table is still a table.
+     */
+    $limits = app(PlanLimits::class);
+
+    $markdown = get(route('docs.markdown', ['section' => 'reference', 'page' => 'limits-and-behavior']))
+        ->assertOk()
+        ->getContent();
+
+    expect($markdown)
+        ->toContain('## The hosted Free plan')
+        ->toContain('| Projects per team | '.number_format($limits->projectsPerTeam()).' |')
+        ->toContain('(owner included) | '.number_format($limits->membersPerTeam()).' |')
+        ->toContain('from 00:00 UTC) | '.number_format($limits->eventsPerDay()).' |')
+        ->toContain('| '.number_format($limits->retentionDays()).' days |')
+        ->toContain('per API key | '.number_format($limits->requestsPerMinute()).' |')
+        ->toContain($limits->warnAtPercent().'%')
+        // The soft-limit promise is the part that must never quietly go.
+        ->toContain('never enforced');
 });

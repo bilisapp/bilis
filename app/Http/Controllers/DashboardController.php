@@ -10,6 +10,7 @@ use App\Services\Ingest\IngestRateUsage;
 use App\Services\Logs\LogDigest;
 use App\Services\Logs\LogOnboarding;
 use App\Services\Logs\LogStorage;
+use App\Services\Plans\PlanUsage;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -17,7 +18,7 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function __invoke(Request $request, LogOnboarding $onboarding, LogStorage $storage, LogDigest $digest, IngestRateUsage $ingestRate): Response
+    public function __invoke(Request $request, LogOnboarding $onboarding, LogStorage $storage, LogDigest $digest, IngestRateUsage $ingestRate, PlanUsage $planUsage): Response
     {
         $email = strtolower($request->user()->email);
 
@@ -49,6 +50,13 @@ class DashboardController extends Controller
             'storage' => $this->storage($storage, $projects, $projectIds),
             'digest' => $this->digest($digest, $projectIds),
             'ingestRate' => $this->ingestRate($ingestRate, $projects),
+            /*
+             * Always present, unlike the storage and digest cards: where a
+             * team stands on the Free plan is answerable before a single line
+             * has arrived, and 0 of 3 projects is exactly what a new team
+             * needs to read.
+             */
+            'planUsage' => $planUsage->forTeam($team, $projectIds),
             /*
              * The onboarding panel's project picker needs the same name/slug
              * list the logs page hands it; when the team is ready the panel

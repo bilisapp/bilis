@@ -7,11 +7,13 @@ use App\Http\Controllers\Autofix\FixJobStreamTokenController;
 use App\Http\Controllers\Autofix\LogFixJobController;
 use App\Http\Controllers\AutofixController;
 use App\Http\Controllers\BlogController;
+use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocsApiKeyController;
 use App\Http\Controllers\DocsController;
 use App\Http\Controllers\FeaturesController;
 use App\Http\Controllers\LogsController;
+use App\Http\Controllers\PricingController;
 use App\Http\Controllers\ProjectApiKeyController;
 use App\Http\Controllers\ProjectBrowserOriginController;
 use App\Http\Controllers\ProjectController;
@@ -38,6 +40,18 @@ Route::post('webhooks/github', GitHubWebhookController::class)
 Route::view('/', 'marketing.home')->name('home');
 Route::view('terms', 'marketing.terms')->name('terms');
 Route::view('privacy', 'marketing.privacy')->name('privacy');
+
+/*
+ * Pricing and the form that stands in for a checkout. There is no self-serve
+ * billing: the Free plan needs no purchase and anything larger is a
+ * conversation, so `contact` is the whole commercial surface. Both slugs are
+ * already reserved team names (`App\Rules\TeamName`).
+ */
+Route::get('pricing', PricingController::class)->name('pricing');
+Route::get('contact', [ContactController::class, 'show'])->name('contact.show');
+Route::post('contact', [ContactController::class, 'store'])
+    ->middleware('throttle:5,10')
+    ->name('contact.store');
 
 /**
  * Public documentation, rendered from `resources/docs/{section}/{page}.md`.

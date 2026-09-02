@@ -138,7 +138,7 @@
 
     <h2 id="fees">8. Plans, fees, and payment</h2>
 
-    <p>Prices and plan limits are published on the site and may change. Where you are on a paid plan, we will give you at least 30 days' notice before a price increase takes effect, and you may cancel before it does.</p>
+    <p>Prices and plan limits are published on the <a href="{{ route('pricing') }}">pricing page</a> and may change. Where you are on a paid plan, we will give you at least 30 days' notice before a price increase takes effect, and you may cancel before it does.</p>
 
     <p>Paid plans are billed in advance for the period you choose and, unless you cancel, renew automatically for the same period.</p>
 

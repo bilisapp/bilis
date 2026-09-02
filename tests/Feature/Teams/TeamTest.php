@@ -70,6 +70,25 @@ test('the team edit page can be rendered', function () {
         );
 });
 
+test('the team edit page carries the Free plan meters', function () {
+    $user = User::factory()->create();
+    $team = Team::factory()->create();
+
+    $team->members()->attach($user, ['role' => TeamRole::Owner->value]);
+
+    // No projects, so the seat meter is answered without touching ClickHouse.
+    $this->actingAs($user)
+        ->get(route('teams.edit', $team))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('teams/Edit')
+            ->where('planUsage.plan', 'free')
+            ->where('planUsage.members.used', 1)
+            ->where('planUsage.members.limit', (int) config('plans.free.members_per_team'))
+            ->where('planUsage.events.unavailable', false),
+        );
+});
+
 test('teams can be updated by owners', function () {
     $user = User::factory()->create();
     $team = Team::factory()->create(['name' => 'Original Name']);

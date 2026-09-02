@@ -42,7 +42,8 @@ Said plainly, so you can plan around it:
 - No metrics. Logs and traces only.
 - No alerting, no user-defined dashboards, no saved searches.
 - No eBPF collection, no S3 tiering, no ClickHouse replication.
-- No billing.
+- No self-serve billing. bilis.app has a Free plan with published limits; paid
+  plans are arranged by contact; a self-hosted install has no plan at all.
 - No OTLP over **gRPC** — HTTP only, in either encoding. Collectors and SDKs
   default to gRPC on port 4317, which is the most common reason a new install
   looks broken. See [Traces](/docs/ingestion/traces#grpc-is-not-supported).

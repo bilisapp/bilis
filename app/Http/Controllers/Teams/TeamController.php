@@ -12,6 +12,7 @@ use App\Models\Membership;
 use App\Models\Team;
 use App\Models\TeamLlmCredential;
 use App\Models\User;
+use App\Services\Plans\PlanUsage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -48,9 +49,14 @@ class TeamController extends Controller
     /**
      * Show the team edit page.
      */
-    public function edit(Request $request, Team $team): Response
+    public function edit(Request $request, Team $team, PlanUsage $planUsage): Response
     {
         $user = $request->user();
+
+        $projectIds = array_values($team->projects()
+            ->pluck('id')
+            ->map(fn ($id): string => (string) $id)
+            ->all());
 
         return Inertia::render('teams/Edit', [
             'team' => [
@@ -99,6 +105,12 @@ class TeamController extends Controller
                     'role_label' => $invitation->role->label(),
                     'created_at' => $invitation->created_at->toISOString(),
                 ]),
+            /*
+             * Where this team stands on the Free plan. Members are managed on
+             * this page, so the members meter belongs beside the list rather
+             * than only on the dashboard.
+             */
+            'planUsage' => $planUsage->forTeam($team, $projectIds),
             'permissions' => $user->toTeamPermissions($team),
             'availableRoles' => TeamRole::assignable(),
         ]);

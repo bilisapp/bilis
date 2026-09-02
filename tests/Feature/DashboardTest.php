@@ -234,6 +234,58 @@ test('dashboard storage is null for a team with no projects', function () {
     Http::assertNothingSent();
 });
 
+test('dashboard reports where the team stands on the Free plan', function () {
+    [$user, $team] = storageTeam();
+
+    // The fallback answer is `{"Present":1}`, so neither count column is
+    // present and both must read as zero rather than as one.
+    Http::fake(fn (Request $request) => digestResponse($request->body()));
+
+    $response = $this
+        ->actingAs($user)
+        ->get(route('dashboard', ['current_team' => $team->slug]));
+
+    $response->assertOk();
+    $response->assertInertia(fn (Assert $page) => $page
+        ->component('Dashboard')
+        ->where('planUsage.plan', 'free')
+        ->where('planUsage.projects.used', 2)
+        ->where('planUsage.projects.limit', (int) config('plans.free.projects_per_team'))
+        ->where('planUsage.members.used', 1)
+        ->where('planUsage.members.limit', (int) config('plans.free.members_per_team'))
+        ->where('planUsage.events.used', 0)
+        ->where('planUsage.events.logs', 0)
+        ->where('planUsage.events.spans', 0)
+        ->where('planUsage.events.limit', (int) config('plans.free.events_per_day'))
+        ->where('planUsage.events.unavailable', false)
+        ->where('planUsage.retentionDays', (int) config('legal.log_retention_days'))
+        ->where('planUsage.requestsPerMinute', (int) config('security.ingest_rate_limit'))
+        ->where('planUsage.warnAtPercent', (int) config('plans.warn_at_percent')),
+    );
+});
+
+test('the plan card is present for a team with no projects and costs no query', function () {
+    Http::fake();
+
+    $user = User::factory()->create();
+
+    $response = $this
+        ->actingAs($user)
+        ->get(route('dashboard'));
+
+    $response->assertOk();
+    $response->assertInertia(fn (Assert $page) => $page
+        ->component('Dashboard')
+        // Unlike storage and the digest, this one is answerable on day one:
+        // "0 of 3 projects" is exactly what a brand new team needs to read.
+        ->where('planUsage.projects.used', 0)
+        ->where('planUsage.events.used', 0)
+        ->where('planUsage.events.unavailable', false),
+    );
+
+    Http::assertNothingSent();
+});
+
 test('an overloaded clickhouse marks storage unavailable without failing the page', function () {
     [$user, $team] = storageTeam();
 

@@ -4,6 +4,7 @@ import type {
     IngestRateUsage,
     LogEntry,
     LogHistogram,
+    PlanUsage,
     ProjectRepository,
     ServiceLatencyResult,
     SeverityLevel,
@@ -526,6 +527,73 @@ export const demoIngestRateDisabled: IngestRateUsage = {
         attempts: 0,
         remaining: 0,
     })),
+};
+
+/**
+ * A team living comfortably inside the Free plan: room on every meter, so
+ * every bar rests on the chart token and the card says nothing at the bottom.
+ */
+export const demoPlanUsage: PlanUsage = {
+    plan: 'free',
+    projects: { used: 2, limit: 3 },
+    members: { used: 3, limit: 5 },
+    events: {
+        used: 21_480,
+        limit: 100_000,
+        logs: 18_840,
+        spans: 2_640,
+        since: '2026-09-02 00:00:00.000000',
+        unavailable: false,
+    },
+    retentionDays: 30,
+    requestsPerMinute: 1200,
+    warnAtPercent: 80,
+};
+
+/**
+ * The same team a fortnight later: the seats are spent and the day's events
+ * are past the warn threshold. Two hues, one sentence, and still no gate.
+ */
+export const demoPlanUsageWarn: PlanUsage = {
+    ...demoPlanUsage,
+    members: { used: 5, limit: 5 },
+    events: {
+        ...demoPlanUsage.events,
+        used: 64_000,
+        logs: 56_800,
+        spans: 7_200,
+    },
+};
+
+/**
+ * Over the allowance on volume. Nothing was dropped to produce this state —
+ * that is the whole point of the sentence the card ends on.
+ */
+export const demoPlanUsageOver: PlanUsage = {
+    ...demoPlanUsage,
+    projects: { used: 4, limit: 3 },
+    members: { used: 6, limit: 5 },
+    events: {
+        ...demoPlanUsage.events,
+        used: 140_000,
+        logs: 125_500,
+        spans: 14_500,
+    },
+};
+
+/**
+ * ClickHouse could not answer. The events meter says "not measurable" rather
+ * than drawing a zero, because not knowing is not the same as nothing.
+ */
+export const demoPlanUsageUnavailable: PlanUsage = {
+    ...demoPlanUsage,
+    events: {
+        ...demoPlanUsage.events,
+        used: 0,
+        logs: 0,
+        spans: 0,
+        unavailable: true,
+    },
 };
 
 /**

@@ -14,10 +14,11 @@ import {
 } from '@/components/ui/card';
 import { formatDate } from '@/lib/projects';
 import { index as projectsIndex, show as projectShow } from '@/routes/projects';
-import type { ProjectSummary, Team } from '@/types';
+import type { PlanAllowance, ProjectSummary, Team } from '@/types';
 
 defineProps<{
     projects: ProjectSummary[];
+    planProjects: PlanAllowance;
 }>();
 
 defineOptions({
@@ -51,7 +52,7 @@ const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
                 authenticates with.
             </p>
 
-            <CreateProjectModal :team-slug="teamSlug">
+            <CreateProjectModal :team-slug="teamSlug" :allowance="planProjects">
                 <Button data-test="projects-new-button">
                     <Plus /> New project
                 </Button>
@@ -114,7 +115,10 @@ const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
                     </p>
                 </div>
 
-                <CreateProjectModal :team-slug="teamSlug">
+                <CreateProjectModal
+                    :team-slug="teamSlug"
+                    :allowance="planProjects"
+                >
                     <Button data-test="projects-empty-create">
                         <Plus /> Create your first project
                     </Button>

@@ -28,12 +28,16 @@
             </a>
             <a href="{{ route('features') }}"
                class="transition-colors hover:text-foreground">Features</a>
+            <a href="{{ route('pricing') }}"
+               class="transition-colors hover:text-foreground">Pricing</a>
             <a href="{{ route('docs.index') }}"
                class="transition-colors hover:text-foreground">Docs</a>
             <a href="{{ route('blog.index') }}"
                class="transition-colors hover:text-foreground">Blog</a>
             <a href="{{ route('styleguide') }}"
                class="transition-colors hover:text-foreground">Styleguide</a>
+            <a href="{{ route('contact.show') }}"
+               class="transition-colors hover:text-foreground">Contact</a>
             <a href="{{ route('terms') }}"
                class="transition-colors hover:text-foreground">Terms</a>
             <a href="{{ route('privacy') }}"

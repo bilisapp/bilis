@@ -183,9 +183,36 @@ counts of what was shipped — Bilis does not extrapolate.
   It matches whole tokens, case-insensitively. A search term that is not a
   single token falls back to a slower substring "contains" match, which still
   reads the index but prunes less.
-- **No per-project ingest quota yet.** The per-key rate limit shapes request
-  rate, but nothing caps how much a well-batched project can store — a noisy
-  project can still fill the disk.
+- **No enforced per-project ingest quota.** The per-key rate limit shapes
+  request rate, but nothing caps how much a well-batched project can store — a
+  noisy project can still fill the disk. On the hosted service the daily event
+  allowance below is *shown and warned about*, never enforced: no record is
+  ever refused or dropped for being over it. On a self-hosted install there is
+  no allowance at all.
+
+## The hosted Free plan
+
+These apply to [bilis.app](https://bilis.app) only. **An instance you run
+yourself has no plan and no limits** — nothing in this section is read by it.
+
+| Limit | Free |
+| --- | --- |
+| Projects per team | 3 |
+| Members per team (owner included) | 5 |
+| Events per day (log records + spans, per team, from 00:00 UTC) | 100,000 |
+| Retention for logs and spans | 30 days |
+| Ingest requests per minute, per API key | 1,200 |
+
+**Every one of them is soft except the last.** Going over the projects, members
+or events allowance drops nothing, rejects nothing and blocks nothing: the
+dashboard's "Plan & usage" card shows where the team stands, starts saying so at
+80%, and someone gets in touch. The per-minute request limit is the one real
+ceiling, and it is a retryable 429 with `Retry-After` rather than a rejection of
+the payload — the "ingest never returns 400" rule above still holds.
+
+More room than that is a conversation rather than a checkout: there is no
+self-serve billing. See [pricing](/pricing), or write to us at
+[/contact?topic=upgrade](/contact?topic=upgrade).
 
 ## Self-hosting
 

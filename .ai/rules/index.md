@@ -18,6 +18,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | resources/js/marketing/** | .ai/rules/marketing.md |
 | app/Http/Middleware/SecurityHeaders.php | .ai/rules/middleware.md |
 | app/Models/ProjectApiKey.php | .ai/rules/models.md |
+| config/plans.php, app/Services/Plans/** | .ai/rules/plans.md |
 | routes/api.php | .ai/rules/routes.md |
 | app/Services/Traces/**, app/Services/Ingest/OtlpTraceMapper.php, app/Services/Ingest/SpanWriter.php, app/Services/Ingest/SpanSemantics.php, app/Http/Controllers/TracesController.php | .ai/rules/traces.md |
 | resources/views/marketing/** | .ai/rules/views-marketing.md |

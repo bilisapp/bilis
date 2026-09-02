@@ -8,6 +8,7 @@ import DeleteTeamModal from '@/components/DeleteTeamModal.vue';
 import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
 import InviteMemberModal from '@/components/InviteMemberModal.vue';
+import PlanUsageCard from '@/components/PlanUsageCard.vue';
 import RemoveMemberModal from '@/components/RemoveMemberModal.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -42,6 +43,7 @@ import {
 import { update as updateMember } from '@/routes/teams/members';
 import type {
     LlmProviderOption,
+    PlanUsage,
     RoleOption,
     Team,
     TeamInvitation,
@@ -58,6 +60,7 @@ type Props = {
     availableRoles: RoleOption[];
     llmCredentials: TeamLlmCredential[];
     llmProviders: LlmProviderOption[];
+    planUsage: PlanUsage;
 };
 
 const props = defineProps<Props>();
@@ -185,6 +188,22 @@ const confirmCancelInvitation = (invitation: TeamInvitation) => {
 
         <div v-else class="space-y-6">
             <Heading variant="small" :title="team.name" />
+        </div>
+
+        <!--
+          Plan and usage. It sits here rather than only on the dashboard
+          because members are added on this page: the meter that says how many
+          seats the Free plan carries belongs beside the button that spends
+          one. It still gates nothing.
+        -->
+        <div class="space-y-6">
+            <Heading
+                variant="small"
+                title="Plan &amp; usage"
+                description="Where this team stands against the Free allowances. All of them are soft."
+            />
+
+            <PlanUsageCard :usage="planUsage" />
         </div>
 
         <!-- Model API keys -->
@@ -542,6 +561,7 @@ const confirmCancelInvitation = (invitation: TeamInvitation) => {
         :team="team"
         :available-roles="availableRoles"
         :open="inviteDialogOpen"
+        :allowance="planUsage.members"
         @update:open="inviteDialogOpen = $event"
     />
 

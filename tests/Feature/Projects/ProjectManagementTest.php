@@ -40,6 +40,37 @@ test('the projects index lists the team projects with their key counts', functio
         );
 });
 
+test('the projects index states how much of the Free allowance is spent', function () {
+    [$user, $team] = projectTeam();
+
+    Project::factory()->forTeam($team)->count(3)->create();
+
+    $this->actingAs($user)
+        ->get(route('projects.index', ['current_team' => $team->slug]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('projects/Index')
+            ->where('planProjects.used', 3)
+            ->where('planProjects.limit', (int) config('plans.free.projects_per_team')),
+        );
+});
+
+test('a team at its project allowance can still create a project', function () {
+    // The allowance is soft: it is reported, never enforced. A team that is
+    // already over must be able to create the next one.
+    [$user, $team] = projectTeam();
+
+    config(['plans.free.projects_per_team' => 1]);
+
+    Project::factory()->forTeam($team)->create();
+
+    $this->actingAs($user)
+        ->post(route('projects.store', ['current_team' => $team->slug]), ['name' => 'Fourth'])
+        ->assertRedirect();
+
+    expect($team->projects()->count())->toBe(2);
+});
+
 test('guests are redirected away from the projects index', function () {
     $team = Team::factory()->create();
 
