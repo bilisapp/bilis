@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Http\Middleware\AuthenticateProjectApiKey;
 use App\Http\Middleware\AuthenticatePublicKey;
 use App\Models\FixJob;
+use App\Models\Passport\Client;
 use App\Models\Project;
 use App\Models\ProjectApiKey;
 use App\Models\ProjectRepository;
@@ -13,6 +14,7 @@ use App\Services\Autofix\RunDriver;
 use App\Services\Autofix\ScalewayRunDriver;
 use App\Services\Ingest\IngestRateUsage;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterval;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Route as RouteElement;
@@ -22,6 +24,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Laravel\Passport\Passport;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -59,6 +62,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
         $this->configureRouteBindings();
         $this->configureRateLimiting();
+        $this->configurePassport();
     }
 
     /**
@@ -143,6 +147,34 @@ class AppServiceProvider extends ServiceProvider
                 IngestRateUsage::bucketForKeyHash(ProjectApiKey::hashKey($key)),
             );
         });
+
+        /*
+         * The MCP server reads ClickHouse on behalf of a person talking to an
+         * assistant, so the ceiling is a person's pace, not an exporter's. It
+         * is keyed by user, because one account may have several clients
+         * connected at once and they are all the same person.
+         */
+        RateLimiter::for('mcp', fn (Request $request): Limit => Limit::perMinute(60)
+            ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
+    }
+
+    /**
+     * Configure Passport, which exists here only to authenticate the MCP server.
+     *
+     * Every client is registered dynamically by an AI assistant the first time
+     * someone connects, so none of them is first-party and none of them skips
+     * the consent screen — `App\Models\Passport\Client` pins that. Access
+     * tokens last a day and refresh tokens a month, which is short enough that
+     * a forgotten connection expires on its own.
+     */
+    protected function configurePassport(): void
+    {
+        Passport::useClientModel(Client::class);
+
+        Passport::authorizationView('mcp.authorize');
+
+        Passport::tokensExpireIn(CarbonInterval::day());
+        Passport::refreshTokensExpireIn(CarbonInterval::days(30));
     }
 
     /**

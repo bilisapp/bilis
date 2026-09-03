@@ -12,23 +12,16 @@
     /** @var \App\Services\Docs\DocsPage $page */
 
     /*
-     * The prompt points at the raw markdown rather than repeating the guide:
+     * The prompt is built by `App\Content\InstrumentationPrompt` so that this
+     * card and the MCP server's `instrument-with-bilis` prompt say the same
+     * words. It points at the raw markdown rather than repeating the guide:
      * the page is already served as text/markdown at a stable URL, so the
      * agent reads the current version instead of a copy that goes stale.
      *
      * The key is the same placeholder the prose carries, so the panel above
      * rewrites it here too once a real key has been issued.
      */
-    $prompt = <<<PROMPT
-        Set up Bilis — self-hosted log and trace storage — in this project, following its "{$page->title}" guide:
-
-        {$page->markdownUrl()}
-
-        Bilis endpoint: {$endpoint}
-        API key: {$placeholder}
-
-        Read the guide first, then make the changes it describes. Keep the API key in the environment rather than in a file that gets committed, and finish by sending one record and confirming it arrives.
-        PROMPT;
+    $prompt = \App\Content\InstrumentationPrompt::forPage($page, $endpoint, $placeholder);
 @endphp
 
 {{--

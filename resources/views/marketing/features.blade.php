@@ -379,6 +379,15 @@ curl -X POST https://bilis.example.com/api/v1/ingest \
                 When ClickHouse cannot be reached the cards say so rather than showing zeros, which is a
                 distinction that matters at three in the morning.
             </p>
+
+            {{-- The viewer is not the only way in. One line points an agent at
+                 the same data, read-only; the MCP page makes that case. --}}
+            <p class="mt-4 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                Or read none of it yourself: connect the assistant you already code with over
+                <a href="{{ route('features.mcp') }}"
+                   class="font-medium text-foreground underline underline-offset-4">MCP</a>
+                and it searches the logs and opens the traces on your behalf, read-only.
+            </p>
         </div>
     </section>
 

@@ -28,6 +28,8 @@
             </a>
             <a href="{{ route('features') }}"
                class="transition-colors hover:text-foreground">Features</a>
+            <a href="{{ route('features.mcp') }}"
+               class="transition-colors hover:text-foreground">MCP</a>
             <a href="{{ route('pricing') }}"
                class="transition-colors hover:text-foreground">Pricing</a>
             <a href="{{ route('docs.index') }}"

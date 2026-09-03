@@ -42,6 +42,16 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        /*
+         * Bearer-token auth for the remote MCP server only. Tokens are minted
+         * by Passport through the OAuth flow an AI client walks the user
+         * through; nothing else in the app authenticates this way.
+         */
+        'api' => [
+            'driver' => 'passport',
+            'provider' => 'users',
+        ],
     ],
 
     /*

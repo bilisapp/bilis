@@ -60,6 +60,12 @@ Route::post('contact', [ContactController::class, 'store'])
 Route::get('features', FeaturesController::class)->name('features');
 
 /*
+ * The MCP page. It lives under /features because `/mcp` is the server itself —
+ * `routes/ai.php` claims that URI, and it is registered before this file.
+ */
+Route::view('features/mcp', 'marketing.mcp')->name('features.mcp');
+
+/*
  * The blog, rendered from `resources/blog/*.md`. Posts ship with the app.
  */
 Route::get('blog', [BlogController::class, 'index'])->name('blog.index');

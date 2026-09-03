@@ -16,6 +16,8 @@
         "laravel/fortify": "^1.37.2",
         "laravel/framework": "^13.17",
         "laravel/horizon": "^5.48",
+        "laravel/mcp": "^0.9.4",
+        "laravel/passport": "^13.8",
         "laravel/socialite": "^5.30",
         "laravel/tinker": "^3.0",
         "laravel/wayfinder": "^0.1.14",

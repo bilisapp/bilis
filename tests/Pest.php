@@ -11,6 +11,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Testing\TestResponse;
+use Laravel\Passport\Passport;
 use Tests\Support\FakeRunDriver;
 use Tests\TestCase;
 
@@ -344,4 +345,50 @@ function clickHouseQuery(Request $request): array
 
     /** @var array<string, string> $query */
     return $query;
+}
+
+/**
+ * Point Passport at a throwaway RSA key pair for the duration of a test.
+ *
+ * The authorization-code and token-exchange endpoints need signing keys, and
+ * a test must neither depend on nor overwrite the developer's real ones — so
+ * each machine gets a pair of its own under the system temp directory, made
+ * once and reused.
+ */
+function usePassportKeys(): void
+{
+    $directory = sys_get_temp_dir().'/bilis-passport-test-keys';
+
+    if (! is_dir($directory)) {
+        mkdir($directory, 0700, true);
+    }
+
+    $privatePath = $directory.'/oauth-private.key';
+    $publicPath = $directory.'/oauth-public.key';
+
+    if (! file_exists($privatePath) || ! file_exists($publicPath)) {
+        $key = openssl_pkey_new([
+            'private_key_bits' => 2048,
+            'private_key_type' => OPENSSL_KEYTYPE_RSA,
+        ]);
+
+        openssl_pkey_export($key, $privateKey);
+        $publicKey = openssl_pkey_get_details($key)['key'];
+
+        file_put_contents($privatePath, $privateKey);
+        file_put_contents($publicPath, $publicKey);
+
+        chmod($privatePath, 0600);
+        chmod($publicPath, 0600);
+    }
+
+    Passport::loadKeysFrom($directory);
+}
+
+/**
+ * Derive the S256 PKCE code challenge for a verifier.
+ */
+function pkceChallenge(string $verifier): string
+{
+    return strtr(rtrim(base64_encode(hash('sha256', $verifier, true)), '='), '+/', '-_');
 }

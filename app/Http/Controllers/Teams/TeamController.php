@@ -111,6 +111,13 @@ class TeamController extends Controller
              * than only on the dashboard.
              */
             'planUsage' => $planUsage->forTeam($team, $projectIds),
+            /*
+             * Connecting an agent is per-account, not per-project, so the card
+             * lives beside the team rather than on a project page. The URL is
+             * resolved here: a client that is told the wrong host silently
+             * fails its OAuth discovery.
+             */
+            'mcpUrl' => url('/mcp'),
             'permissions' => $user->toTeamPermissions($team),
             'availableRoles' => TeamRole::assignable(),
         ]);

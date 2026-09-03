@@ -8,6 +8,7 @@ import AppLogoMark from '@/components/AppLogoMark.vue';
 import AskAiMenu from '@/components/AskAiMenu.vue';
 import AutofixUpsellModal from '@/components/AutofixUpsellModal.vue';
 import BrowserOriginsCard from '@/components/BrowserOriginsCard.vue';
+import ConnectAgentCard from '@/components/ConnectAgentCard.vue';
 import CopyableValue from '@/components/CopyableValue.vue';
 import GetStartedPanel from '@/components/GetStartedPanel.vue';
 import GitHubLoginButton from '@/components/GitHubLoginButton.vue';
@@ -382,6 +383,16 @@ const onHistogramZoom = (window: { from: string; to: string }) => {
             <IngestRateCard :usage="demoIngestRateDisabled" />
             <IngestRateCard
                 :usage="{ limit: 1200, disabled: false, keys: [] }"
+            />
+        </DemoBlock>
+
+        <DemoBlock
+            title="ConnectAgentCard"
+            description="the one line that points an AI client at this instance over MCP, on the team settings page. The command is the whole setup — the OAuth flow happens in a browser, so there is no key on the card and nothing here is a secret. The JSON for clients that do not take a command is folded away, because most readers need one line and the fold is what keeps it one line."
+        >
+            <ConnectAgentCard
+                url="https://bilis.example.com/mcp"
+                docs-href="/docs/reference/mcp"
             />
         </DemoBlock>
 

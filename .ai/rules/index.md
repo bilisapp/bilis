@@ -14,6 +14,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | resources/js/** | .ai/rules/js.md |
 | resources/js/lib/traces.ts, resources/js/lib/attributes.ts | .ai/rules/lib.md |
 | app/Logging/** | .ai/rules/logging.md |
+| app/Mcp/**, routes/ai.php, app/Models/Passport/**, resources/views/mcp/** | .ai/rules/mcp.md |
 | app/Services/Logs/** | .ai/rules/logs.md |
 | resources/js/marketing/** | .ai/rules/marketing.md |
 | app/Http/Middleware/SecurityHeaders.php | .ai/rules/middleware.md |

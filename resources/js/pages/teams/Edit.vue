@@ -3,6 +3,7 @@ import { Form, Head, router } from '@inertiajs/vue3';
 import { ChevronDown, Mail, UserPlus, X } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import CancelInvitationModal from '@/components/CancelInvitationModal.vue';
+import ConnectAgentCard from '@/components/ConnectAgentCard.vue';
 import DeleteLlmCredentialModal from '@/components/DeleteLlmCredentialModal.vue';
 import DeleteTeamModal from '@/components/DeleteTeamModal.vue';
 import Heading from '@/components/Heading.vue';
@@ -35,6 +36,7 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useInitials } from '@/composables/useInitials';
+import { show as docsShow } from '@/routes/docs';
 import { edit, index, update } from '@/routes/teams';
 import {
     store as storeLlmCredential,
@@ -61,9 +63,13 @@ type Props = {
     llmCredentials: TeamLlmCredential[];
     llmProviders: LlmProviderOption[];
     planUsage: PlanUsage;
+    mcpUrl: string;
 };
 
 const props = defineProps<Props>();
+
+/** The MCP guide, so the connect card links rather than restates. */
+const mcpDocsHref = docsShow({ section: 'reference', page: 'mcp' }).url;
 
 /** Which provider the add-a-key form is currently for. */
 const newKeyProvider = ref<string>(props.llmProviders[0]?.value ?? 'anthropic');
@@ -204,6 +210,21 @@ const confirmCancelInvitation = (invitation: TeamInvitation) => {
             />
 
             <PlanUsageCard :usage="planUsage" />
+        </div>
+
+        <!--
+          The MCP connection. It sits on the team page because the access it
+          grants is team-wide: one command connects an agent to every project
+          the team owns, read-only.
+        -->
+        <div class="space-y-6">
+            <Heading
+                variant="small"
+                title="Agent access"
+                description="Point an MCP client at this instance and it can read your logs and traces while it works."
+            />
+
+            <ConnectAgentCard :url="mcpUrl" :docs-href="mcpDocsHref" />
         </div>
 
         <!-- Model API keys -->
