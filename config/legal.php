@@ -52,10 +52,10 @@ return [
     */
 
     'contact' => [
-        'general' => env('LEGAL_CONTACT_GENERAL', 'hello@bilis.app'),
-        'privacy' => env('LEGAL_CONTACT_PRIVACY', 'privacy@bilis.app'),
-        'security' => env('LEGAL_CONTACT_SECURITY', 'security@bilis.app'),
-        'billing' => env('LEGAL_CONTACT_BILLING', 'billing@bilis.app'),
+        'general' => env('LEGAL_CONTACT_GENERAL', 'info@bilis.app'),
+        'privacy' => env('LEGAL_CONTACT_PRIVACY', 'info@bilis.app'),
+        'security' => env('LEGAL_CONTACT_SECURITY', 'info@bilis.app'),
+        'billing' => env('LEGAL_CONTACT_BILLING', 'info@bilis.app'),
     ],
 
     /*
