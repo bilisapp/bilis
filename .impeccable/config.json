@@ -29,6 +29,15 @@
         ],
         "createdAt": "2026-08-30T08:51:26.832Z",
         "reason": "DESIGN.md 'The 14/12 Rule' mandates 14px interface copy and 12px support copy adjacent, and bans 13px between them; that 1.167 step is the documented ramp and is used repo-wide. Heading fixed to text-xl (Headline, 1.25rem) per DESIGN.md hierarchy first."
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "resources/js/pages/metrics/Index.vue"
+        ],
+        "createdAt": "2026-09-25T13:39:30.744Z",
+        "reason": "Claude (assistant) decided: page h1 already raised to text-xl to match autofix/Index.vue; remaining text-xs/text-sm pair is the app-wide type scale used identically by traces/Index.vue and autofix/Index.vue"
       }
     ]
   }

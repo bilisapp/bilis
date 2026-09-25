@@ -3,8 +3,11 @@
 use App\Logging\BilisHandler;
 use App\Logging\BilisLogger;
 use App\Services\Ingest\LogSeverity;
+use Illuminate\Contracts\Queue\Job;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
+use Illuminate\Queue\Events\JobFailed;
+use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Monolog\Handler\NullHandler;
@@ -115,7 +118,7 @@ test('camel-cased ids and ids set by a processor are promoted too', function () 
     $handler->handle(record(context: ['traceId' => '5b8efff798038103d269b633813fc60c']));
     $handler->handle(record(extra: ['span_id' => 'eee19b7ec3c1b174', 'trace_id' => '4bf92f3577b34da6a3ce929d0e0e4736', 'host' => 'web-1']));
     $handler->handle(record(
-    // The caller's context wins over what a processor added.
+        // The caller's context wins over what a processor added.
         context: ['trace_id' => '11111111111111111111111111111111'],
         extra: ['trace_id' => '22222222222222222222222222222222'],
     ));
@@ -371,3 +374,28 @@ test('the terminating hook ships the batch after the response', function () {
 
     Http::assertSentCount(1);
 });
+
+test('a queue worker ships each job\'s lines when the job finishes', function (string $event) {
+    Http::fake([ENDPOINT => Http::response('', 202)]);
+
+    config(['logging.channels.bilis' => [
+        'driver' => 'custom',
+        'via' => BilisLogger::class,
+        'endpoint' => BILIS_BASE_URL,
+        'api_key' => 'bilis_test_key',
+        'level' => 'debug',
+    ]]);
+
+    Log::channel('bilis')->error('Charge declined inside a job');
+
+    Http::assertNothingSent();
+
+    $job = Mockery::mock(Job::class)->shouldIgnoreMissing();
+
+    event(match ($event) {
+        'processed' => new JobProcessed('redis', $job),
+        'failed' => new JobFailed('redis', $job, new RuntimeException('boom')),
+    });
+
+    Http::assertSentCount(1);
+})->with(['processed', 'failed']);

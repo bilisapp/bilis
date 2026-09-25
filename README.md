@@ -32,13 +32,13 @@
   <sub>Log lines shown are illustrative — Bilis is pre-launch.</sub>
 </p>
 
-**v1 is exactly that — nothing else.** No traces, metrics, alerting, dashboards, saved searches, or billing.
+**Logs, traces and metrics — nothing else.** No alerting, user-defined dashboards, saved searches, or self-serve billing.
 
 ## How it works
 
-- **Ingest** — `POST /api/v1/logs` accepts OTLP/HTTP (JSON or protobuf), `POST /api/v1/ingest` accepts a simple JSON shape (`{"level": "error", "message": "...", "service": "...", "context": {...}}`), and `POST /api/v1/traces` accepts OTLP spans. An API key resolves to a project; malformed records are skipped best-effort — ingest never returns 400, and overload returns 503 with `Retry-After`. OTLP over gRPC is not supported, which matters because collectors default to it.
-- **Storage** — OTel-compatible `otel_logs` and `otel_traces` MergeTree tables in ClickHouse (async inserts, a `text` index on `lower(Body)`, `ProjectId`-first ordering, 30 day TTL), plus a `trace_summary` aggregate kept for 90 days. Requires ClickHouse **26.2+**. Schema and its rules: [`database/clickhouse/SCHEMA.md`](database/clickhouse/SCHEMA.md).
-- **UI** — per-team log viewer (time range, project/service/severity filters, full-text search, expandable rows, live tail) and trace viewer (trace list, span waterfall, per-service latency). A log line links to its trace and a span links back to its logs.
+- **Ingest** — `POST /api/v1/logs` accepts OTLP/HTTP (JSON or protobuf), `POST /api/v1/ingest` accepts a simple JSON shape (`{"level": "error", "message": "...", "service": "...", "context": {...}}`), `POST /api/v1/traces` accepts OTLP spans, and `POST /api/v1/metrics` accepts OTLP metrics (all five types). An API key resolves to a project; malformed records are skipped best-effort — ingest never returns 400, and overload returns 503 with `Retry-After`. OTLP over gRPC is not supported, which matters because collectors default to it.
+- **Storage** — OTel-compatible `otel_logs`, `otel_traces` and five `otel_metrics_*` MergeTree tables in ClickHouse (async inserts, a `text` index on `lower(Body)`, `ProjectId`-first ordering, 30 day TTL), plus a `trace_summary` aggregate kept for 90 days. Requires ClickHouse **26.2+**. Schema and its rules: [`database/clickhouse/SCHEMA.md`](database/clickhouse/SCHEMA.md).
+- **UI** — per-team log viewer (time range, project/service/severity filters, full-text search, expandable rows, live tail), trace viewer (trace list, span waterfall, per-service latency), and metrics explorer (rates, levels and percentiles, filtered and grouped by attribute). A log line links to its trace and a span links back to its logs.
 
 ## Stack
 

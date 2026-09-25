@@ -30,11 +30,7 @@ const command = computed(
 );
 
 const config = computed(() =>
-    JSON.stringify(
-        { mcpServers: { bilis: { url: props.url } } },
-        null,
-        4,
-    ),
+    JSON.stringify({ mcpServers: { bilis: { url: props.url } } }, null, 4),
 );
 
 /** The JSON block is folded away: most people only need the one line. */
@@ -46,16 +42,20 @@ const showConfig = ref(false);
         <CardHeader>
             <CardTitle>Connect your coding agent</CardTitle>
             <CardDescription>
-                Let the assistant you already code with read this team's logs and traces while it
-                works. It signs in as you in the browser — there is no key to paste — and it can
-                only read: nothing it does can send, change or delete anything.
+                Let the assistant you already code with read this team's logs
+                and traces while it works. It signs in as you in the browser —
+                there is no key to paste — and it can only read: nothing it does
+                can send, change or delete anything.
             </CardDescription>
         </CardHeader>
 
         <CardContent class="space-y-4">
             <div class="space-y-2">
                 <p class="text-sm font-medium">Claude Code</p>
-                <CopyableValue :value="command" label="Copy the connect command" />
+                <CopyableValue
+                    :value="command"
+                    label="Copy the connect command"
+                />
             </div>
 
             <div class="space-y-2">
@@ -74,10 +74,14 @@ const showConfig = ref(false);
 
                 <div v-if="showConfig" class="space-y-2">
                     <p class="text-sm text-muted-foreground">
-                        Add this to the client's <code class="font-mono text-xs">mcpServers</code>
+                        Add this to the client's
+                        <code class="font-mono text-xs">mcpServers</code>
                         block and restart it.
                     </p>
-                    <CopyableValue :value="config" label="Copy the client configuration" />
+                    <CopyableValue
+                        :value="config"
+                        label="Copy the client configuration"
+                    />
                 </div>
             </div>
 

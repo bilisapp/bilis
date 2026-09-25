@@ -1,0 +1,288 @@
+{
+    "resourceMetrics": [
+        {
+            "resource": {
+                "attributes": [
+                    {
+                        "key": "service.name",
+                        "value": {
+                            "stringValue": "billing"
+                        }
+                    },
+                    {
+                        "key": "host.name",
+                        "value": {
+                            "stringValue": "worker-3"
+                        }
+                    }
+                ]
+            },
+            "schemaUrl": "https://opentelemetry.io/schemas/1.26.0",
+            "scopeMetrics": [
+                {
+                    "metrics": [
+                        {
+                            "description": "Jobs waiting.",
+                            "gauge": {
+                                "dataPoints": [
+                                    {
+                                        "asInt": "-7",
+                                        "attributes": [
+                                            {
+                                                "key": "queue",
+                                                "value": {
+                                                    "stringValue": "default"
+                                                }
+                                            }
+                                        ],
+                                        "exemplars": [
+                                            {
+                                                "asInt": "9",
+                                                "filteredAttributes": [
+                                                    {
+                                                        "key": "job",
+                                                        "value": {
+                                                            "stringValue": "SendInvoice"
+                                                        }
+                                                    }
+                                                ],
+                                                "spanId": "eee19b7ec3c1b174",
+                                                "timeUnixNano": "1756211400123456789",
+                                                "traceId": "5b8efff798038103d269b633813fc60c"
+                                            }
+                                        ],
+                                        "timeUnixNano": "1756211400123456789"
+                                    },
+                                    {
+                                        "asDouble": 2.75,
+                                        "attributes": [
+                                            {
+                                                "key": "queue",
+                                                "value": {
+                                                    "stringValue": "mail"
+                                                }
+                                            }
+                                        ],
+                                        "flags": 1,
+                                        "timeUnixNano": "1756211460000000000"
+                                    },
+                                    {
+                                        "asDouble": "NaN",
+                                        "timeUnixNano": "1756211460000000000"
+                                    },
+                                    {
+                                        "asDouble": 1
+                                    }
+                                ]
+                            },
+                            "metadata": [
+                                {
+                                    "key": "source",
+                                    "value": {
+                                        "stringValue": "horizon"
+                                    }
+                                }
+                            ],
+                            "name": "queue.depth",
+                            "unit": "{job}"
+                        },
+                        {
+                            "name": "invoices.sent",
+                            "sum": {
+                                "aggregationTemporality": 1,
+                                "dataPoints": [
+                                    {
+                                        "asInt": "120",
+                                        "attributes": [
+                                            {
+                                                "key": "tenant",
+                                                "value": {
+                                                    "intValue": "12"
+                                                }
+                                            }
+                                        ],
+                                        "exemplars": [
+                                            {
+                                                "asDouble": 1,
+                                                "timeUnixNano": "1756211460000000000"
+                                            }
+                                        ],
+                                        "startTimeUnixNano": "1756211400123456789",
+                                        "timeUnixNano": "1756211460000000000"
+                                    }
+                                ],
+                                "isMonotonic": true
+                            },
+                            "unit": "{invoice}"
+                        },
+                        {
+                            "name": "ledger.balance",
+                            "sum": {
+                                "aggregationTemporality": 2,
+                                "dataPoints": [
+                                    {
+                                        "asDouble": -1250.5,
+                                        "startTimeUnixNano": "1756211000000000000",
+                                        "timeUnixNano": "1756211400123456789"
+                                    }
+                                ]
+                            },
+                            "unit": "EUR"
+                        },
+                        {
+                            "histogram": {
+                                "aggregationTemporality": 1,
+                                "dataPoints": [
+                                    {
+                                        "attributes": [
+                                            {
+                                                "key": "job",
+                                                "value": {
+                                                    "stringValue": "SendInvoice"
+                                                }
+                                            }
+                                        ],
+                                        "bucketCounts": [
+                                            "1",
+                                            "2",
+                                            "0",
+                                            "3"
+                                        ],
+                                        "count": "6",
+                                        "exemplars": [
+                                            {
+                                                "asDouble": 7,
+                                                "spanId": "eee19b7ec3c1b174",
+                                                "timeUnixNano": "1756211460000000000",
+                                                "traceId": "5b8efff798038103d269b633813fc60c"
+                                            }
+                                        ],
+                                        "explicitBounds": [
+                                            0.5,
+                                            1,
+                                            5
+                                        ],
+                                        "max": 7,
+                                        "min": 0.25,
+                                        "startTimeUnixNano": "1756211400123456789",
+                                        "sum": 12.5,
+                                        "timeUnixNano": "1756211460000000000"
+                                    },
+                                    {
+                                        "flags": 1,
+                                        "startTimeUnixNano": "1756211400123456789",
+                                        "timeUnixNano": "1756211460000000000"
+                                    }
+                                ]
+                            },
+                            "name": "job.duration",
+                            "unit": "s"
+                        },
+                        {
+                            "exponentialHistogram": {
+                                "aggregationTemporality": 2,
+                                "dataPoints": [
+                                    {
+                                        "attributes": [
+                                            {
+                                                "key": "direction",
+                                                "value": {
+                                                    "stringValue": "in"
+                                                }
+                                            }
+                                        ],
+                                        "count": "9",
+                                        "exemplars": [
+                                            {
+                                                "asDouble": -4,
+                                                "timeUnixNano": "1756211400123456789"
+                                            }
+                                        ],
+                                        "max": 1,
+                                        "min": -4,
+                                        "negative": {
+                                            "bucketCounts": [
+                                                "3",
+                                                "1"
+                                            ],
+                                            "offset": 1
+                                        },
+                                        "positive": {
+                                            "bucketCounts": [
+                                                "1",
+                                                "0",
+                                                "2"
+                                            ],
+                                            "offset": -2
+                                        },
+                                        "scale": -1,
+                                        "startTimeUnixNano": "1756211000000000000",
+                                        "sum": -3.5,
+                                        "timeUnixNano": "1756211400123456789",
+                                        "zeroCount": "2",
+                                        "zeroThreshold": 0.001
+                                    }
+                                ]
+                            },
+                            "name": "payload.delta",
+                            "unit": "By"
+                        },
+                        {
+                            "description": "Client-side quantiles from a Prometheus summary.",
+                            "name": "rpc.latency",
+                            "summary": {
+                                "dataPoints": [
+                                    {
+                                        "attributes": [
+                                            {
+                                                "key": "rpc.method",
+                                                "value": {
+                                                    "stringValue": "Charge"
+                                                }
+                                            }
+                                        ],
+                                        "count": "1000",
+                                        "quantileValues": [
+                                            {
+                                                "value": 3
+                                            },
+                                            {
+                                                "quantile": 0.5,
+                                                "value": 41.5
+                                            },
+                                            {
+                                                "quantile": 0.99,
+                                                "value": 220
+                                            },
+                                            {
+                                                "quantile": 1,
+                                                "value": 512
+                                            }
+                                        ],
+                                        "startTimeUnixNano": "1756211000000000000",
+                                        "sum": 48250.5,
+                                        "timeUnixNano": "1756211400123456789"
+                                    }
+                                ]
+                            },
+                            "unit": "ms"
+                        }
+                    ],
+                    "schemaUrl": "https://opentelemetry.io/schemas/1.26.0",
+                    "scope": {
+                        "attributes": [
+                            {
+                                "key": "scope.kind",
+                                "value": {
+                                    "stringValue": "worker"
+                                }
+                            }
+                        ],
+                        "name": "billing.jobs",
+                        "version": "2.0.1"
+                    }
+                }
+            ]
+        }
+    ]
+}

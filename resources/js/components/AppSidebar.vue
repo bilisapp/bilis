@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
 import {
+    ChartLine,
     FolderKanban,
     LayoutGrid,
     ScrollText,
@@ -24,6 +25,7 @@ import {
 import { dashboard } from '@/routes';
 import { index as autofixIndex } from '@/routes/autofix';
 import { index as logsIndex } from '@/routes/logs';
+import { index as metricsIndex } from '@/routes/metrics';
 import { index as projectsIndex } from '@/routes/projects';
 import {
     index as tracesIndex,
@@ -57,6 +59,12 @@ const tracesLatencyUrl = computed(() =>
         : '/',
 );
 
+const metricsUrl = computed(() =>
+    page.props.currentTeam
+        ? metricsIndex(page.props.currentTeam.slug).url
+        : '/',
+);
+
 const projectsUrl = computed(() =>
     page.props.currentTeam
         ? projectsIndex(page.props.currentTeam.slug).url
@@ -67,7 +75,8 @@ const projectsUrl = computed(() =>
  * Logs sits above Projects on purpose: the viewer is the surface people come
  * back to, projects are the thing you set up once. Traces sits directly under
  * Logs because the two are one investigation read two ways, and a reader moves
- * between them constantly. Autofix comes last: it is downstream of both, and
+ * between them constantly; Metrics follows as the third signal, the one you
+ * read for a trend rather than for a request. Autofix comes last: it is downstream of both, and
  * reads as a consequence of the logs rather than a place you go first.
  */
 const mainNavItems = computed<NavItem[]>(() => [
@@ -102,6 +111,11 @@ const mainNavItems = computed<NavItem[]>(() => [
                 href: tracesLatencyUrl.value,
             },
         ],
+    },
+    {
+        title: 'Metrics',
+        href: metricsUrl.value,
+        icon: ChartLine,
     },
 
     // Autofix is off for a deployment that has no control plane configured,

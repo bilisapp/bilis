@@ -238,6 +238,24 @@ test('the tail endpoint returns rows newer than the given timestamp', function (
     });
 });
 
+test('the tail cursor keeps the nanoseconds of the row it came from', function (string $after, string $bound) {
+    Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
+
+    [$user, $team] = logTeam();
+
+    $this->actingAs($user)
+        ->getJson(route('logs.tail', ['current_team' => $team->slug, 'after' => $after]))
+        ->assertOk();
+
+    // Cut to microseconds, the newest row matched `>` its own cursor and was
+    // tailed again on every poll.
+    Http::assertSent(fn (Request $request) => clickHouseQuery($request)['param_after'] === $bound);
+})->with([
+    'naive, nine digits' => ['2026-08-26 09:59:00.123456789', '2026-08-26 09:59:00.123456789'],
+    'iso with Z' => ['2026-08-26T09:59:00.123456789Z', '2026-08-26 09:59:00.123456789'],
+    'with an offset' => ['2026-08-26T11:59:00.5+02:00', '2026-08-26 09:59:00.500000'],
+]);
+
 test('the tail endpoint is forbidden for non members', function () {
     [, $team] = logTeam();
 

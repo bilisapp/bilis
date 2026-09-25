@@ -12,7 +12,14 @@
 | whole enforcement story, on purpose — dropping telemetry to make a point
 | about a quota loses exactly the data someone is about to need.
 |
-| Two of the six published numbers are deliberately absent: retention comes
+| Metric data points get their own daily number rather than joining events,
+| because a data point is not an event: one row in one `otel_metrics_*`
+| table — one gauge reading, one counter value, one histogram point however
+| many buckets it carries. A single instrumented service exporting every
+| ten seconds writes thousands a day without anything happening, so folding
+| them into the event count would spend a log budget on a heartbeat.
+|
+| Two of the seven published numbers are deliberately absent: retention comes
 | from `legal.log_retention_days` (the privacy and terms pages promise it) and
 | requests per minute from `security.ingest_rate_limit` (the limiter enforces
 | it). Duplicating either here is how a published number goes stale against
@@ -42,6 +49,13 @@ return [
          * Log records plus spans accepted in one UTC day, across the team.
          */
         'events_per_day' => (int) env('BILIS_PLAN_FREE_EVENTS_PER_DAY', 100_000),
+
+        /**
+         * Metric data points accepted in one UTC day, across the team. One
+         * point is one row: a gauge reading, a counter value, or a histogram
+         * point regardless of how many buckets it carries.
+         */
+        'metric_points_per_day' => (int) env('BILIS_PLAN_FREE_METRIC_POINTS_PER_DAY', 1_000_000),
 
     ],
 

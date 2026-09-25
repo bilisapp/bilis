@@ -42,6 +42,8 @@ const props = defineProps<{
     project: ProjectDetail;
     apiKeys: ProjectApiKey[];
     teamSlug: string;
+    /** Owner or admin: may rename or delete the project, revoke keys and change origins and repositories. */
+    canManage: boolean;
     repositories: ProjectRepository[];
     observedServices: string[];
     installations: GitHubInstallationSummary[];
@@ -135,7 +137,7 @@ const openRevokeDialog = (apiKey: ProjectApiKey) => {
                 </p>
             </div>
 
-            <DropdownMenu>
+            <DropdownMenu v-if="canManage">
                 <DropdownMenuTrigger as-child>
                     <Button
                         variant="ghost"
@@ -226,6 +228,7 @@ const openRevokeDialog = (apiKey: ProjectApiKey) => {
                                 </div>
 
                                 <Button
+                                    v-if="canManage"
                                     variant="ghost"
                                     size="sm"
                                     data-test="api-key-revoke"
@@ -295,9 +298,14 @@ const openRevokeDialog = (apiKey: ProjectApiKey) => {
             </CardContent>
         </Card>
 
-        <BrowserOriginsCard :team-slug="teamSlug" :project="project" />
+        <BrowserOriginsCard
+            v-if="canManage"
+            :team-slug="teamSlug"
+            :project="project"
+        />
 
         <ProjectRepositoryCard
+            v-if="canManage"
             :team-slug="teamSlug"
             :project="project"
             :repositories="repositories"

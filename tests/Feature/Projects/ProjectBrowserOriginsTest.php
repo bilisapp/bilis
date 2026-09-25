@@ -5,6 +5,10 @@ use App\Models\Project;
 use App\Models\Team;
 use App\Models\User;
 
+beforeEach(function () {
+    fakeClickHouseQuietly();
+});
+
 /**
  * Build a team with one owner and one project.
  *

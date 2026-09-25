@@ -62,11 +62,12 @@ return [
          * This should be the key of one of the exporters defined in the exporters section
          * Supported drivers: "otlp", "console", "memory", "null"
          *
-         * Metrics are out of scope for Bilis and there is nowhere to put them,
-         * so the default is `null` rather than the package's `otlp`. Left at
-         * `otlp` the meter provider posts to /v1/metrics on shutdown, gets a
-         * 404 from a Bilis that only serves logs and traces, and retries three
-         * times before printing a stack trace — once per request.
+         * The default is `null` rather than the package's `otlp`, by choice:
+         * Bilis serves /api/v1/metrics, but exporting its own metrics to itself
+         * would add an export per request against the same worker pool for
+         * little it cannot already read off its own spans. Set
+         * OTEL_METRICS_EXPORTER=otlp to opt in; with the signal-agnostic
+         * endpoint pointed at `<origin>/api` it lands on /api/v1/metrics.
          */
         'exporter' => env(Variables::OTEL_METRICS_EXPORTER, 'null'),
     ],
@@ -268,6 +269,7 @@ return [
             'excluded_paths' => [
                 'api/v1/traces',
                 'api/v1/logs',
+                'api/v1/metrics',
                 'api/v1/ingest',
                 '*/envelope',
                 '*/store',

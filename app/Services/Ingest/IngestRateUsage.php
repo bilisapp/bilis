@@ -47,6 +47,39 @@ class IngestRateUsage
     }
 
     /**
+     * The counter of unknown keys an address has presented this minute.
+     */
+    public static function failedKeyBucket(?string $ip): string
+    {
+        return 'ingest:failed-keys:'.$ip;
+    }
+
+    /**
+     * Count one unknown key presented from this address.
+     *
+     * Called by both key middlewares when a key does not resolve. Without it
+     * the per-key bucket would hand every freshly invented key a full budget
+     * of its own, so an address guessing keys was never slowed at all.
+     */
+    public static function recordFailedKey(?string $ip): void
+    {
+        app(RateLimiter::class)->hit(self::failedKeyBucket($ip), 60);
+    }
+
+    /**
+     * Whether this address has presented too many unknown keys this minute.
+     *
+     * While it has, the ingest limiter buckets everything it sends by address
+     * at the unauthenticated rate, whatever key it names.
+     */
+    public static function addressIsGuessingKeys(?string $ip): bool
+    {
+        $limit = (int) config('security.ingest_failed_key_limit');
+
+        return $limit > 0 && app(RateLimiter::class)->tooManyAttempts(self::failedKeyBucket($ip), $limit);
+    }
+
+    /**
      * The cache key `ThrottleRequests` counts a named limiter's bucket under.
      *
      * Not derivable from `Limit` alone: the middleware prefixes the limiter

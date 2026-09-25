@@ -15,8 +15,8 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { store } from '@/routes/projects';
 import { show as contactShow } from '@/routes/contact';
+import { store } from '@/routes/projects';
 import type { PlanAllowance } from '@/types';
 
 type Props = {

@@ -129,4 +129,9 @@ return [
 
     'ingest_rate_limit_unauthenticated' => (int) env('BILIS_INGEST_RATE_LIMIT_UNAUTHENTICATED', 60),
 
+    // How many unknown keys one address may present per minute before
+    // everything it sends is limited by address, at the unauthenticated rate,
+    // instead of getting a fresh bucket per invented key. 0 disables.
+    'ingest_failed_key_limit' => (int) env('BILIS_INGEST_FAILED_KEY_LIMIT', 30),
+
 ];

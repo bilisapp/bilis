@@ -7,8 +7,8 @@ use Illuminate\Contracts\Config\Repository;
 /**
  * The published allowances of the hosted Free plan.
  *
- * One reader for six numbers, so the pricing page, the docs trip-wire, the
- * dashboard card and the team settings page cannot drift apart. Four come
+ * One reader for seven numbers, so the pricing page, the docs trip-wire, the
+ * dashboard card and the team settings page cannot drift apart. Five come
  * from `config/plans.php`; retention comes from `legal.log_retention_days`
  * and the per-key request ceiling from `security.ingest_rate_limit`, because
  * those two are already promised (legal pages) and already enforced (the
@@ -17,7 +17,7 @@ use Illuminate\Contracts\Config\Repository;
  * Every limit here is soft. Nothing in the ingest path reads this class, and
  * nothing in the UI blocks on it — going over is reported, never punished.
  *
- * @phpstan-type FreePlan array{projectsPerTeam: int, membersPerTeam: int, eventsPerDay: int, retentionDays: int, requestsPerMinute: int, warnAtPercent: int}
+ * @phpstan-type FreePlan array{projectsPerTeam: int, membersPerTeam: int, eventsPerDay: int, metricPointsPerDay: int, retentionDays: int, requestsPerMinute: int, warnAtPercent: int}
  */
 class PlanLimits
 {
@@ -48,7 +48,16 @@ class PlanLimits
     }
 
     /**
-     * How long logs and spans are kept, from the retention the legal pages promise.
+     * Metric data points accepted in one UTC day — one row per point, so a
+     * histogram point counts once however many buckets it carries.
+     */
+    public function metricPointsPerDay(): int
+    {
+        return (int) $this->config->get('plans.free.metric_points_per_day', 1_000_000);
+    }
+
+    /**
+     * How long logs, spans and metric points are kept, from the retention the legal pages promise.
      */
     public function retentionDays(): int
     {
@@ -82,6 +91,7 @@ class PlanLimits
             'projectsPerTeam' => $this->projectsPerTeam(),
             'membersPerTeam' => $this->membersPerTeam(),
             'eventsPerDay' => $this->eventsPerDay(),
+            'metricPointsPerDay' => $this->metricPointsPerDay(),
             'retentionDays' => $this->retentionDays(),
             'requestsPerMinute' => $this->requestsPerMinute(),
             'warnAtPercent' => $this->warnAtPercent(),

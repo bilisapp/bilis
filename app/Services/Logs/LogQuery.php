@@ -4,6 +4,7 @@ namespace App\Services\Logs;
 
 use App\Services\ClickHouse\ClickHouseClient;
 use App\Services\ClickHouse\ClickHouseException;
+use App\Services\Support\TimeBuckets;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Illuminate\Support\Carbon;
 
@@ -42,21 +43,10 @@ class LogQuery
     private const TOKEN_PATTERN = '/^[A-Za-z0-9_]{3,}$/';
 
     /**
-     * The bucket widths, in seconds, the volume histogram may choose from.
-     *
-     * @var list<int>
-     */
-    private const BUCKET_INTERVALS = [1, 5, 15, 30, 60, 300, 900, 1800, 3600, 10800, 21600, 43200, 86400];
-
-    /**
-     * How many bars the histogram aims for across the selected window.
+     * How many bars the histogram aims for across the selected window; the
+     * widths and the ceiling are {@see TimeBuckets}'.
      */
     private const TARGET_BUCKETS = 48;
-
-    /**
-     * The hard ceiling on generated buckets, so an absurd window cannot blow up the payload.
-     */
-    private const MAX_BUCKETS = 240;
 
     /**
      * How many error rows one autofix scan reads per project by default.
@@ -306,7 +296,7 @@ class LogQuery
      * different answers, and the header must hide the number for the second
      * rather than print a zero it cannot stand behind.
      *
-     * @param list<string> $projectIds
+     * @param  list<string>  $projectIds
      */
     public function countForTrace(array $projectIds, string $traceId, Carbon $from, Carbon $to): ?int
     {
@@ -331,7 +321,7 @@ class LogQuery
         try {
             $rows = $this->client->select($sql, $params);
         } catch (ClickHouseException $exception) {
-            if (!$exception->isOverload()) {
+            if (! $exception->isOverload()) {
                 throw $exception;
             }
 
@@ -340,7 +330,7 @@ class LogQuery
             return null;
         }
 
-        return (int)($rows[0]['Total'] ?? 0);
+        return (int) ($rows[0]['Total'] ?? 0);
     }
 
     /**
@@ -560,18 +550,7 @@ class LogQuery
      */
     private function bucketInterval(LogFilters $filters): int
     {
-        $span = max(1, $filters->to->getTimestamp() - $filters->from->getTimestamp());
-
-        foreach (self::BUCKET_INTERVALS as $interval) {
-            if ((int) ceil($span / $interval) <= self::TARGET_BUCKETS) {
-                return $interval;
-            }
-        }
-
-        return (int) max(
-            self::BUCKET_INTERVALS[count(self::BUCKET_INTERVALS) - 1],
-            (int) ceil($span / self::MAX_BUCKETS),
-        );
+        return TimeBuckets::interval($filters->from, $filters->to, self::TARGET_BUCKETS);
     }
 
     /**
@@ -588,7 +567,7 @@ class LogQuery
         $buckets = [];
         $total = 0;
 
-        for ($at = $start; $at <= $end && count($buckets) < self::MAX_BUCKETS; $at += $intervalSeconds) {
+        for ($at = $start; $at <= $end && count($buckets) < TimeBuckets::MAX_BUCKETS; $at += $intervalSeconds) {
             $bucketCounts = [];
             $bucketTotal = 0;
 

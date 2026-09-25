@@ -392,3 +392,12 @@ test('the key never lands on a fix job row', function () {
     expect($row)->not->toContain('sk-ant-super-secret-value-1234')
         ->and($runs->lastSpec()['llm_key'])->toBe('sk-ant-super-secret-value-1234');
 });
+
+test('a key never appears when the model is serialized', function () {
+    $team = Team::factory()->create();
+
+    $credential = TeamLlmCredential::add($team, LlmProvider::Anthropic, 'Production', 'sk-ant-super-secret-value-1234');
+
+    expect($credential->fresh()->toArray())->not->toHaveKey('api_key')
+        ->and($credential->fresh()->toJson())->not->toContain('sk-ant-super-secret');
+});

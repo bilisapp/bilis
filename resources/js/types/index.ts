@@ -1,6 +1,7 @@
 export * from './auth';
 export * from './autofix';
 export * from './logs';
+export * from './metrics';
 export * from './navigation';
 export * from './plans';
 export * from './projects';

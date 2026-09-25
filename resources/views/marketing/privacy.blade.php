@@ -29,7 +29,7 @@
         </tr>
         <tr>
             <th>Log data</th>
-            <td><strong>We are the processor; you are the controller.</strong> Whatever your applications send to the ingest endpoint. We do not decide what goes in it and we do not use it for our own purposes. Section 10 covers this.</td>
+            <td><strong>We are the processor; you are the controller.</strong> Whatever your applications send to the ingest endpoints — log records, trace spans, and metric data points. We do not decide what goes in it and we do not use it for our own purposes. Section 10 covers this.</td>
         </tr>
     </table>
 
@@ -166,8 +166,12 @@
             <th>Kept for</th>
         </tr>
         <tr>
-            <td>Log records you ingest</td>
+            <td>Log records, trace spans, and metric data points you ingest</td>
             <td>{{ config('legal.log_retention_days') }} days from ingest, then deleted automatically</td>
+        </tr>
+        <tr>
+            <td>Trace summaries: each trace's id, start and end time, span and error counts, and the name and service of its root operation (no attribute values, no log content)</td>
+            <td>{{ config('legal.trace_summary_retention_days') }} days from ingest, then deleted automatically</td>
         </tr>
         <tr>
             <td>Account and profile</td>

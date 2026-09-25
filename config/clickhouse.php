@@ -40,4 +40,9 @@ return [
 
     'connect_timeout' => (int) env('CLICKHOUSE_CONNECT_TIMEOUT', 3),
 
+    // Schema statements (clickhouse:migrate, clickhouse:materialize-index)
+    // wait longer: the trace_index backfill reads 90 days of trace_summary, and
+    // a boot-time migrate that timed out mid-backfill stopped the container.
+    'statement_timeout' => (int) env('CLICKHOUSE_STATEMENT_TIMEOUT', 600),
+
 ];

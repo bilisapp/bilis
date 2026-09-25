@@ -13,7 +13,10 @@ it('renders the connect command and the read-only boundary', function () {
         ->toContain('claude mcp add --transport http bilis')
         ->toContain('read-only')
         ->toContain('error-summary')
-        ->toContain('get-trace');
+        ->toContain('get-trace')
+        ->toContain('list-metrics')
+        ->toContain('query-metric')
+        ->toContain('Ten tools, two prompts');
 });
 
 it('links to the MCP guide rather than restating it', function () {

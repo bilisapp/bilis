@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\Project;
 use App\Models\ProjectApiKey;
+use App\Services\Ingest\IngestRateUsage;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -53,6 +54,8 @@ class AuthenticatePublicKey
         $apiKey = ProjectApiKey::findByPublicKey($publicKey);
 
         if (! $apiKey?->project instanceof Project) {
+            IngestRateUsage::recordFailedKey($request->ip());
+
             return $this->unauthorized('Public key invalid.');
         }
 

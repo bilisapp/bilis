@@ -80,6 +80,20 @@ function something()
  *
  * @return array<int, array<string, mixed>>
  */
+/**
+ * Answer every ClickHouse request with an empty result, for tests that render
+ * a page whose ClickHouse reads are not what they are about.
+ *
+ * Without it such a test talks to whatever server the environment names — on
+ * a developer machine, the dev database — and passes only while none is up.
+ */
+function fakeClickHouseQuietly(): void
+{
+    config(['clickhouse.host' => '127.0.0.1', 'clickhouse.port' => 8123]);
+
+    Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
+}
+
 function insertedRows(Request $request): array
 {
     $lines = array_filter(

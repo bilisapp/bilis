@@ -61,6 +61,11 @@ class TaskRenderer
     public const REQUEST_LIMIT = 10000;
 
     /**
+     * How much of the error's own headline may sit in the trusted framing.
+     */
+    public const HEADLINE_LIMIT = 300;
+
+    /**
      * Build the `task` object for one fix job.
      *
      * @return RenderedTask
@@ -133,10 +138,37 @@ class TaskRenderer
 
     /**
      * Wrap a block of text in the markers that announce it as data.
+     *
+     * The body is untrusted, so any copy of a marker inside it is defused
+     * first: a log line reading `-----END UNTRUSTED LOG DATA-----` would
+     * otherwise close the block early and everything after it would read as
+     * Bilis's own words.
      */
     protected function delimit(string $body): string
     {
-        return implode("\n", [self::CONTEXT_BEGIN, trim($body), self::CONTEXT_END]);
+        return implode("\n", [self::CONTEXT_BEGIN, $this->defuseMarkers(trim($body)), self::CONTEXT_END]);
+    }
+
+    /**
+     * Replace every spelling of the marker phrase, whatever its case or spacing.
+     */
+    protected function defuseMarkers(string $text): string
+    {
+        return (string) preg_replace('/untrusted[\s_-]*log[\s_-]*data/iu', '[marker removed]', $text);
+    }
+
+    /**
+     * Log-derived text that has to appear outside the markers, made inert.
+     *
+     * The headline and service name sit in the trusted framing, so they are
+     * flattened to one line, defused and capped: a message cannot open a new
+     * paragraph of instructions.
+     */
+    protected function inline(string $text, int $limit): string
+    {
+        $flat = trim((string) preg_replace('/[\p{C}\s]+/u', ' ', $this->defuseMarkers($text)));
+
+        return mb_strlen($flat) <= $limit ? $flat : mb_substr($flat, 0, $limit).'…';
     }
 
     /**
@@ -146,9 +178,9 @@ class TaskRenderer
      */
     protected function instructions(FixJob $job, array $context): string
     {
-        $exception = $this->string($context, 'exception');
-        $message = $this->string($context, 'message');
-        $service = $this->string($context, 'service_name');
+        $exception = $this->inline($this->string($context, 'exception'), self::HEADLINE_LIMIT);
+        $message = $this->inline($this->string($context, 'message'), self::HEADLINE_LIMIT);
+        $service = $this->inline($this->string($context, 'service_name'), 100);
         $count = $this->integer($context, 'count');
 
         $headline = $exception !== '' && $message !== ''
@@ -225,14 +257,14 @@ class TaskRenderer
      * echoed here rather than re-rendered because it is what the job page
      * shows, and the agent and the reviewer must be reading the same thing.
      *
-     * @param array<string, mixed> $context
+     * @param  array<string, mixed>  $context
      * @return list<string>
      */
     protected function trace(array $context): array
     {
         $trace = $context['trace'] ?? null;
 
-        if (!is_array($trace)) {
+        if (! is_array($trace)) {
             return [];
         }
 
@@ -244,12 +276,12 @@ class TaskRenderer
         if ($state === TraceContextBuilder::STATE_RENDERED) {
             $spanCount = $this->integer($trace, 'span_count');
             $errorCount = $this->integer($trace, 'error_count');
-            $root = trim($this->string($trace, 'root_service') . ' ' . $this->string($trace, 'root_name'));
+            $root = trim($this->string($trace, 'root_service').' '.$this->string($trace, 'root_name'));
 
             $lines[] = sprintf(
                 'Trace %s%s: %d span%s, %d with Error status, %s total.',
                 $traceId,
-                $root !== '' ? ' (' . $root . ')' : '',
+                $root !== '' ? ' ('.$root.')' : '',
                 $spanCount,
                 $spanCount === 1 ? '' : 's',
                 $errorCount,
@@ -273,15 +305,15 @@ class TaskRenderer
     /**
      * A trace's wall-clock length, printed the way the waterfall prints spans.
      *
-     * @param array<string, mixed> $trace
+     * @param  array<string, mixed>  $trace
      */
     private function traceDuration(array $trace): string
     {
-        $ms = is_numeric($trace['duration_ms'] ?? null) ? (float)$trace['duration_ms'] : 0.0;
+        $ms = is_numeric($trace['duration_ms'] ?? null) ? (float) $trace['duration_ms'] : 0.0;
 
         return $ms >= 1000
-            ? rtrim(rtrim(number_format($ms / 1000, 2, '.', ''), '0'), '.') . 's'
-            : sprintf('%dms', (int)round($ms));
+            ? rtrim(rtrim(number_format($ms / 1000, 2, '.', ''), '0'), '.').'s'
+            : sprintf('%dms', (int) round($ms));
     }
 
     /**

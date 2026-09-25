@@ -198,3 +198,28 @@ test('every request pins the session timezone to UTC', function () {
         return ($query['session_timezone'] ?? null) === 'UTC';
     });
 });
+
+test('a select is bounded on the server by the client timeout and cancelled when the client leaves', function () {
+    config(['clickhouse.timeout' => 12]);
+    Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
+
+    $client = app(ClickHouseClient::class);
+    $client->select('SELECT 1');
+    $client->insert('otel_logs', [['Body' => 'probe']]);
+
+    Http::assertSent(function (Request $request) {
+        parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+
+        return ($query['default_format'] ?? null) === 'JSONEachRow'
+            && ($query['max_execution_time'] ?? null) === '12'
+            && ($query['cancel_http_readonly_queries_on_client_close'] ?? null) === '1';
+    });
+
+    // Inserts are queued and acknowledged at once; the bound is a read concern.
+    Http::assertSent(function (Request $request) {
+        parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+
+        return ($query['async_insert'] ?? null) === '1'
+            && ! isset($query['max_execution_time']);
+    });
+});

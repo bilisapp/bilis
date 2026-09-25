@@ -7,6 +7,10 @@ use App\Models\Team;
 use App\Models\User;
 use Inertia\Testing\AssertableInertia as Assert;
 
+beforeEach(function () {
+    fakeClickHouseQuietly();
+});
+
 /**
  * Build a team with one owner.
  *

@@ -119,7 +119,24 @@ test('the consent screen is always shown, even to a signed-in user', function ()
     // is always a deliberate click (App\Models\Passport\Client).
     $response->assertOk();
     expect(html($response))->toContain('Consent Client')
-        ->toContain('read-only');
+        ->toContain('read-only')
+        // The name is the client's own claim; where approval goes is checkable.
+        ->toContain('Approval is sent to')
+        ->toContain('https://client.test');
+});
+
+test('anonymous client registration is throttled per address', function () {
+    foreach (range(1, 20) as $attempt) {
+        $this->postJson('/oauth/register', [
+            'client_name' => "Client {$attempt}",
+            'redirect_uris' => ['https://client.test/callback'],
+        ])->assertCreated();
+    }
+
+    $this->postJson('/oauth/register', [
+        'client_name' => 'One too many',
+        'redirect_uris' => ['https://client.test/callback'],
+    ])->assertTooManyRequests();
 });
 
 test('the whole PKCE flow issues a token that can list the tools', function () {

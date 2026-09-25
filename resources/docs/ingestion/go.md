@@ -1,7 +1,7 @@
 ---
 title: Go
 description: otlploghttp pointed straight at Bilis, or a dependency-free slog handler that batches into the simple JSON endpoint.
-order: 7
+order: 8
 ---
 
 Two routes, both good — pick by whether the service already speaks

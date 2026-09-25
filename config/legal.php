@@ -91,20 +91,27 @@ return [
     */
 
     'effective_date' => env('LEGAL_EFFECTIVE_DATE', '1 September 2026'),
-    'last_updated' => env('LEGAL_LAST_UPDATED', '26 August 2026'),
+    'last_updated' => env('LEGAL_LAST_UPDATED', '25 September 2026'),
 
     /*
     |--------------------------------------------------------------------------
     | Retention
     |--------------------------------------------------------------------------
     |
-    | How long the hosted service keeps ingested log data. This number is a
-    | promise made in the Privacy Policy, so the ClickHouse table needs a
-    | matching TTL - see database/clickhouse/. Keep the two in step.
+    | How long the hosted service keeps ingested data. Each number is a promise
+    | made in the Privacy Policy and the Terms, so the ClickHouse tables need
+    | matching TTLs - see database/clickhouse/. Keep them in step.
+    |
+    | `log_retention_days` covers log records, spans and metric data points
+    | (otel_logs, otel_traces, otel_metrics_*). Trace summaries outlive their
+    | spans on purpose (trace_summary, trace_index: SCHEMA.md R9/R11) and hold
+    | only ids, times, counts and the root operation - never attribute values
+    | or log bodies - which is what the legal pages say about them.
     |
     */
 
     'log_retention_days' => (int) env('LEGAL_LOG_RETENTION_DAYS', 30),
+    'trace_summary_retention_days' => (int) env('LEGAL_TRACE_SUMMARY_RETENTION_DAYS', 90),
     'account_deletion_grace_days' => (int) env('LEGAL_ACCOUNT_DELETION_GRACE_DAYS', 30),
     'backup_retention_days' => (int) env('LEGAL_BACKUP_RETENTION_DAYS', 30),
 

@@ -38,3 +38,6 @@ and the time window still apply, which is what keeps a span's log lookup bounded
 An overloaded ClickHouse answers true: a hiccup must never make an established team look brand new. Only the positive answer is cached (`logs.onboarding.received.{team}`, 6h); false is re-checked every request so the logs page flips over as soon as the first line lands.
 
 The onboarding prop is eager, not deferred — pass it the team's *whole* project id list, not the slug-filtered subset the search uses.
+
+## Storage card never shows the shared table's size
+`otel_logs` holds every team's rows on a hosted install. `LogStorage` reports each project as its own uncompressed bytes × the table's compression ratio (`bytes_on_disk / data_uncompressed_bytes` from system.parts), and `totalBytes` is the sum of the team's projects. Never return or apportion `sum(bytes_on_disk)`: that showed every team the whole tenant total. The tail cursor keeps nine fractional digits (`LogsController::tailCursor`). Carbon's six made the newest row re-tail on every poll.

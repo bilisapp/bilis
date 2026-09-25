@@ -45,7 +45,7 @@
 
                     <p class="mt-3 text-sm leading-relaxed text-muted-foreground">
                         Enough room to run a real service on, not a demo. Everything the product does
-                        is in here — logs, traces, the viewer, autofix, the dashboard.
+                        is in here — logs, traces, metrics, the viewer, autofix, the dashboard.
                     </p>
 
                     <ul class="mt-6 divide-y divide-border border-t border-border">
@@ -53,7 +53,8 @@
                             [number_format($free['projectsPerTeam']).' projects', 'per team — one project per application you ship from.'],
                             [number_format($free['membersPerTeam']).' members', 'per team, the owner included.'],
                             [number_format($free['eventsPerDay']).' events a day', 'log records plus spans, counted across the team from 00:00 UTC.'],
-                            [number_format($free['retentionDays']).'-day retention', 'for logs and spans, then deleted automatically.'],
+                            [number_format($free['metricPointsPerDay']).' metric data points a day', 'one gauge reading, counter value or histogram point each, counted separately from events.'],
+                            [number_format($free['retentionDays']).'-day retention', 'for logs, spans and metrics, then deleted automatically.'],
                             [number_format($free['requestsPerMinute']).' requests a minute', 'per API key on the ingest endpoints. A batching exporter sends thousands of records per request.'],
                             ['Every feature', 'no capability is held back for a paid tier that does not exist yet.'],
                         ] as [$fact, $detail])
@@ -180,7 +181,7 @@
                 @foreach ([
                     [
                         'What counts as an event?',
-                        'One log record or one span. A trace made of forty spans is forty events; a batch of five thousand log lines in one POST is five thousand. The count runs from 00:00 UTC and the dashboard breaks it into logs and spans so you can see which side is loud.',
+                        'One log record or one span. A trace made of forty spans is forty events; a batch of five thousand log lines in one POST is five thousand. The count runs from 00:00 UTC and the dashboard breaks it into logs and spans so you can see which side is loud. Metric data points are not events: they have their own daily allowance, one per gauge reading, counter value or histogram point, however many buckets it carries.',
                     ],
                     [
                         'What happens when I go over?',
@@ -196,7 +197,7 @@
                     ],
                     [
                         'Can I leave?',
-                        'Yes, whenever, and without asking. Your logs and spans are yours, the terms say so, and the same software runs on your own box under a licence we do not get to revoke.',
+                        'Yes, whenever, and without asking. Your logs, spans and metrics are yours, the terms say so, and the same software runs on your own box under a licence we do not get to revoke.',
                     ],
                 ] as [$question, $answer])
                     <div class="grid gap-1 py-5">

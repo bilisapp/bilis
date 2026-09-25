@@ -59,7 +59,10 @@ final class OtlpValues
         }
 
         if (array_key_exists('boolValue', $value)) {
-            return (bool) $value['boolValue'];
+            // Some hand-rolled JSON exporters quote it; `(bool) "false"` is true.
+            return is_string($value['boolValue'])
+                ? filter_var($value['boolValue'], FILTER_VALIDATE_BOOLEAN)
+                : (bool) $value['boolValue'];
         }
 
         if (array_key_exists('intValue', $value)) {
@@ -89,7 +92,7 @@ final class OtlpValues
              * array with such keys as a JSON list — `{"0":"x"}` would come out
              * as `["x"]`, keys gone. An empty kvlist is `{}` for the same reason.
              */
-            return (object)self::attributes($values);
+            return (object) self::attributes($values);
         }
 
         return $value;

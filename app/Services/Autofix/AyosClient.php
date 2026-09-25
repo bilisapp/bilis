@@ -179,7 +179,7 @@ class AyosClient
                 'timeout_s' => (int) config('autofix.defaults.timeout_s', 900),
                 'test_cmd' => $repository->test_cmd,
                 'max_diff_lines' => (int) config('autofix.defaults.max_diff_lines', 800),
-                'path_denylist' => $this->pathDenylist(),
+                'path_denylist' => DiffValidator::denylistFor($job),
             ],
             'callback_url' => route('api.internal.autofix.artifacts'),
             'events_url' => route('api.internal.autofix.events'),
@@ -223,28 +223,5 @@ class AyosClient
         }
 
         return $sha;
-    }
-
-    /**
-     * The paths the agent is told never to touch.
-     *
-     * Ayos passes this to the agent and re-checks the packaged diff against it;
-     * the diff validator checks again on the way back, because a prompt is not
-     * an access control and neither is a check you did not run yourself.
-     *
-     * @return list<string>
-     */
-    protected function pathDenylist(): array
-    {
-        $denylist = config('autofix.defaults.path_denylist', []);
-
-        if (! is_array($denylist)) {
-            return [];
-        }
-
-        return array_values(array_filter(
-            array_map(fn (mixed $path): string => is_string($path) ? $path : '', $denylist),
-            fn (string $path): bool => $path !== '',
-        ));
     }
 }

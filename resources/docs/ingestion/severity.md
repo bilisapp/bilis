@@ -1,7 +1,7 @@
 ---
 title: Severity
 description: The severity levels, the aliases Bilis accepts, and what happens to a level it does not know.
-order: 5
+order: 6
 ---
 
 Severity is stored twice: as an OpenTelemetry `SeverityNumber` (1–24) and as the

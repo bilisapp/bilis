@@ -57,8 +57,8 @@ test('the migrate command creates the database and the otel logs table', functio
             && ($query['database'] ?? null) === 'bilis';
     });
 
-    // The database plus nine schema files.
-    Http::assertSentCount(10);
+    // The database plus fourteen schema files.
+    Http::assertSentCount(15);
 });
 
 test('the migrate command may be run repeatedly', function () {
@@ -67,7 +67,7 @@ test('the migrate command may be run repeatedly', function () {
     $this->artisan('clickhouse:migrate')->assertSuccessful();
     $this->artisan('clickhouse:migrate')->assertSuccessful();
 
-    Http::assertSentCount(20);
+    Http::assertSentCount(30);
 });
 
 test('the migrate command fails when clickhouse rejects the schema', function () {
@@ -222,8 +222,73 @@ test('the migrate command creates the trace index, its view and the guarded back
             && str_contains($statement, '(SELECT count() FROM trace_index) = 0')
             && str_contains($statement, 'OR (SELECT min(Hour) FROM trace_index)')
             && str_contains($statement, '> (SELECT toStartOfHour(min(Start)) FROM trace_summary WHERE Start >= now() - toIntervalDay(89))')
-            && !str_contains($statement, 'uniqExact')
-            && !str_contains($statement, 'AS Start')
+            && ! str_contains($statement, 'uniqExact')
+            && ! str_contains($statement, 'AS Start')
             && str_contains($statement, 'GROUP BY ProjectId, TraceId');
     });
 });
+
+/*
+ * The five metrics tables (SCHEMA.md §2.5). Column names and types are the
+ * pinned exporter's (R1) -- a stock `INSERT` names every one of them -- with
+ * the three DateTime columns pinned to UTC (R14). The key, partitioning and
+ * retention are ours, as on otel_traces.
+ */
+test('the migrate command creates the five metrics tables', function (string $table, array $columns) {
+    Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
+
+    $this->artisan('clickhouse:migrate')->assertSuccessful();
+
+    Http::assertSent(function (Request $request) use ($table, $columns) {
+        $statement = clickHouseStatement($request);
+
+        if (! str_contains($statement, "CREATE TABLE IF NOT EXISTS {$table}\n")) {
+            return false;
+        }
+
+        foreach ([
+            "ProjectId             LowCardinality(String) DEFAULT ''   CODEC(ZSTD(1))",
+            'MetricName            LowCardinality(String)              CODEC(ZSTD(1))',
+            "TimeUnix              DateTime('UTC')                     CODEC(Delta, ZSTD(1))",
+            "StartTimeUnix         DateTime('UTC')                     CODEC(Delta, ZSTD(1))",
+            'Attributes            Map(LowCardinality(String), String) CODEC(ZSTD(1))',
+            'ScopeDroppedAttrCount UInt32                              CODEC(ZSTD(1))',
+            'ORDER BY (ProjectId, MetricName, ServiceName, TimeUnix)',
+            'PARTITION BY toDate(TimeUnix)',
+            'TTL TimeUnix + toIntervalDay(30)',
+            'ttl_only_drop_parts = 1',
+            ...$columns,
+        ] as $expected) {
+            expect($statement)->toContain($expected);
+        }
+
+        // Upstream's hour bucket and attribute hash are not in our key.
+        expect($statement)->not->toContain('toStartOfHour')
+            ->not->toContain('cityHash64');
+
+        return true;
+    });
+})->with([
+    'gauge' => ['otel_metrics_gauge', [
+        'Value                 Float64                             CODEC(ZSTD(1))',
+        'Exemplars Nested (',
+    ]],
+    'sum' => ['otel_metrics_sum', [
+        'AggregationTemporality Int32                              CODEC(ZSTD(1))',
+        'IsMonotonic           Boolean                             CODEC(Delta, ZSTD(1))',
+    ]],
+    'histogram' => ['otel_metrics_histogram', [
+        'BucketCounts          Array(UInt64)                       CODEC(ZSTD(1))',
+        'ExplicitBounds        Array(Float64)                      CODEC(ZSTD(1))',
+        'Min                   Float64                             CODEC(ZSTD(1))',
+    ]],
+    'exponential histogram' => ['otel_metrics_exponential_histogram', [
+        'Scale                 Int32                               CODEC(ZSTD(1))',
+        'PositiveBucketCounts  Array(UInt64)                       CODEC(ZSTD(1))',
+        'NegativeOffset        Int32                               CODEC(ZSTD(1))',
+    ]],
+    'summary' => ['otel_metrics_summary', [
+        'ValueAtQuantiles Nested (',
+        'Quantile Float64,',
+    ]],
+]);

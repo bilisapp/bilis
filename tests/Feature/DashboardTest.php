@@ -172,7 +172,8 @@ test('dashboard reports storage per project, largest first', function () {
         $body = $request->body();
 
         if (str_contains($body, 'system.parts')) {
-            return Http::response(json_encode(['Bytes' => '1000'])."\n");
+            // Another team's rows are in this table too: the total must never surface.
+            return Http::response(json_encode(['Compressed' => '250000', 'Uncompressed' => '1000000'])."\n");
         }
 
         if (str_contains($body, 'GROUP BY ProjectId')) {
@@ -258,6 +259,9 @@ test('dashboard reports where the team stands on the Free plan', function () {
         ->where('planUsage.events.spans', 0)
         ->where('planUsage.events.limit', (int) config('plans.free.events_per_day'))
         ->where('planUsage.events.unavailable', false)
+        ->where('planUsage.metricPoints.used', 0)
+        ->where('planUsage.metricPoints.limit', (int) config('plans.free.metric_points_per_day'))
+        ->where('planUsage.metricPoints.unavailable', false)
         ->where('planUsage.retentionDays', (int) config('legal.log_retention_days'))
         ->where('planUsage.requestsPerMinute', (int) config('security.ingest_rate_limit'))
         ->where('planUsage.warnAtPercent', (int) config('plans.warn_at_percent')),
@@ -280,7 +284,9 @@ test('the plan card is present for a team with no projects and costs no query', 
         // "0 of 3 projects" is exactly what a brand new team needs to read.
         ->where('planUsage.projects.used', 0)
         ->where('planUsage.events.used', 0)
-        ->where('planUsage.events.unavailable', false),
+        ->where('planUsage.events.unavailable', false)
+        ->where('planUsage.metricPoints.used', 0)
+        ->where('planUsage.metricPoints.unavailable', false),
     );
 
     Http::assertNothingSent();

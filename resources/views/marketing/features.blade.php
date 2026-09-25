@@ -18,11 +18,11 @@
         </h1>
 
         <p class="mt-5 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Bilis keeps every log line and every span your systems produce on hardware you own,
+            Bilis keeps every log line, span and metric your systems produce on hardware you own,
             and gets you to the one that explains what went wrong. Nothing about it asks you to
             trust a format, a vendor, or a landing page: everything below is in the product today,
-            the limits are stated plainly, and the direction — metrics next, with AI that helps you
-            act on what the signals show — is named rather than implied.
+            the limits are stated plainly, and the direction — alerting, and AI that helps you act
+            on what the signals show — is named rather than implied.
         </p>
 
         {{-- A contents strip. The page is long on purpose; the reader should
@@ -57,7 +57,7 @@
             <h2 class="mt-4 text-xl font-semibold tracking-tight">If your stack can emit it, Bilis can take
                 it</h2>
             <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                Your applications already know how to talk to Bilis. Logs and spans, whatever dialect
+                Your applications already know how to talk to Bilis. Logs, spans and metrics, whatever dialect
                 they speak — getting them in is a configuration change rather than a rewrite. One API
                 key per project, standard OpenTelemetry tables underneath, and a promise that a bad
                 payload never becomes your problem.
@@ -189,7 +189,8 @@ curl -X POST https://bilis.example.com/api/v1/ingest \
                 read</h2>
             <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
                 Logs live in <code class="font-mono text-xs">otel_logs</code>, spans in
-                <code class="font-mono text-xs">otel_traces</code> — tables whose column names and types
+                <code class="font-mono text-xs">otel_traces</code>, metrics in one
+                <code class="font-mono text-xs">otel_metrics_*</code> table per type — tables whose column names and types
                 belong to the OpenTelemetry project rather than to us, pinned to an upstream release and
                 re-checked on every upgrade. Any tool that understands that standard, from your scripts to
                 your AI assistants, can read your data today. And if you ever leave, leaving is a
@@ -298,6 +299,16 @@ curl -X POST https://bilis.example.com/api/v1/ingest \
                         A log line that carries a trace id links straight to its waterfall, and a span links
                         back to the logs filtered to that exact trace. The error and the slow query that
                         caused it stop being two investigations.
+                    </p>
+                </div>
+
+                <div>
+                    <h3 class="text-base font-semibold tracking-tight">Metrics, read the way they were sent</h3>
+                    <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
+                        Pick a metric, narrow it by service and attributes, and split it by one of them.
+                        Counters come back as rates with restarts accounted for, gauges as levels, and
+                        histograms as p50, p95 and p99 — the chart does the arithmetic the metric type
+                        calls for, so you do not have to know it.
                     </p>
                 </div>
 
@@ -544,7 +555,7 @@ php artisan clickhouse:migrate</pre>
             <ul class="mt-8 divide-y divide-border border-t border-b border-border">
                 @foreach ([
                     'An acknowledgement is not durability' => 'Rows are inserted with async_insert=1 and wait_for_async_insert=0, so a 200 or 202 means the batch reached the insert buffer. A crash in the window before the flush loses that buffer. The trade is throughput, because small frequent inserts are exactly what ClickHouse handles badly without it. If a line matters more than that, keep a local copy too.',
-                    'Retention is one table-wide TTL' => 'Thirty days by default, dropped a whole partition at a time. Spans get the same 30; trace summaries — the rows behind the trace list — keep 90, so a trace outlives its own waterfall. It is a property of the ClickHouse tables, not a per-project setting.',
+                    'Retention is one table-wide TTL' => 'Thirty days by default, dropped a whole partition at a time. Spans and metric data points get the same 30; trace summaries — the rows behind the trace list — keep 90, so a trace outlives its own waterfall. It is a property of the ClickHouse tables, not a per-project setting.',
                     'Search is token-based' => 'Whole tokens, case-insensitively, over the log body. Not substrings and not regular expressions.',
                     'One node, and no replication' => 'Plain MergeTree on a single box. Replication needs Keeper, and a replicated table with unreachable Keeper goes read-only — a failure mode without redundancy on one machine. Replication would not be a backup anyway; back the table up to object storage from day one.',
                     'Volume control belongs to the sender' => 'Bilis stores what arrives. There is no server-side sampling and no ingest-side downsampling, and none is planned — dropping data you deliberately sent is a surprising way to protect a disk you own. Filter and sample in the SDK or collector instead.',
@@ -585,7 +596,6 @@ php artisan clickhouse:migrate</pre>
 
                     <ul class="mt-3 divide-y divide-border border-t border-border">
                         @foreach ([
-                            ['Metrics', 'The same open standards, on the same box. Logs and traces are already here; metrics complete the picture. Until then, your existing metrics stack keeps its job.'],
                             ['Alerting', 'The stack should tell you when to look. Until it does, keep whatever already pages you.'],
                             ['AI that reads your logs', 'The point of the roadmap: software that spots the error that matters, explains it, and helps you fix it — on your infrastructure, where your data already is.'],
                             ['Dashboards you can shape yourself', 'For now: the built-in overview, and a URL — every filter combination is a link you can bookmark.'],

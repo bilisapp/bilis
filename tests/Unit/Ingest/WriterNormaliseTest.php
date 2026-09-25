@@ -1,6 +1,7 @@
 <?php
 
 use App\Services\Ingest\LogWriter;
+use App\Services\Ingest\MetricWriter;
 use App\Services\Ingest\SpanWriter;
 
 /*
@@ -32,8 +33,20 @@ it('serialises every span map column and each Array(Map) element as a JSON objec
     expect(json_encode($row))->toBe('{"ResourceAttributes":{"1":"a"},"SpanAttributes":{},"Events.Name":["first","second","third"],"Events.Attributes":[{},{"0":"x"},{"k":"v"}],"Links.Attributes":[{"2":"y"}]}');
 });
 
+it('serialises every metric map column and each exemplar attribute map as a JSON object', function () {
+    [$row] = MetricWriter::normalise([[
+        'ResourceAttributes' => [],
+        'ScopeAttributes' => ['0' => 'x'],
+        'Attributes' => ['1' => 'a', 'queue' => 'default'],
+        'Exemplars.FilteredAttributes' => [[], ['0' => 'y']],
+        'Exemplars.Value' => [1.5, 2.0],
+    ]]);
+
+    expect(json_encode($row))->toBe('{"ResourceAttributes":{},"ScopeAttributes":{"0":"x"},"Attributes":{"1":"a","queue":"default"},"Exemplars.FilteredAttributes":[{},{"0":"y"}],"Exemplars.Value":[1.5,2]}');
+});
+
 it('leaves a column that is not an array alone', function () {
-    [$row] = SpanWriter::normalise([['SpanAttributes' => (object)['a' => 'b'], 'Events.Attributes' => 'garbage']]);
+    [$row] = SpanWriter::normalise([['SpanAttributes' => (object) ['a' => 'b'], 'Events.Attributes' => 'garbage']]);
 
     expect($row['SpanAttributes'])->toBeInstanceOf(stdClass::class)
         ->and($row['Events.Attributes'])->toBe('garbage');

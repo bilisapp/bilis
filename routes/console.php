@@ -25,3 +25,7 @@ Schedule::call(function () {
         ->where('expires_at', '<', now())
         ->delete();
 })->daily()->description('Delete expired team invitations');
+
+// MCP access tokens last a day and refresh tokens thirty; without this the
+// expired and revoked rows accumulate in oauth_* forever.
+Schedule::command('passport:purge')->daily()->description('Delete expired and revoked OAuth tokens and codes');

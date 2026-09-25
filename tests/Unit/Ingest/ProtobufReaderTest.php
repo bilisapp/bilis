@@ -147,3 +147,61 @@ it('refuses a truncated fixed64', function () {
     expect(fn () => (new ProtobufReader('1234'))->readFixed64())
         ->toThrow(MalformedProtobufException::class);
 });
+
+it('reads a zigzag sint32', function (int $encoded, int $value) {
+    expect((new ProtobufReader(varint($encoded)))->readSint32())->toBe($value);
+})->with([
+    'zero' => [0, 0],
+    'minus one' => [1, -1],
+    'one' => [2, 1],
+    'minus two' => [3, -2],
+    'max' => [4294967294, 2147483647],
+    'min' => [4294967295, -2147483648],
+]);
+
+it('reads an sfixed64 as a signed decimal string', function () {
+    expect((new ProtobufReader(pack('P', -42)))->readSfixed64())->toBe('-42')
+        ->and((new ProtobufReader(pack('P', PHP_INT_MAX)))->readSfixed64())->toBe((string) PHP_INT_MAX);
+});
+
+it('reads a uint64 varint past PHP_INT_MAX without wrapping', function () {
+    // 2^64 - 1: ten bytes, nine continuation bytes of 0xFF then 0x01.
+    expect((new ProtobufReader(str_repeat("\xFF", 9)."\x01"))->readUint64())->toBe('18446744073709551615')
+        ->and((new ProtobufReader(varint(300)))->readUint64())->toBe('300');
+});
+
+it('reads a packed repeated fixed64, double and uint64 through a window', function () {
+    $fixed = pack('P', 1).pack('P', 2).pack('P', 3);
+    $doubles = pack('e', 0.5).pack('e', 2.5);
+    $varints = varint(1).varint(300);
+
+    $reader = new ProtobufReader(
+        varint(strlen($fixed)).$fixed
+        .varint(strlen($doubles)).$doubles
+        .varint(strlen($varints)).$varints,
+    );
+
+    expect($reader->readRepeatedFixed64(ProtobufReader::WIRE_LENGTH_DELIMITED))->toBe(['1', '2', '3'])
+        ->and($reader->readRepeatedDouble(ProtobufReader::WIRE_LENGTH_DELIMITED))->toBe([0.5, 2.5])
+        ->and($reader->readRepeatedUint64(ProtobufReader::WIRE_LENGTH_DELIMITED))->toBe(['1', '300'])
+        ->and($reader->atEnd())->toBeTrue();
+});
+
+it('reads an unpacked repeated element in its own wire type', function () {
+    $reader = new ProtobufReader(pack('P', 7).pack('e', 1.5).varint(9));
+
+    expect($reader->readRepeatedFixed64(ProtobufReader::WIRE_FIXED64))->toBe(['7'])
+        ->and($reader->readRepeatedDouble(ProtobufReader::WIRE_FIXED64))->toBe([1.5])
+        ->and($reader->readRepeatedUint64(ProtobufReader::WIRE_VARINT))->toBe(['9'])
+        ->and($reader->atEnd())->toBeTrue();
+});
+
+it('refuses a repeated field in a wire type that cannot carry it', function () {
+    (new ProtobufReader(pack('V', 1)))->readRepeatedFixed64(ProtobufReader::WIRE_FIXED32);
+})->throws(MalformedProtobufException::class);
+
+it('refuses a packed run that stops mid value', function () {
+    $partial = pack('P', 1).'abc';
+
+    (new ProtobufReader(varint(strlen($partial)).$partial))->readRepeatedFixed64(ProtobufReader::WIRE_LENGTH_DELIMITED);
+})->throws(MalformedProtobufException::class);

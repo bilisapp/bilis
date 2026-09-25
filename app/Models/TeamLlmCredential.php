@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\LlmProvider;
 use Database\Factories\TeamLlmCredentialFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -39,6 +40,7 @@ use Illuminate\Support\Facades\DB;
  * @property-read Team $team
  */
 #[Fillable(['team_id', 'provider', 'label', 'is_default', 'last_used_at'])]
+#[Hidden(['api_key'])]
 class TeamLlmCredential extends Model
 {
     /** @use HasFactory<TeamLlmCredentialFactory> */

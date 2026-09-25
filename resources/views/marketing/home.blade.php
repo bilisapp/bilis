@@ -298,13 +298,13 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs</pre>
         <div class="mx-auto max-w-5xl px-6 py-20 sm:py-28">
             <div class="grid gap-8 sm:grid-cols-12 sm:items-end">
                 <h2 class="text-3xl leading-tight font-semibold tracking-[-0.035em] text-balance sm:col-span-7 sm:text-5xl">
-                    Logs. Traces.<br>
+                    Logs. Traces. Metrics.<br>
                     Then software that acts.
                 </h2>
                 <p class="text-sm leading-relaxed text-muted-foreground sm:col-span-4 sm:col-start-9">
-                    Bilis keeps two signals on your box today, linked so each explains the other. The
-                    direction is metrics and AI that helps fix what the signals reveal. Self-hosting
-                    stays first-class through all of it.
+                    Bilis keeps logs, traces and metrics on your box today, with logs and traces linked
+                    so each explains the other. The direction is alerting and AI that helps fix what the
+                    signals reveal. Self-hosting stays first-class through all of it.
                 </p>
             </div>
 
@@ -317,6 +317,7 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs</pre>
                             'Fast full-text search across every log body',
                             'Distributed traces drawn as a span waterfall',
                             'Logs and traces linked in both directions',
+                            'OTLP metrics, charted as rates, levels and percentiles',
                             'Live tail, teams, projects, and revocable keys',
                             'Open, portable telemetry tables',
                         ] as $item)
@@ -329,7 +330,6 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs</pre>
                     <h3 class="text-sm font-semibold text-muted-foreground">Where it is heading</h3>
                     <ul class="mt-4 divide-y divide-border border-y border-border text-muted-foreground">
                         @foreach ([
-                            'Metrics on the same box and open standards',
                             'Alerting, so the stack tells you when to look',
                             'Dashboards and saved searches',
                             'AI that spots, explains, and helps fix errors',

@@ -74,6 +74,11 @@ class PullRequestPublisher
      */
     public const TITLE_LIMIT = 72;
 
+    /**
+     * How much of one log-derived value a table cell of the body shows.
+     */
+    public const CELL_LIMIT = 300;
+
     public function __construct(
         private readonly GitHubAppTokenService $tokens,
         private readonly GitHubRepositoryClient $github,
@@ -281,9 +286,9 @@ class PullRequestPublisher
             '',
             '| | |',
             '| --- | --- |',
-            '| Exception | `'.$this->orDash($this->string($context, 'exception')).'` |',
-            '| Message | '.$this->orDash($this->string($context, 'message')).' |',
-            '| Service | '.$this->orDash($this->string($context, 'service_name')).' |',
+            '| Exception | `'.$this->orDash($this->codeCell($this->string($context, 'exception'))).'` |',
+            '| Message | '.$this->orDash($this->cell($this->string($context, 'message'))).' |',
+            '| Service | '.$this->orDash($this->cell($this->string($context, 'service_name'))).' |',
             '| Occurrences | '.$this->orDash((string) ($this->integer($context, 'count') ?: '')).' |',
             '| First seen | '.$this->orDash($this->timestamp($context, 'first_seen')).' |',
             '| Last seen | '.$this->orDash($this->timestamp($context, 'last_seen')).' |',
@@ -303,16 +308,48 @@ class PullRequestPublisher
     protected function requestSection(FixJob $job): array
     {
         $request = trim((string) $job->instructions);
+        $request = $request === '' ? '(no request was recorded)' : Str::limit($request, self::REQUEST_EXCERPT_LIMIT);
+
+        // A fence closes on a run of backticks at least as long as its opener,
+        // so the opener is always one longer than any run inside the request.
+        preg_match_all('/`+/', $request, $runs);
+        $fence = str_repeat('`', max(3, max(array_map('strlen', [...$runs[0], ''])) + 1));
 
         return [
             '## The request',
             '',
             'A member of the team asked for this from the Bilis autofix page. No production error is involved.',
             '',
-            '```text',
-            $request === '' ? '(no request was recorded)' : Str::limit($request, self::REQUEST_EXCERPT_LIMIT),
-            '```',
+            $fence.'text',
+            $request,
+            $fence,
         ];
+    }
+
+    /**
+     * Log text made safe for a markdown table cell.
+     *
+     * The message is whatever the application logged, and anyone who can get a
+     * line into those logs writes it: one line, markdown and HTML escaped, and
+     * `@` defused so it can neither break the table, embed an image nor ping
+     * a GitHub user or team.
+     */
+    protected function cell(string $value): string
+    {
+        $flat = Str::limit(trim((string) preg_replace('/[\p{C}\s]+/u', ' ', $value)), self::CELL_LIMIT);
+        $escaped = (string) preg_replace('/[\\\\`*_{}\[\]()#+\-.!|~]/', '\\\\$0', htmlspecialchars($flat, ENT_QUOTES | ENT_HTML5));
+
+        return str_replace('@', '&#64;', $escaped);
+    }
+
+    /**
+     * Log text made safe inside a one-line code span.
+     */
+    protected function codeCell(string $value): string
+    {
+        $flat = Str::limit(trim((string) preg_replace('/[\p{C}\s]+/u', ' ', $value)), self::CELL_LIMIT);
+
+        return str_replace(['`', '|'], ["'", '/'], $flat);
     }
 
     /**

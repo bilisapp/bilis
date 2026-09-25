@@ -13,6 +13,7 @@ use App\Http\Controllers\DocsApiKeyController;
 use App\Http\Controllers\DocsController;
 use App\Http\Controllers\FeaturesController;
 use App\Http\Controllers\LogsController;
+use App\Http\Controllers\MetricsController;
 use App\Http\Controllers\PricingController;
 use App\Http\Controllers\ProjectApiKeyController;
 use App\Http\Controllers\ProjectBrowserOriginController;
@@ -145,6 +146,8 @@ Route::prefix('{current_team}')
         Route::get('traces/{trace}', [TracesController::class, 'show'])
             ->where('trace', '[0-9a-fA-F]{32}')
             ->name('traces.show');
+
+        Route::get('metrics', [MetricsController::class, 'index'])->name('metrics.index');
 
         Route::get('projects', [ProjectController::class, 'index'])->name('projects.index');
         Route::post('projects', [ProjectController::class, 'store'])->name('projects.store');

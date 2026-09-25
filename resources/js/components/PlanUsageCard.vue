@@ -35,6 +35,7 @@ type Meter = {
 const meters = computed<Meter[]>(() => {
     const warnAt = props.usage.warnAtPercent;
     const events = props.usage.events;
+    const metricPoints = props.usage.metricPoints;
 
     return [
         {
@@ -72,12 +73,25 @@ const meters = computed<Meter[]>(() => {
             level: allowanceLevel(events.used, events.limit, warnAt),
             unavailable: events.unavailable,
         },
+        {
+            key: 'metric-points',
+            label: 'Metric data points',
+            used: metricPoints.used,
+            limit: metricPoints.limit,
+            caption: 'since 00:00 UTC',
+            level: allowanceLevel(
+                metricPoints.used,
+                metricPoints.limit,
+                warnAt,
+            ),
+            unavailable: metricPoints.unavailable,
+        },
     ];
 });
 
 /**
  * The worst state any meter is in, which decides what the card says at the
- * bottom. An unavailable event count is not a state: not knowing is not the
+ * bottom. An unavailable count is not a state: not knowing is not the
  * same as being over, and saying so would be inventing a number.
  */
 const overall = computed<PlanAllowanceLevel>(() => {
@@ -91,6 +105,16 @@ const overall = computed<PlanAllowanceLevel>(() => {
 
     return levels.includes('warn') ? 'warn' : 'ok';
 });
+
+/**
+ * Either ClickHouse-backed count failed to read. The note replaces the
+ * over/warn sentence, as it always has: a verdict drawn from half the meters
+ * would be a guess.
+ */
+const anyUnavailable = computed(
+    () =>
+        props.usage.events.unavailable || props.usage.metricPoints.unavailable,
+);
 
 const upgradeHref = computed(() =>
     contactShow.url({ query: { topic: 'upgrade' } }),
@@ -187,14 +211,25 @@ const upgradeHref = computed(() =>
                 {{ usage.requestsPerMinute.toLocaleString() }}/min per key
             </p>
 
-            <p
-                v-if="usage.events.unavailable"
-                class="mt-2 text-xs text-muted-foreground"
-                data-test="dashboard-plan-unavailable"
-            >
-                Today's event count could not be read from ClickHouse just now.
-                The other meters are exact.
-            </p>
+            <template v-if="anyUnavailable">
+                <p
+                    v-if="usage.events.unavailable"
+                    class="mt-2 text-xs text-muted-foreground"
+                    data-test="dashboard-plan-unavailable"
+                >
+                    Today's event count could not be read from ClickHouse just
+                    now. The other meters are exact.
+                </p>
+
+                <p
+                    v-if="usage.metricPoints.unavailable"
+                    class="mt-2 text-xs text-muted-foreground"
+                    data-test="dashboard-plan-metric-points-unavailable"
+                >
+                    Today's metric data point count could not be read from
+                    ClickHouse just now. The other meters are exact.
+                </p>
+            </template>
 
             <p
                 v-else-if="overall === 'over'"

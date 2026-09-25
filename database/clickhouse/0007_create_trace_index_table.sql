@@ -19,63 +19,25 @@
 -- minutes-long session, a queue job) re-send its trace with full counts.
 CREATE TABLE IF NOT EXISTS trace_index
 (
-    ProjectId
-    LowCardinality
-(
-    String
-),
+    ProjectId LowCardinality(String),
     -- toStartOfHour of the block's earliest span. Part of the key, so it is
     -- fixed for the life of the row and a merge cannot move it -- which is what
     -- makes PARTITION BY safe here when it is not on trace_summary.
-    Hour DateTime
-(
-    'UTC'
-),
-    TraceId String CODEC
-(
-    ZSTD
-(
-    1
-)),
-    Start SimpleAggregateFunction
-(
-    min,
-    DateTime64
-(
-    9,
-    'UTC'
-)),
-    End SimpleAggregateFunction
-(
-    max,
-    DateTime64
-(
-    9,
-    'UTC'
-))
-    )
-    -- AggregatingMergeTree so the rows a trace's several insert blocks write for
+    Hour      DateTime('UTC'),
+    TraceId   String                                          CODEC(ZSTD(1)),
+    Start     SimpleAggregateFunction(min, DateTime64(9, 'UTC')),
+    End       SimpleAggregateFunction(max, DateTime64(9, 'UTC'))
+)
+-- AggregatingMergeTree so the rows a trace's several insert blocks write for
 -- the same hour collapse into one on merge. A trace whose blocks fall in
 -- different hours keeps one row per hour; that is deliberate -- each row is a
 -- true statement about a block -- and harmless, because the list only uses
 -- this table to nominate ids and decides membership on trace_summary's
 -- min(Start).
-    ENGINE = AggregatingMergeTree
-    PARTITION BY toDate
-(
-    Hour
-)
-    ORDER BY
-(
-    ProjectId,
-    Hour,
-    TraceId
-)
-    -- Retention matches trace_summary, so a candidate this table nominates is
+ENGINE = AggregatingMergeTree
+PARTITION BY toDate(Hour)
+ORDER BY (ProjectId, Hour, TraceId)
+-- Retention matches trace_summary, so a candidate this table nominates is
 -- still there to aggregate. Daily partitions make expiry a drop, not a rewrite.
-    TTL Hour + toIntervalDay
-(
-    90
-)
-    SETTINGS index_granularity = 8192,
-    ttl_only_drop_parts = 1
+TTL Hour + toIntervalDay(90)
+SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1

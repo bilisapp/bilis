@@ -32,6 +32,10 @@ return [
     'runner' => [
         'driver' => env('AUTOFIX_RUNNER_DRIVER', 'local'),
 
+        // The local driver runs the agent on this host, beside this app's
+        // secrets. Production refuses it unless this says otherwise.
+        'allow_local_in_production' => (bool) env('AUTOFIX_RUNNER_ALLOW_LOCAL_IN_PRODUCTION', false),
+
         'local' => [
             // The built entrypoint. `pnpm build` in the ayos repo produces it.
             'entrypoint' => env('AUTOFIX_RUNNER_ENTRYPOINT', base_path('../ayos/dist/src/entry.js')),

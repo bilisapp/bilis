@@ -85,7 +85,9 @@ test('the team edit page carries the Free plan meters', function () {
             ->where('planUsage.plan', 'free')
             ->where('planUsage.members.used', 1)
             ->where('planUsage.members.limit', (int) config('plans.free.members_per_team'))
-            ->where('planUsage.events.unavailable', false),
+            ->where('planUsage.events.unavailable', false)
+            ->where('planUsage.metricPoints.limit', (int) config('plans.free.metric_points_per_day'))
+            ->where('planUsage.metricPoints.unavailable', false),
         );
 });
 

@@ -75,6 +75,8 @@ export default defineConfigWithVueTs(
     {
         ignores: [
             'vendor',
+            // A separate Remotion project with its own toolchain and tsconfig.
+            'video/**',
             'node_modules',
             'public',
             'bootstrap/ssr',

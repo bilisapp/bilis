@@ -1,6 +1,6 @@
 <x-layouts.marketing
     title="MCP for your agent"
-    description="Connect Claude, Cursor or any MCP client to your Bilis instance in one line. Your agent reads the logs and traces of the app it is editing — read-only, over OAuth, with nothing leaving your box."
+    description="Connect Claude, Cursor or any MCP client to your Bilis instance in one line. Your agent reads the logs, traces and metrics of the app it is editing — read-only, over OAuth, with nothing leaving your box."
     current="features"
 >
     {{-- The page for the reader who already debugs through an agent.
@@ -142,7 +142,7 @@ claude mcp add --transport http bilis <span class="text-severity-debug">https://
 
                 <ul class="divide-y divide-border border-t border-b border-border">
                     @foreach ([
-                        ['can' => true, 'text' => 'Search logs and read traces for the teams you belong to'],
+                        ['can' => true, 'text' => 'Search logs, read traces and chart metrics for the teams you belong to'],
                         ['can' => true, 'text' => 'List your teams, projects and the services they send'],
                         ['can' => false, 'text' => 'Send, edit or delete anything'],
                         ['can' => false, 'text' => 'Create a project, or read or issue an API key'],
@@ -169,7 +169,7 @@ claude mcp add --transport http bilis <span class="text-severity-debug">https://
             @include('marketing.partials.section-label', ['number' => '03', 'label' => 'The toolbox'])
 
             <h2 class="mt-4 max-w-3xl text-2xl leading-tight font-semibold tracking-tight sm:text-3xl">
-                Eight tools, two prompts, no surprises.
+                Ten tools, two prompts, no surprises.
             </h2>
 
             <dl class="mt-8 divide-y divide-border border-t border-b border-border">
@@ -182,6 +182,8 @@ claude mcp add --transport http bilis <span class="text-severity-debug">https://
                     ['list-traces', 'Traces over a window: duration, span count, error count.'],
                     ['get-trace', 'One request as a waterfall, with the attributes that locate a bug.'],
                     ['service-latency', 'p95 and p99 per service, slowest first.'],
+                    ['list-metrics', 'The metrics a project reports, how each is read, and the attributes to split it by.'],
+                    ['query-metric', 'One metric over a window — counters as a rate, histograms as percentiles.'],
                 ] as [$name, $what])
                     <div class="grid gap-1 py-3.5 sm:grid-cols-[minmax(0,12rem)_1fr] sm:gap-8">
                         <dt class="font-mono text-xs text-foreground">{{ $name }}</dt>

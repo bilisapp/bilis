@@ -16,10 +16,12 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Logging/** | .ai/rules/logging.md |
 | app/Mcp/**, routes/ai.php, app/Models/Passport/**, resources/views/mcp/** | .ai/rules/mcp.md |
 | app/Services/Logs/** | .ai/rules/logs.md |
+| app/Services/Metrics/**, app/Http/Controllers/MetricsController.php | .ai/rules/metrics.md |
 | resources/js/marketing/** | .ai/rules/marketing.md |
 | app/Http/Middleware/SecurityHeaders.php | .ai/rules/middleware.md |
 | app/Models/ProjectApiKey.php | .ai/rules/models.md |
 | config/plans.php, app/Services/Plans/** | .ai/rules/plans.md |
+| app/Http/Controllers/Project*.php, app/Http/Requests/Projects/** | .ai/rules/projects.md |
 | routes/api.php | .ai/rules/routes.md |
 | app/Services/Traces/**, app/Services/Ingest/OtlpTraceMapper.php, app/Services/Ingest/SpanWriter.php, app/Services/Ingest/SpanSemantics.php, app/Http/Controllers/TracesController.php | .ai/rules/traces.md |
 | resources/views/marketing/** | .ai/rules/views-marketing.md |

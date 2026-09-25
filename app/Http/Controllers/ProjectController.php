@@ -14,6 +14,7 @@ use App\Services\Plans\PlanLimits;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -98,6 +99,7 @@ class ProjectController extends Controller
                 ])
                 ->values(),
             'teamSlug' => $current_team,
+            'canManage' => Gate::allows('manageProjects', $project->team),
             'repositories' => $this->repositories($project),
             /*
              * The service names actually seen in this project's logs, so the
@@ -178,6 +180,8 @@ class ProjectController extends Controller
      */
     public function update(SaveProjectRequest $request, string $current_team, Project $project): RedirectResponse
     {
+        Gate::authorize('manageProjects', $project->team);
+
         $project->update(['name' => $request->validated('name')]);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Project updated.')]);
@@ -190,6 +194,8 @@ class ProjectController extends Controller
      */
     public function destroy(string $current_team, Project $project): RedirectResponse
     {
+        Gate::authorize('manageProjects', $project->team);
+
         $project->apiKeys()->delete();
         $project->delete();
 

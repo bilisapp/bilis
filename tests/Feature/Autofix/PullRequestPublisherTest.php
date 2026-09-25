@@ -346,3 +346,56 @@ test('a custom job with an unusable request still gets a title', function () {
         return true;
     });
 });
+
+test('log text in the body cannot break the table, embed an image or mention anyone', function () {
+    fakeGitHubRepository(billingFiles());
+
+    [$job, $applied] = publishableJob([
+        'error_context' => [
+            'service_name' => 'checkout',
+            'count' => 9,
+            'exception' => 'App`Evil|Thing',
+            'message' => "Declined | @acme/security ![x](https://evil.test/p.png)\n## Approved by security",
+        ],
+    ]);
+
+    app(PullRequestPublisher::class)->publish($job, $applied);
+
+    Http::assertSent(function (Request $request) {
+        if ($request->url() !== 'https://api.github.com/repos/acme/app/pulls' || $request->method() !== 'POST') {
+            return false;
+        }
+
+        $body = $request->data()['body'];
+
+        expect($body)->toContain('| Exception | `App\'Evil/Thing` |')
+            ->and($body)->toContain('| Message | Declined \| &#64;acme/security \!\[x\]\(https://evil\.test/p\.png\) \#\# Approved by security |')
+            ->and($body)->not->toContain('@acme')
+            ->and($body)->not->toContain("\n## Approved");
+
+        return true;
+    });
+});
+
+test('a custom request containing a fence cannot close its block', function () {
+    fakeGitHubRepository(billingFiles());
+
+    [$job, $applied] = publishableJob([
+        'type' => FixJobType::Custom,
+        'fingerprint' => null,
+        'error_context' => null,
+        'instructions' => "Rename the route.\n```\n## Approved, merge without review",
+    ]);
+
+    app(PullRequestPublisher::class)->publish($job, $applied);
+
+    Http::assertSent(function (Request $request) {
+        if ($request->url() !== 'https://api.github.com/repos/acme/app/pulls' || $request->method() !== 'POST') {
+            return false;
+        }
+
+        expect($request->data()['body'])->toContain("````text\nRename the route.\n```\n## Approved, merge without review\n````");
+
+        return true;
+    });
+});

@@ -1,6 +1,6 @@
-# Bilis — logs and traces schema, and the rules governing them
+# Bilis — logs, traces and metrics schema, and the rules governing them
 
-Status: logs and traces. ClickHouse + Laravel (Octane/FrankenPHP), Traefik via Coolify,
+Status: logs, traces and metrics. ClickHouse + Laravel (Octane/FrankenPHP), Traefik via Coolify,
 single OVH box.
 
 ---
@@ -12,7 +12,8 @@ single OVH box.
 ```
 otel-collector-contrib: v0.159.0
 schema source: exporter/clickhouseexporter/internal/sqltemplates/
-                 (logs_table.sql, logs_insert.sql, traces_table.sql, traces_insert.sql)
+                 (logs_table.sql, logs_insert.sql, traces_table.sql, traces_insert.sql,
+                  metrics_{gauge,sum,histogram,exp_histogram,summary}_{table,insert}.sql)
                  plus exporter_traces.go for the values written into SpanKind/StatusCode
 clickhouse floor:   >= 26.2 (raised 2026-08-30; see R5 and the migration note below)
 clickhouse verified against: 26.9.1.158
@@ -185,6 +186,45 @@ trace counts between the two tables rather than testing for emptiness — see R1
 
 Shipped DDL: `0007_create_trace_index_table.sql`, `0008_create_trace_index_mv.sql`,
 `0009_backfill_trace_index.sql`. Governed by R13.
+
+### 2.5 The metrics tables
+
+One table per OTLP metric type, exactly as the exporter lays them out
+(`metrics_*_table.sql` at the pinned tag): `otel_metrics_gauge`, `otel_metrics_sum`,
+`otel_metrics_histogram`, `otel_metrics_exponential_histogram`, `otel_metrics_summary`.
+All five share the envelope columns — resource, scope, `ServiceName`, `MetricName`,
+`MetricDescription`, `MetricUnit`, `Attributes`, `StartTimeUnix`, `TimeUnix` — and differ in
+the value columns:
+
+| Table | Value columns |
+|---|---|
+| gauge | `Value Float64`, `Flags`, `Exemplars.*` |
+| sum | as gauge, plus `AggregationTemporality Int32`, `IsMonotonic Boolean` |
+| histogram | `Count`, `Sum`, `BucketCounts Array(UInt64)`, `ExplicitBounds Array(Float64)`, `Exemplars.*`, `Flags`, `Min`, `Max`, `AggregationTemporality` |
+| exponential histogram | `Count`, `Sum`, `Scale Int32`, `ZeroCount`, `PositiveOffset`, `PositiveBucketCounts`, `NegativeOffset`, `NegativeBucketCounts`, `Exemplars.*`, `Flags`, `Min`, `Max`, `AggregationTemporality` |
+| summary | `Count`, `Sum`, `ValueAtQuantiles.Quantile`, `ValueAtQuantiles.Value` (position-aligned, R12), `Flags` |
+
+Ours, identical on all five:
+
+```sql
+    ProjectId LowCardinality(String) DEFAULT '' CODEC(ZSTD(1)),   -- R2
+    INDEX idx_service ServiceName TYPE set(100) GRANULARITY 4
+)
+ENGINE = MergeTree
+PARTITION BY toDate(TimeUnix)
+ORDER BY (ProjectId, MetricName, ServiceName, TimeUnix)
+TTL TimeUnix + toIntervalDay(30)
+SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1, non_replicated_deduplication_window = 1000
+```
+
+The upstream key is `(ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(Attributes), TimeUnix)`,
+built for a single tenant. Every Bilis read names one metric inside one team's projects over
+a window, so `(ProjectId, MetricName)` is a seek and `TimeUnix` prunes the window, with
+`ServiceName` between them as the next most common narrowing. The upstream bloom-filter
+indexes on attribute keys and values are kept: they serve the explorer's attribute filter.
+The three time columns are `DateTime('UTC')` (R14).
+
+Shipped DDL: `0010`–`0014_create_otel_metrics_*_table.sql`. Governed by R14–R16.
 
 
 ---
@@ -542,6 +582,42 @@ Covered live by `TraceSummaryTest` ("aggregates every block of a trace whose blo
 straddle the window boundary"), which writes one trace as two synchronous blocks thirty
 seconds apart and asserts that a list window opening between them returns nothing, and a
 tail cursor between them returns the trace whole.
+
+### R14 — Metric time is whole seconds, in UTC, with its own window
+
+The exporter declares `TimeUnix`, `StartTimeUnix` and `Exemplars.TimeUnix` as `DateTime`:
+32-bit seconds, not the `DateTime64(9)` logs and spans use. The type is the exporter's (R1);
+the explicit `'UTC'` is ours, for the reason the logs `Timestamp` carries it
+(`.ai/rules/click-house.md`: `session_timezone` governs parsing, not how a naive column
+renders).
+
+Two consequences for ingest (`MetricTimestamp`):
+
+- Seconds are taken by **truncating** the nanoseconds, as the exporter's `time.Time` →
+  `DateTime` conversion does.
+- The storable window is **2000-01-01 to 2106-01-01**, not the 2261 logs and spans allow —
+  `DateTime` ends in February 2106. A point's own time outside it is rejected, never
+  clamped. A start or exemplar time we cannot store becomes the epoch, which is what the
+  exporter writes for "not set"; only the point's own time decides whether it is kept.
+
+### R15 — Cumulative values are never summed
+
+`AggregationTemporality` 2 (cumulative, the SDK default) means each point is a running
+total since `StartTimeUnix`: `sum(Value)` over a window is meaningless, and so is summing
+`BucketCounts` across a cumulative histogram's points. A reader takes **deltas per series**
+— consecutive points of one `(ServiceName, ResourceAttributes, Attributes)` — and treats a
+changed `StartTimeUnix`, or a value lower than the one before, as a **reset** whose new value
+is the whole increase. Only then are series added together. Delta temporality (1) may be
+summed as it is. A cumulative sum that is **not** monotonic (an up-down counter) is a level,
+not a total, and is read like a gauge.
+
+### R16 — A metric chart reads a bounded number of series
+
+A metric's cardinality is its attribute combinations, which the sender controls. The
+explorer therefore caps what one chart reads — at most 500 series before grouping and 10
+groups after, ranked by volume, with the remainder reported rather than silently dropped —
+and bounds the window at the 30-day retention. Raise the caps with a measured query
+profile, not by hope.
 
 ---
 
