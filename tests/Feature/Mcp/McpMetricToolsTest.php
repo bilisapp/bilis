@@ -74,12 +74,12 @@ function fakeMcpMetricsClickHouse(): void
                 ['Key' => 'http.route', 'Values' => ['/checkout', '/cart']],
             ]),
             str_contains($body, 'AS Total') => mcpMetricRows([['Total' => 2]]),
-            // 10:59:55 is the baseline, 11:00:00 the 13th five-second bucket.
+            // One-minute buckets: 10:59 is the baseline, 11:00 the second bucket.
             str_contains($body, 'AS Start') => mcpMetricRows([
-                ['S' => '1', 'Grp' => '/checkout', 'Bucket' => $at('10:59:55'), 'V' => 100, 'Start' => $at('10:00:00')],
-                ['S' => '1', 'Grp' => '/checkout', 'Bucket' => $at('11:00:00'), 'V' => 280, 'Start' => $at('10:00:00')],
-                ['S' => '2', 'Grp' => '/cart', 'Bucket' => $at('10:59:55'), 'V' => 10, 'Start' => $at('10:00:00')],
-                ['S' => '2', 'Grp' => '/cart', 'Bucket' => $at('11:00:00'), 'V' => 70, 'Start' => $at('10:00:00')],
+                ['S' => '1', 'Grp' => '/checkout', 'Bucket' => $at('10:59:00'), 'At' => $at('10:59:30'), 'V' => 100, 'Start' => $at('10:00:00')],
+                ['S' => '1', 'Grp' => '/checkout', 'Bucket' => $at('11:00:00'), 'At' => $at('11:00:30'), 'V' => 280, 'Start' => $at('10:00:00')],
+                ['S' => '2', 'Grp' => '/cart', 'Bucket' => $at('10:59:00'), 'At' => $at('10:59:30'), 'V' => 10, 'Start' => $at('10:00:00')],
+                ['S' => '2', 'Grp' => '/cart', 'Bucket' => $at('11:00:00'), 'At' => $at('11:00:30'), 'V' => 70, 'Start' => $at('10:00:00')],
             ]),
             str_contains($body, 'SELECT 1 FROM (') => mcpMetricRows([['1' => 1]]),
             default => '',
@@ -139,12 +139,12 @@ test('query-metric returns a compact rate series with per-series summaries', fun
         ->assertOk()
         ->assertSee('"kind":"rate"')
         ->assertSee('"unit":"{request}/s"')
-        ->assertSee('"intervalSeconds":5')
-        ->assertSee('"buckets":["2026-09-25T10:59:00Z","2026-09-25T10:59:05Z"')
-        // (280 - 100) / 5 s and (70 - 10) / 5 s, at the 13th bucket only.
-        ->assertSee('"label":"/checkout","stat":"rate","summary":{"min":36')
-        ->assertSee('"last":36')
-        ->assertSee('"label":"/cart","stat":"rate","summary":{"min":12')
+        ->assertSee('"intervalSeconds":60')
+        ->assertSee('"buckets":["2026-09-25T10:59:00Z","2026-09-25T11:00:00Z"')
+        // (280 - 100) and (70 - 10) over the 60 s between points, at 11:00 only.
+        ->assertSee('"label":"/checkout","stat":"rate","summary":{"min":3')
+        ->assertSee('"last":3')
+        ->assertSee('"label":"/cart","stat":"rate","summary":{"min":1')
         ->assertSee('"points":1')
         ->assertSee('"notes":[]');
 });

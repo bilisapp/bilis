@@ -193,7 +193,7 @@ it('lists every section and page in front matter order', function () {
 
     expect($pages)->toBe([
         'getting-started' => ['overview', 'quickstart'],
-        'ingestion' => ['endpoints', 'traces', 'metrics', 'api-keys', 'timestamps', 'severity', 'shippers', 'go', 'linux-host', 'sentry', 'claude-code'],
+        'ingestion' => ['endpoints', 'traces', 'metrics', 'api-keys', 'timestamps', 'severity', 'shippers', 'go', 'server-agent', 'linux-host', 'sentry', 'claude-code'],
         'reference' => ['limits-and-behavior', 'mcp'],
     ]);
 });

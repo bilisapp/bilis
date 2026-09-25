@@ -86,14 +86,19 @@ class MetricSeriesBuilder
      * A cumulative counter as a rate: per-series deltas, summed per group.
      *
      * Rows: `S` (series key), `Grp`, `Bucket`, `V` (the series' last value in
-     * that bucket), `Start` (its StartTimeUnix, Unix seconds), ordered by
-     * series then bucket. The read begins one bucket before the window so the
-     * first bucket has a baseline.
+     * that bucket), `At` (that point's time) and `Start` (its StartTimeUnix),
+     * both Unix seconds, ordered by series then bucket. The read begins one
+     * bucket before the window so the first bucket has a baseline.
+     *
+     * Each increase is divided by the seconds that actually passed between the
+     * two points, not by the bucket width: a series exported every minute read
+     * into 15-second buckets would otherwise show four times its real rate.
+     * A group's rate is the sum of its series' rates.
      *
      * A drop in value or a new start time is a reset: the new value is the
      * whole increase since, never a negative spike. A series whose very first
-     * point started counting inside the read is counted from zero; one that
-     * started before it only sets the baseline.
+     * point started counting inside the read is counted from its start; one
+     * that started before it only sets the baseline.
      *
      * @param  list<array<string, mixed>>  $rows
      * @param  Context  $context
@@ -111,28 +116,27 @@ class MetricSeriesBuilder
             $bucket = (int) ($row['Bucket'] ?? 0);
             $value = (float) ($row['V'] ?? 0);
             $start = (int) ($row['Start'] ?? 0);
+            $at = (int) ($row['At'] ?? $bucket);
 
             $prior = $previous[$series] ?? null;
-            $previous[$series] = ['value' => $value, 'start' => $start];
+            $previous[$series] = ['value' => $value, 'start' => $start, 'at' => $at];
 
             if ($prior === null) {
-                $delta = $start > 0 && $start >= $context['readFrom'] ? $value : null;
+                [$delta, $since] = $start > 0 && $start >= $context['readFrom'] ? [$value, $start] : [null, $at];
+            } elseif ($start !== $prior['start'] || $value < $prior['value']) {
+                [$delta, $since] = [$value, max($prior['at'], $start)];
             } else {
-                $delta = $start !== $prior['start'] || $value < $prior['value'] ? $value : $value - $prior['value'];
+                [$delta, $since] = [$value - $prior['value'], $prior['at']];
             }
 
             if ($delta === null || $bucket < ($context['starts'][0] ?? PHP_INT_MIN)) {
                 continue;
             }
 
-            $values[$group]['rate'][$bucket] = ($values[$group]['rate'][$bucket] ?? 0.0) + $delta;
-            $weights[$group] = ($weights[$group] ?? 0) + $delta;
-        }
+            $elapsed = $at > $since ? $at - $since : $context['interval'];
 
-        foreach ($values as $group => $stats) {
-            foreach ($stats['rate'] as $bucket => $increase) {
-                $values[$group]['rate'][$bucket] = $increase / $context['interval'];
-            }
+            $values[$group]['rate'][$bucket] = ($values[$group]['rate'][$bucket] ?? 0.0) + $delta / $elapsed;
+            $weights[$group] = ($weights[$group] ?? 0) + $delta;
         }
 
         return $this->result($context, 'rate', $values, $weights);
