@@ -3,7 +3,9 @@
 use App\Services\ClickHouse\ClickHouseClient;
 use App\Services\ClickHouse\ClickHouseException;
 use App\Services\Ingest\LogWriter;
+use App\Services\Ingest\MetricWriter;
 use App\Services\Ingest\OtlpLogMapper;
+use App\Services\Ingest\OtlpMetricsMapper;
 use App\Services\Ingest\OtlpTraceMapper;
 use App\Services\Ingest\SpanWriter;
 
@@ -26,15 +28,19 @@ beforeEach(function () {
     }
 
     $this->client = $client;
-    $this->projectId = '9' . random_int(100000, 999999);
+    $this->projectId = '9'.random_int(100000, 999999);
 });
 
 afterEach(function () {
-    if (!isset($this->client)) {
+    if (! isset($this->client)) {
         return;
     }
 
-    foreach (['otel_traces', 'trace_summary', 'otel_logs'] as $table) {
+    foreach ([
+        'otel_traces', 'trace_summary', 'otel_logs',
+        'otel_metrics_gauge', 'otel_metrics_sum', 'otel_metrics_histogram',
+        'otel_metrics_exponential_histogram', 'otel_metrics_summary',
+    ] as $table) {
         $this->client->execute(sprintf("ALTER TABLE %s DELETE WHERE ProjectId = '%s'", $table, $this->projectId));
     }
 });
@@ -46,16 +52,16 @@ afterEach(function () {
  * dated past it never comes out of the async flush (the same rows dated now do),
  * which is indistinguishable from the bug this file exists to catch.
  *
- * @param array<string, mixed> $payload
+ * @param  array<string, mixed>  $payload
  * @return array<string, mixed>
  */
 function datedNow(array $payload, string $earliest): array
 {
-    $delta = ((int)(microtime(true) * 1_000) - 60_000) * 1_000_000 - (int)$earliest;
+    $delta = ((int) (microtime(true) * 1_000) - 60_000) * 1_000_000 - (int) $earliest;
 
     array_walk_recursive($payload, function (mixed &$value, string|int $key) use ($delta): void {
         if (is_string($key) && str_ends_with($key, 'UnixNano') && is_string($value) && ctype_digit($value)) {
-            $value = (string)((int)$value + $delta);
+            $value = (string) ((int) $value + $delta);
         }
     });
 
@@ -75,7 +81,7 @@ function awaitCount(ClickHouseClient $client, string $table, string $projectId, 
             ['p' => $projectId],
         );
 
-        $count = (int)$rows[0]['c'];
+        $count = (int) $rows[0]['c'];
 
         if ($count >= $expected) {
             return $count;
@@ -88,7 +94,7 @@ function awaitCount(ClickHouseClient $client, string $table, string $projectId, 
 }
 
 it('stores every kitchen-sink span plus a numeric-keyed one and reads the maps back intact', function () {
-    $payload = json_decode((string)file_get_contents(base_path('tests/Fixtures/otlp/otlp-traces-kitchen-sink.json')), true);
+    $payload = json_decode((string) file_get_contents(base_path('tests/Fixtures/otlp/otlp-traces-kitchen-sink.json')), true);
     $payload = datedNow($payload, '1756211400000000000');
 
     // The "0"-keyed span rides in the same insert block as the fixture: if the
@@ -100,9 +106,9 @@ it('stores every kitchen-sink span plus a numeric-keyed one and reads the maps b
         'spanId' => str_repeat('f', 16),
         'name' => 'numeric-keys',
         'startTimeUnixNano' => $start,
-        'endTimeUnixNano' => (string)((int)$start + 1_000_000),
+        'endTimeUnixNano' => (string) ((int) $start + 1_000_000),
         'attributes' => [['key' => '0', 'value' => ['stringValue' => 'x']]],
-        'events' => [['name' => 'e', 'timeUnixNano' => (string)((int)$start + 500_000), 'attributes' => [['key' => '1', 'value' => ['stringValue' => 'y']]]]],
+        'events' => [['name' => 'e', 'timeUnixNano' => (string) ((int) $start + 500_000), 'attributes' => [['key' => '1', 'value' => ['stringValue' => 'y']]]]],
         'links' => [['traceId' => str_repeat('c', 32), 'spanId' => str_repeat('d', 16), 'attributes' => [['key' => '0', 'value' => ['stringValue' => 'z']]]]],
     ];
 
@@ -138,11 +144,11 @@ it('stores every kitchen-sink span plus a numeric-keyed one and reads the maps b
 });
 
 it('stores a numeric-keyed log record and reads its maps back intact', function () {
-    $payload = json_decode((string)file_get_contents(base_path('tests/Fixtures/otlp/otlp-logs-kitchen-sink.json')), true);
+    $payload = json_decode((string) file_get_contents(base_path('tests/Fixtures/otlp/otlp-logs-kitchen-sink.json')), true);
     $payload = datedNow($payload, '1756211400000000000');
 
     $payload['resourceLogs'][0]['scopeLogs'][0]['logRecords'][] = [
-        'timeUnixNano' => (string)((int)(microtime(true) * 1_000) * 1_000_000),
+        'timeUnixNano' => (string) ((int) (microtime(true) * 1_000) * 1_000_000),
         'body' => ['stringValue' => 'numeric-keys'],
         'attributes' => [['key' => '0', 'value' => ['stringValue' => 'x']]],
     ];
@@ -162,4 +168,59 @@ it('stores a numeric-keyed log record and reads its maps back intact', function 
 
     expect($rows)->toHaveCount(1)
         ->and($rows[0]['LogAttributes'])->toBe(['0' => 'x']);
+});
+
+it('stores every metric type from the kitchen sink and reads the arrays and maps back intact', function () {
+    $payload = json_decode((string) file_get_contents(base_path('tests/Fixtures/otlp/otlp-metrics-kitchen-sink.json')), true);
+    $payload = datedNow($payload, '1756211000000000000');
+
+    // A "0"-keyed attribute and exemplar map in the gauge's insert block: a
+    // wrong cast would lose the whole block, fixture points included.
+    $time = $payload['resourceMetrics'][0]['scopeMetrics'][0]['metrics'][0]['gauge']['dataPoints'][0]['timeUnixNano'];
+    $payload['resourceMetrics'][0]['scopeMetrics'][0]['metrics'][0]['gauge']['dataPoints'][] = [
+        'timeUnixNano' => $time,
+        'asDouble' => 3.5,
+        'attributes' => [['key' => '0', 'value' => ['stringValue' => 'x']]],
+        'exemplars' => [['asDouble' => 1, 'filteredAttributes' => [['key' => '1', 'value' => ['stringValue' => 'y']]]]],
+    ];
+
+    $mapped = (new OtlpMetricsMapper)->map($payload, $this->projectId);
+
+    // The NaN point and the point with no time, as in the fixture.
+    expect($mapped->rejected)->toBe(2);
+
+    app(MetricWriter::class)->write($mapped->rows);
+
+    foreach ($mapped->rows as $table => $rows) {
+        expect(awaitCount($this->client, $table, $this->projectId, count($rows)))->toBe(count($rows));
+    }
+
+    $gauge = $this->client->select(
+        'SELECT Attributes, `Exemplars.FilteredAttributes` AS Exemplars FROM otel_metrics_gauge WHERE ProjectId = {p:String} AND Value = 3.5',
+        ['p' => $this->projectId],
+    );
+
+    expect($gauge)->toHaveCount(1)
+        ->and($gauge[0]['Attributes'])->toBe(['0' => 'x'])
+        ->and($gauge[0]['Exemplars'])->toBe([['1' => 'y']]);
+
+    $exponential = $this->client->select(
+        'SELECT Scale, PositiveOffset, PositiveBucketCounts, NegativeBucketCounts FROM otel_metrics_exponential_histogram WHERE ProjectId = {p:String}',
+        ['p' => $this->projectId],
+    );
+
+    expect($exponential[0])->toBe([
+        'Scale' => -1,
+        'PositiveOffset' => -2,
+        'PositiveBucketCounts' => [1, 0, 2],
+        'NegativeBucketCounts' => [3, 1],
+    ]);
+
+    $summary = $this->client->select(
+        'SELECT `ValueAtQuantiles.Quantile` AS Quantiles, `ValueAtQuantiles.Value` AS Values FROM otel_metrics_summary WHERE ProjectId = {p:String}',
+        ['p' => $this->projectId],
+    );
+
+    expect($summary[0]['Quantiles'])->toBe([0, 0.5, 0.99, 1])
+        ->and($summary[0]['Values'])->toBe([3, 41.5, 220, 512]);
 });

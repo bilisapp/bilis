@@ -52,6 +52,7 @@ test('a protobuf export is answered in protobuf', function (string $path, string
 })->with([
     'logs' => fn () => ['/api/v1/logs', test()->protobufLogs],
     'traces' => fn () => ['/api/v1/traces', ''],
+    'metrics' => fn () => ['/api/v1/metrics', (string) file_get_contents(dirname(__DIR__, 2).'/Fixtures/otlp/otlp-metrics-export.bin')],
 ]);
 
 test('a json export is still answered in json', function (string $path) {
@@ -59,7 +60,7 @@ test('a json export is still answered in json', function (string $path) {
 
     expect($response->headers->get('Content-Type'))->toContain('application/json')
         ->and($response->getContent())->toBe('{}');
-})->with(['/api/v1/logs', '/api/v1/traces']);
+})->with(['/api/v1/logs', '/api/v1/traces', '/api/v1/metrics']);
 
 test('a partial success is encoded in the request encoding too', function () {
     /*
@@ -86,4 +87,17 @@ test('errors stay json, because they carry a message OTLP has no field for', fun
     postSignal('/api/v1/logs', $this->protobufLogs, 'application/x-protobuf')
         ->assertStatus(415)
         ->assertJsonPath('message', fn (string $m): bool => str_contains($m, 'OTEL_EXPORTER_OTLP_PROTOCOL=http/json'));
+});
+
+test('a metrics partial success names data points, in either encoding', function () {
+    $response = postSignal('/api/v1/metrics', 'definitely not protobuf', 'application/x-protobuf')->assertOk();
+
+    expect($response->headers->get('Content-Type'))->toBe(OtlpResponse::PROTOBUF_CONTENT_TYPE)
+        ->and(decodeOtlpResponse($response->getContent()))
+        ->toBe(['errorMessage' => 'Request body could not be read as an OTLP ExportMetricsServiceRequest.']);
+
+    postSignal('/api/v1/metrics', 'definitely not json', 'application/json')
+        ->assertOk()
+        ->assertJsonPath('partialSuccess.rejectedDataPoints', 0)
+        ->assertJsonPath('partialSuccess.errorMessage', 'Request body could not be read as an OTLP ExportMetricsServiceRequest.');
 });

@@ -9,8 +9,8 @@ paths:
 # MCP
 
 ## The MCP server is read-only, and that is a promise made on a public page
-`app/Mcp/Servers/BilisServer.php` exposes eight tools over logs and traces and
-nothing that writes: no ingest, no delete, no project or key creation, no
+`app/Mcp/Servers/BilisServer.php` exposes ten tools over logs, traces and
+metrics and nothing that writes: no ingest, no delete, no project or key creation, no
 Autofix. The consent screen, `/features/mcp` and `resources/docs/reference/mcp.md`
 all state this to the person approving the connection, so adding a write tool is
 not a code change — it is breaking a published guarantee. If one is ever wanted,
@@ -29,6 +29,20 @@ builder the Autofix agent is handed: summary, spans inside the trace's own
 bounds, and a capped text waterfall, with every empty outcome reported as a
 state (`expired`/`missing`/`unavailable`) rather than thrown. Do not write a
 second renderer.
+
+## Metric tools go through `MetricQuery` only
+`list-metrics` and `query-metric` call `App\Services\Metrics\MetricQuery` and
+nothing else — the explorer's own reader, where R14–R16, the cumulative-delta
+arithmetic and the series caps live. They add only presentation: a plain-words
+`readsAs` per metric (keep `ListMetricsTool::readsAs()` in step with the branches
+of `MetricQuery::series()`), four-significant-digit values, per-series
+min/max/avg/last, and `/s` on a rate's unit. The window is clamped to
+`MetricFilters::MAX_RANGE_DAYS` in the tool (`ListMetricsTool::clampWindow()`),
+since the tools build `MetricFilters` directly rather than via `fromRequest()`.
+`list-metrics` defaults to a 24 h window (the catalog looks back a day anyway);
+`query-metric` to the usual hour. An unknown metric name is an error pointing at
+list-metrics — checked against the catalog *before* `series()`, whose empty
+result cannot tell "no such metric" from "no points in the window".
 
 ## `routes/ai.php` is auto-loaded, and `/mcp` is the server's URI
 `Laravel\Mcp\Server\McpServiceProvider` registers `routes/ai.php` itself — do

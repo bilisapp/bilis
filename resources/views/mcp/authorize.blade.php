@@ -10,14 +10,14 @@
      `$authToken`. Both forms post `auth_token`, `state` and `client_id`; deny
      is the same endpoint with DELETE. --}}
 <x-layouts.marketing title="Authorize {{ $client->name }}"
-                     description="Approve an AI client's request to read this Bilis account's logs and traces.">
+                     description="Approve an AI client's request to read this Bilis account's logs, traces and metrics.">
     <section class="mx-auto flex w-full max-w-xl flex-col px-6 py-16 sm:py-24">
         <p class="font-mono text-xs tracking-wide text-muted-foreground uppercase">
             Connection request
         </p>
 
         <h1 class="mt-3 text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-            {{ $client->name }} wants to read your logs and traces
+            {{ $client->name }} wants to read your logs, traces and metrics
         </h1>
 
         <p class="mt-4 leading-relaxed text-muted-foreground">
@@ -33,8 +33,8 @@
             <div class="grid gap-1 py-4 sm:grid-cols-[10rem_1fr] sm:gap-6">
                 <dt class="text-sm font-medium">It will be able to</dt>
                 <dd class="text-sm text-muted-foreground">
-                    Read the logs and traces of every project in the teams you belong to,
-                    and list those teams, projects and services.
+                    Read the logs, traces and metrics of every project in the teams you belong to,
+                    and list those teams, projects, services and metric names.
                     @if (count($scopes) > 0)
                         <span class="mt-2 block font-mono text-xs text-muted-foreground/80">
                             @foreach ($scopes as $scope)
@@ -50,6 +50,30 @@
                 <dd class="text-sm text-muted-foreground">
                     Send or delete anything, create a project, read or issue an API key,
                     change a setting, or start an Autofix job. The connection is read-only.
+                </dd>
+            </div>
+
+            {{-- The client's name is self-chosen; where the approval is sent is
+                 the one fact about it a person can check. Only the origin is
+                 shown — a path adds noise, and the host is what decides who
+                 receives the code. --}}
+            @php
+                $redirectUri = (string) ($request->redirect_uri ?? '');
+                $redirectScheme = parse_url($redirectUri, PHP_URL_SCHEME);
+                $redirectHost = parse_url($redirectUri, PHP_URL_HOST);
+                $redirectPort = parse_url($redirectUri, PHP_URL_PORT);
+                $redirectOrigin = is_string($redirectScheme)
+                    ? $redirectScheme.'://'.($redirectHost ?? '').($redirectPort ? ':'.$redirectPort : '')
+                    : $redirectUri;
+            @endphp
+            <div class="grid gap-1 py-4 sm:grid-cols-[10rem_1fr] sm:gap-6">
+                <dt class="text-sm font-medium">Approval is sent to</dt>
+                <dd class="text-sm text-muted-foreground">
+                    <span class="font-mono text-foreground break-all" data-test="redirect-origin">{{ $redirectOrigin }}</span>
+                    <span class="mt-1 block">
+                        For an assistant on this computer this is usually <span class="font-mono">localhost</span>
+                        or the assistant's own address. If it is a website you do not recognise, cancel.
+                    </span>
                 </dd>
             </div>
 

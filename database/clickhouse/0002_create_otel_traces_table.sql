@@ -32,13 +32,8 @@ CREATE TABLE IF NOT EXISTS otel_traces
     -- event tick would come back shifted while the span around it did not.
     -- 0006 converges a deployed table onto the same type.
     Events Nested (
-                      Timestamp
-                      DateTime64
-(
-                      9,
-                      'UTC'
-),
-        Name       LowCardinality(String),
+        Timestamp  DateTime64(9, 'UTC'),
+        Name      LowCardinality(String),
         Attributes Map(LowCardinality(String), String)
     ) CODEC(ZSTD(1)),
     Links Nested (

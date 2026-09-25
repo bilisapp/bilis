@@ -16,6 +16,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 
 /**
@@ -42,6 +43,8 @@ class ProjectRepositoryController extends Controller
      */
     public function available(Request $request, GitHubInstallationClient $github, string $current_team, Project $project): JsonResponse
     {
+        Gate::authorize('manageProjects', $project->team);
+
         $installations = $this->installations($this->team($request));
 
         if ($installations->isEmpty()) {
@@ -184,6 +187,8 @@ class ProjectRepositoryController extends Controller
      */
     public function destroy(string $current_team, Project $project, ProjectRepository $repository): RedirectResponse
     {
+        Gate::authorize('manageProjects', $project->team);
+
         abort_if($repository->project_id !== $project->getKey(), 404);
 
         DB::transaction(function () use ($repository): void {

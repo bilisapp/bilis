@@ -1,12 +1,12 @@
 ---
 title: Claude Code
-description: Point Claude Code's built-in OpenTelemetry exporter at Bilis, and the three defaults that otherwise send nothing.
-order: 10
+description: Point Claude Code's built-in OpenTelemetry exporter at Bilis, and the two defaults that otherwise send nothing.
+order: 11
 ---
 
 Claude Code ships an OpenTelemetry exporter. It is off by default, and when you
 turn it on it emits all three OTel signals — logs, traces and metrics. Bilis
-stores the first two, so this is a configuration change and nothing more: no
+stores all three, so this is a configuration change and nothing more: no
 Collector, no wrapper, no plugin.
 
 What you get out of it is a record of how the agent is actually being used —
@@ -26,10 +26,11 @@ Claude Code session on the machine:
         "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA": "1",
         "OTEL_LOGS_EXPORTER": "otlp",
         "OTEL_TRACES_EXPORTER": "otlp",
-        "OTEL_METRICS_EXPORTER": "none",
+        "OTEL_METRICS_EXPORTER": "otlp",
         "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
         "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT": "https://bilis.example.com/api/v1/logs",
         "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "https://bilis.example.com/api/v1/traces",
+        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": "https://bilis.example.com/api/v1/metrics",
         "OTEL_EXPORTER_OTLP_HEADERS": "Authorization=Bearer bilis_YOUR_API_KEY",
         "OTEL_RESOURCE_ATTRIBUTES": "service.name=claude-code"
     }
@@ -47,16 +48,17 @@ export CLAUDE_CODE_ENABLE_TELEMETRY=1
 export CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1
 export OTEL_LOGS_EXPORTER=otlp
 export OTEL_TRACES_EXPORTER=otlp
-export OTEL_METRICS_EXPORTER=none
+export OTEL_METRICS_EXPORTER=otlp
 export OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 export OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.example.com/api/v1/logs
 export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=https://bilis.example.com/api/v1/traces
+export OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=https://bilis.example.com/api/v1/metrics
 export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer bilis_YOUR_API_KEY"
 ```
 
-### The three defaults that send nothing
+### The two defaults that send nothing
 
-Every line above earns its place. Three of them are the difference between
+Every line above earns its place. Two of them are the difference between
 working and a silence with no error in it:
 
 - **`http/protobuf`, because the default is gRPC.** Left alone, the exporter
@@ -65,17 +67,17 @@ working and a silence with no error in it:
   [Traces](/docs/ingestion/traces), and it is the most common reason a new
   install looks broken.
 - **The per-signal endpoints, because Bilis serves `/api/v1/…`.** Given the
-  signal-agnostic `OTEL_EXPORTER_OTLP_ENDPOINT`, the exporter appends `/v1/logs`
-  and `/v1/traces` itself and misses by a path segment.
-  `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` and `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`
-  are used **verbatim**, which is why they name the full path.
-- **`OTEL_METRICS_EXPORTER=none`, because Bilis has no metrics.** Metrics are
-  out of scope on purpose and there is no endpoint to receive them. Left at
-  `otlp`, the exporter POSTs a metrics payload to a URL that does not exist,
-  once a minute, forever, and fails quietly in the background.
+  signal-agnostic `OTEL_EXPORTER_OTLP_ENDPOINT`, the exporter appends
+  `/v1/logs`, `/v1/traces` and `/v1/metrics` itself and misses by a path
+  segment. The per-signal `…_LOGS_ENDPOINT`, `…_TRACES_ENDPOINT` and
+  `…_METRICS_ENDPOINT` variables are used **verbatim**, which is why they name
+  the full path.
+
+Metrics are optional. Set `OTEL_METRICS_EXPORTER=none` and drop the metrics
+endpoint if you only want the logs and traces.
 
 Traces sit behind `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1`. Without it you still
-get the logs, which is where the token and cost numbers live anyway.
+get the logs, which is where the per-request token and cost numbers live.
 
 That configuration records what the agent _did_, not what it was _told_: prompt
 and tool content is redacted until you ask for it. See
@@ -107,6 +109,15 @@ per tool the agent reached for — so a slow turn shows you whether the time wen
 into the model or into the tools. A tool that waited on you for approval says so
 in its own right, as a `claude_code.tool.blocked_on_user` child, which is the
 difference between "the agent is slow" and "the agent was waiting for me".
+
+**Metrics.** Counters such as `claude_code.session.count`,
+`claude_code.token.usage` and `claude_code.cost.usage`, exported once a minute
+(`OTEL_METRIC_EXPORT_INTERVAL`, in milliseconds). Claude Code reports them with
+**delta** temporality by default, which Bilis reads as it is — no
+`OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE` needed. They appear in the
+metrics explorer under the `claude-code` service, where a counter is charted as
+a rate and can be grouped by an attribute such as `model`. See
+[Metrics](/docs/ingestion/metrics).
 
 > **These records have no severity.** Claude Code sends them without a severity
 > number or text, so they land unclassified and a severity filter will not
@@ -196,7 +207,9 @@ service:claude-code
 
 Records appear within a few seconds — logs are flushed every 5 seconds by
 default (`OTEL_LOGS_EXPORT_INTERVAL`), so wait one interval before deciding it
-is broken. Nothing at all almost always means one of the three defaults above.
+is broken. Nothing at all almost always means one of the two defaults above.
+Metrics take longer: the first export comes after one metric interval, a minute
+by default.
 
 To watch it from the terminal instead of the UI, point the exporter at your
 console for one session:

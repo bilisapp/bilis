@@ -10,6 +10,7 @@ use App\Models\Team;
 use App\Models\TeamLlmCredential;
 use App\Services\Autofix\AyosClient;
 use App\Services\Autofix\AyosException;
+use App\Services\Autofix\DiffValidator;
 use App\Services\Autofix\RunStatus;
 use App\Services\Autofix\TaskRenderer;
 use Illuminate\Http\Client\Request;
@@ -55,7 +56,7 @@ test('dispatch pins the base sha, starts a run and marks the job dispatched', fu
         ->and($spec['llm_host'])->toBe('api.anthropic.com')
         ->and($spec['constraints']['test_cmd'])->toBe('php artisan test --compact')
         ->and($spec['constraints']['timeout_s'])->toBe(900)
-        ->and($spec['constraints']['path_denylist'])->toBe(['.github/**', '.env*'])
+        ->and($spec['constraints']['path_denylist'])->toBe(DiffValidator::denylistFor($job))
         ->and($spec['callback_url'])->toBe(route('api.internal.autofix.artifacts'))
         ->and($spec['events_url'])->toBe(route('api.internal.autofix.events'))
         ->and($spec['task'])->toHaveKeys(['instructions', 'context', 'links']);

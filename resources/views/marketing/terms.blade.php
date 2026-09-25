@@ -16,7 +16,7 @@
 
     <h2 id="the-service">2. The service</h2>
 
-    <p>Bilis accepts log records over an HTTP ingest endpoint, stores them, and gives you a web interface to search, filter, and live-tail them. That is the whole product. We may add or change features over time; if we remove something you rely on, we will give you reasonable notice and, where a paid feature disappears mid-term, a pro-rata refund.</p>
+    <p>Bilis accepts log records, trace spans, and metric data points over HTTP ingest endpoints, stores them, and gives you a web interface to search, filter, live-tail, and chart them. That is the whole product. We may add or change features over time; if we remove something you rely on, we will give you reasonable notice and, where a paid feature disappears mid-term, a pro-rata refund.</p>
 
     <p>The service is provided over the public internet. It depends on your network, your log shippers, and your own configuration, none of which we control.</p>
 
@@ -37,7 +37,7 @@
     <ul>
         <li>send data you have no right to send, or that you are contractually or legally barred from putting on third-party infrastructure;</li>
         <li>deliberately ingest special categories of personal data (health, biometrics, political or religious views, sexual orientation), payment card numbers, or government identifiers — see section 6.4;</li>
-        <li>use the service to store anything that is not a log record, such as backups, media libraries, or file storage;</li>
+        <li>use the service to store anything that is not a log record, trace span, or metric data point, such as backups, media libraries, or file storage;</li>
         <li>attempt to access another customer's data, probe or load-test the service without written permission, or interfere with its operation;</li>
         <li>resell the hosted service, or use it to provide a substantially similar log-search product to third parties;</li>
         <li>break the law with it, or use it to store material that is illegal where we operate.</li>
@@ -68,7 +68,7 @@
     <table>
         <tr>
             <th>Subject matter</th>
-            <td>Storage, indexing, search, and display of log records</td>
+            <td>Storage, indexing, search, and display of log records, trace spans, and metric data points</td>
         </tr>
         <tr>
             <th>Duration</th>
@@ -122,7 +122,7 @@
         <p><strong>Your log data is stored in {{ config('legal.hosting.country') }}</strong>, on servers operated by {{ config('legal.hosting.provider') }}. {{ \Illuminate\Support\Str::ucfirst(config('legal.hosting.country')) }} sits outside the EEA, so this is a Chapter V transfer; it relies on {{ config('legal.hosting.transfer_basis') }}. We use no other hosting region. If we change region, or if that basis lapses, we will give you 30 days' notice and put a valid Chapter V mechanism in place first.</p>
     @endif
 
-    <p>Log records are retained for <strong>{{ config('legal.log_retention_days') }} days</strong> from ingest and then deleted automatically. Backups are retained for a further {{ config('legal.backup_retention_days') }} days.</p>
+    <p>Log records, trace spans, and metric data points are retained for <strong>{{ config('legal.log_retention_days') }} days</strong> from ingest and then deleted automatically. A summary of each trace — its id, start and end time, span and error counts, and the name and service of its root operation, with no attribute values or log content — is kept for {{ config('legal.trace_summary_retention_days') }} days so the trace list can still show it after its spans have expired. Backups are retained for a further {{ config('legal.backup_retention_days') }} days.</p>
 
     <h3>6.7 Audits</h3>
 

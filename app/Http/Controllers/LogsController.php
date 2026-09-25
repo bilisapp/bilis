@@ -87,13 +87,27 @@ class LogsController extends Controller
             'after' => ['nullable', 'date'],
         ])['after'] ?? null;
 
-        $result = $logQuery->tail(
-            $projectIds,
-            $filters,
-            is_string($after) ? Carbon::parse($after)->utc()->format('Y-m-d H:i:s.u') : null,
-        );
+        $result = $logQuery->tail($projectIds, $filters, is_string($after) ? $this->tailCursor($after) : null);
 
         return response()->json($result);
+    }
+
+    /**
+     * The tail's `after` bound, at the precision the row it came from had.
+     *
+     * The browser sends back the newest row's own Timestamp, which ClickHouse
+     * rendered with nine fractional digits. Carbon keeps six, so a row stamped
+     * `…00.123456789` came back as `> …00.123456` — which it is — and was sent
+     * again on every poll. A naive UTC timestamp is passed through untouched;
+     * anything else (an offset, the filter's own `to`) goes through Carbon.
+     */
+    private function tailCursor(string $after): string
+    {
+        if (preg_match('/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?)Z?$/', $after, $parts) === 1) {
+            return $parts[1].' '.$parts[2];
+        }
+
+        return Carbon::parse($after)->utc()->format('Y-m-d H:i:s.u');
     }
 
     /**

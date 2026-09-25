@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests\Projects;
 
+use App\Models\Project;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Gate;
 
 class SaveBrowserOriginsRequest extends FormRequest
 {
@@ -35,6 +37,16 @@ class SaveBrowserOriginsRequest extends FormRequest
         $this->merge([
             'origins' => array_values(array_filter(array_map('trim', $lines), fn (string $line): bool => $line !== '')),
         ]);
+    }
+
+    /**
+     * Only an owner or admin may change what a project runs or accepts.
+     */
+    public function authorize(): bool
+    {
+        $project = $this->route('project');
+
+        return $project instanceof Project && Gate::allows('manageProjects', $project->team);
     }
 
     /**

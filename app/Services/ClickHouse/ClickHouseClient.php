@@ -35,6 +35,11 @@ class ClickHouseClient
     {
         $response = $this->send($sql, [
             'default_format' => 'JSONEachRow',
+            // The server stops when this client stops waiting: without these a
+            // query PHP gave up on at its HTTP timeout ran on to completion,
+            // and a user retrying a slow page stacked copies of it.
+            'max_execution_time' => max(1, (int) $this->config->get('clickhouse.timeout', 10)),
+            'cancel_http_readonly_queries_on_client_close' => 1,
             ...$this->queryParameters($params),
         ], $sql);
 
@@ -71,7 +76,7 @@ class ClickHouseClient
      */
     public function execute(string $sql, bool $withDatabase = true): void
     {
-        $this->send($sql, [], $sql, $withDatabase);
+        $this->send($sql, [], $sql, $withDatabase, (int) $this->config->get('clickhouse.statement_timeout', 600));
     }
 
     /**
@@ -91,7 +96,7 @@ class ClickHouseClient
      *
      * @param  array<string, scalar>  $query
      */
-    private function send(string $body, array $query, string $statement, bool $withDatabase = true): Response
+    private function send(string $body, array $query, string $statement, bool $withDatabase = true, ?int $timeout = null): Response
     {
         /*
          * DateTime64 columns carry no timezone, so ClickHouse interprets
@@ -108,7 +113,7 @@ class ClickHouseClient
         }
 
         try {
-            $response = $this->request()
+            $response = $this->request($timeout)
                 ->withQueryParameters($query)
                 ->withBody($body, 'text/plain')
                 ->post($this->baseUrl());
@@ -126,13 +131,13 @@ class ClickHouseClient
     /**
      * Build the pending request with credentials and timeouts applied.
      */
-    private function request(): PendingRequest
+    private function request(?int $timeout = null): PendingRequest
     {
         return Http::withHeaders([
             'X-ClickHouse-User' => (string) $this->config->get('clickhouse.username', 'default'),
             'X-ClickHouse-Key' => (string) $this->config->get('clickhouse.password', ''),
         ])
-            ->timeout((int) $this->config->get('clickhouse.timeout', 10))
+            ->timeout($timeout ?? (int) $this->config->get('clickhouse.timeout', 10))
             ->connectTimeout((int) $this->config->get('clickhouse.connect_timeout', 3));
     }
 

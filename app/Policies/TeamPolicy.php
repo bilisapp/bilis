@@ -91,6 +91,19 @@ class TeamPolicy
     }
 
     /**
+     * Determine whether the user can change or remove a project's settings,
+     * keys and repositories.
+     *
+     * Creating a project or a key stays open to every member, so onboarding
+     * works for anyone; what is gated is everything that can break ingest for
+     * the whole team or change what Autofix runs.
+     */
+    public function manageProjects(User $user, Team $team): bool
+    {
+        return $user->hasTeamPermission($team, TeamPermission::ManageProjects);
+    }
+
+    /**
      * Determine whether the user can delete the model.
      */
     public function delete(User $user, Team $team): bool

@@ -28,7 +28,7 @@ final class InstrumentationPrompt
         $endpoint = rtrim($endpoint, '/');
 
         return <<<PROMPT
-            Set up Bilis — self-hosted log and trace storage — in this project, following its "{$page->title}" guide:
+            Set up Bilis — self-hosted log, trace and metric storage — in this project, following its "{$page->title}" guide:
 
             {$page->markdownUrl()}
 

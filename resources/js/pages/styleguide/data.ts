@@ -4,6 +4,10 @@ import type {
     IngestRateUsage,
     LogEntry,
     LogHistogram,
+    MetricAttributes,
+    MetricCatalog,
+    MetricSeries,
+    MetricSeriesResult,
     PlanUsage,
     ProjectRepository,
     ServiceLatencyResult,
@@ -545,6 +549,12 @@ export const demoPlanUsage: PlanUsage = {
         since: '2026-09-02 00:00:00.000000',
         unavailable: false,
     },
+    metricPoints: {
+        used: 312_400,
+        limit: 1_000_000,
+        since: '2026-09-02 00:00:00',
+        unavailable: false,
+    },
     retentionDays: 30,
     requestsPerMinute: 1200,
     warnAtPercent: 80,
@@ -552,7 +562,8 @@ export const demoPlanUsage: PlanUsage = {
 
 /**
  * The same team a fortnight later: the seats are spent and the day's events
- * are past the warn threshold. Two hues, one sentence, and still no gate.
+ * and metric data points are past the warn threshold. Two hues, one
+ * sentence, and still no gate.
  */
 export const demoPlanUsageWarn: PlanUsage = {
     ...demoPlanUsage,
@@ -562,6 +573,10 @@ export const demoPlanUsageWarn: PlanUsage = {
         used: 64_000,
         logs: 56_800,
         spans: 7_200,
+    },
+    metricPoints: {
+        ...demoPlanUsage.metricPoints,
+        used: 846_000,
     },
 };
 
@@ -579,10 +594,14 @@ export const demoPlanUsageOver: PlanUsage = {
         logs: 125_500,
         spans: 14_500,
     },
+    metricPoints: {
+        ...demoPlanUsage.metricPoints,
+        used: 1_380_000,
+    },
 };
 
 /**
- * ClickHouse could not answer. The events meter says "not measurable" rather
+ * ClickHouse could not answer. The two ClickHouse meters say "not measurable" rather
  * than drawing a zero, because not knowing is not the same as nothing.
  */
 export const demoPlanUsageUnavailable: PlanUsage = {
@@ -592,6 +611,11 @@ export const demoPlanUsageUnavailable: PlanUsage = {
         used: 0,
         logs: 0,
         spans: 0,
+        unavailable: true,
+    },
+    metricPoints: {
+        ...demoPlanUsage.metricPoints,
+        used: 0,
         unavailable: true,
     },
 };
@@ -1206,3 +1230,263 @@ export const DEMO_TRACE_PANEL_EXPIRED: TracePanelResult = {
     truncated: false,
     unavailable: false,
 };
+
+/** Thirty one-minute buckets, naive UTC as ClickHouse prints them. */
+export const DEMO_METRIC_BUCKETS: string[] = Array.from(
+    { length: 30 },
+    (_, index) => `2026-09-25 10:${String(index).padStart(2, '0')}:00`,
+);
+
+/**
+ * A deterministic wobble around a baseline, so the demo charts look like a
+ * service rather than a sine wave and render identically on every load.
+ */
+function demoWave(
+    base: number,
+    swing: number,
+    phase: number,
+    decimals = 3,
+): number[] {
+    return DEMO_METRIC_BUCKETS.map((_, index) => {
+        const value =
+            base +
+            swing * Math.sin((index + phase) / 3) +
+            (swing / 3) * Math.cos((index * 7 + phase) / 5);
+
+        return Number(Math.max(0, value).toFixed(decimals));
+    });
+}
+
+export const DEMO_METRIC_CATALOG: MetricCatalog = {
+    unavailable: false,
+    metrics: [
+        {
+            name: 'http.server.request.duration',
+            type: 'histogram',
+            unit: 's',
+            description: 'Duration of HTTP server requests.',
+            services: ['checkout-api', 'orders-api'],
+            monotonic: false,
+            temporality: 2,
+            points: 48_210,
+        },
+        {
+            name: 'http.server.requests',
+            type: 'sum',
+            unit: '{request}',
+            description: 'Requests handled, by route.',
+            services: ['checkout-api', 'orders-api'],
+            monotonic: true,
+            temporality: 2,
+            points: 36_904,
+        },
+        {
+            name: 'process.memory.usage',
+            type: 'sum',
+            unit: 'By',
+            description: 'The amount of physical memory in use.',
+            services: ['checkout-api', 'orders-api', 'queue-worker'],
+            monotonic: false,
+            temporality: 2,
+            points: 5_400,
+        },
+        {
+            name: 'system.cpu.utilization',
+            type: 'gauge',
+            unit: '1',
+            description: 'CPU time in use, as a fraction of capacity.',
+            services: ['checkout-api', 'queue-worker'],
+            monotonic: false,
+            temporality: 0,
+            points: 3_600,
+        },
+        {
+            name: 'queue.jobs.pending',
+            type: 'gauge',
+            unit: '{job}',
+            description: 'Jobs waiting on the default queue.',
+            services: ['queue-worker'],
+            monotonic: false,
+            temporality: 0,
+            points: 1_800,
+        },
+        {
+            name: 'rpc.server.duration',
+            type: 'summary',
+            unit: 'ms',
+            description: 'Client-computed quantiles of gRPC call duration.',
+            services: ['payments'],
+            monotonic: false,
+            temporality: 0,
+            points: 2_700,
+        },
+    ],
+};
+
+export const DEMO_METRIC_ATTRIBUTES: MetricAttributes = {
+    unavailable: false,
+    attributes: [
+        {
+            key: 'http.route',
+            values: ['/checkout', '/orders/{id}', '/cart', '/health'],
+        },
+        { key: 'http.request.method', values: ['GET', 'POST', 'PUT'] },
+        {
+            key: 'http.response.status_code',
+            values: ['200', '201', '404', '500'],
+        },
+        { key: 'service.version', values: ['2.4.1', '2.4.0'] },
+    ],
+};
+
+function demoMetricResult(
+    overrides: Partial<MetricSeriesResult>,
+): MetricSeriesResult {
+    return {
+        metric: 'http.server.request.duration',
+        type: 'histogram',
+        kind: 'distribution',
+        unit: 's',
+        intervalSeconds: 60,
+        buckets: DEMO_METRIC_BUCKETS,
+        series: [],
+        truncatedGroups: 0,
+        droppedSeries: 0,
+        approximate: false,
+        unavailable: false,
+        ...overrides,
+    };
+}
+
+const DEMO_ROUTES = ['/checkout', '/orders/{id}', '/cart'];
+
+/** A level: memory in use, averaged, with a scrape that never arrived. */
+export const DEMO_METRIC_VALUE: MetricSeriesResult = demoMetricResult({
+    metric: 'process.memory.usage',
+    type: 'sum',
+    kind: 'value',
+    unit: 'By',
+    series: [
+        {
+            label: 'avg',
+            group: null,
+            stat: 'avg',
+            points: demoWave(310_000_000, 24_000_000, 2, 0).map(
+                (value, index) => (index === 17 || index === 18 ? null : value),
+            ),
+        },
+    ],
+});
+
+/** A counter's rate, split by route, with the tail of groups left off. */
+export const DEMO_METRIC_RATE: MetricSeriesResult = demoMetricResult({
+    metric: 'http.server.requests',
+    type: 'sum',
+    kind: 'rate',
+    unit: '{request}',
+    series: [
+        ...DEMO_ROUTES.map((route, index): MetricSeries => ({
+            label: route,
+            group: route,
+            stat: 'rate',
+            points: demoWave(42 / (index + 1), 9 / (index + 1), index * 4, 2),
+        })),
+        {
+            label: '/health',
+            group: '/health',
+            stat: 'rate',
+            points: DEMO_METRIC_BUCKETS.map(() => 0.2),
+        },
+    ],
+    truncatedGroups: 3,
+});
+
+/** Percentiles from histogram buckets, every stat drawn. */
+export const DEMO_METRIC_DISTRIBUTION: MetricSeriesResult = demoMetricResult({
+    series: [
+        {
+            label: 'p50',
+            group: null,
+            stat: 'p50',
+            points: demoWave(0.042, 0.006, 1),
+        },
+        {
+            label: 'p95',
+            group: null,
+            stat: 'p95',
+            points: demoWave(0.21, 0.05, 1),
+        },
+        {
+            label: 'p99',
+            group: null,
+            stat: 'p99',
+            points: demoWave(0.64, 0.18, 1),
+        },
+    ],
+});
+
+/** The same histogram split by route: the percentile toggle picks the stat. */
+export const DEMO_METRIC_DISTRIBUTION_GROUPED: MetricSeriesResult =
+    demoMetricResult({
+        series: DEMO_ROUTES.flatMap((route, index) =>
+            (
+                [
+                    ['p50', 0.04],
+                    ['p95', 0.2],
+                    ['p99', 0.6],
+                ] as const
+            ).map(([stat, base]): MetricSeries => ({
+                label: `${route} ${stat}`,
+                group: route,
+                stat,
+                points: demoWave(
+                    base * (1 + index * 0.6),
+                    base * 0.2,
+                    index * 3,
+                ),
+            })),
+        ),
+    });
+
+/** A summary's own quantiles, averaged across series — approximate. */
+export const DEMO_METRIC_SUMMARY: MetricSeriesResult = demoMetricResult({
+    metric: 'rpc.server.duration',
+    type: 'summary',
+    kind: 'summary',
+    unit: 'ms',
+    series: [
+        {
+            label: 'p50',
+            group: null,
+            stat: 'p50',
+            points: demoWave(12, 2, 5, 1),
+        },
+        {
+            label: 'p90',
+            group: null,
+            stat: 'p90',
+            points: demoWave(38, 7, 5, 1),
+        },
+        {
+            label: 'p99',
+            group: null,
+            stat: 'p99',
+            points: demoWave(120, 30, 5, 1),
+        },
+    ],
+    approximate: true,
+    droppedSeries: 2,
+});
+
+/** A metric that exists but reported nothing in this window. */
+export const DEMO_METRIC_EMPTY: MetricSeriesResult = demoMetricResult({
+    kind: null,
+    buckets: [],
+    series: [],
+});
+
+export const DEMO_METRIC_UNAVAILABLE: MetricSeriesResult = demoMetricResult({
+    kind: null,
+    buckets: [],
+    unavailable: true,
+});

@@ -33,7 +33,7 @@ it('leaves jobs inside the timeout window alone', function () {
         ->and(FixJob::query()->where('status', FixJobStatus::Dispatched)->count())->toBe(1);
 });
 
-it('never touches pending or terminal jobs', function () {
+it('never touches fresh pending or terminal jobs', function () {
     $old = Carbon::now()->subHours(3);
 
     FixJob::factory()->create(['status' => FixJobStatus::Pending, 'dispatched_at' => null]);
@@ -144,4 +144,21 @@ it('ignores a job that never recorded a run id', function () {
     ]);
 
     expect(app(StaleFixJobReaper::class)->reap())->toBeEmpty();
+});
+
+it('fails pending and validating jobs the queue lost', function () {
+    $this->travelTo(now()->subMinutes(StaleFixJobReaper::QUEUED_DEADLINE_MINUTES + 5));
+    $pending = FixJob::factory()->create(['status' => FixJobStatus::Pending, 'dispatched_at' => null]);
+    $validating = FixJob::factory()->create(['status' => FixJobStatus::Validating, 'dispatched_at' => null]);
+    $this->travelBack();
+
+    $recent = FixJob::factory()->create(['status' => FixJobStatus::Validating, 'dispatched_at' => null]);
+
+    $reaped = collect(app(StaleFixJobReaper::class)->reap())->map->id;
+
+    expect($reaped->all())->toEqualCanonicalizing([$pending->id, $validating->id])
+        ->and($pending->refresh()->status)->toBe(FixJobStatus::Failed)
+        ->and($pending->failure_reason)->toContain('never handed to Ayos')
+        ->and($validating->refresh()->failure_reason)->toContain('Validating the diff did not finish')
+        ->and($recent->refresh()->status)->toBe(FixJobStatus::Validating);
 });

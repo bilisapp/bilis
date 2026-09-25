@@ -2,9 +2,11 @@
 
 namespace App\Http\Requests\Autofix;
 
+use App\Models\Project;
 use App\Models\ProjectRepository;
 use App\Models\ProjectRepositoryService;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Validator;
 
 /**
@@ -15,6 +17,16 @@ use Illuminate\Validation\Validator;
  */
 class SaveProjectRepositoryRequest extends FormRequest
 {
+    /**
+     * Only an owner or admin may change what a project runs or accepts.
+     */
+    public function authorize(): bool
+    {
+        $project = $this->route('project');
+
+        return $project instanceof Project && Gate::allows('manageProjects', $project->team);
+    }
+
     /**
      * Get the validation rules that apply to the request.
      *

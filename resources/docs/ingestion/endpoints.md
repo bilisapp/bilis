@@ -4,21 +4,23 @@ description: The ingest endpoints, how they authenticate, and the response contr
 order: 1
 ---
 
-Bilis exposes three ingest endpoints. They all authenticate the same way and
+Bilis exposes four ingest endpoints. They all authenticate the same way and
 all follow the same never-blame-the-client contract.
 
-| Endpoint              | Payload                                                | Success |
-| --------------------- | ------------------------------------------------------ | ------- |
-| `POST /api/v1/logs`   | OTLP `ExportLogsServiceRequest`, JSON **or** protobuf  | `200`   |
-| `POST /api/v1/ingest` | Simple JSON: one object or an array of them            | `202`   |
-| `POST /api/v1/traces` | OTLP `ExportTraceServiceRequest`, JSON **or** protobuf | `200`   |
+| Endpoint               | Payload                                                  | Success |
+| ---------------------- | -------------------------------------------------------- | ------- |
+| `POST /api/v1/logs`    | OTLP `ExportLogsServiceRequest`, JSON **or** protobuf    | `200`   |
+| `POST /api/v1/ingest`  | Simple JSON: one object or an array of them              | `202`   |
+| `POST /api/v1/traces`  | OTLP `ExportTraceServiceRequest`, JSON **or** protobuf   | `200`   |
+| `POST /api/v1/metrics` | OTLP `ExportMetricsServiceRequest`, JSON **or** protobuf | `200`   |
 
-The first two write log lines; the third writes spans. See
-[Traces](/docs/ingestion/traces) for the trace endpoint in full — including why
-OTLP over gRPC on port 4317 is not supported, which is the most common reason a
-new install looks broken.
+The first two write log lines; the third writes spans; the fourth writes metric
+data points. See [Traces](/docs/ingestion/traces) for the trace endpoint in
+full — including why OTLP over gRPC on port 4317 is not supported, which is the
+most common reason a new install looks broken — and
+[Metrics](/docs/ingestion/metrics) for the metrics endpoint.
 
-A third path accepts what the Sentry SDKs send, for applications that already
+One more path accepts what the Sentry SDKs send, for applications that already
 report exceptions through one; it follows the same contract. See
 [Sentry-compatible ingest](/docs/ingestion/sentry).
 
@@ -106,7 +108,7 @@ gRPC server, and a Collector already bridges that hop.
 
 ### Compression
 
-Both endpoints inflate a body sent with `Content-Encoding: gzip` or `deflate` —
+Every OTLP endpoint inflates a body sent with `Content-Encoding: gzip` or `deflate` —
 which the Collector's `otlphttp` exporter does by default. Anything else
 (`zstd`, `snappy`, `lz4`, `br`) answers `415` naming what is supported, because
 no amount of retrying makes such a body readable; configure the exporter
@@ -136,6 +138,27 @@ the rest are reported through OTLP's partial success field — still `200`:
     }
 }
 ```
+
+## OTLP: `POST /api/v1/metrics`
+
+The same OTLP/HTTP contract as the logs endpoint — JSON or protobuf, gzip or
+deflate, the same key — for an `ExportMetricsServiceRequest`. All five metric
+types are accepted (gauge, sum, histogram, exponential histogram, summary), one
+row per data point, kept for 30 days. A point that cannot be stored — no
+storable time, a `NaN` or infinite value, a histogram whose bucket counts do not
+match its bounds — is skipped and counted in `rejectedDataPoints`:
+
+```json
+{
+    "partialSuccess": {
+        "rejectedDataPoints": 3,
+        "errorMessage": "Some data points could not be stored and were skipped."
+    }
+}
+```
+
+Per-SDK setup, a Collector `metrics` pipeline and a curl example are on the
+[Metrics](/docs/ingestion/metrics) page.
 
 ## Simple JSON: `POST /api/v1/ingest`
 
@@ -193,7 +216,9 @@ is a correctness rule rather than politeness:
 The two things that follow from that:
 
 1. **Bad records are skipped and counted, never rejected.** One unparseable
-   record does not cost you the other 499 in the batch.
+   record does not cost you the other 499 in the batch. The count comes back in
+   OTLP's `partialSuccess` — `rejectedLogRecords`, `rejectedSpans` or
+   `rejectedDataPoints`, by signal — or as `skipped` from the simple endpoint.
 2. **Storage failures return `503` with `Retry-After: 5`** — every ClickHouse
    error, overload or not:
 

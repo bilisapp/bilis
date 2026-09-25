@@ -79,3 +79,32 @@ test('a wrong key gets its own bucket and never spends a valid key\'s budget', f
 
     ingestOnce($this->plainTextKey)->assertStatus(202);
 });
+
+test('an address inventing keys is limited by address, not handed a bucket per key', function () {
+    config([
+        'security.ingest_failed_key_limit' => 3,
+        'security.ingest_rate_limit_unauthenticated' => 5,
+    ]);
+
+    foreach (range(1, 3) as $attempt) {
+        ingestOnce('bilis_'.str_repeat((string) $attempt, 40))->assertStatus(401);
+    }
+
+    // From here on this address shares one bucket of five, whatever it names.
+    foreach (range(4, 8) as $attempt) {
+        ingestOnce('bilis_'.str_repeat((string) $attempt, 40))->assertStatus(401);
+    }
+
+    ingestOnce('bilis_'.str_repeat('9', 40))->assertStatus(429);
+});
+
+test('the failed key limit can be disabled', function () {
+    config([
+        'security.ingest_failed_key_limit' => 0,
+        'security.ingest_rate_limit_unauthenticated' => 1,
+    ]);
+
+    foreach (range(1, 4) as $attempt) {
+        ingestOnce('bilis_'.str_repeat((string) $attempt, 40))->assertStatus(401);
+    }
+});

@@ -28,6 +28,13 @@ use Throwable;
  *
  * If a run somehow answers afterwards, the artifact callback's idempotency
  * check ignores it: the job is already terminal.
+ *
+ * The two queue-owned states are reaped too. `pending` and `validating` both
+ * count against the repository's `max_concurrent`, so a DispatchFixJob or
+ * ValidateAndPublishFix lost from the queue (a flushed Redis, a worker killed
+ * past its retries) would otherwise block that repository's Autofix for good.
+ * Neither has a run to ask, so only a deadline applies — measured from the
+ * job's last write, and long enough to outlast every retry and backoff.
  */
 class StaleFixJobReaper
 {
@@ -44,6 +51,14 @@ class StaleFixJobReaper
      * is worse than reaping one a minute late.
      */
     public const STATUS_GRACE_SECONDS = 60;
+
+    /**
+     * How long a job may sit in `pending` or `validating` untouched.
+     *
+     * DispatchFixJob's eight tries and backoff span about 40 minutes and
+     * ValidateAndPublishFix's about 8, so two hours is only ever a lost job.
+     */
+    public const QUEUED_DEADLINE_MINUTES = 120;
 
     public function __construct(private readonly AyosClient $ayos) {}
 
@@ -73,6 +88,25 @@ class StaleFixJobReaper
             $job->forceFill([
                 'status' => FixJobStatus::Failed,
                 'failure_reason' => mb_substr($reason, 0, FixJob::MAX_FAILURE_REASON),
+                'completed_at' => $now,
+            ])->save();
+
+            $reaped[] = $job;
+        }
+
+        $queuedDeadline = $now->copy()->subMinutes(self::QUEUED_DEADLINE_MINUTES);
+
+        $stuck = FixJob::query()
+            ->whereIn('status', [FixJobStatus::Pending, FixJobStatus::Validating])
+            ->where('updated_at', '<', $queuedDeadline)
+            ->get();
+
+        foreach ($stuck as $job) {
+            $job->forceFill([
+                'status' => FixJobStatus::Failed,
+                'failure_reason' => $job->status === FixJobStatus::Pending
+                    ? sprintf('The job was never handed to Ayos within %d minutes; it was declared lost.', self::QUEUED_DEADLINE_MINUTES)
+                    : sprintf('Validating the diff did not finish within %d minutes; the job was declared lost.', self::QUEUED_DEADLINE_MINUTES),
                 'completed_at' => $now,
             ])->save();
 

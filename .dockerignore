@@ -23,7 +23,16 @@
 auth.json
 
 node_modules
+**/node_modules
 vendor
+
+# Never part of the running app: the Remotion project (with its own ~600 MB of
+# node_modules and rendered output), the test suite, design specs and stray
+# screenshots. The image installs with --no-dev, so nothing autoloads tests/.
+video
+tests
+specs
+/*.png
 public/build
 public/hot
 public/storage

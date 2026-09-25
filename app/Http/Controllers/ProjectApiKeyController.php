@@ -6,6 +6,7 @@ use App\Http\Requests\Projects\CreateProjectApiKeyRequest;
 use App\Models\Project;
 use App\Models\ProjectApiKey;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 
 class ProjectApiKeyController extends Controller
@@ -36,6 +37,8 @@ class ProjectApiKeyController extends Controller
      */
     public function destroy(string $current_team, Project $project, ProjectApiKey $apiKey): RedirectResponse
     {
+        Gate::authorize('manageProjects', $project->team);
+
         $apiKey->delete();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('API key revoked.')]);

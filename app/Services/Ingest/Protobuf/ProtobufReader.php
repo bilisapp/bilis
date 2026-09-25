@@ -25,7 +25,7 @@ namespace App\Services\Ingest\Protobuf;
  * | Wire type | Meaning              | Read as                     |
  * | --------- | -------------------- | --------------------------- |
  * | 0         | varint               | int                         |
- * | 1         | 64-bit               | unsigned decimal string     |
+ * | 1         | 64-bit               | decimal string, or a double |
  * | 2         | length-delimited     | string (bytes/UTF-8/message)|
  * | 3, 4      | start/end group      | rejected                    |
  * | 5         | 32-bit               | int                         |
@@ -173,6 +173,86 @@ class ProtobufReader
     }
 
     /**
+     * Read a varint as an unsigned 64-bit decimal string (`uint64`).
+     *
+     * Protojson writes every 64-bit integer as a string, so the protobuf path
+     * does too; a value past `PHP_INT_MAX` is rendered from its bit pattern
+     * rather than wrapping negative.
+     *
+     * @throws MalformedProtobufException
+     */
+    public function readUint64(): string
+    {
+        $value = $this->readVarint();
+
+        return $value < 0 ? sprintf('%u', $value) : (string) $value;
+    }
+
+    /**
+     * Read a signed fixed 64-bit value (`sfixed64`) as a decimal string.
+     *
+     * @throws MalformedProtobufException
+     */
+    public function readSfixed64(): string
+    {
+        return (string) (int) $this->unpackOne('P', 8);
+    }
+
+    /**
+     * Read a zigzag-encoded `sint32`.
+     *
+     * Zigzag maps signed values onto unsigned ones so that small negatives stay
+     * short on the wire: 0 → 0, -1 → 1, 1 → 2, -2 → 3.
+     *
+     * @throws MalformedProtobufException
+     */
+    public function readSint32(): int
+    {
+        $encoded = $this->readVarint() & 0xFFFFFFFF;
+
+        return ($encoded >> 1) ^ -($encoded & 1);
+    }
+
+    /**
+     * Read one occurrence of a `repeated fixed64` field, packed or not.
+     *
+     * proto3 packs repeated scalars by default, but a parser must accept both
+     * encodings on the same field, so the wire type decides.
+     *
+     * @return list<string>
+     *
+     * @throws MalformedProtobufException
+     */
+    public function readRepeatedFixed64(int $wireType): array
+    {
+        return $this->readRepeated($wireType, self::WIRE_FIXED64, fn (self $reader): string => $reader->readFixed64());
+    }
+
+    /**
+     * Read one occurrence of a `repeated double` field, packed or not.
+     *
+     * @return list<float>
+     *
+     * @throws MalformedProtobufException
+     */
+    public function readRepeatedDouble(int $wireType): array
+    {
+        return $this->readRepeated($wireType, self::WIRE_FIXED64, fn (self $reader): float => $reader->readDouble());
+    }
+
+    /**
+     * Read one occurrence of a `repeated uint64` field, packed or not.
+     *
+     * @return list<string>
+     *
+     * @throws MalformedProtobufException
+     */
+    public function readRepeatedUint64(int $wireType): array
+    {
+        return $this->readRepeated($wireType, self::WIRE_VARINT, fn (self $reader): string => $reader->readUint64());
+    }
+
+    /**
      * Read a length-delimited chunk into a new string: a scalar or byte array.
      *
      * This copies, so it is for leaf values only — a string, a byte field, a
@@ -224,6 +304,40 @@ class ProtobufReader
                 "Wire type {$wireType} is not supported at offset {$this->offset}.",
             ),
         };
+    }
+
+    /**
+     * Read a repeated scalar in either of its two encodings.
+     *
+     * Packed: one length-delimited run of values, read through a window. Not
+     * packed: a single value in the element's own wire type; the caller appends
+     * it and meets the field again for the next one.
+     *
+     * @template TValue
+     *
+     * @param  callable(self): TValue  $readOne
+     * @return list<TValue>
+     *
+     * @throws MalformedProtobufException
+     */
+    private function readRepeated(int $wireType, int $elementWireType, callable $readOne): array
+    {
+        if ($wireType === $elementWireType) {
+            return [$readOne($this)];
+        }
+
+        if ($wireType !== self::WIRE_LENGTH_DELIMITED) {
+            throw new MalformedProtobufException("Wire type {$wireType} cannot carry a repeated field at offset {$this->offset}.");
+        }
+
+        $packed = $this->readMessage();
+        $values = [];
+
+        while (! $packed->atEnd()) {
+            $values[] = $readOne($packed);
+        }
+
+        return $values;
     }
 
     /**

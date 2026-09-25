@@ -1,0 +1,307 @@
+{
+    "resourceMetrics": [
+        {
+            "resource": {
+                "attributes": [
+                    {
+                        "key": "deployment.generation",
+                        "value": {
+                            "intValue": "41"
+                        }
+                    },
+                    {
+                        "key": "service.canary",
+                        "value": {
+                            "boolValue": true
+                        }
+                    },
+                    {
+                        "key": "service.name",
+                        "value": {
+                            "stringValue": "checkout"
+                        }
+                    }
+                ]
+            },
+            "scopeMetrics": [
+                {
+                    "metrics": [
+                        {
+                            "description": "Requests served.",
+                            "name": "http.server.requests",
+                            "sum": {
+                                "aggregationTemporality": 2,
+                                "dataPoints": [
+                                    {
+                                        "asInt": "3",
+                                        "attributes": [
+                                            {
+                                                "key": "http.route",
+                                                "value": {
+                                                    "stringValue": "/checkout"
+                                                }
+                                            },
+                                            {
+                                                "key": "http.status_code",
+                                                "value": {
+                                                    "intValue": "500"
+                                                }
+                                            }
+                                        ],
+                                        "startTimeUnixNano": "1790325705170690000",
+                                        "timeUnixNano": "1790325705170763000"
+                                    },
+                                    {
+                                        "asInt": "41",
+                                        "attributes": [
+                                            {
+                                                "key": "http.route",
+                                                "value": {
+                                                    "stringValue": "/checkout"
+                                                }
+                                            },
+                                            {
+                                                "key": "http.status_code",
+                                                "value": {
+                                                    "intValue": "200"
+                                                }
+                                            }
+                                        ],
+                                        "startTimeUnixNano": "1790325705170690000",
+                                        "timeUnixNano": "1790325705170763000"
+                                    }
+                                ],
+                                "isMonotonic": true
+                            },
+                            "unit": "{request}"
+                        },
+                        {
+                            "name": "http.server.active_requests",
+                            "sum": {
+                                "aggregationTemporality": 2,
+                                "dataPoints": [
+                                    {
+                                        "asInt": "3",
+                                        "startTimeUnixNano": "1790325705170705000",
+                                        "timeUnixNano": "1790325705170765000"
+                                    }
+                                ]
+                            },
+                            "unit": "{request}"
+                        },
+                        {
+                            "gauge": {
+                                "dataPoints": [
+                                    {
+                                        "asDouble": 0.625,
+                                        "attributes": [
+                                            {
+                                                "key": "pool",
+                                                "value": {
+                                                    "stringValue": "heap"
+                                                }
+                                            }
+                                        ],
+                                        "startTimeUnixNano": "1790325705170729000",
+                                        "timeUnixNano": "1790325705170766000"
+                                    }
+                                ]
+                            },
+                            "name": "process.memory.usage.ratio",
+                            "unit": "1"
+                        },
+                        {
+                            "histogram": {
+                                "aggregationTemporality": 2,
+                                "dataPoints": [
+                                    {
+                                        "attributes": [
+                                            {
+                                                "key": "http.route",
+                                                "value": {
+                                                    "stringValue": "/checkout"
+                                                }
+                                            }
+                                        ],
+                                        "bucketCounts": [
+                                            "1",
+                                            "0",
+                                            "1",
+                                            "2",
+                                            "0",
+                                            "1",
+                                            "0",
+                                            "1",
+                                            "1"
+                                        ],
+                                        "count": "7",
+                                        "explicitBounds": [
+                                            0.005,
+                                            0.01,
+                                            0.025,
+                                            0.05,
+                                            0.1,
+                                            0.25,
+                                            0.5,
+                                            1
+                                        ],
+                                        "max": 1.5,
+                                        "min": 0.004,
+                                        "startTimeUnixNano": "1790325705170747000",
+                                        "sum": 2.476,
+                                        "timeUnixNano": "1790325705170766000"
+                                    }
+                                ]
+                            },
+                            "name": "http.server.request.duration",
+                            "unit": "s"
+                        },
+                        {
+                            "exponentialHistogram": {
+                                "aggregationTemporality": 2,
+                                "dataPoints": [
+                                    {
+                                        "count": "5",
+                                        "max": 70000,
+                                        "min": 512,
+                                        "negative": {},
+                                        "positive": {
+                                            "bucketCounts": [
+                                                "1",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "1",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "1",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "1",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "1"
+                                            ],
+                                            "offset": 143
+                                        },
+                                        "scale": 4,
+                                        "startTimeUnixNano": "1790325705170755000",
+                                        "sum": 77132,
+                                        "timeUnixNano": "1790325705170768000"
+                                    }
+                                ]
+                            },
+                            "name": "checkout.payload.size",
+                            "unit": "By"
+                        }
+                    ],
+                    "scope": {
+                        "name": "checkout.payments",
+                        "version": "1.4.0"
+                    }
+                }
+            ]
+        }
+    ]
+}

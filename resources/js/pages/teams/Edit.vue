@@ -221,7 +221,7 @@ const confirmCancelInvitation = (invitation: TeamInvitation) => {
             <Heading
                 variant="small"
                 title="Agent access"
-                description="Point an MCP client at this instance and it can read your logs and traces while it works."
+                description="Point an MCP client at this instance and it can read your logs, traces and metrics while it works."
             />
 
             <ConnectAgentCard :url="mcpUrl" :docs-href="mcpDocsHref" />

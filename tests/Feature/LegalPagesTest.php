@@ -59,3 +59,14 @@ it('keeps the marketing pages free of the inertia bundle', function () {
             ->and($content)->not->toContain('resources/js/app.ts');
     }
 });
+
+test('the trace summary retention promised on the legal pages is the one the tables keep', function () {
+    $days = (int) config('legal.trace_summary_retention_days');
+
+    foreach (['0003_create_trace_summary_table.sql', '0007_create_trace_index_table.sql'] as $file) {
+        expect((string) file_get_contents(database_path("clickhouse/{$file}")))->toContain("toIntervalDay({$days})");
+    }
+
+    $this->get(route('privacy'))->assertOk()->assertSee('Trace summaries')->assertSee("{$days} days from ingest", false);
+    $this->get(route('terms'))->assertOk()->assertSee("kept for {$days} days", false);
+});

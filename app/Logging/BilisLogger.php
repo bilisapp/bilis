@@ -2,6 +2,9 @@
 
 namespace App\Logging;
 
+use Illuminate\Queue\Events\JobFailed;
+use Illuminate\Queue\Events\JobProcessed;
+use Illuminate\Queue\Events\JobReleasedAfterException;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\WhatFailureGroupHandler;
 use Monolog\Level;
@@ -45,6 +48,16 @@ class BilisLogger
          * Flushing an empty buffer is a no-op, so this never double sends.
          */
         app()->terminating(static fn () => $handler->flush());
+
+        /*
+         * A queue worker never terminates between jobs, so without this a
+         * Horizon worker held its lines until 500 had piled up — and lost them
+         * outright if it was killed first. Each job is its own "request".
+         */
+        app('events')->listen(
+            [JobProcessed::class, JobFailed::class, JobReleasedAfterException::class],
+            static fn () => $handler->flush(),
+        );
 
         /*
          * A handler that throws would take the whole logging stack with it.

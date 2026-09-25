@@ -25,6 +25,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use Laravel\Passport\Passport;
+use RuntimeException;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -43,13 +44,24 @@ class AppServiceProvider extends ServiceProvider
      * a child process here, a Serverless Job run in production. Everything
      * downstream is the same code on both sides, which is what makes a local
      * end-to-end test worth running.
+     *
+     * The local driver runs the agent as a child of this process, as the same
+     * OS user, next to this app's `.env`. That is fine on a laptop and never
+     * what production should do by accident, so production refuses it unless an
+     * operator opted in, and a mistyped driver name is an error rather than a
+     * silent fall back to it.
      */
     protected function configureAutofixRunner(): void
     {
         $this->app->bind(RunDriver::class, function (): RunDriver {
-            return match (config('autofix.runner.driver')) {
+            $driver = config('autofix.runner.driver');
+
+            return match ($driver) {
                 'scaleway' => new ScalewayRunDriver,
-                default => new LocalRunDriver,
+                'local' => $this->app->isProduction() && ! config('autofix.runner.allow_local_in_production')
+                    ? throw new RuntimeException('The local Autofix runner is disabled in production. Set AUTOFIX_RUNNER_DRIVER=scaleway, or AUTOFIX_RUNNER_ALLOW_LOCAL_IN_PRODUCTION=true to accept running the agent on this host.')
+                    : new LocalRunDriver,
+                default => throw new RuntimeException(sprintf('Unknown Autofix runner driver "%s".', is_scalar($driver) ? (string) $driver : gettype($driver))),
             };
         });
     }
@@ -135,7 +147,10 @@ class AppServiceProvider extends ServiceProvider
             // The throttle sorts ahead of the API-key middleware, so the key is
             // read from the request and hashed rather than looked up: a bucket
             // per credential, without a database round trip on every POST.
-            if ($key === null) {
+            // An address that keeps presenting keys that do not exist loses
+            // the per-key buckets until it stops: otherwise each invented key
+            // would be a fresh full budget.
+            if ($key === null || IngestRateUsage::addressIsGuessingKeys($request->ip())) {
                 return $this->limit(
                     (int) config('security.ingest_rate_limit_unauthenticated'),
                     IngestRateUsage::bucketForIp($request->ip()),
@@ -156,6 +171,11 @@ class AppServiceProvider extends ServiceProvider
          */
         RateLimiter::for('mcp', fn (Request $request): Limit => Limit::perMinute(60)
             ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
+
+        // Anonymous OAuth client registration: a person connects an assistant
+        // a handful of times, never dozens an hour from one address.
+        RateLimiter::for('oauth-register', fn (Request $request): Limit => Limit::perHour(20)
+            ->by('oauth-register:'.$request->ip()));
     }
 
     /**

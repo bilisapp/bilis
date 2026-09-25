@@ -120,7 +120,7 @@ Authorized, and now every export logged `Error occurred during parsing:
 Unexpected wire type.`
 
 The spans were in ClickHouse. The insert was fine. What was wrong was the
-*response*: OTLP/HTTP is symmetric, and a protobuf export must be answered with a
+_response_: OTLP/HTTP is symmetric, and a protobuf export must be answered with a
 protobuf `ExportTraceServiceResponse`. Bilis answered every export in JSON
 whatever arrived. Clients were parsing `{}` as a protobuf message and reporting a
 wire-format error after every successful batch.
@@ -131,7 +131,7 @@ The complaint only exists in the client's log — so you only find it if you are
 also the client.
 
 Fixing it needed an encoder, which sounds worse than it is. The response schema
-is two fields wide and the field *numbers* are the same for both signals:
+is two fields wide and the field _numbers_ are the same for both signals:
 
 ```
 ExportTraceServiceResponse { partial_success = 1 }
@@ -154,7 +154,7 @@ something on the same host:
 
 > The export runs synchronously at the end of a request, and it posts to an
 > endpoint served by the same worker pool. So a request cannot release its worker
-> until a *second* worker has answered the export. Every traced request occupies
+> until a _second_ worker has answered the export. Every traced request occupies
 > two.
 
 Add a trace list polling every five seconds, a small FPM pool, and one slow

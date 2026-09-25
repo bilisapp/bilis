@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\Project;
 use App\Models\ProjectApiKey;
+use App\Services\Ingest\IngestRateUsage;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -42,6 +43,8 @@ class AuthenticateProjectApiKey
         $apiKey = ProjectApiKey::findByPlainKey($plainTextKey);
 
         if (! $apiKey?->project) {
+            IngestRateUsage::recordFailedKey($request->ip());
+
             return $this->unauthorized('API key invalid.');
         }
 

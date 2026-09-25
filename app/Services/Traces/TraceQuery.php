@@ -5,6 +5,7 @@ namespace App\Services\Traces;
 use App\Services\ClickHouse\ClickHouseClient;
 use App\Services\ClickHouse\ClickHouseException;
 use App\Services\Logs\LogQuery;
+use App\Services\Support\TimeBuckets;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Illuminate\Support\Carbon;
 
@@ -114,16 +115,11 @@ class TraceQuery
     public const SPAN_TTL_DAYS = 30;
 
     /**
-     * The bucket widths the histogram may choose from, in seconds.
-     *
-     * The same ladder as {@see LogQuery}: the two strips sit on sibling pages
-     * and a "1h" window must draw the same number of bars on both.
+     * How many bars the histogram aims for. The widths it chooses from are
+     * {@see TimeBuckets}' ladder, shared with the log and metric charts so a
+     * "1h" window draws the same bars on every page.
      */
-    private const BUCKET_INTERVALS = [1, 5, 15, 30, 60, 300, 900, 1800, 3600, 10800, 21600, 43200, 86400];
-
     private const TARGET_BUCKETS = 48;
-
-    private const MAX_BUCKETS = 240;
 
     /**
      * How far back the service list looks when the selected window is shorter.
@@ -150,9 +146,8 @@ class TraceQuery
 
     public function __construct(
         private readonly ClickHouseClient $client,
-        private readonly CacheRepository  $cache,
-    ) {
-    }
+        private readonly CacheRepository $cache,
+    ) {}
 
     /**
      * Fetch a page of traces, newest first.
@@ -227,7 +222,7 @@ class TraceQuery
          */
         $candidateLimit = '';
 
-        if (!$this->narrowsAfterAggregation($filters)) {
+        if (! $this->narrowsAfterAggregation($filters)) {
             $candidateLimit = 'LIMIT {candidateLimit:UInt32}';
             $params['candidateLimit'] = $filters->limit + self::CANDIDATE_MARGIN;
         }
@@ -408,7 +403,7 @@ class TraceQuery
      * window is cut at the cap and `capped` says so, because the span read is
      * bounded by `(ProjectId, Timestamp)` and must stay bounded.
      *
-     * @param list<string> $projectIds
+     * @param  list<string>  $projectIds
      * @return array{spans: list<array<string, mixed>>, truncated: bool, unavailable: bool, capped: bool}
      */
     public function spansBetween(array $projectIds, string $traceId, Carbon $from, Carbon $to): array
@@ -432,7 +427,7 @@ class TraceQuery
     /**
      * The one span read: a trace's spans inside a time window, in tree order.
      *
-     * @param list<string> $projectIds
+     * @param  list<string>  $projectIds
      * @return array{spans: list<array<string, mixed>>, truncated: bool, unavailable: bool}
      */
     private function spansInWindow(array $projectIds, string $traceId, Carbon $from, Carbon $to): array
@@ -831,7 +826,7 @@ class TraceQuery
         $counts = [];
 
         foreach ($rows as $row) {
-            $bucket = (string)($row['Bucket'] ?? '');
+            $bucket = (string) ($row['Bucket'] ?? '');
 
             if ($bucket === '') {
                 continue;
@@ -839,8 +834,8 @@ class TraceQuery
 
             $key = Carbon::parse($bucket, 'UTC')->getTimestamp();
             $counts[$key] = [
-                'traces' => ($counts[$key]['traces'] ?? 0) + (int)($row['Traces'] ?? 0),
-                'errors' => ($counts[$key]['errors'] ?? 0) + (int)($row['FailedTraces'] ?? 0),
+                'traces' => ($counts[$key]['traces'] ?? 0) + (int) ($row['Traces'] ?? 0),
+                'errors' => ($counts[$key]['errors'] ?? 0) + (int) ($row['FailedTraces'] ?? 0),
             ];
         }
 
@@ -867,7 +862,7 @@ class TraceQuery
      * An overloaded ClickHouse yields an empty list — the picker degrades to
      * a plain text field rather than taking the page down with it.
      *
-     * @param list<string> $projectIds
+     * @param  list<string>  $projectIds
      * @return list<string>
      */
     public function services(array $projectIds, TraceFilters $filters): array
@@ -905,7 +900,7 @@ class TraceQuery
              ORDER BY RootService ASC
              LIMIT {rowLimit:UInt32}';
 
-        $key = 'traces.services.' . sha1(implode(',', $projectIds) . '|' . $params['from'] . '|' . $params['to']);
+        $key = 'traces.services.'.sha1(implode(',', $projectIds).'|'.$params['from'].'|'.$params['to']);
 
         /** @var list<string> $services */
         $services = $this->cache->remember(
@@ -919,9 +914,9 @@ class TraceQuery
                 }
 
                 return array_values(array_filter(array_map(
-                    fn(array $row): string => (string)($row['RootService'] ?? ''),
+                    fn (array $row): string => (string) ($row['RootService'] ?? ''),
                     $rows,
-                ), fn(string $name): bool => $name !== ''));
+                ), fn (string $name): bool => $name !== ''));
             },
         );
 
@@ -933,24 +928,13 @@ class TraceQuery
      */
     private function bucketInterval(TraceFilters $filters): int
     {
-        $span = max(1, $filters->to->getTimestamp() - $filters->from->getTimestamp());
-
-        foreach (self::BUCKET_INTERVALS as $interval) {
-            if ((int)ceil($span / $interval) <= self::TARGET_BUCKETS) {
-                return $interval;
-            }
-        }
-
-        return (int)max(
-            self::BUCKET_INTERVALS[count(self::BUCKET_INTERVALS) - 1],
-            (int)ceil($span / self::MAX_BUCKETS),
-        );
+        return TimeBuckets::interval($filters->from, $filters->to, self::TARGET_BUCKETS);
     }
 
     /**
      * Expand the sparse counts into one entry per bucket across the window.
      *
-     * @param array<int, array{traces: int, errors: int}> $counts
+     * @param  array<int, array{traces: int, errors: int}>  $counts
      * @return array{buckets: list<array{at: string, traces: int, errors: int}>, intervalSeconds: int, total: int, errors: int, unavailable: bool}
      */
     private function fillBuckets(TraceFilters $filters, int $intervalSeconds, array $counts): array
@@ -962,7 +946,7 @@ class TraceQuery
         $total = 0;
         $errors = 0;
 
-        for ($at = $start; $at <= $end && count($buckets) < self::MAX_BUCKETS; $at += $intervalSeconds) {
+        for ($at = $start; $at <= $end && count($buckets) < TimeBuckets::MAX_BUCKETS; $at += $intervalSeconds) {
             $traces = $counts[$at]['traces'] ?? 0;
             $failed = $counts[$at]['errors'] ?? 0;
 

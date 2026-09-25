@@ -12,12 +12,13 @@ it('renders the pricing page to a logged-out visitor', function () {
 });
 
 it('publishes the configured Free plan numbers rather than literals', function () {
-    // The page's whole job is being the published source of these six
+    // The page's whole job is being the published source of these seven
     // numbers; if a config override does not move them, the page is lying.
     config([
         'plans.free.projects_per_team' => 7,
         'plans.free.members_per_team' => 11,
         'plans.free.events_per_day' => 2_500_000,
+        'plans.free.metric_points_per_day' => 3_000_000,
         'plans.warn_at_percent' => 65,
         'legal.log_retention_days' => 45,
         'security.ingest_rate_limit' => 900,
@@ -28,9 +29,17 @@ it('publishes the configured Free plan numbers rather than literals', function (
         ->assertSee('7 projects')
         ->assertSee('11 members')
         ->assertSee('2,500,000 events a day')
+        ->assertSee('3,000,000 metric data points a day')
         ->assertSee('45-day retention')
         ->assertSee('900 requests a minute')
         ->assertSee('65%');
+});
+
+it('says metric data points are counted apart from events and kept as long', function () {
+    get(route('pricing'))
+        ->assertOk()
+        ->assertSee('Metric data points are not events')
+        ->assertSee('for logs, spans and metrics, then deleted automatically.');
 });
 
 it('says the limits are soft and that nothing is purchasable', function () {

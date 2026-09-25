@@ -1,6 +1,6 @@
 ---
 title: Limits and behavior
-description: What an acknowledgement means, how long logs and spans live, how to change that, how much disk they need, and the knobs a self-hosted install has.
+description: What an acknowledgement means, how long logs, spans and metrics live, how to change that, how much disk they need, and the knobs a self-hosted install has.
 order: 1
 ---
 
@@ -39,6 +39,9 @@ one row per trace carrying its root operation, duration, span count and error
 count — are kept for **90 days**, so a trace outlives its own detail: after 30
 days it still appears in the trace list, but its waterfall can no longer be
 drawn. The interface says so rather than showing an empty chart.
+
+**Metric data points** are dropped after **30 days** too, on the same terms as
+logs: a TTL on the point's time, daily partitions, whole-partition drops.
 
 Retention is a property of the ClickHouse tables, not a per-project setting.
 Changing it means altering the TTL on `otel_logs`, `otel_traces` or
@@ -186,29 +189,36 @@ counts of what was shipped — Bilis does not extrapolate.
 - **No enforced per-project ingest quota.** The per-key rate limit shapes
   request rate, but nothing caps how much a well-batched project can store — a
   noisy project can still fill the disk. On the hosted service the daily event
-  allowance below is *shown and warned about*, never enforced: no record is
-  ever refused or dropped for being over it. On a self-hosted install there is
-  no allowance at all.
+  and metric data point allowances below are _shown and warned about_ and
+  never enforced: no record is ever refused or dropped for being over either.
+  On a self-hosted install there is no allowance at all.
 
 ## The hosted Free plan
 
 These apply to [bilis.app](https://bilis.app) only. **An instance you run
 yourself has no plan and no limits** — nothing in this section is read by it.
 
-| Limit | Free |
-| --- | --- |
-| Projects per team | 3 |
-| Members per team (owner included) | 5 |
-| Events per day (log records + spans, per team, from 00:00 UTC) | 100,000 |
-| Retention for logs and spans | 30 days |
-| Ingest requests per minute, per API key | 1,200 |
+| Limit                                                          | Free      |
+| -------------------------------------------------------------- | --------- |
+| Projects per team                                              | 3         |
+| Members per team (owner included)                              | 5         |
+| Events per day (log records + spans, per team, from 00:00 UTC) | 100,000   |
+| Metric data points per day (per team, from 00:00 UTC)          | 1,000,000 |
+| Retention for logs, spans and metrics                          | 30 days   |
+| Ingest requests per minute, per API key                        | 1,200     |
 
-**Every one of them is soft except the last.** Going over the projects, members
-or events allowance drops nothing, rejects nothing and blocks nothing: the
-dashboard's "Plan & usage" card shows where the team stands, starts saying so at
-80%, and someone gets in touch. The per-minute request limit is the one real
+**Every one of them is soft except the last.** Going over the projects,
+members, events or metric data points allowance drops nothing, rejects nothing
+and blocks nothing: the dashboard's "Plan & usage" card shows where the team
+stands, starts saying so at 80%, and someone gets in touch. The per-minute request limit is the one real
 ceiling, and it is a retryable 429 with `Retry-After` rather than a rejection of
 the payload — the "ingest never returns 400" rule above still holds.
+
+A metric data point is one row: one gauge reading, one counter value, or one
+histogram point however many buckets it carries. Points are counted on their
+own meter, never as events — a service exporting every ten seconds writes
+thousands a day without anything happening, and that should not spend a log
+budget.
 
 More room than that is a conversation rather than a checkout: there is no
 self-serve billing. See [pricing](/pricing), or write to us at

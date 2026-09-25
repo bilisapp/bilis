@@ -12,7 +12,7 @@ use Laravel\Mcp\Server\Prompts\Argument;
 
 #[Name('debug-with-bilis')]
 #[Title('Debug with Bilis')]
-#[Description('The route from a symptom to a cause using this server\'s tools: find the failing lines, group them into distinct problems, then open the failing request as a waterfall. Pass the symptom you were given and it becomes a plan.')]
+#[Description('The route from a symptom to a cause using this server\'s tools: find the failing lines, group them into distinct problems, then open the failing request as a waterfall — or, for slowness and saturation, read the app\'s own metrics. Pass the symptom you were given and it becomes a plan.')]
 class DebugWithBilisPrompt extends Prompt
 {
     /**
@@ -29,7 +29,7 @@ class DebugWithBilisPrompt extends Prompt
             Work it out from the data rather than from the code, in this order:
 
             1. `list-projects` — unless you already know which project the symptom belongs to.
-               Note whether it has traces as well as logs; the last step needs them.
+               Note whether it has traces and metrics as well as logs; the later steps need them.
             2. `error-summary` over the window the symptom happened in (pass `from` and `to`
                when it was not the last hour). This gives distinct problems with counts, not
                a scroll of duplicate lines. Say which group you are pursuing and why — usually
@@ -44,6 +44,12 @@ class DebugWithBilisPrompt extends Prompt
             5. If the symptom is slowness rather than an error, replace steps 2–3 with
                `service-latency` for the window, then `list-traces` with `min_duration_ms`
                near the p95 to open a representative slow request.
+            6. If the symptom smells of saturation — slow everywhere, memory, queues, a pool
+               running dry — `list-metrics` to see what the app measures, then `query-metric`
+               on the likely one over a window that starts before the symptom did. Read each
+               series' min/max/avg/last first; the shape (a climb, a step, a plateau at a
+               limit) is the evidence. Split with `group_by` to find which route, host or
+               queue it is.
 
             Then say what broke, where, and what the evidence was — quoting the log line and
             the span. Propose a fix separately, and be explicit about which part is inference:

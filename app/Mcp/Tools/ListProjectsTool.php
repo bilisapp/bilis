@@ -5,6 +5,7 @@ namespace App\Mcp\Tools;
 use App\Mcp\Concerns\ResolvesScope;
 use App\Models\Project;
 use App\Services\Logs\LogQuery;
+use App\Services\Metrics\MetricQuery;
 use App\Services\Traces\TraceQuery;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\Types\Type;
@@ -17,7 +18,7 @@ use Laravel\Mcp\Server\Tool;
 
 #[Name('list-projects')]
 #[Title('List projects')]
-#[Description('List a team\'s projects. A project is one application\'s logs and traces, and its slug is what every other tool takes as its "project" argument. Each project reports whether it has ever received logs or spans, so an empty answer from a search can be told apart from an app that was never wired up.')]
+#[Description('List a team\'s projects. A project is one application\'s logs, traces and metrics, and its slug is what every other tool takes as its "project" argument. Each project reports whether it has ever received logs, spans or metrics, so an empty answer from a search can be told apart from an app that was never wired up.')]
 class ListProjectsTool extends Tool
 {
     use ResolvesScope;
@@ -25,7 +26,7 @@ class ListProjectsTool extends Tool
     /**
      * Handle the tool request.
      */
-    public function handle(Request $request, LogQuery $logs, TraceQuery $traces): Response
+    public function handle(Request $request, LogQuery $logs, TraceQuery $traces, MetricQuery $metrics): Response
     {
         $scope = $this->resolveScope($request);
 
@@ -36,7 +37,7 @@ class ListProjectsTool extends Tool
         return Response::json([
             'team' => $scope->team->slug,
             'projects' => $scope->projects
-                ->map(function (Project $project) use ($logs, $traces): array {
+                ->map(function (Project $project) use ($logs, $traces, $metrics): array {
                     $ids = [(string) $project->id];
 
                     return [
@@ -44,6 +45,7 @@ class ListProjectsTool extends Tool
                         'name' => $project->name,
                         'hasLogs' => $logs->hasAnyLogs($ids),
                         'hasTraces' => $traces->hasAnyTraces($ids),
+                        'hasMetrics' => $metrics->hasAnyMetrics($ids),
                     ];
                 })
                 ->values(),

@@ -1,4 +1,4 @@
-{{-- The three ways in, as one ledger.
+{{-- The ways in, as one ledger.
 
      A table would need horizontal scrolling on a phone for the sake of three
      columns; the same rows stack instead, on the page's hairlines, with the
@@ -18,6 +18,13 @@
             'status' => '200',
             'payload' => 'OTLP ExportTraceServiceRequest, JSON or protobuf',
             'note' => 'Spans from the same SDKs, on the same key, under the same contract.',
+        ],
+        [
+            'method' => 'POST',
+            'path' => '/api/v1/metrics',
+            'status' => '200',
+            'payload' => 'OTLP ExportMetricsServiceRequest, JSON or protobuf',
+            'note' => 'Counters, gauges and histograms from the same SDKs — every OTLP metric type.',
         ],
         [
             'method' => 'POST',

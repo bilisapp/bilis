@@ -21,11 +21,24 @@ export type PlanEvents = PlanAllowance & {
     unavailable: boolean;
 };
 
+/**
+ * Metric data points since midnight UTC: one row per point, so a histogram
+ * point counts once however many buckets it carries. Measured separately
+ * from events, and unavailable on its own.
+ */
+export type PlanMetricPoints = PlanAllowance & {
+    /** Midnight UTC of the day being counted, as ClickHouse renders it. */
+    since: string;
+    /** ClickHouse could not answer; the meter says so rather than showing zero. */
+    unavailable: boolean;
+};
+
 export type PlanUsage = {
     plan: 'free';
     projects: PlanAllowance;
     members: PlanAllowance;
     events: PlanEvents;
+    metricPoints: PlanMetricPoints;
     retentionDays: number;
     requestsPerMinute: number;
     warnAtPercent: number;

@@ -14,6 +14,9 @@
 //	go mod init otlpfixtures && go mod tidy && go run .
 //	rm go.mod go.sum
 //
+// Metric fixtures come from metrics.go (`otlp-metrics-export` is not
+// byte-stable either: the SDK stamps its points with wall-clock time).
+//
 // Regenerating rewrites the LOG fixtures too, and `otlp-logs-export` is not
 // byte-stable: the second record sets no observed timestamp, so the SDK stamps
 // it with wall-clock time. Check that file out again unless you meant to
@@ -128,4 +131,5 @@ func main() {
 	writePair("otlp-logs-export", request)
 	kitchenSink()
 	traceFixtures()
+	metricFixtures()
 }

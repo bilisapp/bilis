@@ -63,3 +63,6 @@ should hold against what it does (there, `uniqExact(ProjectId, TraceId)` on both
 and make a spurious run harmless (an `AggregatingMergeTree` merges duplicate keys away).
 Alias the aggregates away from the target's column names and map by position:
 `min(Start) AS Start` over a table that has a `Start` column is `ILLEGAL_AGGREGATION`.
+
+## Selects are bounded server-side; schema statements get a long timeout
+`select()` sends `max_execution_time` = `clickhouse.timeout` and `cancel_http_readonly_queries_on_client_close=1`, so the server stops when PHP stops waiting. A timeout is code 159, which `isOverload()` maps to 503 or `unavailable`. `execute()` (migrate, materialize-index) uses `clickhouse.statement_timeout` (600 s) because the trace_index backfill runs at boot. Keep IDE SQL formatters off `database/clickhouse/*.sql`: one reflowed the DDL across lines, and ClickHouseMigrateCommandTest asserts exact strings.

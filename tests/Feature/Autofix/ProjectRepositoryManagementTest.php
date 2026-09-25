@@ -44,6 +44,8 @@ function fakeGrantedGitHubRepositories(array $repositories): void
 }
 
 beforeEach(function () {
+    fakeClickHouseQuietly();
+
     config()->set('autofix.enabled', true);
     config()->set('autofix.github.slug', 'bilis');
     config()->set('autofix.github.app_id', '12345');

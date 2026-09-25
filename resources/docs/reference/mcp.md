@@ -1,12 +1,12 @@
 ---
 title: MCP server
-description: Connect Claude Code, Claude Desktop, Cursor or any MCP client to Bilis in one line, and let your agent read your logs and traces while it works.
+description: Connect Claude Code, Claude Desktop, Cursor or any MCP client to Bilis in one line, and let your agent read your logs, traces and metrics while it works.
 order: 2
 ---
 
 Bilis speaks the [Model Context Protocol](https://modelcontextprotocol.io). Point
 an AI client at your instance and it can search your logs, open a trace as a
-waterfall, and tell you which service is slow — while it is working in the
+waterfall, chart a metric, and tell you which service is slow — while it is working in the
 codebase that produced them.
 
 There is no API key to copy. The server authenticates over OAuth: the first time
@@ -45,30 +45,33 @@ private-use URI scheme rather than a localhost URL; those are accepted.
 
 ## What your agent can do
 
-Eight tools, all of them reads, scoped to the teams you belong to.
+Ten tools, all of them reads, scoped to the teams you belong to.
 
-| Tool               | What it does                                                                                                 |
-| ------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `list-teams`       | The teams you belong to, and which one the other tools default to.                                           |
-| `list-projects`    | A team's projects, and whether each has ever received logs or spans.                                         |
-| `list-services`    | The service names a project actually sends, so the `service` filter is never a guess.                        |
-| `search-logs`      | Log lines over a window, filtered by service, severity, a full-text term, or a trace or span id.              |
-| `error-summary`    | A window's errors folded into distinct problems, with counts and a trace id to open. The "what broke?" call.  |
-| `list-traces`      | Traces over a window, with duration and error count. Filter to failures or to anything above a threshold.     |
-| `get-trace`        | One request as a text waterfall — every span, its service, duration, status and the attributes that locate a bug. |
-| `service-latency`  | p95 and p99 per service over a window, slowest first.                                                        |
+| Tool              | What it does                                                                                                      |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `list-teams`      | The teams you belong to, and which one the other tools default to.                                                |
+| `list-projects`   | A team's projects, and whether each has ever received logs, spans or metrics.                                     |
+| `list-services`   | The service names a project actually sends, so the `service` filter is never a guess.                             |
+| `search-logs`     | Log lines over a window, filtered by service, severity, a full-text term, or a trace or span id.                  |
+| `error-summary`   | A window's errors folded into distinct problems, with counts and a trace id to open. The "what broke?" call.      |
+| `list-traces`     | Traces over a window, with duration and error count. Filter to failures or to anything above a threshold.         |
+| `get-trace`       | One request as a text waterfall — every span, its service, duration, status and the attributes that locate a bug. |
+| `service-latency` | p95 and p99 per service over a window, slowest first.                                                             |
+| `list-metrics`    | The metrics a project reports, with type, unit and how each is read; given a name, its attribute keys and values. |
+| `query-metric`    | One metric as a time series — counters as a rate, histograms as p50/p95/p99 — with min/max/avg/last per series.   |
 
 Two prompts come with them: `instrument-with-bilis`, which teaches a fresh
 assistant how to wire an app up to send here, and `debug-with-bilis`, which
 turns a reported symptom into a plan across the tools above.
 
-Every read is a time window, and it defaults to the last hour. Pass `from` and
+Every read is a time window, and it defaults to the last hour (`list-metrics`
+looks at the last day, and a metric window stops at 30 days). Pass `from` and
 `to` when the question is about something older.
 
 ## What it deliberately cannot do
 
-The MCP server is **read-only**. Your agent can read logs and traces and list
-teams, projects and services. It cannot send a log line, delete anything, create
+The MCP server is **read-only**. Your agent can read logs, traces and metrics and
+list teams, projects and services. It cannot send a log line or a metric, delete anything, create
 a project, read or issue an API key, change a setting, or start an Autofix job.
 Those stay in the web app, behind a real click.
 

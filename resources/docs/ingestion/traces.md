@@ -1,6 +1,6 @@
 ---
 title: Traces
-description: Sending spans over OTLP/HTTP, why gRPC is not supported, per-SDK setup, one Collector config for both signals, and how traces link to logs.
+description: Sending spans over OTLP/HTTP, why gRPC is not supported, per-SDK setup, one Collector config for every signal, and how traces link to logs.
 order: 2
 ---
 
@@ -72,9 +72,9 @@ places.
 Each of these is the auto-instrumentation route: no spans written by hand, the
 SDK instruments your HTTP server, client and database driver. Set
 `OTEL_SERVICE_NAME` — it colours the span's bar in the waterfall and is the
-service filter in the trace list. Metrics are switched off in each example
-because Bilis has nowhere to put them; an exporter left on would retry them
-forever.
+service filter in the trace list. Metrics are switched off in each example to
+keep it about spans; Bilis stores metrics too, and turning them on is
+`OTEL_METRICS_EXPORTER=otlp` — see [Metrics](/docs/ingestion/metrics).
 
 ### Node
 
@@ -173,13 +173,14 @@ OTEL_METRICS_EXPORTER=null
 OTEL_LOGS_EXPORTER=null
 ```
 
-Two of those lines are load-bearing and are not defaults. The package ships
-with the metrics and logs exporters set to `otlp`: left alone, it posts metrics
-to `/v1/metrics`, which Bilis does not serve — metrics are out of scope — and
-retries three times before printing a stack trace, once per request. Set both
-to `null`. Logs should leave a Laravel app through the
+The last two lines are choices, not defaults. The package ships with the
+metrics and logs exporters set to `otlp`. Metrics can stay on — with the
+signal-agnostic endpoint above they go to `/api/v1/metrics`, which Bilis
+serves; see [Metrics](/docs/ingestion/metrics#php-and-laravel) — or be set to
+`null` if you only want spans. Logs should leave a Laravel app through the
 [Monolog channel](/docs/ingestion/shippers#laravel) instead, which is where the
-correlation between those lines and these spans is described.
+correlation between those lines and these spans is described, so set the logs
+exporter to `null`.
 
 Two more worth knowing before you go looking for missing spans:
 
@@ -217,8 +218,8 @@ HTTP become spans without a code change.
 ## Collector configuration
 
 If a Collector sits between your services and Bilis, one `otlphttp` exporter
-carries both signals. This is the complete, runnable file — receivers,
-extension and both pipelines — and it is the same one the
+carries every signal. This is the complete, runnable file — receivers,
+extension and all three pipelines — and it is the same one the
 [Shippers](/docs/ingestion/shippers#opentelemetry-collector) and
 [Go](/docs/ingestion/go) pages refer to:
 
@@ -239,6 +240,7 @@ exporters:
     otlphttp/bilis:
         logs_endpoint: https://your-bilis-host/api/v1/logs
         traces_endpoint: https://your-bilis-host/api/v1/traces
+        metrics_endpoint: https://your-bilis-host/api/v1/metrics
         headers:
             Authorization: Bearer bilis_your_key_here
         # gzip is the exporter's default; Bilis inflates gzip and deflate.
@@ -262,13 +264,19 @@ service:
             receivers: [otlp]
             processors: []
             exporters: [otlphttp/bilis]
+        metrics:
+            receivers: [otlp]
+            processors: []
+            exporters: [otlphttp/bilis]
 ```
 
 Use the exporter's own `sending_queue` rather than the standalone `batch`
 processor, and give the queue persistent storage if you care about surviving a
-Collector restart. There is no `metrics` pipeline on purpose: a metrics pipeline
-pointed at Bilis would fail every export. The reasoning behind each setting is
-on the [Shippers](/docs/ingestion/shippers#opentelemetry-collector) page.
+Collector restart. Each `*_endpoint` is used verbatim, which is why each names
+its full `/api/v1/…` path; the metrics pipeline is covered on the
+[Metrics](/docs/ingestion/metrics#collector-configuration) page. The reasoning
+behind each setting is on the
+[Shippers](/docs/ingestion/shippers#opentelemetry-collector) page.
 
 ## Sending a span by hand
 

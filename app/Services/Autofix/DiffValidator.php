@@ -2,6 +2,7 @@
 
 namespace App\Services\Autofix;
 
+use App\Enums\FixJobType;
 use App\Models\FixJob;
 use App\Models\ProjectRepository;
 use Illuminate\Support\Str;
@@ -39,6 +40,32 @@ class DiffValidator
     public const ALWAYS_DENIED = ['.github/**', '.env*'];
 
     /**
+     * What an error-triggered job may not touch on top of that: anything a
+     * build, a CI runner or a package manager executes or resolves.
+     *
+     * An error job is steered by captured log text, and anyone who can get a
+     * line into a customer's logs writes part of it. Its brief is the smallest
+     * fix in application code, so dependency manifests, lockfiles, CI and
+     * container definitions and git hooks are never part of a legitimate
+     * answer, and a change to any of them is the shape a supply-chain or
+     * CI-secret attack would take. A custom job is a teammate's own request
+     * ("upgrade guzzle"), so it keeps them.
+     *
+     * @var list<string>
+     */
+    public const ERROR_JOB_DENIED = [
+        'composer.json', '*/composer.json', 'composer.lock', '*/composer.lock',
+        'package.json', '*/package.json', 'package-lock.json', '*/package-lock.json',
+        'pnpm-lock.yaml', '*/pnpm-lock.yaml', 'pnpm-workspace.yaml', 'yarn.lock', '*/yarn.lock',
+        'bun.lock', '*/bun.lock', 'bun.lockb', '*/bun.lockb', '.npmrc', '*/.npmrc',
+        'Gemfile', 'Gemfile.lock', 'requirements*.txt', 'pyproject.toml', 'poetry.lock', 'uv.lock',
+        'go.mod', 'go.sum', 'Cargo.toml', 'Cargo.lock',
+        'Makefile', '*/Makefile', 'Dockerfile*', '*/Dockerfile*', 'docker-compose*', 'compose.yml', 'compose.yaml',
+        '.gitlab-ci.yml', '.gitlab/**', '.circleci/**', '.buildkite/**', 'Jenkinsfile', 'bitbucket-pipelines.yml',
+        'azure-pipelines.yml', '.travis.yml', '.githooks/**', '.husky/**', '.gitattributes', '.gitmodules',
+    ];
+
+    /**
      * How many times a job may be re-dispatched for a stale base commit.
      */
     public const REDISPATCH_LIMIT = 1;
@@ -70,6 +97,7 @@ class DiffValidator
         }
 
         $repository = $job->repository;
+        $denylist = self::denylistFor($job);
 
         foreach ($files as $file) {
             if ($file->isBinary) {
@@ -83,7 +111,7 @@ class DiffValidator
                     return DiffValidationResult::rejected('path_traversal: '.$path);
                 }
 
-                if ($this->isDenied($normalized)) {
+                if ($this->isDenied($normalized, $denylist)) {
                     return DiffValidationResult::rejected('denylisted_path: '.$normalized);
                 }
             }
@@ -226,11 +254,13 @@ class DiffValidator
     }
 
     /**
-     * Determine whether a path is off limits.
+     * Whether a path falls under any pattern of the list.
+     *
+     * @param  list<string>  $denylist
      */
-    protected function isDenied(string $path): bool
+    protected function isDenied(string $path, array $denylist): bool
     {
-        foreach ($this->denylist() as $pattern) {
+        foreach ($denylist as $pattern) {
             if (Str::is($pattern, $path)) {
                 return true;
             }
@@ -246,15 +276,20 @@ class DiffValidator
     }
 
     /**
-     * The paths a diff may not touch.
+     * The paths a job's diff may not touch.
+     *
+     * One list for both ends: Ayos is handed exactly what this class enforces
+     * on the way back.
      *
      * @return list<string>
      */
-    protected function denylist(): array
+    public static function denylistFor(FixJob $job): array
     {
         $configured = config('autofix.defaults.path_denylist', []);
 
-        $patterns = self::ALWAYS_DENIED;
+        $patterns = $job->type === FixJobType::Custom
+            ? self::ALWAYS_DENIED
+            : [...self::ALWAYS_DENIED, ...self::ERROR_JOB_DENIED];
 
         if (is_array($configured)) {
             foreach ($configured as $pattern) {

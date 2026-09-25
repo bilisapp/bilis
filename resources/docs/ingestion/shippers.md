@@ -1,7 +1,7 @@
 ---
 title: Shippers
 description: curl, OpenTelemetry exporters, a Laravel Monolog channel that correlates with traces, and Collector configuration that does not lose data.
-order: 6
+order: 7
 ---
 
 Anything that can POST JSON can ship to Bilis. These are the four paths that
@@ -196,6 +196,7 @@ exporters:
     otlphttp/bilis:
         logs_endpoint: https://bilis.example.com/api/v1/logs
         traces_endpoint: https://bilis.example.com/api/v1/traces
+        metrics_endpoint: https://bilis.example.com/api/v1/metrics
         headers:
             Authorization: Bearer bilis_YOUR_API_KEY
         # gzip is the exporter's default; Bilis inflates gzip and deflate.
@@ -219,6 +220,10 @@ service:
             receivers: [otlp]
             processors: []
             exporters: [otlphttp/bilis]
+        metrics:
+            receivers: [otlp]
+            processors: []
+            exporters: [otlphttp/bilis]
 ```
 
 - **Batch with the exporter's `sending_queue`, not the `batch` processor.** The
@@ -229,8 +234,11 @@ service:
 - **Retries work because Bilis returns the right codes.** Overload and storage
   failures come back as `503` with `Retry-After`, never `400`. See
   [Endpoints](/docs/ingestion/endpoints).
-- **No `metrics` pipeline.** Bilis has nowhere to put metrics, so an exporter
-  given them would retry every export forever.
+- **Name each signal's endpoint in full.** `logs_endpoint`, `traces_endpoint`
+  and `metrics_endpoint` are used verbatim; the exporter's base `endpoint`
+  would append `/v1/metrics` and miss Bilis' `/api` prefix. Drop the `metrics`
+  pipeline if you do not want metrics stored — see
+  [Metrics](/docs/ingestion/metrics).
 - If you use the ClickHouse exporter directly against the same table instead,
   run it with `create_schema: false`. Bilis owns the DDL. Note that this
   suppresses schema-creation DDL but the exporter still issues `DESC TABLE` at

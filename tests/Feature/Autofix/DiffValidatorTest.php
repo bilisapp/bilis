@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\FixJobType;
 use App\Services\Autofix\DiffValidator;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -166,6 +167,39 @@ test('a configured denylist entry is enforced too', function () {
     $job->forceFill(['diff' => "--- a/infra/terraform/main.tf\n+++ b/infra/terraform/main.tf\n@@ -1 +1 @@\n-a\n+b\n"])->save();
 
     expect(app(DiffValidator::class)->validate($job)->reason)->toBe('denylisted_path: infra/terraform/main.tf');
+});
+
+test('an error job may not touch build, dependency or ci files', function (string $path) {
+    fakeGitHubRepository();
+
+    $job = ayosJob();
+    $job->forceFill(['diff' => "--- a/{$path}\n+++ b/{$path}\n@@ -1 +1 @@\n-a\n+b\n"])->save();
+
+    expect(app(DiffValidator::class)->validate($job)->reason)->toBe('denylisted_path: '.$path);
+})->with([
+    'composer.json',
+    'packages/web/package.json',
+    'package-lock.json',
+    'Makefile',
+    'Dockerfile',
+    'docker/Dockerfile.prod',
+    '.gitlab-ci.yml',
+    '.githooks/pre-commit',
+]);
+
+test('a custom job may still change a dependency manifest', function () {
+    $job = ayosJob();
+    $job->forceFill(['type' => FixJobType::Custom, 'fingerprint' => null, 'error_context' => null])->save();
+
+    expect(DiffValidator::denylistFor($job))->not->toContain('composer.json')
+        ->and(DiffValidator::denylistFor($job))->toContain('.github/**');
+});
+
+test('the agent is handed the same denylist the validator enforces', function () {
+    $job = ayosJob();
+
+    expect(DiffValidator::denylistFor($job))
+        ->toContain('.github/**', '.env*', 'composer.json', '*/package.json');
 });
 
 test('a diff over the line budget is rejected', function () {

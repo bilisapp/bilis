@@ -75,3 +75,9 @@ an Error span, and a trailing `(N more spans omitted)` says what was cut. Attrib
 `ATTRIBUTE_KEYS`: http/url, db, rpc, messaging, code.*, both old and stable semconv spellings, six per span), plus every
 `exception` event as `type: message` — never the environment/identity/session keys the UI groups away. Mirror
 `resources/js/lib/attributes.ts` when adding a key.
+
+## Error jobs may not touch build, dependency or CI files
+`DiffValidator::denylistFor($job)` is the one deny list, sent to Ayos by `AyosClient` and enforced again on the way back. Every job gets `ALWAYS_DENIED` (`.github/**`, `.env*`). Error jobs, which are steered by untrusted log text, also get `ERROR_JOB_DENIED`: manifests, lockfiles, Makefile/Dockerfile/compose, CI configs and git hooks. Custom jobs, a teammate's own request, keep those files. `TaskRenderer::delimit()` defuses any copy of the marker phrase inside the body, and log text used in the trusted `instructions` goes through `inline()` (one line, defused, capped). `PullRequestPublisher` escapes log text into table cells (`cell()`/`codeCell()`: markdown/HTML escaped, `@` defused) and sizes the request fence longer than any backtick run inside it.
+
+## Runner driver and the reaper's queued-state deadline
+`AppServiceProvider::configureAutofixRunner()` throws on an unknown driver name, and refuses `local` in production unless `autofix.runner.allow_local_in_production` is set: the local driver runs the agent on the app host, beside `.env`. `StaleFixJobReaper` also fails `pending`/`validating` jobs untouched (`updated_at`) for `QUEUED_DEADLINE_MINUTES` (120). Both states count against `max_concurrent`, so a job lost from the queue would otherwise block its repository for good. The deadline must outlast DispatchFixJob's retries (~40 min).

@@ -22,9 +22,15 @@ use Illuminate\Support\Carbon;
  * cached for five minutes like `LogStorage`, with today's UTC date in the key
  * so yesterday's total can never survive midnight.
  *
+ * Metric data points are a separate reading with a separate cache key: one
+ * statement summing a count over the five `otel_metrics_*` tables. Each
+ * reading fails on its own — an overloaded metrics read marks only the metric
+ * meter unavailable, and the event count beside it stays exact.
+ *
+ * @phpstan-type PlanMetricPoints array{used: int, limit: int, since: string, unavailable: bool}
  * @phpstan-type PlanEvents array{used: int, limit: int, logs: int, spans: int, since: string, unavailable: bool}
  * @phpstan-type PlanAllowance array{used: int, limit: int}
- * @phpstan-type PlanUsageResult array{plan: string, projects: PlanAllowance, members: PlanAllowance, events: PlanEvents, retentionDays: int, requestsPerMinute: int, warnAtPercent: int}
+ * @phpstan-type PlanUsageResult array{plan: string, projects: PlanAllowance, members: PlanAllowance, events: PlanEvents, metricPoints: PlanMetricPoints, retentionDays: int, requestsPerMinute: int, warnAtPercent: int}
  */
 class PlanUsage
 {
@@ -32,6 +38,17 @@ class PlanUsage
      * How long a measured event count is reused.
      */
     private const CACHE_SECONDS = 300;
+
+    /**
+     * The five tables one metric data point can land in, one row per point.
+     */
+    private const METRIC_TABLES = [
+        'otel_metrics_gauge',
+        'otel_metrics_sum',
+        'otel_metrics_histogram',
+        'otel_metrics_exponential_histogram',
+        'otel_metrics_summary',
+    ];
 
     public function __construct(
         private readonly ClickHouseClient $client,
@@ -60,6 +77,7 @@ class PlanUsage
                 'limit' => $this->limits->membersPerTeam(),
             ],
             'events' => $this->events($projectIds, $since),
+            'metricPoints' => $this->metricPoints($projectIds, $since),
             'retentionDays' => $this->limits->retentionDays(),
             'requestsPerMinute' => $this->limits->requestsPerMinute(),
             'warnAtPercent' => $this->limits->warnAtPercent(),
@@ -179,6 +197,88 @@ class PlanUsage
             'logs' => (int) ($logs[0]['LogsToday'] ?? 0),
             'spans' => (int) ($spans[0]['SpansToday'] ?? 0),
         ];
+    }
+
+    /**
+     * Metric data points accepted since midnight UTC.
+     *
+     * Same rules as the event count: no projects means no HTTP call, the
+     * reading is cached per UTC day under its own key, an overload is
+     * reported as unavailable and never cached, anything else is rethrown.
+     *
+     * @param  list<string>  $projectIds
+     * @return PlanMetricPoints
+     */
+    private function metricPoints(array $projectIds, Carbon $since): array
+    {
+        $limit = $this->limits->metricPointsPerDay();
+        $sinceLabel = $since->format('Y-m-d H:i:s');
+
+        $reading = fn (int $used, bool $unavailable = false): array => [
+            'used' => $used,
+            'limit' => $limit,
+            'since' => $sinceLabel,
+            'unavailable' => $unavailable,
+        ];
+
+        if ($projectIds === []) {
+            return $reading(0);
+        }
+
+        $key = 'plans.metric-points.'.$since->format('Y-m-d').'.'.sha1(implode(',', $projectIds));
+
+        $cached = $this->cache->get($key);
+
+        if (is_int($cached)) {
+            return $reading($cached);
+        }
+
+        try {
+            $points = $this->countMetricPoints($projectIds, $since);
+        } catch (ClickHouseException $exception) {
+            if (! $exception->isOverload()) {
+                throw $exception;
+            }
+
+            report($exception);
+
+            return $reading(0, true);
+        }
+
+        $this->cache->put($key, $points, self::CACHE_SECONDS);
+
+        return $reading($points);
+    }
+
+    /**
+     * One statement over all five metric tables, each a SCHEMA.md R4 range read.
+     *
+     * `TimeUnix` is `DateTime('UTC')` — whole seconds (R14) — so the window is
+     * bound as `DateTime('UTC')`, not the `DateTime64(9)` logs and spans use.
+     * The tables partition by `toDate(TimeUnix)`, so today's window touches one
+     * partition per table.
+     *
+     * @param  list<string>  $projectIds
+     */
+    private function countMetricPoints(array $projectIds, Carbon $since): int
+    {
+        $branches = array_map(
+            fn (string $table): string => 'SELECT count() AS c FROM '.$table.' '
+                .'WHERE ProjectId IN {projectIds:Array(String)} '
+                ."AND TimeUnix >= {from:DateTime('UTC')} AND TimeUnix <= {to:DateTime('UTC')}",
+            self::METRIC_TABLES,
+        );
+
+        $rows = $this->client->select(
+            'SELECT sum(c) AS MetricPointsToday FROM ('.implode(' UNION ALL ', $branches).')',
+            [
+                'projectIds' => $this->projectIdsParameter($projectIds),
+                'from' => $since->format('Y-m-d H:i:s'),
+                'to' => Carbon::now('UTC')->format('Y-m-d H:i:s'),
+            ],
+        );
+
+        return (int) ($rows[0]['MetricPointsToday'] ?? 0);
     }
 
     /**

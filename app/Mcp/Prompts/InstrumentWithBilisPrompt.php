@@ -16,7 +16,7 @@ use Laravel\Mcp\Server\Prompts\Argument;
 
 #[Name('instrument-with-bilis')]
 #[Title('Instrument with Bilis')]
-#[Description('A paste-ready prompt for wiring a codebase up to send its logs and traces to Bilis. Pass a guide — otlp endpoints, a language, or a tool — and it points at that guide\'s current text rather than repeating it. It does not carry an API key: this server cannot mint one, and the prompt says where to get it.')]
+#[Description('A paste-ready prompt for wiring a codebase up to send its logs, traces and metrics to Bilis. Pass a guide — otlp endpoints, a language, or a tool — and it points at that guide\'s current text rather than repeating it. It does not carry an API key: this server cannot mint one, and the prompt says where to get it.')]
 class InstrumentWithBilisPrompt extends Prompt
 {
     /**
