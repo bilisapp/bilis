@@ -12,6 +12,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocsApiKeyController;
 use App\Http\Controllers\DocsController;
 use App\Http\Controllers\FeaturesController;
+use App\Http\Controllers\InstallScriptController;
 use App\Http\Controllers\LogsController;
 use App\Http\Controllers\MetricsController;
 use App\Http\Controllers\PricingController;
@@ -98,6 +99,14 @@ Route::post('docs/api-key', DocsApiKeyController::class)
  * Machine-readable pointer to the disclosure policy, per RFC 9116. Rendered
  * rather than served as a static file so Expires can never go stale.
  */
+/*
+ * The Linux server agent installer (`curl -fsSL <origin>/install.sh | sudo sh`).
+ * Public by design: it holds no secret, and the key is passed on the command line.
+ */
+Route::get('install.sh', InstallScriptController::class)
+    ->middleware('throttle:60,1')
+    ->name('install-script');
+
 Route::get('.well-known/security.txt', function () {
     $lines = [
         'Contact: mailto:'.config('legal.contact.security'),

@@ -342,5 +342,19 @@ npx remotion still  YouTubeBanner   --output=out/banner.png
 | `OtelShort` | 1080×1920 | 36s | Calm Short — expected to win click-through |
 | `OtelShortPunchy` | 1080×1920 | 27s | High-energy Short — expected to win views |
 | `YouTubeBanner` | 2560×1440 | still | Channel art |
+| `MetricsLaunch` | 1920×1080 | 51s | Metrics launch film — one 3 AM incident, for viewers new to Bilis |
+
+### The launch-film kit (`src/metrics-launch/`)
+
+A step up from the explainers, same brand: `kit.tsx` (`Atmosphere` — dot grid,
+top light, vignette, film grain; `Camera` — slow push and a settling 3D tilt;
+`Headline` — lines rising out of a mask, hierarchy by contrast; `Panel` — an app
+surface in space with one light sweep; `Chip`, `Counter`) and `charts.tsx`
+(`LineChart` — stroke draws, area revealed, a glowing leading point in the
+series colour; `HistogramToPercentiles`; `Sparkline`). Every glow is a data
+series; the chrome stays achromatic. `Atmosphere` holds the scene's content back
+10 frames so a 12-frame crossfade dissolves onto an empty stage instead of
+through the next headline. Use this kit for launch films; the explainers keep
+`brand/`, and `punch.tsx` stays quarantined to its one Short.
 
 Both Shorts exist to be A/B tested. Do not delete one to "consolidate".

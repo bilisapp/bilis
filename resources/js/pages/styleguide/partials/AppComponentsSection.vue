@@ -23,6 +23,7 @@ import LogsToolbar from '@/components/LogsToolbar.vue';
 import PlaceholderPattern from '@/components/PlaceholderPattern.vue';
 import PlanUsageCard from '@/components/PlanUsageCard.vue';
 import RunAutofixModal from '@/components/RunAutofixModal.vue';
+import ServerInstallCommand from '@/components/ServerInstallCommand.vue';
 import TextLink from '@/components/TextLink.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -547,6 +548,20 @@ const onHistogramZoom = (window: { from: string; to: string }) => {
                     value="https://logs.example.com/api/v1/ingest"
                     label="Copy ingest endpoint"
                 />
+            </div>
+        </DemoBlock>
+
+        <DemoBlock
+            title="ServerInstallCommand"
+            description="the one-liner that installs the Linux server agent — the real key only inside the key-created dialog, the placeholder everywhere else, since Bilis keeps nothing but the hash"
+        >
+            <div class="w-full max-w-xl space-y-4">
+                <ServerInstallCommand
+                    :api-key="demoApiKey.key"
+                    origin="https://bilis.app"
+                />
+                <ServerInstallCommand origin="https://bilis.app" />
+                <ServerInstallCommand origin="https://bilis.app" compact />
             </div>
         </DemoBlock>
 

@@ -13,6 +13,8 @@ import { Outro } from "./otel/scenes/Outro";
 import { Production } from "./otel/scenes/Production";
 import { Signals } from "./otel/scenes/Signals";
 import { Title } from "./otel/scenes/Title";
+import { MetricsLaunch, METRICS_LAUNCH_DURATION } from "./metrics-launch/MetricsLaunch";
+import { Ask, Cause, Cta, Early, Fleet, Hook, Meet, Open, Pager, Why } from "./metrics-launch/scenes";
 import { OtelPunchy, PUNCHY_DURATION } from "./otel-punchy/OtelPunchy";
 import {
   CtaPortrait,
@@ -40,6 +42,28 @@ export const RemotionRoot: React.FC = () => {
         width={video.width}
         height={video.height}
       />
+
+      <Composition
+        id="MetricsLaunch"
+        component={MetricsLaunch}
+        durationInFrames={METRICS_LAUNCH_DURATION}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+
+      <Folder name="MetricsLaunch-Scenes">
+        <Composition id="Launch-Hook" component={Hook} durationInFrames={165} fps={30} width={1920} height={1080} />
+        <Composition id="Launch-Pager" component={Pager} durationInFrames={135} fps={30} width={1920} height={1080} />
+        <Composition id="Launch-Meet" component={Meet} durationInFrames={195} fps={30} width={1920} height={1080} />
+        <Composition id="Launch-Why" component={Why} durationInFrames={120} fps={30} width={1920} height={1080} />
+        <Composition id="Launch-Early" component={Early} durationInFrames={180} fps={30} width={1920} height={1080} />
+        <Composition id="Launch-Cause" component={Cause} durationInFrames={195} fps={30} width={1920} height={1080} />
+        <Composition id="Launch-Fleet" component={Fleet} durationInFrames={180} fps={30} width={1920} height={1080} />
+        <Composition id="Launch-Ask" component={Ask} durationInFrames={180} fps={30} width={1920} height={1080} />
+        <Composition id="Launch-Open" component={Open} durationInFrames={120} fps={30} width={1920} height={1080} />
+        <Composition id="Launch-Cta" component={Cta} durationInFrames={165} fps={30} width={1920} height={1080} />
+      </Folder>
 
       <Folder name="Channel">
         <Still id="YouTubeBanner" component={Banner} width={2560} height={1440} />

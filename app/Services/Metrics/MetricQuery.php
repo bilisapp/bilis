@@ -63,6 +63,13 @@ class MetricQuery
     private const TARGET_BUCKETS = 60;
 
     /**
+     * The narrowest bucket a metric chart uses. SDKs and the server agent
+     * export every 60 s by default; a narrower bucket would mostly be empty,
+     * leaving a line of dots with gaps between them.
+     */
+    public const MIN_INTERVAL_SECONDS = 60;
+
+    /**
      * The most series one chart reads (SCHEMA.md R16).
      */
     public const SERIES_LIMIT = 500;
@@ -258,7 +265,7 @@ class MetricQuery
             return $this->builder->empty($filters);
         }
 
-        $interval = TimeBuckets::interval($filters->from, $filters->to, self::TARGET_BUCKETS);
+        $interval = max(self::MIN_INTERVAL_SECONDS, TimeBuckets::interval($filters->from, $filters->to, self::TARGET_BUCKETS));
         $starts = TimeBuckets::starts($filters->from, $filters->to, $interval);
         $cumulative = $entry['temporality'] === 2;
         $level = $entry['type'] === 'gauge' || ($entry['type'] === 'sum' && $cumulative && ! $entry['monotonic']);
@@ -305,7 +312,8 @@ class MetricQuery
         ];
 
         $lastPoint = fn (string $columns): string => "SELECT {$seriesKey} AS S, {$group} AS Grp, {$bucket} AS Bucket, {$columns},
-                argMax(toUnixTimestamp(StartTimeUnix), TimeUnix) AS Start
+                argMax(toUnixTimestamp(StartTimeUnix), TimeUnix) AS Start,
+                max(toUnixTimestamp(TimeUnix)) AS At
             FROM {$table} WHERE {$capped}
             GROUP BY S, Grp, Bucket
             ORDER BY S ASC, Bucket ASC";

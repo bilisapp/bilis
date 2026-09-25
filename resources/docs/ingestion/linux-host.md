@@ -1,8 +1,13 @@
 ---
 title: Linux host
 description: A Collector config that ships auth, syslog, fail2ban, UFW and container logs off a VPS with real event times and filterable attributes.
-order: 9
+order: 10
 ---
+
+> **Tip:** for host metrics and journald logs in one line, use the
+> [Linux server agent](/docs/ingestion/server-agent). This page is the
+> advanced, manual recipe for file-based logs — fail2ban, UFW, auth and
+> container log files — and runs happily alongside it.
 
 This is the configuration running on the box that hosts Bilis itself: one
 OpenTelemetry Collector in Docker, tailing the log files a Linux server already

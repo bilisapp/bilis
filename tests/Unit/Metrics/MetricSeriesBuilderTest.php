@@ -53,19 +53,31 @@ it('turns a cumulative counter into a rate from per-series deltas', function () 
         ->and($result['buckets'])->toBe(['1970-01-01 00:17:00', '1970-01-01 00:18:00', '1970-01-01 00:19:00']);
 });
 
-it('never draws a negative spike when a counter resets', function (array $reset) {
+it('never draws a negative spike when a counter resets', function (array $reset, array $expected) {
     $result = (new MetricSeriesBuilder)->cumulativeRates([
         ['S' => 'a', 'Grp' => '', 'Bucket' => 960, 'V' => 600, 'Start' => 500],
         ['S' => 'a', 'Grp' => '', 'Bucket' => 1020, 'V' => 660, 'Start' => 500],
         ['S' => 'a', 'Grp' => '', 'Bucket' => 1080, ...$reset],
     ], seriesContext());
 
-    // The new value is the whole increase since the restart: 30 over a minute.
-    expect(linePoints($result, 'http.server.requests'))->toBe([1.0, 0.5, null]);
+    // The new value is the whole increase since the restart, over the time
+    // that actually passed: since the last point, or since the new start.
+    expect(linePoints($result, 'http.server.requests'))->toBe($expected);
 })->with([
-    'the value dropped' => [['V' => 30, 'Start' => 500]],
-    'a new start time' => [['V' => 30, 'Start' => 1050]],
+    'the value dropped' => [['V' => 30, 'Start' => 500], [1.0, 0.5, null]],
+    'a new start time, 30 s before the point' => [['V' => 30, 'Start' => 1050], [1.0, 1.0, null]],
 ]);
+
+it('divides each increase by the time between points, not by the bucket width', function () {
+    // Exported every two minutes into one-minute buckets: 240 over 120 s is
+    // 2/s, where dividing by the bucket would claim 4/s.
+    $result = (new MetricSeriesBuilder)->cumulativeRates([
+        ['S' => 'a', 'Grp' => '', 'Bucket' => 960, 'At' => 1000, 'V' => 100, 'Start' => 500],
+        ['S' => 'a', 'Grp' => '', 'Bucket' => 1080, 'At' => 1120, 'V' => 340, 'Start' => 500],
+    ], seriesContext());
+
+    expect(linePoints($result, 'http.server.requests'))->toBe([null, 2.0, null]);
+});
 
 it('counts a series that began inside the read from zero, and one that began before only as a baseline', function () {
     $result = (new MetricSeriesBuilder)->cumulativeRates([
@@ -73,7 +85,8 @@ it('counts a series that began inside the read from zero, and one that began bef
         ['S' => 'new', 'Grp' => '', 'Bucket' => 1020, 'V' => 60, 'Start' => 1000],
     ], seriesContext());
 
-    expect(linePoints($result, 'http.server.requests'))->toBe([1.0, null, null]);
+    // The new series counted 60 in the 20 s since it started: 3/s.
+    expect(linePoints($result, 'http.server.requests'))->toBe([3.0, null, null]);
 });
 
 it('keeps the ten heaviest groups and counts the rest', function () {

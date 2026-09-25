@@ -44,6 +44,19 @@ const EVICTION = "music/eviction-silent-partner.mp3";
 
 export const SOUNDTRACK: Record<string, Soundtrack | null> = {
   /**
+   * 30s metrics launch film. Starts at 0:13, on the track's own step-up, so
+   * the first headline lands with the full arrangement arriving under it.
+   */
+  MetricsLaunch: {
+    src: EVICTION,
+    startAtSeconds: 13,
+    volume: 0.6,
+    attribution: null,
+    fadeInFrames: 8,
+    fadeOutFrames: 30,
+  },
+
+  /**
    * 79s explainer. People are reading code, and music that competes with
    * reading is worse than silence — so this is low enough to be felt rather
    * than listened to. Starts at 0 so the track's own step-up at 0:13 lands

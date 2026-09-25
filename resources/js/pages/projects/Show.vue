@@ -10,6 +10,7 @@ import DeleteProjectModal from '@/components/DeleteProjectModal.vue';
 import ProjectRepositoryCard from '@/components/ProjectRepositoryCard.vue';
 import RenameProjectModal from '@/components/RenameProjectModal.vue';
 import RevokeApiKeyModal from '@/components/RevokeApiKeyModal.vue';
+import ServerInstallCommand from '@/components/ServerInstallCommand.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -295,6 +296,35 @@ const openRevokeDialog = (apiKey: ProjectApiKey) => {
                         </Button>
                     </CreateApiKeyModal>
                 </div>
+            </CardContent>
+        </Card>
+
+        <Card data-test="server-agent-card">
+            <CardHeader>
+                <CardTitle>Monitor a server</CardTitle>
+                <CardDescription>
+                    Run this on a Linux host to send its metrics, system logs
+                    and container stats to this project.
+                </CardDescription>
+            </CardHeader>
+
+            <CardContent class="space-y-3">
+                <ServerInstallCommand />
+                <p class="text-xs text-muted-foreground">
+                    Replace
+                    <code class="font-mono">bilis_YOUR_API_KEY</code>
+                    with one of this project's keys. A key is shown only when it
+                    is created — the dialog then fills this command in for you.
+                </p>
+                <CreateApiKeyModal :team-slug="teamSlug" :project="project">
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        data-test="server-agent-create-key"
+                    >
+                        <KeyRound /> Create a key with the command filled in
+                    </Button>
+                </CreateApiKeyModal>
             </CardContent>
         </Card>
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { TriangleAlert } from '@lucide/vue';
 import CopyableValue from '@/components/CopyableValue.vue';
+import ServerInstallCommand from '@/components/ServerInstallCommand.vue';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -57,6 +58,15 @@ const emit = defineEmits<{
                     one at this DSN ships its exceptions here. It holds the
                     public half of the pair, so it stays visible on the project
                     page.
+                </p>
+            </div>
+
+            <div class="space-y-2" data-test="api-key-server-agent">
+                <p class="text-sm font-medium">Monitor a Linux server</p>
+                <ServerInstallCommand :api-key="props.apiKey?.key ?? null" />
+                <p class="text-xs text-muted-foreground">
+                    This command carries the key itself, so it is only complete
+                    here — later, the project page shows it with a placeholder.
                 </p>
             </div>
 

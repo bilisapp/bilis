@@ -63,12 +63,13 @@ function fakeMetricsClickHouse(): void
                 ['Key' => 'http.route', 'Values' => ['/checkout', '/cart']],
             ]),
             str_contains($body, 'AS Total') => jsonEachRow([['Total' => 2]]),
-            // 10:59:55 is the baseline, 11:00:00 the 13th five-second bucket.
+            // One-minute buckets (the metrics minimum): 10:59 is the baseline,
+            // 11:00 the second bucket, the points a minute apart.
             str_contains($body, 'AS Start') => jsonEachRow([
-                ['S' => '1', 'Grp' => '/checkout', 'Bucket' => $at('10:59:55'), 'V' => 100, 'Start' => $at('10:00:00')],
-                ['S' => '1', 'Grp' => '/checkout', 'Bucket' => $at('11:00:00'), 'V' => 280, 'Start' => $at('10:00:00')],
-                ['S' => '2', 'Grp' => '/cart', 'Bucket' => $at('10:59:55'), 'V' => 10, 'Start' => $at('10:00:00')],
-                ['S' => '2', 'Grp' => '/cart', 'Bucket' => $at('11:00:00'), 'V' => 70, 'Start' => $at('10:00:00')],
+                ['S' => '1', 'Grp' => '/checkout', 'Bucket' => $at('10:59:00'), 'At' => $at('10:59:30'), 'V' => 100, 'Start' => $at('10:00:00')],
+                ['S' => '1', 'Grp' => '/checkout', 'Bucket' => $at('11:00:00'), 'At' => $at('11:00:30'), 'V' => 280, 'Start' => $at('10:00:00')],
+                ['S' => '2', 'Grp' => '/cart', 'Bucket' => $at('10:59:00'), 'At' => $at('10:59:30'), 'V' => 10, 'Start' => $at('10:00:00')],
+                ['S' => '2', 'Grp' => '/cart', 'Bucket' => $at('11:00:00'), 'At' => $at('11:00:30'), 'V' => 70, 'Start' => $at('10:00:00')],
             ]),
             str_contains($body, 'SELECT 1 FROM (') => jsonEachRow([['1' => 1]]),
             default => '',
@@ -103,12 +104,12 @@ test('the explorer renders the catalog, the attributes and the chart', function 
                 ->where('catalog.metrics.0.temporality', 2)
                 ->where('attributes.attributes.0.key', 'http.route')
                 ->where('series.kind', 'rate')
-                ->where('series.intervalSeconds', 5)
-                // 11:00:00 is the second bucket: (280 - 100) / 5 s.
+                ->where('series.intervalSeconds', 60)
+                // 11:00 is the second bucket: (280 - 100) over the 60 s between the points.
                 ->where('series.series.0.label', '/checkout')
-                ->where('series.series.0.points.12', 36)
+                ->where('series.series.0.points.1', 3)
                 ->where('series.series.1.label', '/cart')
-                ->where('series.series.1.points.12', 12)
+                ->where('series.series.1.points.1', 1)
                 ->etc()
             )
         );
