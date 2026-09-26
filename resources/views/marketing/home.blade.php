@@ -36,17 +36,17 @@
 
         <div class="relative mx-auto max-w-5xl px-6 pt-20 pb-12 sm:pt-28 sm:pb-16">
             <h1 class="max-w-4xl text-4xl leading-[0.96] font-semibold tracking-[-0.04em] text-balance sm:text-6xl lg:text-7xl">
-                <span class="block">Your logs and traces.</span>
-                <span class="block">On your own box.</span>
+                <span class="block">Observability your</span>
+                <span class="block">coding agent can read.</span>
             </h1>
 
             <div class="mt-10 grid gap-8 border-t border-foreground/15 pt-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start dark:border-foreground/20">
                 <p class="max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-                    When something breaks, the answer is already in your telemetry. Bilis gets you from
-                    “something is wrong” to the exact log line — or the exact span — that explains it,
-                    in seconds, on hardware you own, with no per-gigabyte bill for the privilege. And it
-                    is only the start: Bilis is growing into a self-hosted observability stack where AI
-                    reads alongside you, spotting what matters and helping you fix it.
+                    When something breaks, the answer is already in your telemetry. Bilis keeps your logs,
+                    traces and metrics on hardware you own, with no per-gigabyte bill, and gets you from
+                    “something is wrong” to the exact line or span that explains it in seconds. Your
+                    coding agent gets the same view: connect Claude Code, Cursor or any MCP client in one
+                    line, and it can search production while it works in the code that produced it.
                 </p>
 
                 <div class="flex flex-wrap gap-3 sm:flex-nowrap sm:justify-end">
@@ -64,9 +64,9 @@
                         </a>
                     @endauth
 
-                    <a href="#ingest"
+                    <a href="{{ route('features.mcp') }}"
                        class="rounded-md border border-border px-5 py-2.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground dark:border-foreground/25 dark:hover:bg-foreground/10 dark:hover:text-foreground">
-                        See ingest
+                        Connect your agent
                     </a>
                 </div>
             </div>

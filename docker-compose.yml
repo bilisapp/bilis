@@ -1,0 +1,109 @@
+# Bilis on one machine: the app, Horizon, the scheduler, Redis and ClickHouse.
+#
+#   echo "APP_KEY=base64:$(openssl rand -base64 32)" >> .env
+#   docker compose up -d
+#
+# Then open http://localhost:8080, register, create a project and an API key.
+# This file is for trying Bilis out and for small single-box installs. Put a
+# TLS-terminating proxy in front and set APP_URL before exposing it.
+
+x-bilis: &bilis
+  build: .
+  image: bilis:local
+  restart: unless-stopped
+  environment:
+    APP_KEY: ${APP_KEY:?Set APP_KEY in .env — see the comment at the top of docker-compose.yml}
+    APP_URL: ${APP_URL:-http://localhost:8080}
+    DB_CONNECTION: sqlite
+    DB_DATABASE: /app/storage/app/database.sqlite
+    QUEUE_CONNECTION: redis
+    CACHE_STORE: redis
+    REDIS_HOST: redis
+    SESSION_DRIVER: database
+    MAIL_MAILER: ${MAIL_MAILER:-log}
+    LOG_CHANNEL: stderr
+    CLICKHOUSE_HOST: clickhouse
+    CLICKHOUSE_PORT: 8123
+    CLICKHOUSE_DATABASE: bilis
+    CLICKHOUSE_USERNAME: bilis
+    CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-bilis}
+    # A self-hosted instance reports to nobody.
+    BILIS_ANALYTICS_SCRIPT_URL: ""
+  volumes:
+    - bilis-storage:/app/storage
+  depends_on:
+    clickhouse:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    setup:
+      condition: service_completed_successfully
+
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:26.3
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_USER: bilis
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-bilis}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 0
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--user", "bilis", "--password", "${CLICKHOUSE_PASSWORD:-bilis}", "--query", "SELECT 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # One-shot: app database, ClickHouse tables and the OAuth keys the MCP
+  # server signs tokens with. Safe to re-run; every step is idempotent.
+  setup:
+    <<: *bilis
+    restart: "no"
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - >-
+        touch "$$DB_DATABASE"
+        && php artisan migrate --force
+        && php artisan clickhouse:migrate --no-interaction
+        && { [ -f storage/oauth-private.key ] || php artisan passport:keys --no-interaction; }
+
+  web:
+    <<: *bilis
+    command: ["web"]
+    ports:
+      - "${BILIS_PORT:-8080}:8080"
+
+  # Exactly one Horizon and one scheduler: Horizon forks its own workers, and
+  # a second scheduler would double-fire autofix:scan.
+  horizon:
+    <<: *bilis
+    command: ["horizon"]
+
+  scheduler:
+    <<: *bilis
+    command: ["scheduler"]
+
+volumes:
+  bilis-storage:
+  redis-data:
+  clickhouse-data:

@@ -31,8 +31,9 @@ test('the hero and the live tail share one shader band', function () {
     $band = substr($page, strpos($page, 'data-fold-gradient'));
     $band = substr($band, 0, strpos($band, '</section>'));
 
-    expect($band)->toContain('Your logs and traces.')
-        ->toContain('On your own box.')
+    expect($band)->toContain('Observability your')
+        ->toContain('coding agent can read.')
+        ->toContain(route('features.mcp'))
         ->toContain('data-live-tail-list');
 });
 
