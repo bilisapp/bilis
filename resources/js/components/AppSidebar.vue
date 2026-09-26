@@ -132,13 +132,13 @@ const mainNavItems = computed<NavItem[]>(() => [
         : []),
 ]);
 
-const resourceNavItems: NavItem[] = [
+const resourceNavItems = computed<NavItem[]>(() => [
     {
         title: 'Projects',
         href: projectsUrl.value,
         icon: FolderKanban,
     },
-];
+]);
 </script>
 
 <template>

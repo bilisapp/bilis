@@ -7,6 +7,7 @@ import BrowserOriginsCard from '@/components/BrowserOriginsCard.vue';
 import CopyableValue from '@/components/CopyableValue.vue';
 import CreateApiKeyModal from '@/components/CreateApiKeyModal.vue';
 import DeleteProjectModal from '@/components/DeleteProjectModal.vue';
+import ErrorMonitoringSetup from '@/components/ErrorMonitoringSetup.vue';
 import ProjectRepositoryCard from '@/components/ProjectRepositoryCard.vue';
 import RenameProjectModal from '@/components/RenameProjectModal.vue';
 import RevokeApiKeyModal from '@/components/RevokeApiKeyModal.vue';
@@ -87,6 +88,11 @@ const createdApiKey = ref<NewProjectApiKey | null>(null);
 const createdApiKeyOpen = ref(false);
 
 const keyCount = computed(() => props.apiKeys.length);
+
+/** The newest key's DSN, so the SDK snippets are ready to paste. */
+const snippetDsn = computed(
+    () => props.apiKeys.find((apiKey) => apiKey.dsn)?.dsn ?? null,
+);
 
 watch(
     () => page.flash.newApiKey,
@@ -325,6 +331,21 @@ const openRevokeDialog = (apiKey: ProjectApiKey) => {
                         <KeyRound /> Create a key with the command filled in
                     </Button>
                 </CreateApiKeyModal>
+            </CardContent>
+        </Card>
+
+        <Card data-test="error-monitoring-card">
+            <CardHeader>
+                <CardTitle>Monitor errors</CardTitle>
+                <CardDescription>
+                    Ship exceptions from Cloudflare Workers or any app with a
+                    Sentry-compatible SDK. They land as error logs next to
+                    everything else this project sends.
+                </CardDescription>
+            </CardHeader>
+
+            <CardContent>
+                <ErrorMonitoringSetup :dsn="snippetDsn" />
             </CardContent>
         </Card>
 

@@ -1,7 +1,7 @@
 ---
 title: Claude Code
 description: Point Claude Code's built-in OpenTelemetry exporter at Bilis, and the two defaults that otherwise send nothing.
-order: 12
+order: 13
 ---
 
 Claude Code ships an OpenTelemetry exporter. It is off by default, and when you

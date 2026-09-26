@@ -10,6 +10,7 @@ import AutofixUpsellModal from '@/components/AutofixUpsellModal.vue';
 import BrowserOriginsCard from '@/components/BrowserOriginsCard.vue';
 import ConnectAgentCard from '@/components/ConnectAgentCard.vue';
 import CopyableValue from '@/components/CopyableValue.vue';
+import ErrorMonitoringSetup from '@/components/ErrorMonitoringSetup.vue';
 import GetStartedPanel from '@/components/GetStartedPanel.vue';
 import GitHubLoginButton from '@/components/GitHubLoginButton.vue';
 import Heading from '@/components/Heading.vue';
@@ -562,6 +563,19 @@ const onHistogramZoom = (window: { from: string; to: string }) => {
                 />
                 <ServerInstallCommand origin="https://bilis.app" />
                 <ServerInstallCommand origin="https://bilis.app" compact />
+            </div>
+        </DemoBlock>
+
+        <DemoBlock
+            title="ErrorMonitoringSetup"
+            description="the project page's error-monitoring snippets — Cloudflare's own OTLP export first, then Sentry-compatible SDKs pointed at the project's DSN, which is public and so always filled in"
+        >
+            <div class="w-full max-w-2xl">
+                <ErrorMonitoringSetup
+                    :dsn="demoApiKey.dsn"
+                    service="checkout-edge"
+                    origin="https://bilis.app"
+                />
             </div>
         </DemoBlock>
 

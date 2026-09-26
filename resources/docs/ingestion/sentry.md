@@ -122,7 +122,7 @@ do not control.
 
 ## Compatibility
 
-- Server-side SDKs work as they are.
+- Server-side SDKs work as they are, including `@sentry/cloudflare` in a Worker — see [Cloudflare Workers](/docs/ingestion/cloudflare-workers).
 - Browser SDKs work once their origin is listed above.
 - The older `POST /api/{id}/store/` endpoint is accepted too.
 - Gzipped bodies, which most SDKs send by default, are inflated.
