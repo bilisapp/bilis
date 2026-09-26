@@ -114,12 +114,37 @@ I/O on the same interval as host metrics.
 > stats, the agent's user joins the `docker` group, and the installer says so
 > when it does. If you do not want that, install with `--no-docker`.
 
+### HTTP checks of local services
+
+With one or more `--check <url>`, the `http_check` receiver requests each URL
+on the same interval as host metrics, from the machine itself — so it can reach
+services that are not public (`http://localhost:8080/health`, an internal
+admin port). Each check reports:
+
+- `httpcheck.duration` — how long the request took, in ms.
+- `httpcheck.status` — `1`, with the answer's `http.status_code` and
+  `http.status_class` (`2xx`, `5xx`, …) as attributes.
+- `httpcheck.error` — `1` when there was no HTTP answer at all (DNS failure,
+  refused connection, timeout), with the reason in `error.message`.
+- `httpcheck.tls.cert_remaining` — for `https://` URLs, seconds until the
+  certificate expires.
+
+A check made from the machine it watches cannot tell you that the machine is
+down, or unreachable from outside — it answers "is the app up on this box?".
+
+The URLs are kept in `/etc/bilis-agent/checks`, so a re-run keeps them. A run
+with `--check` replaces the whole list; `--no-checks` removes it. Because they
+end up in the world-readable collector config, a check URL may not carry
+credentials (`user:pass@`), quotes, spaces, `$` or braces — use a
+health endpoint that needs no credentials.
+
 ## Where it shows up in Bilis
 
 | Source         | `service.name`                                      | Where to look                     |
 | -------------- | --------------------------------------------------- | --------------------------------- |
 | Host metrics   | `host`                                              | Metrics explorer                  |
 | Docker stats   | `docker`                                            | Metrics explorer                  |
+| HTTP checks    | `uptime`                                            | Metrics explorer, by `http.url`   |
 | journald lines | the unit, e.g. `nginx`, `sshd`, `docker`, `systemd` | Logs, filtered by service or host |
 
 Every signal carries a `host.name` resource attribute — the machine's hostname,
@@ -149,6 +174,8 @@ curl -fsSL https://your-bilis-host/install.sh \
 | `--interval <dur>`   | The scrape interval for host metrics and Docker stats, e.g. `30s`, `2m`. Default `60s`.                  |
 | `--no-docker`        | Never collect container stats, even when Docker is installed. The agent stays out of the `docker` group. |
 | `--no-logs`          | Metrics only; no journald pipeline.                                                                      |
+| `--check <url>`      | Request this `http(s)` URL every interval (repeatable). Replaces the URLs of a previous install.        |
+| `--no-checks`        | Drop the check URLs a previous install was given.                                                        |
 | `--dry-run`          | Print the config and every action it would take, and change nothing.                                     |
 | `--uninstall`        | Remove the agent — the same as `bilis-agent uninstall`.                                                  |
 | `--purge`            | With `--uninstall`, also delete `/var/lib/bilis-agent`.                                                  |

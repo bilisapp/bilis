@@ -76,3 +76,51 @@ test('the installer is rate limited', function () {
 
     $this->get('/install.sh')->assertTooManyRequests();
 });
+
+/**
+ * Run the installer's own `valid_check_url` against one URL.
+ */
+function checkUrlIsAccepted(string $url): bool
+{
+    preg_match('/^valid_check_url\(\) \{.*?^\}$/ms', servedInstaller(), $function);
+
+    $process = new Process(['sh', '-c', $function[0]."\n".'valid_check_url "$1"', 'sh', $url]);
+    $process->run();
+
+    return $process->getExitCode() === 0;
+}
+
+test('check URLs that are safe to write into the config are accepted', function (string $url) {
+    expect(checkUrlIsAccepted($url))->toBeTrue();
+})->with([
+    'http://localhost:8080/health',
+    'https://example.com/a?b=c&d=e#section',
+    'http://[::1]:8080/up',
+    'https://mastodon.social/@someone',
+]);
+
+test('check URLs that could break out of the config, expand a secret or carry credentials are refused', function (string $url) {
+    expect(checkUrlIsAccepted($url))->toBeFalse();
+})->with([
+    'not http' => 'ftp://example.com/',
+    'no host' => 'http://',
+    'no scheme' => 'localhost:8080',
+    'credentials' => 'https://user:secret@example.com/',
+    'collector expansion' => 'https://example.com/${env:BILIS_API_KEY}',
+    'double quote' => 'https://example.com/"x',
+    'single quote' => "https://example.com/'x",
+    'space' => 'https://example.com/a b',
+    'backtick' => 'https://example.com/`id`',
+    'backslash' => 'https://example.com/\\x',
+    'braces' => 'https://example.com/{x}',
+]);
+
+test('checks run in their own pipeline as service uptime, without the zero-valued status classes', function () {
+    expect(servedInstaller())
+        ->toContain('--check URL')
+        ->toContain('http_check:')
+        ->toContain("'metric.name == \"httpcheck.status\" and value_int == 0'")
+        ->toContain('processors: [memory_limiter, filter/uptime, resource_detection, resource/uptime, batch]')
+        // Re-runs keep the URLs from their own file, never from agent.env.
+        ->toContain('CHECKS="$(tr \'\n\' \' \' <"$CHECKS_FILE")"');
+});

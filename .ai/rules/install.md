@@ -22,3 +22,6 @@ paths:
 
 ## Prove a change end to end
 Syntax and shellcheck are not enough: install it on a throwaway systemd box (`orb create ubuntu <name>`, map the Bilis host in its `/etc/hosts`), check `bilis-agent status`/`test`, rows in ClickHouse, and the `--dry-run`, re-run, `uninstall` and `--purge` paths, then delete the box.
+
+## --check URLs are validated because they land in a world-readable config the Collector expands
+`--check` URLs are written inside double quotes into `/etc/bilis-agent/config.yaml` (0644), and the Collector expands `${...}` anywhere in it — a URL like `https://x/${env:BILIS_API_KEY}` would send the key to a stranger. `valid_check_url` allows http(s) only, a fixed RFC 3986 character class (no quotes, `$`, braces, spaces, backslash) and no userinfo. The URLs persist in `/etc/bilis-agent/checks` (one per line), never in `agent.env`, which systemd parses. `filter/uptime` drops the four always-zero `httpcheck.status` classes. Checks are service `uptime`; see specs/uptime.md.

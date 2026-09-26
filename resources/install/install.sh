@@ -6,12 +6,14 @@
 #
 # Installs a pinned, checksum-verified OpenTelemetry Collector (otelcol-contrib)
 # as the systemd service `bilis-agent`, sending this server's host metrics,
-# journald logs and (when Docker is present) container stats to Bilis, plus a
-# small `bilis-agent` command to check on it. Everything it writes:
+# journald logs, (when Docker is present) container stats and (with --check)
+# HTTP checks of local services to Bilis, plus a small `bilis-agent` command to
+# check on it. Everything it writes:
 #
 #   /opt/bilis-agent/otelcol-contrib           the collector binary
 #   /etc/bilis-agent/config.yaml               collector config (no secrets)
 #   /etc/bilis-agent/agent.env                 API key and settings, mode 0600
+#   /etc/bilis-agent/checks                    --check URLs, one per line
 #   /var/lib/bilis-agent/                      journald cursor + send queue
 #   /etc/systemd/system/bilis-agent.service    the service
 #   /usr/local/bin/bilis-agent                 status / logs / test / update / uninstall
@@ -38,6 +40,7 @@ CLI_FILE='/usr/local/bin/bilis-agent'
 BINARY="$INSTALL_DIR/otelcol-contrib"
 CONFIG_FILE="$CONFIG_DIR/config.yaml"
 ENV_FILE="$CONFIG_DIR/agent.env"
+CHECKS_FILE="$CONFIG_DIR/checks"
 
 # ---------------------------------------------------------------- output
 
@@ -72,6 +75,9 @@ Options:
   --interval DUR     metrics collection interval, e.g. 30s, 60s, 5m (default: 60s)
   --no-docker        do not collect Docker container stats, even if Docker is present
   --no-logs          do not ship journald logs
+  --check URL        check this http(s) URL every interval (repeatable); replaces the
+                     URLs of a previous install. Shown in Bilis as service 'uptime'.
+  --no-checks        drop the URLs a previous install was given
   --dry-run          print what would be installed and the config; change nothing
   --uninstall        stop and remove the agent (keeps $STATE_DIR)
   --purge            with --uninstall, also remove $STATE_DIR
@@ -87,6 +93,8 @@ HOST_NAME="${BILIS_HOST_NAME:-}"
 INTERVAL="${BILIS_INTERVAL:-}"
 WITH_DOCKER='auto'
 WITH_LOGS='yes'
+CHECKS=''
+CHECKS_GIVEN='no'
 DRY_RUN='no'
 UNINSTALL='no'
 PURGE='no'
@@ -101,6 +109,9 @@ while [ $# -gt 0 ]; do
         --interval=*) INTERVAL="${1#*=}"; shift ;;
         --no-docker) WITH_DOCKER='no'; shift ;;
         --no-logs) WITH_LOGS='no'; shift ;;
+        --check) [ $# -ge 2 ] || fail '--check needs a URL'; CHECKS="$CHECKS $2"; CHECKS_GIVEN='yes'; shift 2 ;;
+        --check=*) CHECKS="$CHECKS ${1#*=}"; CHECKS_GIVEN='yes'; shift ;;
+        --no-checks) CHECKS=''; CHECKS_GIVEN='yes'; shift ;;
         --dry-run) DRY_RUN='yes'; shift ;;
         --uninstall) UNINSTALL='yes'; shift ;;
         --purge) PURGE='yes'; shift ;;
@@ -138,6 +149,25 @@ preflight() {
         require_command "$tool"
     done
     detect_arch
+}
+
+# A check URL is written into config.yaml (world-readable) inside double
+# quotes, and the Collector expands ${...} anywhere in it: so http(s) only, and
+# nothing that could close the quote, start an expansion or carry credentials.
+valid_check_url() {
+    case "$1" in
+        http://?* | https://?*) ;;
+        *) return 1 ;;
+    esac
+    case "$1" in
+        *[!][A-Za-z0-9._~:/?#@!\&\(\)*+,\;=%-]*) return 1 ;;
+    esac
+    rest="${1#*://}"
+    authority="${rest%%[/?#]*}"
+    case "$authority" in
+        '' | *@*) return 1 ;;
+    esac
+    return 0
 }
 
 valid_interval() {
@@ -196,6 +226,10 @@ if [ -f "$ENV_FILE" ]; then
     [ -n "$INTERVAL" ] || INTERVAL="$(previous BILIS_INTERVAL)"
 fi
 
+if [ "$CHECKS_GIVEN" = 'no' ] && [ -f "$CHECKS_FILE" ]; then
+    CHECKS="$(tr '\n' ' ' <"$CHECKS_FILE")"
+fi
+
 if [ -z "$API_KEY" ] && [ -r /dev/tty ] && [ "$DRY_RUN" = 'no' ]; then
     printf 'Bilis API key (bilis_...): ' >/dev/tty
     stty -echo </dev/tty 2>/dev/null || true
@@ -222,6 +256,10 @@ valid_interval "$INTERVAL" || fail "--interval must look like 30s, 60s or 5m (go
 case "$HOST_NAME" in
     *[!A-Za-z0-9._-]*) fail "--host-name may contain letters, digits, dots, dashes and underscores only." ;;
 esac
+
+for url in $CHECKS; do
+    valid_check_url "$url" || fail "--check must be a plain http(s) URL without credentials, quotes or \$ (got '$url')."
+done
 
 if [ "$WITH_DOCKER" = 'auto' ]; then
     if [ -S /var/run/docker.sock ]; then WITH_DOCKER='yes'; else WITH_DOCKER='no'; fi
@@ -374,6 +412,21 @@ EOF
 EOF
     fi
 
+    if [ -n "$CHECKS" ]; then
+        cat <<'EOF'
+
+    http_check:
+        collection_interval: ${env:BILIS_INTERVAL}
+        metrics:
+            httpcheck.tls.cert_remaining:
+                enabled: true
+        targets:
+EOF
+        for url in $CHECKS; do
+            printf '            - endpoint: "%s"\n' "$url"
+        done
+    fi
+
     cat <<'EOF'
 
 processors:
@@ -400,6 +453,20 @@ processors:
             - key: service.name
               value: docker
               action: upsert
+
+    resource/uptime:
+        attributes:
+            - key: service.name
+              value: uptime
+              action: upsert
+
+    # httpcheck.status writes one point per status class and four of the five
+    # are always 0; the class that matched is the only one worth storing.
+    filter/uptime:
+        error_mode: ignore
+        metrics:
+            datapoint:
+                - 'metric.name == "httpcheck.status" and value_int == 0'
 
     batch:
         timeout: 10s
@@ -444,6 +511,15 @@ EOF
 EOF
     fi
 
+    if [ -n "$CHECKS" ]; then
+        cat <<'EOF'
+        metrics/uptime:
+            receivers: [http_check]
+            processors: [memory_limiter, filter/uptime, resource_detection, resource/uptime, batch]
+            exporters: [otlp_http/bilis]
+EOF
+    fi
+
     if [ "$WITH_LOGS" = 'yes' ]; then
         cat <<'EOF'
         logs/journald:
@@ -466,6 +542,12 @@ write_env() {
     if [ -n "$HOST_NAME" ]; then
         printf 'OTEL_RESOURCE_ATTRIBUTES=host.name=%s\n' "$HOST_NAME"
     fi
+}
+
+write_checks() {
+    for url in $CHECKS; do
+        printf '%s\n' "$url"
+    done
 }
 
 write_unit() {
@@ -557,6 +639,7 @@ case "$command" in
         echo "endpoint:  $(setting BILIS_ENDPOINT)"
         echo "host.name: $(setting BILIS_HOST_NAME || true)"
         echo "interval:  $(setting BILIS_INTERVAL)"
+        echo "checks:    $(cat /etc/bilis-agent/checks 2>/dev/null | wc -l | tr -d ' ') URL(s)"
         echo "collector: $("$BINARY" --version 2>/dev/null || echo unknown)"
         errors="$(journalctl -u bilis-agent.service --since '-15min' --no-pager -o cat 2>/dev/null | grep -ci 'exporting failed\|dropping data' || true)"
         echo "export errors in the last 15 min: ${errors:-0}"
@@ -618,6 +701,7 @@ if [ "$DRY_RUN" = 'yes' ]; then
     step 'Dry run: nothing will be changed'
     note "would install otelcol-contrib $OTELCOL_VERSION ($ARCH) to $BINARY"
     note "docker stats: $WITH_DOCKER, journald logs: $WITH_LOGS, interval: $INTERVAL, encoding: $ENCODING, container: ${VIRT:-none}"
+    note "checks: $(printf '%s' "${CHECKS:- none}" | sed 's/^ //')"
     say
     write_config
     exit 0
@@ -672,6 +756,7 @@ install -d -m 0750 -o "$AGENT_USER" -g "$AGENT_USER" "$STATE_DIR"
 
 write_config >"$TMP/config.yaml"
 (umask 077 && write_env >"$TMP/agent.env")
+write_checks >"$TMP/checks"
 write_unit >"$TMP/bilis-agent.service"
 write_cli >"$TMP/bilis-agent"
 
@@ -683,6 +768,11 @@ fi
 
 install -m 0644 "$TMP/config.yaml" "$CONFIG_FILE"
 install -m 0600 -o root -g root "$TMP/agent.env" "$ENV_FILE"
+if [ -n "$CHECKS" ]; then
+    install -m 0644 "$TMP/checks" "$CHECKS_FILE"
+else
+    rm -f "$CHECKS_FILE"
+fi
 install -m 0644 "$TMP/bilis-agent.service" "$UNIT_FILE"
 install -m 0755 "$TMP/bilis-agent" "$CLI_FILE"
 
@@ -721,6 +811,9 @@ fi
 say
 say "${BOLD}The Bilis agent is running.${RESET}"
 say "  Sending:  host metrics every $INTERVAL$([ "$WITH_DOCKER" = 'yes' ] && printf ', Docker container stats')$([ "$WITH_LOGS" = 'yes' ] && printf ', journald logs')"
+if [ -n "$CHECKS" ]; then
+    say "  Checking: $(printf '%s' "$CHECKS" | wc -w | tr -d ' ') URL(s) every $INTERVAL (service 'uptime')"
+fi
 say "  To:       $ENDPOINT"
 say "  See it:   $ENDPOINT/dashboard  (Metrics: service 'host', group by host.name)"
 say "  Manage:   sudo bilis-agent status | logs | test | update | uninstall"
