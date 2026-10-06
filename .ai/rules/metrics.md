@@ -19,3 +19,9 @@ At most `SERIES_LIMIT` (500) series are read — the busiest by point count, cho
 
 ## Series keys are strings
 The series key is `toString(cityHash64(ServiceName, ResourceAttributes, Attributes))`: a UInt64 above `PHP_INT_MAX` would come back as a float and collide.
+
+## Attribute filters and group-by fall back to resource attributes
+`where`/`group_by` go through `MetricQuery::attribute()`: the point's `Attributes[k]` if present, else `ResourceAttributes[k]`. `host.name` and `container.name` are resource attributes, so a plain `Attributes[k]` silently matched nothing for them (the installer's own "group by host.name" hint never worked). The attribute picker offers resource keys too (minus `service.name` and `telemetry.*`). Never write `Attributes[{k:String}]` directly in a new query.
+
+## The Hosts tab is curated, not a dashboard
+`HostCharts::definitions()` is a fixed list (spec `specs/hosts.md`); user-defined dashboards stay out of scope. Each chart names candidates in preference order (`*.utilization` gauge, then the scraper's default counter) and falls through when the preferred one is empty *for this host*, because the catalog spans every host. Host-row figures in `MetricQuery::hosts()` derive from default scraper metrics only, so old agents still fill every column. Both are proven against a real server in `tests/Feature/Metrics/HostQueryLiveTest.php`; a fake caught nothing when an alias clash broke the stats query.

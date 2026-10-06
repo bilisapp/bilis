@@ -28,7 +28,7 @@ use Laravel\Mcp\Server\Tool;
  */
 #[Name('query-metric')]
 #[Title('Query metric')]
-#[Description('Read one metric over a time window as a time series, the way the Bilis metric explorer charts it: counters as a per-second rate, gauges as their level, histograms as p50/p95/p99. Split it with "group_by" (an attribute key) and narrow it with "where" (attribute = value). Every series carries min/max/avg/last, so read those first. Call list-metrics first for the exact metric name and its attribute keys. Answers "is something saturated, climbing, or slower than usual?".')]
+#[Description('Read one metric over a time window as a time series, the way the Bilis metric explorer charts it: counters as a per-second rate, gauges as their level, histograms as p50/p95/p99. Split it with "group_by" (an attribute key) and narrow it with "where" (attribute = value); a key is looked up on the data point, then on its resource, so host.name and container.name work. Every series carries min/max/avg/last, so read those first. Call list-metrics first for the exact metric name and its attribute keys. Answers "is something saturated, climbing, or slower than usual?".')]
 class QueryMetricTool extends Tool
 {
     use ResolvesScope;
@@ -104,23 +104,19 @@ class QueryMetricTool extends Tool
 
         $result = $metrics->series($scope->projectIds, $filters);
 
-        $kind = $result['kind'] ?? null;
-        $unit = (string) ($result['unit'] ?? $entry['unit']);
-
-        /** @var list<string> $buckets */
-        $buckets = $result['buckets'] ?? [];
-
-        /** @var list<array{label: string, group: string|null, stat: string, points: list<float|null>}> $series */
-        $series = $result['series'] ?? [];
+        $kind = $result['kind'];
+        $unit = $result['unit'];
+        $buckets = $result['buckets'];
+        $series = $result['series'];
 
         $notes = array_values(array_filter([
-            ($result['truncatedGroups'] ?? 0) > 0
+            $result['truncatedGroups'] > 0
                 ? "{$result['truncatedGroups']} more groups were left out; only the ".MetricSeriesBuilder::MAX_GROUPS.' heaviest are returned. Narrow with "where" to see others.'
                 : null,
-            ($result['droppedSeries'] ?? 0) > 0
+            $result['droppedSeries'] > 0
                 ? "{$result['droppedSeries']} series were left out: only the busiest ".MetricQuery::SERIES_LIMIT.' are read, and histogram series with a different bucket layout are dropped.'
                 : null,
-            ($result['approximate'] ?? false) ? 'Values are approximate: summary quantiles cannot be merged exactly across series, so they are averaged.' : null,
+            $result['approximate'] ? 'Values are approximate: summary quantiles cannot be merged exactly across series, so they are averaged.' : null,
             $series === [] ? 'The metric exists but had no data points in this window (or none matching the filters).' : null,
         ]));
 
@@ -133,7 +129,7 @@ class QueryMetricTool extends Tool
             'unit' => $kind === 'rate' ? ($unit === '' ? '/s' : "{$unit}/s") : $unit,
             'from' => $from->toIso8601String(),
             'to' => $to->toIso8601String(),
-            'intervalSeconds' => $result['intervalSeconds'] ?? 0,
+            'intervalSeconds' => $result['intervalSeconds'],
             'groupBy' => $filters->groupBy,
             'agg' => $entry['type'] === 'gauge' || ($entry['type'] === 'sum' && $entry['temporality'] === 2 && ! $entry['monotonic']) ? $agg : null,
             'buckets' => array_map(
@@ -147,7 +143,7 @@ class QueryMetricTool extends Tool
                 'values' => array_map(fn (?float $value): ?float => $value === null ? null : self::round($value), $line['points']),
             ], $series),
             'notes' => $notes,
-            'unavailable' => (bool) ($result['unavailable'] ?? false),
+            'unavailable' => $result['unavailable'],
         ]);
     }
 

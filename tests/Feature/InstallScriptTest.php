@@ -124,3 +124,11 @@ test('checks run in their own pipeline as service uptime, without the zero-value
         // Re-runs keep the URLs from their own file, never from agent.env.
         ->toContain('CHECKS="$(tr \'\n\' \' \' <"$CHECKS_FILE")"');
 });
+
+test('the host scraper sends the utilization gauges the Hosts tab charts as percentages', function () {
+    expect(servedInstaller())
+        ->toContain("system.cpu.utilization:\n                        enabled: true")
+        ->toContain("system.memory.utilization:\n                        enabled: true")
+        ->toContain("system.filesystem.utilization:\n                        enabled: true")
+        ->toContain('(Metrics -> Hosts)');
+});

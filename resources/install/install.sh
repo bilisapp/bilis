@@ -325,9 +325,17 @@ extensions:
 receivers:
     host_metrics:
         collection_interval: ${env:BILIS_INTERVAL}
+        # The *.utilization gauges are off in the scraper by default; they are
+        # what the Hosts tab charts as percentages.
         scrapers:
-            cpu: {}
-            memory: {}
+            cpu:
+                metrics:
+                    system.cpu.utilization:
+                        enabled: true
+            memory:
+                metrics:
+                    system.memory.utilization:
+                        enabled: true
             load: {}
             paging: {}
             processes: {}
@@ -336,6 +344,9 @@ receivers:
                     devices: ['^loop.*', '^ram.*', '^zram.*', '^sr[0-9]+$']
                     match_type: regexp
             filesystem:
+                metrics:
+                    system.filesystem.utilization:
+                        enabled: true
                 include_virtual_filesystems: ${env:BILIS_FS_INCLUDE_VIRTUAL}
                 include_mount_points:
                     mount_points: ['${env:BILIS_FS_MOUNT_POINTS}']
@@ -815,7 +826,7 @@ if [ -n "$CHECKS" ]; then
     say "  Checking: $(printf '%s' "$CHECKS" | wc -w | tr -d ' ') URL(s) every $INTERVAL (service 'uptime')"
 fi
 say "  To:       $ENDPOINT"
-say "  See it:   $ENDPOINT/dashboard  (Metrics: service 'host', group by host.name)"
+say "  See it:   $ENDPOINT/dashboard  (Metrics -> Hosts)"
 say "  Manage:   sudo bilis-agent status | logs | test | update | uninstall"
 if [ "$WITH_DOCKER" = 'yes' ]; then
     say "  ${DIM}Note: reading the Docker socket is root-equivalent; --no-docker turns it off.${RESET}"

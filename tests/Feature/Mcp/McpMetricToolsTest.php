@@ -70,7 +70,7 @@ function fakeMcpMetricsClickHouse(): void
                     'Services' => ['worker'], 'Monotonic' => false, 'Temporality' => 0, 'Points' => 60,
                 ],
             ]),
-            str_contains($body, 'ARRAY JOIN mapKeys(Attributes)') => mcpMetricRows([
+            str_contains($body, 'ARRAY JOIN mapKeys(mapUpdate(') => mcpMetricRows([
                 ['Key' => 'http.route', 'Values' => ['/checkout', '/cart']],
             ]),
             str_contains($body, 'AS Total') => mcpMetricRows([['Total' => 2]]),

@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import HostsTable from '@/components/HostsTable.vue';
 import MetricChart from '@/components/MetricChart.vue';
+import MetricsTabs from '@/components/MetricsTabs.vue';
 import MetricsToolbar from '@/components/MetricsToolbar.vue';
 import {
+    DEMO_HOST_CPU,
+    DEMO_HOSTS,
     DEMO_METRIC_ATTRIBUTES,
     DEMO_METRIC_CATALOG,
     DEMO_METRIC_DISTRIBUTION,
@@ -36,6 +40,8 @@ const demoWhere = ref<Record<string, string>>({ 'http.route': '/checkout' });
 const demoGroupBy = ref<string | null>('http.request.method');
 const demoAgg = ref<MetricAggregation>('avg');
 const demoRange = ref<LogRangePreset>('1h');
+const demoHost = ref<string | null>('vps-8d4cfe56');
+const demoTabQuery = () => ({ project: 'checkout' });
 
 /** The kind follows the picked metric, so the Combine control appears for a level. */
 const demoKind = computed<MetricSeriesKind | null>(() => {
@@ -82,6 +88,54 @@ function resetDemo() {
 
 <template>
     <div class="space-y-6">
+        <DemoBlock
+            title="MetricsTabs"
+            description="the metrics page's two views — Hosts, every machine and a fixed set of charts for one, and the Explorer, one metric with every control — joined like the trace tabs. Only the window and the project travel between them; a host or a metric belongs to its own tab. The query is built when a tab is followed, so a relative window still ends now."
+        >
+            <MetricsTabs team-slug="acme" :query="demoTabQuery" />
+        </DemoBlock>
+
+        <DemoBlock
+            title="HostsTable"
+            description="one row per host.name the host-metrics receiver reported, with how it is doing now — the window's last fifteen minutes. CPU, memory and the fullest filesystem (its mount beside it) are meters on the magnitude ramp at fixed thresholds — half, three quarters, nine tenths — so 93 % disk reads the same on every visit; size, not meaning. A host that went quiet keeps its row with dashes and its last-seen in full weight: that is the finding. Click a row to chart it."
+        >
+            <HostsTable
+                :hosts="DEMO_HOSTS"
+                :selected="demoHost"
+                @select="demoHost = $event"
+            />
+        </DemoBlock>
+
+        <DemoBlock
+            title="HostsTable — states"
+            description="loading (the deferred list), storage too busy to answer, and a window in which no host reported."
+        >
+            <div class="flex flex-col gap-4">
+                <HostsTable :selected="null" />
+                <HostsTable
+                    :hosts="{ hosts: [], unavailable: true }"
+                    :selected="null"
+                />
+                <HostsTable
+                    :hosts="{ hosts: [], unavailable: false }"
+                    :selected="null"
+                />
+            </div>
+        </DemoBlock>
+
+        <DemoBlock
+            title="MetricChart — curated, with a title"
+            description="how the Hosts tab draws a chart: a reader's name (CPU) with the exporter's metric name kept beside it, a ratio rescaled to percent, and a link that opens the same query in the explorer with every control."
+        >
+            <MetricChart
+                :series="DEMO_HOST_CPU"
+                metric="system.cpu.utilization"
+                title="CPU"
+                explorer-href="#metrics"
+                height="14rem"
+            />
+        </DemoBlock>
+
         <DemoBlock
             title="MetricsToolbar"
             description="the explorer's controls, and every one of them is a query-string parameter so a chart is a link. The metric picker groups the catalog by type — gauges, sums, then the distributions — with the unit beside each name; a metric the URL names that has gone quiet stays pickable under its own heading. Service is a datalist drawn from the services that reported the chosen metric. Group by and the Where filters offer the selected metric's own attribute keys, with each key's common values as suggestions; at most five filters, one value per key, each a removable chip. Combine (avg/min/max/sum) is only offered for a level — a rate is always summed and a distribution is read at a percentile, so for those it would change nothing. Switching metric drops the filters, because http.route means nothing on process.memory.usage."

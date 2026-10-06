@@ -2,6 +2,7 @@
 import { Head, router, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import MetricChart from '@/components/MetricChart.vue';
+import MetricsTabs from '@/components/MetricsTabs.vue';
 import MetricsToolbar from '@/components/MetricsToolbar.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -14,6 +15,8 @@ import {
     METRIC_TYPE_LABEL,
     metricFilterQuery,
     metricReading,
+    metricWindow,
+    suggestedMetrics,
 } from '@/lib/metrics';
 import type { MetricQueryChanges } from '@/lib/metrics';
 import { show as docsShow } from '@/routes/docs';
@@ -147,12 +150,24 @@ OTEL_EXPORTER_OTLP_METRICS_HEADERS=Authorization=Bearer%20<YOUR_API_KEY>`,
 
 const metricsDocsHref = docsShow({ section: 'ingestion', page: 'metrics' }).url;
 
-/** The busiest metrics, offered as a starting point when none is picked. */
+/** The busiest metrics of each source, offered when none is picked. */
 const suggestions = computed(() =>
-    [...(props.catalog?.metrics ?? [])]
-        .sort((a, b) => b.points - a.points)
-        .slice(0, 8),
+    suggestedMetrics(props.catalog?.metrics ?? []),
 );
+
+/** What the Hosts tab inherits: the window and the project. */
+const sharedQuery = () => {
+    const query: Record<string, string> = metricWindow(
+        props.filters,
+        range.value,
+    );
+
+    if (props.filters.project) {
+        query.project = props.filters.project;
+    }
+
+    return query;
+};
 
 const catalogEmpty = computed(
     () =>
@@ -173,6 +188,8 @@ const catalogEmpty = computed(
                 attributes. The URL is the chart — copy it to share it.
             </p>
         </div>
+
+        <MetricsTabs :team-slug="teamSlug" :query="sharedQuery" />
 
         <MetricsToolbar
             :projects="projects"
@@ -251,7 +268,7 @@ const catalogEmpty = computed(
 
         <!--
           Nothing picked yet: rather than an empty chart, the busiest metrics
-          as one-click starting points. The picker above holds the rest.
+          of each source as one-click starting points. The picker above holds the rest.
         -->
         <section
             v-else-if="!filters.metric"
@@ -259,7 +276,7 @@ const catalogEmpty = computed(
             data-test="metrics-pick"
         >
             <p class="text-sm text-muted-foreground">
-                Pick a metric to chart it. The busiest in this window:
+                Pick a metric to chart it. The busiest of each source:
             </p>
             <div v-if="!catalog" class="flex flex-col gap-2">
                 <Skeleton class="h-8 w-full animate-pulse" />
@@ -284,6 +301,12 @@ const catalogEmpty = computed(
                         <span
                             class="shrink-0 text-xs text-muted-foreground tabular-nums"
                         >
+                            <template v-if="entry.services[0]">
+                                <span class="font-mono">{{
+                                    entry.services[0]
+                                }}</span>
+                                ·
+                            </template>
                             {{ METRIC_TYPE_LABEL[entry.type] }}
                             <template v-if="entry.unit">
                                 ·

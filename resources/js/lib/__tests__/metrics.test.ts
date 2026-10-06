@@ -5,10 +5,15 @@ import {
     escapeHtml,
     formatCompactNumber,
     formatMetricValue,
+    formatRatio,
+    hostChartExplorerQuery,
+    hostFilterQuery,
     metricFilterQuery,
     metricReading,
     metricUnitLabel,
+    ratioMagnitude,
     seriesName,
+    suggestedMetrics,
     visibleSeries,
 } from '@/lib/metrics';
 import type {
@@ -319,5 +324,120 @@ describe('escapeHtml', () => {
         expect(escapeHtml('<img src=x onerror="alert(1)">')).toBe(
             '&lt;img src=x onerror=&quot;alert(1)&quot;&gt;',
         );
+    });
+});
+
+describe('hostFilterQuery', () => {
+    const hostFilters = { ...filters, host: 'web-1' };
+
+    it('carries the project, the host and a custom window, nothing else', () => {
+        expect(hostFilterQuery(hostFilters, 'custom')).toEqual({
+            project: 'checkout',
+            host: 'web-1',
+            from: '2026-09-25T10:00:00.000Z',
+            to: '2026-09-25T11:00:00.000Z',
+        });
+    });
+
+    it('lets a change clear the host or the project', () => {
+        const query = hostFilterQuery(hostFilters, 'custom', {
+            host: 'db-1',
+            project: null,
+        });
+
+        expect(query.host).toBe('db-1');
+        expect(query.project).toBeUndefined();
+    });
+});
+
+describe('hostChartExplorerQuery', () => {
+    it('opens the curated chart in the explorer with its filter and grouping', () => {
+        expect(
+            hostChartExplorerQuery(
+                {
+                    metric: 'system.filesystem.usage',
+                    where: { state: 'used', 'host.name': 'web-1' },
+                    groupBy: 'mountpoint',
+                    agg: 'max',
+                },
+                filters,
+                'custom',
+            ),
+        ).toEqual({
+            project: 'checkout',
+            metric: 'system.filesystem.usage',
+            group_by: 'mountpoint',
+            agg: 'max',
+            from: '2026-09-25T10:00:00.000Z',
+            to: '2026-09-25T11:00:00.000Z',
+            'where[state]': 'used',
+            'where[host.name]': 'web-1',
+        });
+    });
+});
+
+describe('formatRatio', () => {
+    it('rounds a ratio to a whole percentage', () => {
+        expect(formatRatio(0.254)).toBe('25%');
+        expect(formatRatio(1)).toBe('100%');
+        expect(formatRatio(0)).toBe('0%');
+    });
+
+    it('shows a dash for a missing value', () => {
+        expect(formatRatio(null)).toBe('—');
+        expect(formatRatio(Number.NaN)).toBe('—');
+    });
+});
+
+describe('ratioMagnitude', () => {
+    it('steps at a half, three quarters and nine tenths', () => {
+        expect(ratioMagnitude(0.49)).toBe(1);
+        expect(ratioMagnitude(0.5)).toBe(2);
+        expect(ratioMagnitude(0.8)).toBe(3);
+        expect(ratioMagnitude(0.9)).toBe(4);
+        expect(ratioMagnitude(null)).toBe(1);
+    });
+});
+
+describe('suggestedMetrics', () => {
+    it('keeps every source on the list instead of the busiest one alone', () => {
+        const metrics = [
+            entry({
+                name: 'container.cpu.usage.total',
+                services: ['docker'],
+                points: 900,
+            }),
+            entry({
+                name: 'container.memory.usage.total',
+                services: ['docker'],
+                points: 800,
+            }),
+            entry({
+                name: 'container.network.io.usage.rx_bytes',
+                services: ['docker'],
+                points: 700,
+            }),
+            entry({ name: 'system.cpu.time', services: ['host'], points: 50 }),
+            entry({
+                name: 'http.server.requests',
+                services: ['checkout'],
+                points: 10,
+            }),
+        ];
+
+        expect(suggestedMetrics(metrics).map((metric) => metric.name)).toEqual([
+            'container.cpu.usage.total',
+            'container.memory.usage.total',
+            'system.cpu.time',
+            'http.server.requests',
+        ]);
+    });
+
+    it('stops at the limit', () => {
+        const metrics = ['a', 'b', 'c'].map((name, index) =>
+            entry({ name, services: [name], points: 10 - index }),
+        );
+
+        expect(suggestedMetrics(metrics, 2, 2)).toHaveLength(2);
     });
 });

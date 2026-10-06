@@ -301,10 +301,15 @@ both the camelCase and snake_case field spellings are accepted.
 
 ## What the explorer does with each type
 
-The metrics page (**Metrics** in the sidebar) charts one metric at a time. Pick
-a metric, narrow it by service and by up to five attribute equalities, and
-optionally group the lines by one attribute. The picker lists what has
-reported in the last 24 hours.
+The metrics page (**Metrics** in the sidebar) has two tabs. **Hosts** is for
+machines running the [server agent](/docs/ingestion/server-agent) or any
+Collector with the host-metrics receiver: every host with its current CPU,
+memory and disk, and a fixed set of charts for one. **Explorer** charts one
+metric at a time. Pick a metric, narrow it by service and by up to five
+attribute equalities, and optionally group the lines by one attribute. An
+attribute is looked up on the data point first and on its resource second, so
+resource attributes such as `host.name` and `container.name` work too. The
+picker lists what has reported in the last 24 hours.
 
 | Metric type                  | Drawn as                                                  |
 | ---------------------------- | --------------------------------------------------------- |

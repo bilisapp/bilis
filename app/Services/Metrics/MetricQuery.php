@@ -25,6 +25,8 @@ use Illuminate\Support\Carbon;
  * than an exception, so the page still renders; any other ClickHouse error is
  * rethrown.
  *
+ * @phpstan-import-type Result from MetricSeriesBuilder
+ *
  * @phpstan-type CatalogEntry array{name: string, type: string, unit: string, description: string, services: list<string>, monotonic: bool, temporality: int, points: int}
  */
 class MetricQuery
@@ -80,6 +82,26 @@ class MetricQuery
      */
     private const RAW_ROW_LIMIT = 200_000;
 
+    /**
+     * The host-metrics receiver metrics that mark a `host.name` as a host, by
+     * table: always on in the scraper, whatever else is configured.
+     */
+    public const HOST_MARKERS = [
+        'gauge' => 'system.cpu.load_average.1m',
+        'sum' => 'system.memory.usage',
+    ];
+
+    /**
+     * How much of the window's end a host row's "now" figures are read from:
+     * long enough for several points at the agent's 60 s interval.
+     */
+    public const HOST_RECENT_MINUTES = 15;
+
+    /**
+     * The most hosts one page lists.
+     */
+    private const HOST_LIMIT = 200;
+
     public function __construct(
         private readonly ClickHouseClient $client,
         private readonly CacheRepository $cache,
@@ -112,6 +134,169 @@ class MetricQuery
         );
 
         return $rows === null || $rows !== [];
+    }
+
+    /**
+     * Whether the given projects have ever reported host metrics: what decides
+     * that a bare visit to the metrics page opens on its Hosts tab.
+     *
+     * Like {@see hasAnyMetrics()} it stops at the first row; unlike it, an
+     * overloaded ClickHouse answers false, so a hiccup lands on the explorer
+     * rather than on a Hosts tab it then cannot fill.
+     *
+     * @param  list<string>  $projectIds
+     */
+    public function hasHosts(array $projectIds): bool
+    {
+        if ($projectIds === []) {
+            return false;
+        }
+
+        $rows = $this->select(
+            'SELECT 1 FROM '.self::TABLES['sum'].' WHERE ProjectId IN {projectIds:Array(String)} AND MetricName = {metric:String} LIMIT 1',
+            ['projectIds' => self::arrayParameter($projectIds), 'metric' => self::HOST_MARKERS['sum']],
+        );
+
+        return $rows !== null && $rows !== [];
+    }
+
+    /**
+     * Every host that reported in the window, with how it is doing now.
+     *
+     * A host is a `host.name` that sent one of the host-metrics receiver's
+     * {@see HOST_MARKERS}, whatever its service name, so a hand-written
+     * Collector config is found as well as the Bilis agent. "Now" is the last
+     * {@see HOST_RECENT_MINUTES} of the window, read off the scraper's default
+     * metrics so an install without the utilization flags still fills every
+     * column:
+     *
+     * - CPU: `system.cpu.time` deltas per series (R15: per cpu, state and
+     *   start time, so a restart is a new series, never a negative step), then
+     *   `1 - idle / total`;
+     * - memory: the latest `system.memory.usage` per state, `used / all`;
+     * - disk: the latest `system.filesystem.usage` per mount, `used / (used +
+     *   free)` as df reports it, the fullest mount;
+     * - load: the latest `system.cpu.load_average.1m`;
+     * - containers: distinct `container.name` behind `container.cpu.usage.total`.
+     *
+     * A host that went quiet before the last few minutes keeps its row with
+     * nulls and an old `lastSeen` — that is the finding, not an error.
+     *
+     * @param  list<string>  $projectIds
+     * @return array{hosts: list<array{name: string, lastSeen: string, cpu: float|null, memory: float|null, disk: float|null, diskMount: string|null, load: float|null, containers: int}>, unavailable: bool}
+     */
+    public function hosts(array $projectIds, MetricFilters $filters): array
+    {
+        if ($projectIds === []) {
+            return ['hosts' => [], 'unavailable' => false];
+        }
+
+        $recentFrom = $filters->from->clone()->max($filters->to->clone()->subMinutes(self::HOST_RECENT_MINUTES));
+
+        $params = [
+            'projectIds' => self::arrayParameter($projectIds),
+            'from' => self::formatTime($filters->from),
+            'to' => self::formatTime($filters->to),
+            'recentFrom' => self::formatTime($recentFrom),
+            'gaugeMarker' => self::HOST_MARKERS['gauge'],
+            'sumMarker' => self::HOST_MARKERS['sum'],
+            'hostLimit' => self::HOST_LIMIT,
+        ];
+
+        $gauge = self::TABLES['gauge'];
+        $sum = self::TABLES['sum'];
+        $window = "ProjectId IN {projectIds:Array(String)} AND TimeUnix >= {from:DateTime('UTC')} AND TimeUnix <= {to:DateTime('UTC')}";
+        $recent = "ProjectId IN {projectIds:Array(String)} AND TimeUnix >= {recentFrom:DateTime('UTC')} AND TimeUnix <= {to:DateTime('UTC')}";
+        $host = "ResourceAttributes['host.name']";
+
+        $listed = $this->select(
+            "SELECT Host, max(At) AS LastSeen FROM (
+                SELECT {$host} AS Host, max(toUnixTimestamp(TimeUnix)) AS At FROM {$gauge}
+                WHERE {$window} AND MetricName = {gaugeMarker:String} GROUP BY Host
+                UNION ALL
+                SELECT {$host} AS Host, max(toUnixTimestamp(TimeUnix)) AS At FROM {$sum}
+                WHERE {$window} AND MetricName = {sumMarker:String} GROUP BY Host
+            )
+            GROUP BY Host
+            ORDER BY Host ASC
+            LIMIT {hostLimit:UInt32}",
+            $params,
+        );
+
+        if ($listed === null) {
+            return ['hosts' => [], 'unavailable' => true];
+        }
+
+        if ($listed === []) {
+            return ['hosts' => [], 'unavailable' => false];
+        }
+
+        $stats = $this->select(
+            "SELECT Host, 'cpu' AS Stat, 1 - sumIf(D, State = 'idle') / sum(D) AS V, '' AS Label FROM (
+                SELECT {$host} AS Host, Attributes['state'] AS State,
+                    greatest(argMax(Value, TimeUnix) - argMin(Value, TimeUnix), 0) AS D
+                FROM {$sum} WHERE {$recent} AND MetricName = 'system.cpu.time'
+                GROUP BY Host, State, Attributes['cpu'], StartTimeUnix
+            ) GROUP BY Host HAVING sum(D) > 0
+            UNION ALL
+            SELECT Host, 'memory' AS Stat, sumIf(Latest, State = 'used') / sum(Latest) AS V, '' AS Label FROM (
+                SELECT {$host} AS Host, Attributes['state'] AS State, argMax(Value, TimeUnix) AS Latest
+                FROM {$sum} WHERE {$recent} AND MetricName = {sumMarker:String}
+                GROUP BY Host, State
+            ) GROUP BY Host HAVING sum(Latest) > 0
+            UNION ALL
+            SELECT Host, 'disk' AS Stat, max(U / (U + F)) AS V, argMax(Mount, U / (U + F)) AS Label FROM (
+                SELECT Host, Mount, sumIf(Latest, State = 'used') AS U, sumIf(Latest, State = 'free') AS F FROM (
+                    SELECT {$host} AS Host, Attributes['mountpoint'] AS Mount, Attributes['device'] AS Device,
+                        Attributes['state'] AS State, argMax(Value, TimeUnix) AS Latest
+                    FROM {$sum} WHERE {$recent} AND MetricName = 'system.filesystem.usage'
+                    GROUP BY Host, Mount, Device, State
+                ) GROUP BY Host, Mount, Device
+            ) WHERE U + F > 0 GROUP BY Host
+            UNION ALL
+            SELECT {$host} AS Host, 'load' AS Stat, argMax(Value, TimeUnix) AS V, '' AS Label
+            FROM {$gauge} WHERE {$recent} AND MetricName = {gaugeMarker:String}
+            GROUP BY Host
+            UNION ALL
+            SELECT {$host} AS Host, 'containers' AS Stat, toFloat64(uniq(ResourceAttributes['container.name'])) AS V, '' AS Label
+            FROM {$sum} WHERE {$recent} AND MetricName = 'container.cpu.usage.total'
+            GROUP BY Host",
+            $params,
+        );
+
+        if ($stats === null) {
+            return ['hosts' => [], 'unavailable' => true];
+        }
+
+        $byHost = [];
+
+        foreach ($stats as $row) {
+            $byHost[(string) ($row['Host'] ?? '')][(string) ($row['Stat'] ?? '')] = [
+                'value' => is_numeric($row['V'] ?? null) ? (float) $row['V'] : null,
+                'label' => (string) ($row['Label'] ?? ''),
+            ];
+        }
+
+        $hosts = [];
+
+        foreach ($listed as $row) {
+            $name = (string) ($row['Host'] ?? '');
+            $stat = $byHost[$name] ?? [];
+            $ratio = fn (string $key): ?float => isset($stat[$key]['value']) ? round(max(0.0, min(1.0, $stat[$key]['value'])), 4) : null;
+
+            $hosts[] = [
+                'name' => $name,
+                'lastSeen' => Carbon::createFromTimestampUTC((int) ($row['LastSeen'] ?? 0))->toIso8601String(),
+                'cpu' => $ratio('cpu'),
+                'memory' => $ratio('memory'),
+                'disk' => $ratio('disk'),
+                'diskMount' => isset($stat['disk']) && $stat['disk']['label'] !== '' ? $stat['disk']['label'] : null,
+                'load' => isset($stat['load']['value']) ? round($stat['load']['value'], 2) : null,
+                'containers' => (int) ($stat['containers']['value'] ?? 0),
+            ];
+        }
+
+        return ['hosts' => $hosts, 'unavailable' => false];
     }
 
     /**
@@ -185,6 +370,9 @@ class MetricQuery
      * The selected metric's attribute keys, most common first, each with its
      * most common values — the options for the filter and group-by pickers.
      *
+     * Resource attributes are offered too, as {@see attribute()} reads them,
+     * less `service.name` (it has its own field) and the SDK's `telemetry.*`.
+     *
      * @param  list<string>  $projectIds
      * @return array{attributes: list<array{key: string, values: list<string>}>, unavailable: bool}
      */
@@ -203,9 +391,9 @@ class MetricQuery
         $rows = $this->select(
             "SELECT Key, groupArray({valueLimit:UInt32})(Value) AS Values
              FROM (
-                 SELECT Key, Attributes[Key] AS Value, count() AS Seen
+                 SELECT Key, mapUpdate(mapFilter((k, v) -> k != 'service.name' AND NOT startsWith(k, 'telemetry.'), ResourceAttributes), Attributes)[Key] AS Value, count() AS Seen
                  FROM {$table}
-                 ARRAY JOIN mapKeys(Attributes) AS Key
+                 ARRAY JOIN mapKeys(mapUpdate(mapFilter((k, v) -> k != 'service.name' AND NOT startsWith(k, 'telemetry.'), ResourceAttributes), Attributes)) AS Key
                  WHERE ".implode(' AND ', $conditions).'
                  GROUP BY Key, Value
                  ORDER BY Seen DESC
@@ -251,7 +439,7 @@ class MetricQuery
      * count. The rest are reported as `droppedSeries`, never silently lost.
      *
      * @param  list<string>  $projectIds
-     * @return array<string, mixed>
+     * @return Result
      */
     public function series(array $projectIds, MetricFilters $filters): array
     {
@@ -277,7 +465,7 @@ class MetricQuery
         [$conditions, $params] = $this->conditions($projectIds, $filters, from: Carbon::createFromTimestampUTC($readFrom));
 
         $table = self::TABLES[$entry['type']];
-        $group = $filters->groupBy === null ? "''" : 'Attributes[{groupBy:String}]';
+        $group = $filters->groupBy === null ? "''" : self::attribute('groupBy');
         $params = [...$params, 'interval' => $interval, 'seriesLimit' => self::SERIES_LIMIT];
 
         if ($filters->groupBy !== null) {
@@ -439,7 +627,7 @@ class MetricQuery
      *
      * Project and window first (the sort key), then the metric, the service
      * and each attribute equality. Attribute keys and values are both bound —
-     * `Attributes[{k0:String}] = {v0:String}` — so neither can reach SQL.
+     * see {@see attribute()} — so neither can reach SQL.
      *
      * @param  list<string>  $projectIds
      * @return array{0: list<string>, 1: array<string, scalar>}
@@ -469,7 +657,7 @@ class MetricQuery
             $index = 0;
 
             foreach ($filters->where as $key => $value) {
-                $conditions[] = "Attributes[{whereKey{$index}:String}] = {whereValue{$index}:String}";
+                $conditions[] = self::attribute("whereKey{$index}")." = {whereValue{$index}:String}";
                 $params["whereKey{$index}"] = $key;
                 $params["whereValue{$index}"] = $value;
                 $index++;
@@ -477,6 +665,19 @@ class MetricQuery
         }
 
         return [$conditions, $params];
+    }
+
+    /**
+     * One attribute's value, its key bound as the named parameter.
+     *
+     * The data point's own attribute when it has one, else the resource's —
+     * the precedence OTel gives a point over its resource. `host.name` and
+     * `container.name` are resource attributes, so without the fallback no
+     * host could be filtered on or grouped by.
+     */
+    public static function attribute(string $param): string
+    {
+        return "if(mapContains(Attributes, {{$param}:String}), Attributes[{{$param}:String}], ResourceAttributes[{{$param}:String}])";
     }
 
     /**

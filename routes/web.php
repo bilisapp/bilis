@@ -157,6 +157,7 @@ Route::prefix('{current_team}')
             ->name('traces.show');
 
         Route::get('metrics', [MetricsController::class, 'index'])->name('metrics.index');
+        Route::get('metrics/hosts', [MetricsController::class, 'hosts'])->name('metrics.hosts');
 
         Route::get('projects', [ProjectController::class, 'index'])->name('projects.index');
         Route::post('projects', [ProjectController::class, 'store'])->name('projects.store');

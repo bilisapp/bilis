@@ -140,23 +140,31 @@ health endpoint that needs no credentials.
 
 ## Where it shows up in Bilis
 
-| Source         | `service.name`                                      | Where to look                     |
-| -------------- | --------------------------------------------------- | --------------------------------- |
-| Host metrics   | `host`                                              | Metrics explorer                  |
-| Docker stats   | `docker`                                            | Metrics explorer                  |
-| HTTP checks    | `uptime`                                            | Metrics explorer, by `http.url`   |
-| journald lines | the unit, e.g. `nginx`, `sshd`, `docker`, `systemd` | Logs, filtered by service or host |
+| Source         | `service.name`                                      | Where to look                                 |
+| -------------- | --------------------------------------------------- | --------------------------------------------- |
+| Host metrics   | `host`                                              | Metrics → Hosts                               |
+| Docker stats   | `docker`                                            | Metrics → Hosts, under the host's Containers  |
+| HTTP checks    | `uptime`                                            | Metrics explorer, by `http.url`               |
+| journald lines | the unit, e.g. `nginx`, `sshd`, `docker`, `systemd` | Logs, filtered by service or host             |
+
+**Metrics → Hosts** lists every machine running the agent, one row each, with
+CPU, memory, the fullest filesystem and load over the window's last fifteen
+minutes, how many containers it runs, and when it was last heard from. Pick a
+row for its charts: CPU and memory by state, disk space by mount, disk and
+network throughput, and per-container CPU and memory. Each chart has an *Open
+in explorer* link with the same query, for filters and grouping of your own.
 
 Every signal carries a `host.name` resource attribute — the machine's hostname,
-or `--host-name` when you set one. Install the agent on several machines with
-the same key and group by `host.name` in the metrics explorer to put them on
-one chart.
+or `--host-name` when you set one — and Docker stats carry `container.name`.
+The explorer filters and groups on resource attributes as well as a data
+point's own, so grouping any metric by `host.name` puts several machines on one
+chart.
 
-A good first chart: `system.cpu.time`, which the explorer draws as a
-per-second rate, grouped by `state` — `user`, `system`, `iowait`, `idle` —
-shows where the CPU is going. `system.memory.usage` grouped by `state` and
-`system.filesystem.usage` grouped by `mountpoint` are the next two most
-people want.
+The agent turns on the host scraper's `system.cpu.utilization`,
+`system.memory.utilization` and `system.filesystem.utilization` gauges, which
+is what lets those charts read in percent. An agent installed before they were
+added still fills every column of the Hosts table; re-run the installer to get
+the percentage charts too.
 
 ## Flags
 

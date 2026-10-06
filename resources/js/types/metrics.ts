@@ -103,3 +103,53 @@ export type MetricSeriesResult = {
     approximate: boolean;
     unavailable: boolean;
 };
+
+/**
+ * One machine on the Hosts tab: a `host.name` the host-metrics receiver
+ * reported in the window. The ratios are 0–1, read off the window's last
+ * fifteen minutes; null when the host was silent then (or never sends that
+ * metric) — `lastSeen` says which.
+ */
+export type HostRow = {
+    name: string;
+    /** ISO-8601, the host's last point anywhere in the window. */
+    lastSeen: string;
+    cpu: number | null;
+    memory: number | null;
+    /** The fullest filesystem, as df reports it: used / (used + free). */
+    disk: number | null;
+    diskMount: string | null;
+    load: number | null;
+    containers: number;
+};
+
+export type HostList = {
+    hosts: HostRow[];
+    unavailable: boolean;
+};
+
+/**
+ * One curated chart for the selected host, with the explorer query it was
+ * drawn from so it can be opened there with every control.
+ */
+export type HostChart = {
+    id: string;
+    title: string;
+    metric: string;
+    groupBy: string | null;
+    where: Record<string, string>;
+    agg: MetricAggregation;
+    series: MetricSeriesResult;
+};
+
+export type HostCharts = {
+    /** The host the charts are for: the one asked for, else the first listed. */
+    host: string | null;
+    charts: HostChart[];
+    unavailable: boolean;
+};
+
+/** The Hosts tab's query: the explorer's window and project, plus a host. */
+export type HostFilters = MetricFilters & {
+    host: string | null;
+};

@@ -38,6 +38,15 @@
         ],
         "createdAt": "2026-09-25T13:39:30.744Z",
         "reason": "Claude (assistant) decided: page h1 already raised to text-xl to match autofix/Index.vue; remaining text-xs/text-sm pair is the app-wide type scale used identically by traces/Index.vue and autofix/Index.vue"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "resources/js/pages/metrics/Hosts.vue"
+        ],
+        "createdAt": "2026-10-05T07:47:59.495Z",
+        "reason": "Claude triage: header is text-xl over text-sm (1.43 ratio), copied verbatim from metrics/Index.vue and the other app pages; text-xs is the app-wide label size for toolbars and meta"
       }
     ]
   }

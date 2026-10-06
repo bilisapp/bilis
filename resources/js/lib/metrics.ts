@@ -1,6 +1,9 @@
 import { formatBytes, RANGE_PRESETS } from '@/lib/logs';
 import { formatDuration } from '@/lib/traces';
+import type { MagnitudeLevel } from '@/lib/traces';
 import type {
+    HostChart,
+    HostFilters,
     LogRangePreset,
     MetricCatalogEntry,
     MetricFilters,
@@ -470,4 +473,126 @@ export function escapeHtml(value: string): string {
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#39;');
+}
+
+/**
+ * The Hosts tab's query string: the window and project it shares with the
+ * explorer, and the selected host. Built the same way as the explorer's, so
+ * switching tabs keeps the window under the reader.
+ */
+export function hostFilterQuery(
+    filters: HostFilters,
+    range: LogRangePreset,
+    changes: { project?: string | null; host?: string | null } = {},
+): Record<string, string> {
+    const merged: Record<string, string | null | undefined> = {
+        project: filters.project,
+        host: filters.host,
+        ...metricWindow(filters, range),
+        ...changes,
+    };
+
+    const query: Record<string, string> = {};
+
+    for (const [key, value] of Object.entries(merged)) {
+        if (value !== null && value !== undefined && value !== '') {
+            query[key] = value;
+        }
+    }
+
+    return query;
+}
+
+/**
+ * The explorer query a curated host chart was drawn from: open it there and
+ * every control — filters, grouping, the metric picker — is one click away.
+ */
+export function hostChartExplorerQuery(
+    chart: Pick<HostChart, 'metric' | 'where' | 'groupBy' | 'agg'>,
+    filters: Pick<MetricFilters, 'project' | 'from' | 'to'>,
+    range: LogRangePreset,
+): Record<string, string> {
+    return metricFilterQuery(
+        {
+            project: filters.project,
+            service: null,
+            metric: chart.metric,
+            where: chart.where,
+            groupBy: chart.groupBy,
+            agg: chart.agg,
+            from: filters.from,
+            to: filters.to,
+        },
+        range,
+    );
+}
+
+/** A 0–1 ratio as a whole percentage, or a dash when there is none. */
+export function formatRatio(value: number | null): string {
+    if (value === null || !Number.isFinite(value)) {
+        return '—';
+    }
+
+    return `${Math.round(value * 100)}%`;
+}
+
+/**
+ * How full a 0–1 ratio is, on the same four-step magnitude ramp durations
+ * use — fixed thresholds, so 92 % looks the same on every host and every day.
+ * Half full is unremarkable; past three quarters is worth a glance, and past
+ * nine tenths is where a disk or a memory limit starts to bite.
+ */
+export const RATIO_MAGNITUDE_THRESHOLDS = [0.5, 0.75, 0.9] as const;
+
+export function ratioMagnitude(value: number | null): MagnitudeLevel {
+    if (value === null || !Number.isFinite(value)) {
+        return 1;
+    }
+
+    if (value < RATIO_MAGNITUDE_THRESHOLDS[0]) {
+        return 1;
+    }
+
+    if (value < RATIO_MAGNITUDE_THRESHOLDS[1]) {
+        return 2;
+    }
+
+    return value < RATIO_MAGNITUDE_THRESHOLDS[2] ? 3 : 4;
+}
+
+/**
+ * The explorer's starting list: the busiest metrics, at most `perService`
+ * from any one service.
+ *
+ * Ranked by point count alone, the list measures cardinality rather than
+ * interest — thirty containers × twenty `container.*` series bury a host's
+ * CPU and every app metric beside them. Capping each source keeps every
+ * source on the list; a metric reported by several services counts towards
+ * the first.
+ */
+export function suggestedMetrics(
+    metrics: MetricCatalogEntry[],
+    perService = 2,
+    limit = 10,
+): MetricCatalogEntry[] {
+    const taken = new Map<string, number>();
+    const picked: MetricCatalogEntry[] = [];
+
+    for (const entry of [...metrics].sort((a, b) => b.points - a.points)) {
+        const service = entry.services[0] ?? '';
+        const count = taken.get(service) ?? 0;
+
+        if (count >= perService) {
+            continue;
+        }
+
+        taken.set(service, count + 1);
+        picked.push(entry);
+
+        if (picked.length >= limit) {
+            break;
+        }
+    }
+
+    return picked;
 }

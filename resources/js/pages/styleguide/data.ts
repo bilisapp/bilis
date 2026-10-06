@@ -1,6 +1,7 @@
 import type {
     FixJobEvent,
     FixJobStatus,
+    HostList,
     IngestRateUsage,
     LogEntry,
     LogHistogram,
@@ -1489,4 +1490,69 @@ export const DEMO_METRIC_UNAVAILABLE: MetricSeriesResult = demoMetricResult({
     kind: null,
     buckets: [],
     unavailable: true,
+});
+
+/*
+ * The Hosts tab: three machines as the server agent reports them — a busy
+ * Docker host, a database box whose disk is nearly full, and a worker that
+ * went quiet half an hour ago (no "now" figures, an old last-seen).
+ */
+const demoMinutesAgo = (minutes: number) =>
+    new Date(Date.now() - minutes * 60_000).toISOString();
+
+export const DEMO_HOSTS: HostList = {
+    unavailable: false,
+    hosts: [
+        {
+            name: 'vps-8d4cfe56',
+            lastSeen: demoMinutesAgo(0.5),
+            cpu: 0.62,
+            memory: 0.81,
+            disk: 0.47,
+            diskMount: '/',
+            load: 2.34,
+            containers: 31,
+        },
+        {
+            name: 'db-1',
+            lastSeen: demoMinutesAgo(0.8),
+            cpu: 0.18,
+            memory: 0.58,
+            disk: 0.93,
+            diskMount: '/var/lib/postgresql',
+            load: 0.41,
+            containers: 0,
+        },
+        {
+            name: 'worker-3',
+            lastSeen: demoMinutesAgo(34),
+            cpu: null,
+            memory: null,
+            disk: null,
+            diskMount: null,
+            load: null,
+            containers: 0,
+        },
+    ],
+};
+
+/** A host's CPU as the curated chart draws it: utilization by state, in %. */
+export const DEMO_HOST_CPU: MetricSeriesResult = demoMetricResult({
+    metric: 'system.cpu.utilization',
+    type: 'gauge',
+    kind: 'value',
+    unit: '%',
+    series: (
+        [
+            ['idle', 38, 9],
+            ['user', 44, 7],
+            ['system', 12, 3],
+            ['wait', 4, 2],
+        ] as const
+    ).map(([state, base, swing], index): MetricSeries => ({
+        label: state,
+        group: state,
+        stat: 'avg',
+        points: demoWave(base, swing, index * 3, 1),
+    })),
 });

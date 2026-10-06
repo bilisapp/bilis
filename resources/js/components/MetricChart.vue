@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Link } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import ChartCanvas from '@/components/ChartCanvas.vue';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -38,8 +39,21 @@ const props = withDefaults(
         /** The metric the page asked for; null draws the "pick one" prompt. */
         metric: string | null;
         height?: string;
+        /**
+         * A reader's name for the chart ("Disk space used"). The exporter's
+         * metric name is still printed beside it: the title is an
+         * interpretation and the name is what the explorer is searched by.
+         */
+        title?: string;
+        /** Where this chart opens with every control — the explorer. */
+        explorerHref?: string;
     }>(),
-    { series: undefined, height: '20rem' },
+    {
+        series: undefined,
+        height: '20rem',
+        title: undefined,
+        explorerHref: undefined,
+    },
 );
 
 const { tokens } = useChartTokens();
@@ -231,11 +245,24 @@ const intervalLabel = computed(() => {
         class="flex flex-col gap-3 rounded-lg border bg-card p-4"
         data-test="metric-chart"
         :aria-label="
-            metric ? `${metric} over the selected window` : 'Metric chart'
+            metric
+                ? `${title ?? metric} over the selected window`
+                : 'Metric chart'
         "
     >
         <header class="flex flex-wrap items-center justify-between gap-2">
-            <h2 class="min-w-0 truncate font-mono text-sm font-medium">
+            <h2
+                v-if="title"
+                class="flex min-w-0 items-baseline gap-2 text-sm font-medium"
+            >
+                {{ title }}
+                <span
+                    class="truncate font-mono text-xs font-normal text-muted-foreground"
+                >
+                    {{ metric }}
+                </span>
+            </h2>
+            <h2 v-else class="min-w-0 truncate font-mono text-sm font-medium">
                 {{ metric ?? 'No metric selected' }}
             </h2>
 
@@ -246,6 +273,15 @@ const intervalLabel = computed(() => {
                 >
                     {{ intervalLabel }} buckets
                 </p>
+
+                <Link
+                    v-if="explorerHref"
+                    :href="explorerHref"
+                    class="rounded-sm text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                    data-test="metric-chart-explore"
+                >
+                    Open in explorer
+                </Link>
 
                 <!--
                   Only a grouped distribution asks the reader to choose: three
