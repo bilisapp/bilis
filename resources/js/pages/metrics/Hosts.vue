@@ -4,6 +4,7 @@ import { RotateCcw } from '@lucide/vue';
 import { computed } from 'vue';
 import HostsTable from '@/components/HostsTable.vue';
 import MetricChart from '@/components/MetricChart.vue';
+import MetricsLiveToggle from '@/components/MetricsLiveToggle.vue';
 import MetricsTabs from '@/components/MetricsTabs.vue';
 import ServerInstallCommand from '@/components/ServerInstallCommand.vue';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useMetricsLive } from '@/composables/useMetricsLive';
 import {
     DEFAULT_RANGE_PRESET,
     presetForRange,
@@ -80,6 +82,22 @@ const range = computed<LogRangePreset>(() =>
 const selectedHost = computed(
     () => props.charts?.host ?? props.filters.host ?? null,
 );
+
+/**
+ * Live re-reads the list and the selected host's charts over the same
+ * relative window, re-resolved against the clock.
+ */
+const { live, refreshing } = useMetricsLive({
+    available: () => range.value !== 'custom',
+    intervalSeconds: () =>
+        props.charts?.charts[0]?.series.intervalSeconds ?? 60,
+    refresh: (options) =>
+        router.get(
+            metricsHosts(teamSlug.value).url,
+            hostFilterQuery(props.filters, range.value),
+            { ...options, only: ['filters', 'hosts', 'charts'] },
+        ),
+});
 
 const canReset = computed(
     () =>
@@ -298,12 +316,19 @@ const chartGroups = computed(() => {
                     Figures are the window's last 15 minutes.
                 </p>
 
+                <MetricsLiveToggle
+                    :live="live"
+                    :available="range !== 'custom'"
+                    :refreshing="refreshing"
+                    class="ml-auto"
+                    @update:live="live = $event"
+                />
+
                 <Button
                     v-if="canReset"
                     type="button"
                     variant="ghost"
                     size="sm"
-                    class="ml-auto"
                     data-test="hosts-reset"
                     @click="reset"
                 >

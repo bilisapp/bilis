@@ -18,6 +18,7 @@ import {
     seriesName,
     seriesStats,
     visibleSeries,
+    withoutOpenBucket,
 } from '@/lib/metrics';
 import type { MetricPercentile } from '@/lib/metrics';
 import { cn } from '@/lib/utils';
@@ -65,14 +66,19 @@ const { tokens } = useChartTokens();
  */
 const percentile = ref<MetricPercentile>(DEFAULT_METRIC_PERCENTILE);
 
-const kind = computed(() => props.series?.kind ?? null);
+/** What is drawn: the series, less a rate's still-open newest bucket. */
+const result = computed(() =>
+    props.series ? withoutOpenBucket(props.series) : undefined,
+);
 
-const unit = computed(() => props.series?.unit ?? '');
+const kind = computed(() => result.value?.kind ?? null);
+
+const unit = computed(() => result.value?.unit ?? '');
 
 const perSecond = computed(() => kind.value === 'rate');
 
 const grouped = computed(() =>
-    props.series ? isGroupedResult(props.series) : false,
+    result.value ? isGroupedResult(result.value) : false,
 );
 
 /** Only a grouped distribution needs the toggle; ungrouped draws every stat. */
@@ -82,24 +88,24 @@ const percentileGrouped = computed(
 
 /** The toggle offers what the result actually carries, p50/p95/p99 first. */
 const percentileOptions = computed(() => {
-    const present = seriesStats(props.series?.series ?? []);
+    const present = seriesStats(result.value?.series ?? []);
 
     return METRIC_PERCENTILES.filter((stat) => present.includes(stat));
 });
 
 const lines = computed(() =>
-    props.series ? visibleSeries(props.series, percentile.value) : [],
+    result.value ? visibleSeries(result.value, percentile.value) : [],
 );
 
 const hasPoints = computed(() =>
     lines.value.some((line) => line.points.some((point) => point !== null)),
 );
 
-const intervalSeconds = computed(() => props.series?.intervalSeconds ?? 60);
+const intervalSeconds = computed(() => result.value?.intervalSeconds ?? 60);
 
 /** Bucket starts are naive UTC; parseTimestamp appends the Z. */
 const bucketDates = computed(() =>
-    (props.series?.buckets ?? []).map((bucket) => parseTimestamp(bucket)),
+    (result.value?.buckets ?? []).map((bucket) => parseTimestamp(bucket)),
 );
 
 const categories = computed(() =>

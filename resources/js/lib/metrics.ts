@@ -596,3 +596,62 @@ export function suggestedMetrics(
 
     return picked;
 }
+
+/** The quickest a live chart refreshes: points land about once a minute. */
+export const LIVE_REFRESH_MIN_SECONDS = 30;
+
+/** The slowest: a wide window still shows its newest bucket filling. */
+export const LIVE_REFRESH_MAX_SECONDS = 300;
+
+/**
+ * How often a live chart asks again, in milliseconds.
+ *
+ * Half a bucket, so a closed bucket is drawn within half its width of
+ * closing, clamped so a 15-minute window does not ask faster than agents
+ * export and a 7-day window still moves.
+ */
+export function liveRefreshMs(intervalSeconds: number): number {
+    const seconds = Number.isFinite(intervalSeconds) ? intervalSeconds / 2 : 0;
+
+    return (
+        Math.min(
+            LIVE_REFRESH_MAX_SECONDS,
+            Math.max(LIVE_REFRESH_MIN_SECONDS, seconds),
+        ) * 1000
+    );
+}
+
+/**
+ * The result without a rate's newest bucket while that bucket is still open.
+ *
+ * A delta counter's rate is its bucket's sum over the full bucket width, so a
+ * bucket a third of the way through reads as a third of the real rate — a
+ * dip at the right edge that refills on every refresh. A rate's bucket is
+ * drawn once it has closed; levels and percentiles are not skewed by a
+ * partial bucket and keep it.
+ */
+export function withoutOpenBucket(
+    result: MetricSeriesResult,
+    now: number = Date.now(),
+): MetricSeriesResult {
+    const last = result.buckets[result.buckets.length - 1];
+
+    if (result.kind !== 'rate' || last === undefined) {
+        return result;
+    }
+
+    const start = Date.parse(`${last.replace(' ', 'T')}Z`);
+
+    if (Number.isNaN(start) || start + result.intervalSeconds * 1000 <= now) {
+        return result;
+    }
+
+    return {
+        ...result,
+        buckets: result.buckets.slice(0, -1),
+        series: result.series.map((series) => ({
+            ...series,
+            points: series.points.slice(0, -1),
+        })),
+    };
+}

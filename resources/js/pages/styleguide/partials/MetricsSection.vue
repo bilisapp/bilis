@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import HostsTable from '@/components/HostsTable.vue';
 import MetricChart from '@/components/MetricChart.vue';
+import MetricsLiveToggle from '@/components/MetricsLiveToggle.vue';
 import MetricsTabs from '@/components/MetricsTabs.vue';
 import MetricsToolbar from '@/components/MetricsToolbar.vue';
 import {
@@ -40,6 +41,7 @@ const demoWhere = ref<Record<string, string>>({ 'http.route': '/checkout' });
 const demoGroupBy = ref<string | null>('http.request.method');
 const demoAgg = ref<MetricAggregation>('avg');
 const demoRange = ref<LogRangePreset>('1h');
+const demoLive = ref(false);
 const demoHost = ref<string | null>('vps-8d4cfe56');
 const demoTabQuery = () => ({ project: 'checkout' });
 
@@ -138,7 +140,7 @@ function resetDemo() {
 
         <DemoBlock
             title="MetricsToolbar"
-            description="the explorer's controls, and every one of them is a query-string parameter so a chart is a link. The metric picker groups the catalog by type — gauges, sums, then the distributions — with the unit beside each name; a metric the URL names that has gone quiet stays pickable under its own heading. Service is a datalist drawn from the services that reported the chosen metric. Group by and the Where filters offer the selected metric's own attribute keys, with each key's common values as suggestions; at most five filters, one value per key, each a removable chip. Combine (avg/min/max/sum) is only offered for a level — a rate is always summed and a distribution is read at a percentile, so for those it would change nothing. Switching metric drops the filters, because http.route means nothing on process.memory.usage."
+            description="the explorer's controls, and every one of them is a query-string parameter so a chart is a link. The metric picker groups the catalog by type — gauges, sums, then the distributions — with the unit beside each name; a metric the URL names that has gone quiet stays pickable under its own heading. Service is a datalist drawn from the services that reported the chosen metric. Group by and the Where filters offer the selected metric's own attribute keys, with each key's common values as suggestions; at most five filters, one value per key, each a removable chip. Combine (avg/min/max/sum) is only offered for a level — a rate is always summed and a distribution is read at a percentile, so for those it would change nothing. Switching metric drops the filters, because http.route means nothing on process.memory.usage. Live, at the end, re-reads the same relative window as new points arrive and is disabled for a custom range."
         >
             <MetricsToolbar
                 :projects="demoProjects"
@@ -153,6 +155,9 @@ function resetDemo() {
                 :kind="demoKind"
                 :range="demoRange"
                 :can-reset="demoCanReset"
+                :live="demoLive"
+                :live-available="demoRange !== 'custom'"
+                @update:live="demoLive = $event"
                 @update:project="demoProject = $event"
                 @update:metric="demoMetric = $event"
                 @update:service="demoService = $event"
@@ -162,6 +167,20 @@ function resetDemo() {
                 @update:range="demoRange = $event"
                 @reset="resetDemo"
             />
+        </DemoBlock>
+
+        <DemoBlock
+            title="MetricsLiveToggle"
+            description="Live on the metric pages: the charts re-read the same relative window every half bucket (30 s to 5 min), never faster than agents export. The dot pings while on and brightens while a refresh is in flight. A custom window ends in the past, so there is nothing to follow and the switch is disabled with the reason in its title."
+        >
+            <div class="flex flex-wrap items-center gap-3">
+                <MetricsLiveToggle
+                    :live="demoLive"
+                    @update:live="demoLive = $event"
+                />
+                <MetricsLiveToggle :live="true" :refreshing="true" />
+                <MetricsLiveToggle :live="false" :available="false" />
+            </div>
         </DemoBlock>
 
         <DemoBlock
@@ -178,6 +197,7 @@ function resetDemo() {
                 agg="avg"
                 range="1h"
                 :can-reset="false"
+                :live-available="true"
             />
         </DemoBlock>
 

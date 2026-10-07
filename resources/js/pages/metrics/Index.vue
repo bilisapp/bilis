@@ -5,6 +5,7 @@ import MetricChart from '@/components/MetricChart.vue';
 import MetricsTabs from '@/components/MetricsTabs.vue';
 import MetricsToolbar from '@/components/MetricsToolbar.vue';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useMetricsLive } from '@/composables/useMetricsLive';
 import {
     DEFAULT_RANGE_PRESET,
     presetForRange,
@@ -83,6 +84,26 @@ const selectedEntry = computed(
             (entry) => entry.name === props.filters.metric,
         ) ?? null,
 );
+
+/**
+ * Live re-reads the same relative window against the clock: the chart when a
+ * metric is picked, else the catalog the suggestions come from.
+ */
+const { live, refreshing } = useMetricsLive({
+    available: () => range.value !== 'custom',
+    intervalSeconds: () => props.series?.intervalSeconds ?? 60,
+    refresh: (options) =>
+        router.get(
+            metricsIndex(teamSlug.value).url,
+            metricFilterQuery(props.filters, range.value, {}),
+            {
+                ...options,
+                only: props.filters.metric
+                    ? ['filters', 'series']
+                    : ['filters', 'catalog'],
+            },
+        ),
+});
 
 /**
  * The query string is the state: a chart is a link someone can send, and the
@@ -204,6 +225,10 @@ const catalogEmpty = computed(
             :kind="series?.kind"
             :range="range"
             :can-reset="canReset"
+            :live="live"
+            :live-available="range !== 'custom'"
+            :refreshing="refreshing"
+            @update:live="live = $event"
             @update:project="apply({ project: $event })"
             @update:metric="selectMetric"
             @update:service="apply({ service: $event })"

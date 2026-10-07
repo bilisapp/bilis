@@ -8,6 +8,7 @@ import {
     formatRatio,
     hostChartExplorerQuery,
     hostFilterQuery,
+    liveRefreshMs,
     metricFilterQuery,
     metricReading,
     metricUnitLabel,
@@ -15,6 +16,7 @@ import {
     seriesName,
     suggestedMetrics,
     visibleSeries,
+    withoutOpenBucket,
 } from '@/lib/metrics';
 import type {
     MetricCatalogEntry,
@@ -439,5 +441,63 @@ describe('suggestedMetrics', () => {
         );
 
         expect(suggestedMetrics(metrics, 2, 2)).toHaveLength(2);
+    });
+});
+
+describe('liveRefreshMs', () => {
+    it('refreshes at half a bucket', () => {
+        expect(liveRefreshMs(300)).toBe(150_000);
+    });
+
+    it('never asks faster than every 30 seconds', () => {
+        expect(liveRefreshMs(60)).toBe(30_000);
+        expect(liveRefreshMs(0)).toBe(30_000);
+        expect(liveRefreshMs(Number.NaN)).toBe(30_000);
+    });
+
+    it('still moves a wide window every five minutes', () => {
+        expect(liveRefreshMs(10_800)).toBe(300_000);
+    });
+});
+
+describe('withoutOpenBucket', () => {
+    const rate = (kind: MetricSeriesResult['kind']) =>
+        result({
+            kind,
+            buckets: ['2026-09-25 10:00:00', '2026-09-25 10:01:00'],
+            series: [line({ label: 'rate', stat: 'rate', points: [4, 1] })],
+        });
+
+    it("drops a rate's newest bucket while it is still filling", () => {
+        const trimmed = withoutOpenBucket(
+            rate('rate'),
+            Date.parse('2026-09-25T10:01:20Z'),
+        );
+
+        expect(trimmed.buckets).toEqual(['2026-09-25 10:00:00']);
+        expect(trimmed.series[0].points).toEqual([4]);
+    });
+
+    it('keeps the bucket once it has closed', () => {
+        const closed = rate('rate');
+
+        expect(
+            withoutOpenBucket(closed, Date.parse('2026-09-25T10:02:00Z')),
+        ).toBe(closed);
+    });
+
+    it('keeps an open bucket for levels and percentiles', () => {
+        const now = Date.parse('2026-09-25T10:01:20Z');
+        const level = rate('value');
+        const distribution = rate('distribution');
+
+        expect(withoutOpenBucket(level, now)).toBe(level);
+        expect(withoutOpenBucket(distribution, now)).toBe(distribution);
+    });
+
+    it('leaves an empty result alone', () => {
+        const empty = result({ kind: 'rate', buckets: [], series: [] });
+
+        expect(withoutOpenBucket(empty)).toBe(empty);
     });
 });

@@ -2,6 +2,7 @@
 import { Plus, RotateCcw, X } from '@lucide/vue';
 import { useDebounceFn } from '@vueuse/core';
 import { computed, ref, watch } from 'vue';
+import MetricsLiveToggle from '@/components/MetricsLiveToggle.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -49,6 +50,12 @@ const props = defineProps<{
     range: LogRangePreset;
     /** The filters are not already at their default state. */
     canReset: boolean;
+    /** Whether the charts refresh as new points arrive. */
+    live?: boolean;
+    /** Whether the window ends at now, which live needs. */
+    liveAvailable?: boolean;
+    /** A live refresh is in flight. */
+    refreshing?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -59,6 +66,7 @@ const emit = defineEmits<{
     (event: 'update:groupBy', value: string | null): void;
     (event: 'update:agg', value: MetricAggregation): void;
     (event: 'update:range', value: LogRangePreset): void;
+    (event: 'update:live', value: boolean): void;
     (event: 'reset'): void;
 }>();
 
@@ -462,12 +470,19 @@ function removeFilter(key: string) {
                 </Select>
             </div>
 
+            <MetricsLiveToggle
+                :live="live"
+                :available="liveAvailable"
+                :refreshing="refreshing"
+                class="ml-auto"
+                @update:live="emit('update:live', $event)"
+            />
+
             <Button
                 v-if="canReset"
                 type="button"
                 variant="ghost"
                 size="sm"
-                class="ml-auto"
                 data-test="metrics-reset"
                 @click="emit('reset')"
             >
