@@ -84,6 +84,40 @@ test('a buffered batch is shipped as one request in the ingest shape', function 
     });
 });
 
+test('a reported exception ships its type, message and stack trace', function () {
+    Http::fake([ENDPOINT => Http::response('', 202)]);
+
+    $cause = new PDOException('Connection refused');
+    $exception = new RuntimeException('Invalid key supplied', 0, $cause);
+
+    $handler = handler();
+    $handler->handle(record(Level::Error, 'Invalid key supplied', [
+        'userId' => 1,
+        'exception' => $exception,
+        'failed' => new LogicException('Not this one'),
+    ]));
+    $handler->flush();
+
+    Http::assertSent(function (Request $request) use ($exception) {
+        $context = $request->data()[0]['context'];
+        $stacktrace = $context['exception.stacktrace'];
+        $throwSite = 'tests/Feature/Logging/BilisLoggingTest.php:'.$exception->getLine();
+
+        expect($context)->not->toHaveKey('exception')
+            ->and($context['userId'])->toBe(1)
+            ->and($context['exception.type'])->toBe(RuntimeException::class)
+            ->and($context['exception.message'])->toBe('Invalid key supplied')
+            // PHP's own frame shape, with the throw site, paths relative to the app root.
+            ->and($stacktrace)->toStartWith('RuntimeException: Invalid key supplied in '.$throwSite."\nStack trace:\n#0 ")
+            ->and($stacktrace)->not->toContain(base_path().'/')
+            ->and($stacktrace)->toContain("\n\nCaused by: PDOException: Connection refused in ")
+            // A Throwable under any other key keeps its key as one readable line.
+            ->and($context['failed'])->toStartWith('LogicException: Not this one in tests/Feature/Logging/');
+
+        return true;
+    });
+});
+
 test('a trace id and span id in the context are promoted to top-level fields', function () {
     Http::fake([ENDPOINT => Http::response('', 202)]);
 

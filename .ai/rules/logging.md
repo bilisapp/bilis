@@ -32,3 +32,6 @@ top-level fields" and siblings in tests/Feature/Logging/BilisLoggingTest.php.
 
 ## BILIS_ENDPOINT stores the Bilis origin
 BILIS_ENDPOINT is configured as the Bilis base origin only, e.g. https://bilis.app. The log shipper resolves the simple JSON route internally as /api/v1/ingest so future routes can share the same origin setting. Existing full /api/v1/ingest values may be accepted for compatibility, but examples should show origin-only.
+
+## Throwables in context must be expanded before shipping
+A Throwable json_encodes as `[]`, and Laravel's exception handler puts one under `exception` in every reported error — so shipped errors had no type, message or trace. BilisHandler::expandThrowables() turns `exception` into the OTel trio `exception.type` / `exception.message` / `exception.stacktrace` (PHP `#0 file(line)` frames, throw-site headline, up to 5 `Caused by:` causes, paths relative to base_path()); a Throwable under any other key becomes one `Class: message in file:line` string. ErrorFingerprinter parses those `#N` frames and the viewer highlights `exception.*`, so keep the shape. Test: "a reported exception ships its type, message and stack trace".

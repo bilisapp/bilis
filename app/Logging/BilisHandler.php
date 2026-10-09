@@ -156,6 +156,8 @@ class BilisHandler extends AbstractProcessingHandler
         $traceId = $contextTraceId ?? $extraTraceId;
         $spanId = $contextSpanId ?? $extraSpanId;
 
+        $context = $this->expandThrowables($context);
+
         foreach ($extra as $key => $value) {
             $context['extra.'.$key] = $value;
         }
@@ -181,6 +183,85 @@ class BilisHandler extends AbstractProcessingHandler
     }
 
     /**
+     * How many `getPrevious()` causes are written below the thrown exception.
+     */
+    private const MAX_CAUSES = 5;
+
+    /**
+     * Turn every Throwable in the context into strings that survive JSON.
+     *
+     * A Throwable has no public properties, so `json_encode` writes it as `[]`
+     * and the stack trace is lost — which is what Laravel's exception handler
+     * hands every channel under `exception`. That key becomes the OTel
+     * semantic-convention trio `exception.type` / `exception.message` /
+     * `exception.stacktrace`, which the log viewer highlights and Autofix
+     * fingerprints on; a Throwable under any other key keeps its key and
+     * becomes one `Class: message in file:line` line.
+     *
+     * @param  array<array-key, mixed>  $context
+     * @return array<array-key, mixed>
+     */
+    private function expandThrowables(array $context): array
+    {
+        foreach ($context as $key => $value) {
+            if (! $value instanceof Throwable) {
+                continue;
+            }
+
+            if ($key !== 'exception') {
+                $context[$key] = $this->headline($value);
+
+                continue;
+            }
+
+            unset($context[$key]);
+            $context['exception.type'] = $value::class;
+            $context['exception.message'] = $value->getMessage();
+            $context['exception.stacktrace'] = $this->stacktrace($value);
+        }
+
+        return $context;
+    }
+
+    /**
+     * The trace in PHP's own `#0 file(line): call` shape, then its causes.
+     *
+     * Each section opens with the headline so the throw site — which is not a
+     * frame of its own trace — is never lost, and paths are made relative to
+     * the application root so a release directory does not crowd every line.
+     */
+    private function stacktrace(Throwable $exception): string
+    {
+        $sections = [];
+        $current = $exception;
+
+        while ($current !== null && count($sections) <= self::MAX_CAUSES) {
+            $prefix = $sections === [] ? '' : 'Caused by: ';
+            $sections[] = $prefix.$this->headline($current)."\nStack trace:\n".$this->relativePaths($current->getTraceAsString());
+            $current = $current->getPrevious();
+        }
+
+        return implode("\n\n", $sections);
+    }
+
+    /**
+     * `Class: message in file:line`, the way PHP prints an uncaught throwable.
+     */
+    private function headline(Throwable $exception): string
+    {
+        return $exception::class.': '.$exception->getMessage()
+            .' in '.$this->relativePaths($exception->getFile()).':'.$exception->getLine();
+    }
+
+    /**
+     * Strip the application root from every path in a string.
+     */
+    private function relativePaths(string $text): string
+    {
+        return str_replace(rtrim(base_path(), '/').'/', '', $text);
+    }
+
+    /**
      * Pull the first non-empty string id under any of the given keys out of a
      * bag, removing every one of those keys from it.
      *
@@ -190,15 +271,15 @@ class BilisHandler extends AbstractProcessingHandler
      * value that is not a string is left where it was — it is context, not an
      * id.
      *
-     * @param array<string, mixed> $bag
-     * @param list<string> $keys
+     * @param  array<string, mixed>  $bag
+     * @param  list<string>  $keys
      */
     private function takeId(array &$bag, array $keys): ?string
     {
         $id = null;
 
         foreach ($keys as $key) {
-            if (!array_key_exists($key, $bag) || !is_string($bag[$key])) {
+            if (! array_key_exists($key, $bag) || ! is_string($bag[$key])) {
                 continue;
             }
 
