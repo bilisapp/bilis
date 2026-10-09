@@ -15,7 +15,8 @@
       data-font="{{ $font ?? 'geist' }}">
 <head>
     <x-public.head title="Styleguide — {{ config('app.name', 'Bilis') }}"
-                   description="The Bilis design system: the neutral ladder, the semantic tokens, the severity ramp, and every component the app ships — live.">
+                   description="The Bilis design system: the neutral ladder, the semantic tokens, the severity ramp, and every component the app ships — live."
+                   robots="noindex, follow">
         @vite(['resources/css/app.css', 'resources/js/app.ts', "resources/js/pages/{$page['component']}.vue"])
     </x-public.head>
 </head>

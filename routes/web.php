@@ -21,8 +21,10 @@ use App\Http\Controllers\ProjectBrowserOriginController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectRepositoryController;
 use App\Http\Controllers\Settings\GitHubInstallationController;
+use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\StyleguideController;
 use App\Http\Controllers\Teams\TeamInvitationController;
+use App\Http\Controllers\ToolsController;
 use App\Http\Controllers\TracesController;
 use App\Http\Controllers\Webhooks\GitHubWebhookController;
 use App\Http\Middleware\EnsureTeamMembership;
@@ -73,6 +75,22 @@ Route::view('features/mcp', 'marketing.mcp')->name('features.mcp');
 Route::get('blog', [BlogController::class, 'index'])->name('blog.index');
 Route::get('blog/feed.xml', [BlogController::class, 'feed'])->name('blog.feed');
 Route::get('blog/{post}', [BlogController::class, 'show'])->name('blog.show');
+
+/*
+ * Free tools for people working with logs and traces. Plain GET forms
+ * computed on the server, so each one reads without JavaScript and every
+ * result is a link. `tools` is a reserved team name (`App\Rules\TeamName`).
+ */
+Route::prefix('tools')->name('tools.')->controller(ToolsController::class)->group(function () {
+    Route::get('/', 'index')->name('index');
+    Route::get('log-cost-calculator', 'logCost')->name('log-cost');
+    Route::get('log-levels', 'logLevels')->name('log-levels');
+    Route::get('traceparent', 'traceparent')->name('traceparent');
+    Route::get('timestamp-converter', 'timestamp')->name('timestamp');
+});
+
+Route::get('sitemap.xml', [SitemapController::class, 'sitemap'])->name('sitemap');
+Route::get('robots.txt', [SitemapController::class, 'robots'])->name('robots');
 
 Route::get('docs', [DocsController::class, 'index'])->name('docs.index');
 

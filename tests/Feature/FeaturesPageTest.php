@@ -31,7 +31,8 @@ it('marks the features item as the current one in the public header', function (
     // mobile row — and both must agree on where the reader is.
     expect(substr_count($page, 'aria-current="page"'))->toBe(2);
 
-    $link = strstr($page, 'href="'.route('features').'"');
+    // Search from the header: the <head> carries the same URL as its canonical link.
+    $link = strstr(strstr($page, '<header'), 'href="'.route('features').'"');
 
     expect(substr($link, 0, 200))->toContain('aria-current="page"');
 });

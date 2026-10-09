@@ -3,6 +3,8 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        {{-- Every page on this root view is the app or its auth screens: nothing here is for a search index. --}}
+        <meta name="robots" content="noindex, nofollow">
 
         {{-- Inline script to detect system dark mode preference and apply it immediately --}}
         <script nonce="{{ $cspNonce ?? '' }}">

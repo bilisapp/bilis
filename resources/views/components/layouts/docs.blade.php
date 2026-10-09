@@ -1,6 +1,6 @@
 @props([
     'title' => null,
-    'description' => 'Documentation for Bilis — self-hosted logs and traces.',
+    'description' => 'Documentation for Bilis — self-hosted logs, traces and metrics: sending telemetry over OTLP, searching it, and running Bilis on your own box.',
     'sections' => [],
     'current' => null,
     'toc' => [],

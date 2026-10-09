@@ -16,6 +16,8 @@ $surfaces = [
     'blog' => fn () => route('blog.index'),
     'docs' => fn () => route('docs.show', ['section' => 'getting-started', 'page' => 'overview']),
     'styleguide' => fn () => route('styleguide'),
+    'tools' => fn () => route('tools.index'),
+    'tool' => fn () => route('tools.timestamp'),
 ];
 
 test('every public surface renders the shared header', function (string $name) use ($surfaces) {
@@ -40,6 +42,7 @@ test('every public surface renders the shared footer', function (string $name) u
         ->toContain(route('styleguide'))
         ->toContain(route('pricing'))
         ->toContain(route('contact.show'))
+        ->toContain(route('tools.index'))
         ->toContain(route('terms'))
         ->toContain(route('privacy'))
         ->toContain(config('legal.operator.name'));

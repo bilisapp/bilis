@@ -1,6 +1,6 @@
 <x-legal.page
     title="Terms of Service"
-    description="The terms that govern use of the hosted Bilis service at bilis.app."
+    description="The terms that govern the hosted Bilis service at bilis.app: accounts, acceptable use, your data, plans, availability and suspension."
 >
     <x-slot:summary>
         <p>You keep ownership of your logs. We store them in the EU, keep them for {{ config('legal.log_retention_days') }} days, and do not read, sell, or train on them. You pay for what you use, you can leave whenever you like, and our liability is capped at what you paid us. Self-hosting Bilis is governed by the software licence instead — these terms are only about the hosted service.</p>

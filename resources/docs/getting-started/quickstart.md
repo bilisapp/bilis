@@ -1,6 +1,6 @@
 ---
 title: Quickstart
-description: From a fresh account to a log line in the viewer, in three steps.
+description: From a fresh account to a log line in the viewer in three steps — create a project, create an API key, send a line.
 order: 2
 ---
 

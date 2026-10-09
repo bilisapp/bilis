@@ -7,3 +7,4 @@
 import './hero-shader';
 import './live-tail';
 import './copy';
+import './tool-form';

@@ -1,6 +1,6 @@
 <x-layouts.marketing
     title="Features"
-    description="What Bilis does today: log and trace ingest that works with what you already run, storage in open formats, viewers built for answers — plus the honest limits and where the stack goes next."
+    description="What Bilis does today: OpenTelemetry ingest for logs, traces and metrics, storage in open formats, viewers built for answers, and the honest limits."
     current="features"
 >
     {{-- The page a sceptical engineer reads after the landing page.

@@ -1,6 +1,7 @@
 @props([
     'title',
     'description',
+    'url' => null,
 ])
 
 {{--
@@ -13,7 +14,7 @@
 <meta property="og:site_name"
       content="{{ config('app.name', 'Bilis') }}">
 <meta property="og:url"
-      content="{{ url()->current() }}">
+      content="{{ $url ?? url()->current() }}">
 <meta property="og:title"
       content="{{ $title }}">
 <meta property="og:description"

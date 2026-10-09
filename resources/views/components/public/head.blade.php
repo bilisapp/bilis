@@ -8,7 +8,17 @@
 @props([
     'title',
     'description',
+    'robots' => null,
 ])
+
+@php
+    /*
+     * The canonical address is the configured origin plus the path, never the
+     * request's host or query string: `www.`, plain `http` and `?topic=`
+     * variants all name the page they are a copy of.
+     */
+    $canonical = rtrim(config('app.url'), '/').(request()->path() === '/' ? '' : '/'.request()->path());
+@endphp
 
 <meta charset="utf-8">
 <meta name="viewport"
@@ -17,9 +27,16 @@
 <title>{{ $title }}</title>
 <meta name="description"
       content="{{ $description }}">
+<link rel="canonical"
+      href="{{ $canonical }}">
+@if ($robots)
+    <meta name="robots"
+          content="{{ $robots }}">
+@endif
 
 <x-social-meta :title="$title"
-               :description="$description" />
+               :description="$description"
+               :url="$canonical" />
 
 {{-- Public pages follow the operating system only; the appearance toggle lives in the app. --}}
 <script nonce="{{ $cspNonce ?? '' }}">

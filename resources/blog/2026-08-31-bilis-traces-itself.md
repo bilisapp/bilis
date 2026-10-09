@@ -1,6 +1,6 @@
 ---
 title: Pointing Bilis at itself found four bugs in an afternoon
-description: Instrumenting Bilis with OpenTelemetry so it stores its own traces. The library choice was the easy part; the interesting part was everything that only breaks when a tracing backend is also a traced application.
+description: Instrumenting Bilis with OpenTelemetry so it stores its own traces — and the bugs that only appear when a tracing backend is also a traced app.
 date: 2026-08-31
 author: Samuel Vrablik
 ---

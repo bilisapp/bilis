@@ -1,13 +1,13 @@
 @props([
     'title' => null,
-    'description' => 'Self-hosted logs and traces: your telemetry on your own box, in open formats, with a viewer that finds the line — and the span — that matters. Growing into an observability stack with AI.',
+    'description' => 'Self-hosted logs, traces and metrics that you and your coding agent read alike — on your own box, in OpenTelemetry formats, with no per-GB bill.',
     'current' => null,
 ])
 
 @php
     $pageTitle = $title
         ? $title.' — '.config('app.name', 'Bilis')
-        : config('app.name', 'Bilis').' — self-hosted logs and traces';
+        : config('app.name', 'Bilis').' — self-hosted logs, traces and metrics';
 @endphp
 
 <!DOCTYPE html>

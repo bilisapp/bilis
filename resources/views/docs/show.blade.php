@@ -1,6 +1,6 @@
 <x-layouts.docs
     :title="$page->title"
-    :description="$page->description ?? 'Documentation for Bilis — self-hosted logs and traces.'"
+    :description="$page->description ?? 'Documentation for Bilis — self-hosted logs, traces and metrics.'"
     :sections="$sections"
     :current="$page"
     :toc="$rendered->tableOfContents"

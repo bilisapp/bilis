@@ -15,7 +15,7 @@
                  class="h-5 w-auto"
                  width="20790"
                  height="4080">
-            <span>{{ config('app.name', 'Bilis') }} — self-hosted logs and traces.</span>
+            <span>{{ config('app.name', 'Bilis') }} — self-hosted logs, traces and metrics.</span>
         </div>
 
         <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -36,6 +36,8 @@
                class="transition-colors hover:text-foreground">Docs</a>
             <a href="{{ route('blog.index') }}"
                class="transition-colors hover:text-foreground">Blog</a>
+            <a href="{{ route('tools.index') }}"
+               class="transition-colors hover:text-foreground">Free tools</a>
             <a href="{{ route('styleguide') }}"
                class="transition-colors hover:text-foreground">Styleguide</a>
             <a href="{{ route('contact.show') }}"

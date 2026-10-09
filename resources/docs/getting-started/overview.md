@@ -1,6 +1,6 @@
 ---
 title: Overview
-description: What Bilis is, what v1 does, and what it deliberately does not do.
+description: What Bilis is, how a log line and a span travel through it, what v1 does, and what it deliberately does not do.
 order: 1
 ---
 

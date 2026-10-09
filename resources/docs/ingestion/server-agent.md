@@ -1,6 +1,6 @@
 ---
 title: Linux server agent
-description: One command installs a pinned, checksum-verified OpenTelemetry Collector as a hardened systemd service that sends host metrics, journald logs and Docker container stats.
+description: One command installs a pinned, checksum-verified OpenTelemetry Collector as a hardened systemd service sending host metrics, journald logs and Docker stats.
 order: 9
 ---
 

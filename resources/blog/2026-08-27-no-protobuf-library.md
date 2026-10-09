@@ -1,6 +1,6 @@
 ---
 title: Bilis decodes OTLP protobuf without a protobuf library
-description: Why the binary OTLP endpoint is a few hundred lines of hand-written PHP instead of a composer package or a PECL extension, and what makes that a safe thing to hand-write.
+description: Why the binary OTLP endpoint is a few hundred lines of hand-written PHP instead of a composer package or PECL extension, and why that is safe.
 date: 2026-08-27
 author: Samuel Vrablik
 ---

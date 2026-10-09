@@ -74,12 +74,21 @@ const wire = (button: HTMLElement): void => {
     });
 };
 
-const boot = (): void => {
-    document.querySelectorAll<HTMLElement>('[data-copy]').forEach(wire);
+const boot = (root: ParentNode = document): void => {
+    root.querySelectorAll<HTMLElement>('[data-copy]').forEach(wire);
 };
 
+// A tool result swapped in by `tool-form` brings its own copy buttons.
+document.addEventListener('marketing:swapped', (event) => {
+    if (event instanceof CustomEvent && event.detail instanceof HTMLElement) {
+        boot(event.detail);
+    }
+});
+
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', boot, { once: true });
+    document.addEventListener('DOMContentLoaded', () => boot(), {
+        once: true,
+    });
 } else {
     boot();
 }

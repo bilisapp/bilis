@@ -24,6 +24,8 @@ Before planning or editing, find the row whose globs match the file's path and r
 | resources/js/pages/metrics/** | .ai/rules/pages-metrics.md |
 | config/plans.php, app/Services/Plans/** | .ai/rules/plans.md |
 | app/Http/Controllers/Project*.php, app/Http/Requests/Projects/** | .ai/rules/projects.md |
+| resources/views/components/public/head.blade.php | .ai/rules/public.md |
 | routes/api.php | .ai/rules/routes.md |
+| resources/views/marketing/tools/** | .ai/rules/tools.md |
 | app/Services/Traces/**, app/Services/Ingest/OtlpTraceMapper.php, app/Services/Ingest/SpanWriter.php, app/Services/Ingest/SpanSemantics.php, app/Http/Controllers/TracesController.php | .ai/rules/traces.md |
 | resources/views/marketing/** | .ai/rules/views-marketing.md |

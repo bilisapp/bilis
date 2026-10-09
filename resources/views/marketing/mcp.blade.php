@@ -1,6 +1,6 @@
 <x-layouts.marketing
     title="MCP for your agent"
-    description="Connect Claude, Cursor or any MCP client to your Bilis instance in one line. Your agent reads the logs, traces and metrics of the app it is editing — read-only, over OAuth, with nothing leaving your box."
+    description="Connect Claude, Cursor or any MCP client to Bilis in one line. Your agent reads the logs, traces and metrics of the app it edits — read-only, over OAuth."
     current="features"
 >
     {{-- The page for the reader who already debugs through an agent.
