@@ -105,6 +105,10 @@ class SecurityHeaders
             $directives['script-src'][] = "'unsafe-eval'";
         }
 
+        if ($callback = $this->oauthConsentCallbackOrigin($request)) {
+            $directives['form-action'][] = $callback;
+        }
+
         foreach ($this->configuredSources() as $directive => $sources) {
             $directives[$directive] = [...$directives[$directive], ...$sources];
         }
@@ -146,6 +150,26 @@ class SecurityHeaders
         $path = trim((string) config('horizon.path'), '/');
 
         return $path !== '' && $request->is($path, $path.'/*');
+    }
+
+    /**
+     * The origin an OAuth consent screen's Approve and Cancel forms end up at.
+     *
+     * Both forms post to this instance, which answers with a redirect to the
+     * client's callback — usually `http://localhost:<port>` for an agent — and
+     * browsers apply `form-action` to every hop of that redirect, so `'self'`
+     * alone blocks the approval at the last step. Only the consent screen gets
+     * the exception, and only for the callback Passport has already checked
+     * against the client's registered redirect URIs: the page is not rendered
+     * for one that does not match.
+     */
+    protected function oauthConsentCallbackOrigin(Request $request): ?string
+    {
+        if (! $request->isMethod('GET') || ! $request->routeIs('passport.authorizations.authorize')) {
+            return null;
+        }
+
+        return $this->origin((string) $request->query('redirect_uri', ''));
     }
 
     /**

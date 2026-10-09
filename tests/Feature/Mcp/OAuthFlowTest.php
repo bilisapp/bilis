@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\Str;
 
 /*
@@ -123,6 +124,40 @@ test('the consent screen is always shown, even to a signed-in user', function ()
         // The name is the client's own claim; where approval goes is checkable.
         ->toContain('Approval is sent to')
         ->toContain('https://client.test');
+});
+
+test('the consent screen lets its forms redirect to the client callback, and nowhere else', function () {
+    usePassportKeys();
+    Vite::useHotFile(storage_path('framework/testing/not-a-hot-file'));
+
+    $user = User::factory()->create();
+
+    // An agent on the developer's machine listens on a loopback port.
+    $clientId = $this->postJson('/oauth/register', [
+        'client_name' => 'Loopback Client',
+        'redirect_uris' => ['http://localhost:33418/callback'],
+    ])->assertCreated()->json('client_id');
+
+    $query = http_build_query([
+        'response_type' => 'code',
+        'client_id' => $clientId,
+        'redirect_uri' => 'http://localhost:33418/callback',
+        'scope' => 'mcp:use',
+        'code_challenge' => pkceChallenge(Str::random(64)),
+        'code_challenge_method' => 'S256',
+    ]);
+
+    $policy = (string) $this->actingAs($user)->get("/oauth/authorize?{$query}")
+        ->assertOk()
+        ->headers->get('Content-Security-Policy');
+
+    // Browsers apply form-action to the redirect after Approve, not just the post.
+    expect($policy)->toContain("form-action 'self' http://localhost:33418;");
+
+    $elsewhere = (string) $this->actingAs($user)->get('/features/mcp?redirect_uri=https://evil.test/')
+        ->headers->get('Content-Security-Policy');
+
+    expect($elsewhere)->toContain("form-action 'self';");
 });
 
 test('anonymous client registration is throttled per address', function () {
