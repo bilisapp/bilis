@@ -1,13 +1,34 @@
 # syntax=docker/dockerfile:1.7
 
-ARG PHP_VERSION=8.4
+ARG PHP_VERSION=8.4.27
 ARG NODE_VERSION=24
+# Only the frankenphp binary is taken from this image. It links libphp.so
+# dynamically, so the PHP that runs is the one in php-base below — which is
+# how FrankenPHP builds its own runner image. That decouples PHP security
+# releases from FrankenPHP's image cadence (CVE-2026-109618/109619 shipped in
+# php:8.4.27 hours before a FrankenPHP image did). `frankenphp version` still
+# prints the PHP it was compiled against; `php -v` is the truth.
+ARG FRANKENPHP_IMAGE=dunglas/frankenphp:1.13.1-php8.4.26-bookworm
+# Override when Docker Hub lags a release: build docker-library's own recipe
+# on the host (`docker build -t bilis-php:8.4.27-zts-bookworm
+# "https://github.com/docker-library/php.git#master:8.4/bookworm/zts"`) and
+# pass PHP_BASE_IMAGE=bilis-php:8.4.27-zts-bookworm. Unset it once Hub has it.
+ARG PHP_BASE_IMAGE=php:${PHP_VERSION}-zts-bookworm
 
 FROM node:${NODE_VERSION}-bookworm-slim AS node-base
 
-FROM dunglas/frankenphp:1-php${PHP_VERSION}-bookworm AS php-base
+FROM ${FRANKENPHP_IMAGE} AS frankenphp
+
+FROM ${PHP_BASE_IMAGE} AS php-base
+
+COPY --from=frankenphp /usr/local/bin/frankenphp /usr/local/bin/install-php-extensions /usr/local/bin/
+COPY --from=frankenphp /usr/local/lib/libwatcher-c.so* /usr/local/lib/
 
 WORKDIR /app
+
+ENV XDG_CONFIG_HOME=/config \
+    XDG_DATA_HOME=/data \
+    GODEBUG=cgocheck=0
 
 ENV APP_ENV=production \
     APP_DEBUG=false \
@@ -19,7 +40,13 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         curl \
         git \
+        libcap2-bin \
+        libstdc++6 \
+        mailcap \
         unzip \
+    && ldconfig \
+    && setcap cap_net_bind_service=+ep /usr/local/bin/frankenphp \
+    && mkdir -p /etc/caddy /config/caddy /data/caddy \
     && install-php-extensions \
         bcmath \
         intl \
@@ -47,6 +74,7 @@ RUN apt-get update \
         echo 'session.cookie_httponly=1'; \
         echo 'session.cookie_samesite=Lax'; \
         echo 'session.use_strict_mode=1'; \
+        echo 'session.upload_progress.enabled=0'; \
     } > "$PHP_INI_DIR/conf.d/zz-bilis-production.ini" \
     && rm -rf /var/lib/apt/lists/*
 

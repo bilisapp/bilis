@@ -148,3 +148,14 @@ test('the image ships no default command for a CMD to shadow the role', function
     expect($dockerfile)->toContain('CMD []')
         ->and($dockerfile)->not->toContain('CMD ["web"]');
 });
+
+/*
+ * CVE-2026-109619: upload progress writes to a native session while PHP parses
+ * the request body, before any application code runs. Laravel never uses
+ * native sessions, so it stays off in php.ini — not ini_set(), which is too late.
+ */
+test('the image disables native session upload progress', function () {
+    $dockerfile = (string) file_get_contents(base_path('Dockerfile'));
+
+    expect($dockerfile)->toContain("echo 'session.upload_progress.enabled=0'");
+});
