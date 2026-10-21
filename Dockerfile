@@ -8,7 +8,7 @@ ARG NODE_VERSION=24
 # releases from FrankenPHP's image cadence (CVE-2026-109618/109619 shipped in
 # php:8.4.27 hours before a FrankenPHP image did). `frankenphp version` still
 # prints the PHP it was compiled against; `php -v` is the truth.
-ARG FRANKENPHP_IMAGE=dunglas/frankenphp:1.13.1-php8.4.26-bookworm
+ARG FRANKENPHP_IMAGE=dunglas/frankenphp:1.13.2-php8.4.27-bookworm
 # Override when Docker Hub lags a release: build docker-library's own recipe
 # on the host (`docker build -t bilis-php:8.4.27-zts-bookworm
 # "https://github.com/docker-library/php.git#master:8.4/bookworm/zts"`) and
