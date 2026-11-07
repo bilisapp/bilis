@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { Head, router, useHttp, usePage } from '@inertiajs/vue3';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import KeyHint from '@/components/KeyHint.vue';
+import PageHeader from '@/components/PageHeader.vue';
+import StorageBusy from '@/components/StorageBusy.vue';
 import TraceHistogram from '@/components/TraceHistogram.vue';
 import TraceListRow from '@/components/TraceListRow.vue';
 import TracesTabs from '@/components/TracesTabs.vue';
@@ -59,6 +62,22 @@ const timeZone = timeZoneNotice();
 
 const range = computed<LogRangePreset>(() =>
     presetForRange(props.filters.from, props.filters.to),
+);
+
+/** The scope the list covers, printed above the title. */
+const scope = computed(() => [
+    props.projects.find((project) => project.slug === props.filters.project)
+        ?.name ?? 'All projects',
+    props.filters.service ?? 'All services',
+]);
+
+const windowLabel = computed(() =>
+    range.value === 'custom'
+        ? 'in the chosen window'
+        : `in the ${(
+              RANGE_PRESETS.find((preset) => preset.value === range.value)
+                  ?.label ?? 'window'
+          ).toLowerCase()}`,
 );
 
 const canReset = computed(
@@ -364,37 +383,67 @@ watch(cursor, (index) => {
 
     <!--
       The page column scrolls, not the trace list: letting the section take its
-      natural height is what a list page wants, and it keeps the toolbar and the
-      tabs in one flow rather than pinning them against a nested scroller.
+      natural height is what a list page wants, and it keeps the header, the
+      toolbar and the volume band in one flow rather than pinning them against
+      a nested scroller.
     -->
-    <div class="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
-        <TracesTabs :team-slug="teamSlug" :query="query" />
+    <div class="flex flex-1 flex-col overflow-y-auto">
+        <PageHeader title="Traces" :eyebrow="scope">
+            <p data-test="traces-summary">
+                <template
+                    v-if="histogram && !histogram.unavailable && hasTraces"
+                >
+                    <span class="font-medium text-foreground"
+                        >{{ histogram.total.toLocaleString() }}
+                        {{ histogram.total === 1 ? 'trace' : 'traces' }}</span
+                    >
+                    {{ windowLabel }}
+                    <template v-if="histogram.errors > 0">
+                        ·
+                        <span class="font-medium text-severity-error"
+                            >{{
+                                histogram.errors.toLocaleString()
+                            }}
+                            failed</span
+                        >
+                    </template>
+                </template>
+                <template v-else>
+                    Requests followed across your services
+                </template>
+            </p>
 
-        <TracesToolbar
-            :projects="projects"
-            :project="filters.project"
-            :services="services"
-            :service="filters.service"
-            :errors="filters.errors"
-            :min-duration="filters.minDuration"
-            :range="range"
-            :can-reset="canReset"
-            :live="live"
-            :polling="pollRequest.processing"
-            @update:project="apply({ project: $event })"
-            @update:service="apply({ service: $event })"
-            @update:errors="apply({ errors: $event })"
-            @update:min-duration="apply({ min_duration: $event })"
-            @update:range="applyRange"
-            @update:live="live = $event"
-            @reset="reset"
-        />
+            <template #actions>
+                <TracesTabs :team-slug="teamSlug" :query="query" />
+            </template>
+        </PageHeader>
 
-        <TraceHistogram
-            v-if="hasTraces"
-            :histogram="histogram"
-            @zoom="onZoom"
-        />
+        <div class="px-4 pb-5 md:px-10">
+            <TracesToolbar
+                :projects="projects"
+                :project="filters.project"
+                :services="services"
+                :service="filters.service"
+                :errors="filters.errors"
+                :min-duration="filters.minDuration"
+                :range="range"
+                :can-reset="canReset"
+                :live="live"
+                :polling="pollRequest.processing"
+                slash-hint
+                @update:project="apply({ project: $event })"
+                @update:service="apply({ service: $event })"
+                @update:errors="apply({ errors: $event })"
+                @update:min-duration="apply({ min_duration: $event })"
+                @update:range="applyRange"
+                @update:live="live = $event"
+                @reset="reset"
+            />
+        </div>
+
+        <div v-if="hasTraces" class="px-4 pb-5 md:px-10">
+            <TraceHistogram :histogram="histogram" @zoom="onZoom" />
+        </div>
 
         <!--
           Said once, outside the list, so it survives whatever the list is
@@ -403,7 +452,7 @@ watch(cursor, (index) => {
         -->
         <div
             v-if="pollPaused"
-            class="flex items-center justify-between gap-3 rounded-lg border bg-card px-4 py-2 text-xs text-muted-foreground"
+            class="flex items-center justify-between gap-3 border-t px-4 py-2.5 text-xs text-muted-foreground md:px-10"
             role="status"
             data-test="traces-live-paused"
         >
@@ -419,26 +468,26 @@ watch(cursor, (index) => {
             </Button>
         </div>
 
-        <section class="flex flex-col rounded-lg border bg-card">
+        <section class="flex flex-1 flex-col border-t" data-test="traces-list">
             <header
-                class="flex items-baseline justify-between gap-2 border-b px-4 py-3"
+                class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 border-b column-header px-4 py-2.5 md:grid-cols-[minmax(0,1fr)_6rem_5rem_5rem_11rem] md:px-10"
             >
-                <h2 class="text-sm font-semibold">Traces</h2>
-                <p class="text-xs text-muted-foreground">{{ timeZone }}</p>
+                <span>Trace</span>
+                <span class="text-right">Duration</span>
+                <span class="hidden text-right md:block">Spans</span>
+                <span class="hidden text-right md:block">Errors</span>
+                <span class="hidden text-right md:block">Started</span>
             </header>
 
-            <div v-if="!traces" class="flex flex-col gap-2 p-4">
-                <Skeleton v-for="index in 6" :key="index" class="h-10 w-full" />
+            <div v-if="!traces" class="flex flex-col gap-3 px-4 py-4 md:px-10">
+                <Skeleton v-for="index in 6" :key="index" class="h-12 w-full" />
             </div>
 
-            <p
+            <StorageBusy
                 v-else-if="traces.unavailable"
-                class="p-6 text-sm text-muted-foreground"
+                store="Trace storage"
                 data-test="traces-unavailable"
-            >
-                Trace storage is busy and could not answer in time. Nothing is
-                lost — retry in a moment.
-            </p>
+            />
 
             <!--
               Three empty states, and they mean different things. Never having
@@ -448,10 +497,10 @@ watch(cursor, (index) => {
             -->
             <div
                 v-else-if="!hasTraces && rows.length === 0"
-                class="flex flex-col gap-2 p-6"
+                class="flex flex-col gap-2 px-4 py-8 md:px-10"
                 data-test="traces-empty-never"
             >
-                <p class="text-sm font-medium">No traces yet</p>
+                <p class="text-sm font-medium text-foreground">No traces yet</p>
                 <p class="max-w-prose text-sm text-muted-foreground">
                     Point an OpenTelemetry exporter at
                     <code class="font-mono">/api/v1/traces</code> over OTLP/HTTP
@@ -462,7 +511,7 @@ watch(cursor, (index) => {
 
             <p
                 v-else-if="rows.length === 0"
-                class="p-6 text-sm text-muted-foreground"
+                class="px-4 py-8 text-sm text-muted-foreground md:px-10"
                 data-test="traces-empty-window"
             >
                 No traces in this window.
@@ -481,6 +530,26 @@ watch(cursor, (index) => {
                     :cursor="cursor === index"
                 />
             </div>
+
+            <footer
+                class="mt-auto flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-xs text-muted-foreground md:px-10"
+            >
+                <span>
+                    <template v-if="traces && !traces.unavailable">
+                        {{ rows.length.toLocaleString() }}
+                        {{ rows.length === 1 ? 'trace' : 'traces' }} shown ·
+                    </template>
+                    {{ timeZone }}
+                </span>
+                <div
+                    v-if="rows.length > 0"
+                    class="hidden items-center gap-3.5 sm:flex"
+                >
+                    <KeyHint :keys="['j', 'k']" label="move" />
+                    <KeyHint :keys="['↵']" label="open" />
+                    <KeyHint :keys="['/']" label="service" />
+                </div>
+            </footer>
         </section>
     </div>
 </template>

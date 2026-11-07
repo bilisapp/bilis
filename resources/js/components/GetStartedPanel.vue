@@ -1,16 +1,10 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import {
-    Check,
-    ChevronDown,
-    Copy,
-    FolderKanban,
-    KeyRound,
-    Plus,
-} from '@lucide/vue';
+import { Check, ChevronDown, Copy, KeyRound, Plus } from '@lucide/vue';
 import { useClipboard } from '@vueuse/core';
 import { computed, ref, watch } from 'vue';
 import CreateProjectModal from '@/components/CreateProjectModal.vue';
+import SegmentedControl from '@/components/SegmentedControl.vue';
 import { Button } from '@/components/ui/button';
 import {
     Collapsible,
@@ -24,7 +18,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
 import { index as projectsIndex, show as projectShow } from '@/routes/projects';
 import type { LogOnboardingStage, LogProject } from '@/types';
 import bilisHandlerSource from '../../../app/Logging/BilisHandler.php?raw';
@@ -77,6 +70,11 @@ const TABS = [
 type TabId = (typeof TABS)[number]['id'];
 
 const tab = ref<TabId>('curl');
+
+const tabOptions = TABS.map((item) => ({
+    value: item.id as TabId,
+    label: item.label,
+}));
 
 const HINTS: Record<TabId, string> = {
     curl: 'The fastest proof the pipe works: one line, straight into the simple JSON endpoint.',
@@ -140,7 +138,7 @@ const {
 
 <template>
     <div
-        class="flex min-h-0 flex-1 flex-col overflow-y-auto rounded-xl border bg-card"
+        class="flex min-h-0 flex-1 flex-col overflow-y-auto border-t"
         data-test="logs-get-started"
         :data-stage="stage"
     >
@@ -150,32 +148,28 @@ const {
         -->
         <div
             v-if="stage === 'no-projects'"
-            class="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-16 text-center"
+            class="flex flex-col items-start gap-4 py-8"
             data-test="get-started-no-projects"
         >
-            <span
-                class="flex size-11 items-center justify-center rounded-full bg-muted text-muted-foreground"
-            >
-                <FolderKanban class="size-5" />
-            </span>
-
-            <div class="space-y-1">
-                <p class="text-base font-semibold">Create a project first</p>
-                <p class="max-w-sm text-sm text-balance text-muted-foreground">
+            <div class="flex flex-col gap-1">
+                <p class="text-base font-semibold tracking-tight">
+                    Create a project first
+                </p>
+                <p class="max-w-prose text-sm text-muted-foreground">
                     A project is one application's stream of logs, and it owns
                     the API keys your collector authenticates with. Nothing can
                     land here until one exists.
                 </p>
             </div>
 
-            <div class="flex flex-wrap items-center justify-center gap-2">
+            <div class="flex flex-wrap items-center gap-2">
                 <CreateProjectModal :team-slug="teamSlug">
                     <Button data-test="get-started-create-project">
                         <Plus /> Create your first project
                     </Button>
                 </CreateProjectModal>
 
-                <Button variant="ghost" as-child>
+                <Button variant="ghost" class="text-muted-foreground" as-child>
                     <Link :href="projectsIndex(teamSlug)"> All projects </Link>
                 </Button>
             </div>
@@ -187,10 +181,12 @@ const {
         -->
         <div v-else class="flex flex-col" data-test="get-started-no-logs">
             <header
-                class="flex flex-wrap items-end justify-between gap-4 border-b p-5"
+                class="flex flex-wrap items-end justify-between gap-4 border-b pt-6 pb-4"
             >
-                <div class="space-y-1">
-                    <p class="text-base font-semibold">Send your first log</p>
+                <div class="flex flex-col gap-1">
+                    <p class="text-base font-semibold tracking-tight">
+                        Send your first log
+                    </p>
                     <p class="max-w-prose text-sm text-muted-foreground">
                         Point anything that can make an HTTP request at the
                         ingest endpoint. The API key decides which project the
@@ -237,7 +233,7 @@ const {
                 </div>
             </header>
 
-            <div class="space-y-4 p-5">
+            <div class="flex flex-col gap-4 pt-5 pb-2">
                 <p class="text-sm text-muted-foreground">
                     Replace
                     <code
@@ -252,36 +248,18 @@ const {
                     stored.
                 </p>
 
-                <div
-                    class="flex flex-wrap gap-1 border-b"
-                    role="tablist"
+                <SegmentedControl
+                    v-model="tab"
+                    class="self-start"
+                    :options="tabOptions"
                     aria-label="Setup snippets"
-                >
-                    <button
-                        v-for="item in TABS"
-                        :key="item.id"
-                        type="button"
-                        role="tab"
-                        :aria-selected="tab === item.id"
-                        :data-test="`get-started-tab-${item.id}`"
-                        :class="
-                            cn(
-                                '-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors',
-                                tab === item.id
-                                    ? 'border-primary text-foreground'
-                                    : 'border-transparent text-muted-foreground hover:text-foreground',
-                            )
-                        "
-                        @click="tab = item.id"
-                    >
-                        {{ item.label }}
-                    </button>
-                </div>
+                    data-test-prefix="get-started-tab"
+                />
 
                 <p class="text-sm text-muted-foreground">{{ HINTS[tab] }}</p>
 
                 <div
-                    class="relative overflow-hidden rounded-lg border border-input bg-muted/40"
+                    class="relative overflow-hidden rounded-lg border bg-muted/40"
                     role="tabpanel"
                 >
                     <pre
@@ -301,11 +279,11 @@ const {
                     </button>
                 </div>
 
-                <div v-if="tab === 'laravel'" class="space-y-2">
+                <div v-if="tab === 'laravel'" class="flex flex-col gap-2">
                     <Collapsible
                         v-for="file in SHIPPER_FILES"
                         :key="file.path"
-                        class="overflow-hidden rounded-lg border border-input"
+                        class="overflow-hidden rounded-lg border"
                     >
                         <CollapsibleTrigger
                             class="flex w-full items-center justify-between gap-2 bg-muted/40 px-4 py-2.5 text-left font-mono text-xs font-medium transition-colors hover:bg-muted/70"
@@ -315,7 +293,7 @@ const {
                             <ChevronDown class="size-4 text-muted-foreground" />
                         </CollapsibleTrigger>
                         <CollapsibleContent>
-                            <div class="relative border-t border-input">
+                            <div class="relative border-t">
                                 <pre
                                     class="max-h-96 overflow-auto p-4 pr-14 font-mono text-xs leading-relaxed text-foreground"
                                 ><code>{{ file.source }}</code></pre>

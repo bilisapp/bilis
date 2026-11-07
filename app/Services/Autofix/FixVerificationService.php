@@ -5,6 +5,7 @@ namespace App\Services\Autofix;
 use App\Enums\FixJobStatus;
 use App\Enums\FixJobType;
 use App\Models\FixJob;
+use App\Services\Issues\ErrorFingerprinter;
 use App\Services\Logs\LogQuery;
 use Illuminate\Support\Carbon;
 

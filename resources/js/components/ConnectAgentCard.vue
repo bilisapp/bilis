@@ -2,13 +2,7 @@
 import { ChevronDown } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import CopyableValue from '@/components/CopyableValue.vue';
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
+import Heading from '@/components/Heading.vue';
 
 type Props = {
     /** The MCP endpoint of this instance, resolved on the server. */
@@ -38,62 +32,60 @@ const showConfig = ref(false);
 </script>
 
 <template>
-    <Card>
-        <CardHeader>
-            <CardTitle>Connect your coding agent</CardTitle>
-            <CardDescription>
-                Let the assistant you already code with read this team's logs
-                and traces while it works. It signs in as you in the browser —
-                there is no key to paste — and it can only read: nothing it does
-                can send, change or delete anything.
-            </CardDescription>
-        </CardHeader>
+    <!--
+      A section on the team page, not a card: a heading over a hairline, then
+      the one line to copy.
+    -->
+    <section class="flex flex-col gap-5" data-test="connect-agent">
+        <Heading variant="small" title="Connect your coding agent" />
 
-        <CardContent class="space-y-4">
-            <div class="space-y-2">
-                <p class="text-sm font-medium">Claude Code</p>
+        <p class="max-w-prose text-sm text-muted-foreground">
+            Let the assistant you already code with read this team's logs,
+            traces and metrics while it works. It signs in as you in the browser
+            — there is no key to paste — and it can only read: nothing it does
+            can send, change or delete anything.
+        </p>
+
+        <div class="flex flex-col gap-2">
+            <p class="text-sm font-medium">Claude Code</p>
+            <CopyableValue :value="command" label="Copy the connect command" />
+        </div>
+
+        <div class="flex flex-col gap-2">
+            <button
+                type="button"
+                class="flex w-fit items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                :aria-expanded="showConfig"
+                @click="showConfig = !showConfig"
+            >
+                <ChevronDown
+                    class="size-4 transition-transform"
+                    :class="{ 'rotate-180': showConfig }"
+                />
+                Claude Desktop, Cursor, or another client
+            </button>
+
+            <div v-if="showConfig" class="flex flex-col gap-2">
+                <p class="text-sm text-muted-foreground">
+                    Add this to the client's
+                    <code class="font-mono text-xs">mcpServers</code>
+                    block and restart it.
+                </p>
                 <CopyableValue
-                    :value="command"
-                    label="Copy the connect command"
+                    :value="config"
+                    label="Copy the client configuration"
                 />
             </div>
+        </div>
 
-            <div class="space-y-2">
-                <button
-                    type="button"
-                    class="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-                    :aria-expanded="showConfig"
-                    @click="showConfig = !showConfig"
-                >
-                    <ChevronDown
-                        class="size-4 transition-transform"
-                        :class="{ 'rotate-180': showConfig }"
-                    />
-                    Claude Desktop, Cursor, or another client
-                </button>
-
-                <div v-if="showConfig" class="space-y-2">
-                    <p class="text-sm text-muted-foreground">
-                        Add this to the client's
-                        <code class="font-mono text-xs">mcpServers</code>
-                        block and restart it.
-                    </p>
-                    <CopyableValue
-                        :value="config"
-                        label="Copy the client configuration"
-                    />
-                </div>
-            </div>
-
-            <p class="text-sm text-muted-foreground">
-                <a
-                    :href="props.docsHref"
-                    class="font-medium text-foreground underline underline-offset-4"
-                >
-                    What your agent can see
-                </a>
-                — the eight tools, and the line they cannot cross.
-            </p>
-        </CardContent>
-    </Card>
+        <p class="text-sm text-muted-foreground">
+            <a
+                :href="props.docsHref"
+                class="font-medium text-foreground underline underline-offset-4"
+            >
+                What your agent can see
+            </a>
+            — every tool, and the line none of them can cross.
+        </p>
+    </section>
 </template>

@@ -20,23 +20,21 @@ defineOptions({
 <template>
     <Head title="Appearance settings" />
 
-    <h1 class="sr-only">Appearance settings</h1>
-
-    <div class="space-y-6">
+    <div class="flex flex-col gap-5">
         <Heading
             variant="small"
-            title="Appearance settings"
-            description="Update the appearance settings for your account"
+            title="Theme"
+            description="Light, dark, or follow your system"
         />
         <AppearanceTabs />
+    </div>
 
-        <div class="space-y-3">
-            <Heading
-                variant="small"
-                title="Font"
-                description="Choose the typeface used across the interface and log data"
-            />
-            <FontTabs />
-        </div>
+    <div class="flex flex-col gap-5">
+        <Heading
+            variant="small"
+            title="Font"
+            description="Choose the typeface used across the interface and log data"
+        />
+        <FontTabs />
     </div>
 </template>

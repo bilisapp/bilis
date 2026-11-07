@@ -1,14 +1,18 @@
 <script setup lang="ts">
 import { Head, router, useHttp, usePage, usePoll } from '@inertiajs/vue3';
+import { RotateCcw, Undo2 } from '@lucide/vue';
 import { useClipboard } from '@vueuse/core';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import AlertError from '@/components/AlertError.vue';
 import GetStartedPanel from '@/components/GetStartedPanel.vue';
+import KeyHint from '@/components/KeyHint.vue';
 import LogEntryRow from '@/components/LogEntryRow.vue';
 import LogsHistogram from '@/components/LogsHistogram.vue';
+import LogsSeverityFilter from '@/components/LogsSeverityFilter.vue';
 import LogsShortcutsDialog from '@/components/LogsShortcutsDialog.vue';
 import LogsToolbar from '@/components/LogsToolbar.vue';
+import PageHeader from '@/components/PageHeader.vue';
 import TracePanel from '@/components/TracePanel.vue';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -19,6 +23,8 @@ import { useTailTabBadge } from '@/composables/useTailTabBadge';
 import { autofixTargetFor, formatLogEntry } from '@/lib/logRow';
 import {
     DEFAULT_RANGE_PRESET,
+    formatDayHeading,
+    localDayKey,
     presetForRange,
     RANGE_PRESETS,
     SEVERITY_DOT_CLASS,
@@ -811,6 +817,51 @@ const activeFilterCount = computed(
         (search.value ? 1 : 0) +
         (severity.value.length > 0 ? 1 : 0),
 );
+
+/** The scope the stream covers, printed above the title. */
+const scopeTrail = computed(() => [
+    props.projects.find((item) => item.slug === project.value)?.name ??
+        'All projects',
+    service.value ?? 'All services',
+]);
+
+const windowLabel = computed(() =>
+    range.value === 'custom'
+        ? 'in the chosen window'
+        : `in the ${(
+              RANGE_PRESETS.find((preset) => preset.value === range.value)
+                  ?.label ?? 'window'
+          ).toLowerCase()}`,
+);
+
+/** Errors and fatals in the window, read off the histogram's own counts. */
+const brokenCount = computed(() =>
+    (props.histogram?.buckets ?? []).reduce(
+        (sum, bucket) =>
+            sum + (bucket.counts.error ?? 0) + (bucket.counts.fatal ?? 0),
+        0,
+    ),
+);
+
+/**
+ * Where a day starts in the stream: the date is said once, as a divider,
+ * rather than on every row.
+ */
+const dayStarts = computed(() => {
+    const starts = new Map<number, { label: string; date: string }>();
+    let previous = '';
+
+    rows.value.forEach((entry, index) => {
+        const day = localDayKey(entry.timestamp);
+
+        if (day !== previous) {
+            starts.set(index, formatDayHeading(entry.timestamp));
+            previous = day;
+        }
+    });
+
+    return starts;
+});
 </script>
 
 <template>
@@ -818,113 +869,168 @@ const activeFilterCount = computed(
 
     <LogsShortcutsDialog v-model:open="shortcutsOpen" />
 
-    <div class="flex min-h-0 flex-1 flex-col gap-4 p-4">
-        <GetStartedPanel
-            v-if="onboarding"
-            :stage="props.onboarding.stage"
-            :projects="projects"
-            :team-slug="teamSlug"
-        />
+    <div class="flex min-h-0 flex-1 flex-col">
+        <PageHeader title="Logs" :eyebrow="scopeTrail">
+            <p data-test="logs-summary">
+                <template v-if="histogram && !histogram.unavailable">
+                    <span class="font-medium text-foreground"
+                        >{{ histogram.total.toLocaleString() }}
+                        {{ histogram.total === 1 ? 'line' : 'lines' }}</span
+                    >
+                    {{ windowLabel }}
+                    <template v-if="brokenCount > 0">
+                        ·
+                        <span class="font-medium text-severity-error"
+                            >{{ brokenCount.toLocaleString() }}
+                            {{ brokenCount === 1 ? 'error' : 'errors' }}</span
+                        >
+                    </template>
+                </template>
+                <template v-else>Every line your services sent</template>
+            </p>
+
+            <template v-if="!onboarding" #actions>
+                <Button
+                    type="button"
+                    variant="ghost"
+                    class="text-muted-foreground"
+                    data-test="logs-step-back"
+                    :disabled="!canStepBack"
+                    @click="stepBack"
+                >
+                    <Undo2 class="size-4" />
+                    Step back
+                </Button>
+                <Button
+                    type="button"
+                    variant="ghost"
+                    class="text-muted-foreground"
+                    data-test="logs-reset"
+                    :disabled="isDefaultFilters"
+                    @click="resetFilters"
+                >
+                    <RotateCcw class="size-4" />
+                    Reset
+                </Button>
+                <Button
+                    type="button"
+                    class="ml-1"
+                    data-test="logs-live-tail"
+                    :variant="liveTail ? 'outline' : 'default'"
+                    :aria-pressed="liveTail"
+                    @click="liveTail = !liveTail"
+                >
+                    <span
+                        class="relative flex size-2 items-center justify-center"
+                    >
+                        <span
+                            v-if="liveTail"
+                            class="absolute inline-flex size-2 animate-ping rounded-full bg-severity-info opacity-60 motion-reduce:hidden"
+                        />
+                        <span
+                            :class="
+                                cn(
+                                    'relative inline-flex size-2 rounded-full',
+                                    liveTail
+                                        ? 'bg-severity-info'
+                                        : 'ring-[1.5px] ring-current ring-inset',
+                                )
+                            "
+                        />
+                    </span>
+                    {{ liveTail ? 'Live' : 'Go live' }}
+                </Button>
+            </template>
+        </PageHeader>
+
+        <div v-if="onboarding" class="px-4 pb-8 md:px-10">
+            <GetStartedPanel
+                :stage="props.onboarding.stage"
+                :projects="projects"
+                :team-slug="teamSlug"
+            />
+        </div>
 
         <template v-else>
-            <LogsToolbar
-                :projects="projects"
-                :services="services"
-                :project="project"
-                :service="service"
-                :severity="severity"
-                :search="search"
-                :range="range"
-                :from="from"
-                :to="to"
-                :live-tail="liveTail"
-                :tailing="tailRequest.processing"
-                :can-step-back="canStepBack"
-                :can-reset="!isDefaultFilters"
-                @step-back="stepBack"
-                @reset="resetFilters"
-                @update:project="onProject"
-                @update:service="onService"
-                @update:severity="onSeverity"
-                @update:search="onSearch"
-                @update:range="onRange"
-                @update:window="onWindow"
-                @update:live-tail="liveTail = $event"
-            />
+            <div class="flex flex-col gap-5 px-4 pb-5 md:px-10">
+                <LogsToolbar
+                    :projects="projects"
+                    :services="services"
+                    :project="project"
+                    :service="service"
+                    :search="search"
+                    :range="range"
+                    :from="from"
+                    :to="to"
+                    @update:project="onProject"
+                    @update:service="onService"
+                    @update:search="onSearch"
+                    @update:range="onRange"
+                    @update:window="onWindow"
+                />
 
-            <AlertError
-                v-if="unavailable"
-                title="ClickHouse is thinking"
-                :errors="[
-                    'It could not answer this query in time. Narrow the window, or try again in a moment — nothing was lost.',
-                ]"
-            />
+                <AlertError
+                    v-if="unavailable"
+                    title="ClickHouse is thinking"
+                    :errors="[
+                        'It could not answer this query in time. Narrow the window, or try again in a moment — nothing was lost.',
+                    ]"
+                />
 
-            <LogsHistogram
-                :histogram="histogram"
-                :severity="severity"
-                @zoom="onZoom"
-            />
+                <LogsHistogram
+                    :histogram="histogram"
+                    :severity="severity"
+                    @zoom="onZoom"
+                >
+                    <template #legend>
+                        <LogsSeverityFilter
+                            :severity="severity"
+                            @update:severity="onSeverity"
+                        />
+                    </template>
+                </LogsHistogram>
+            </div>
 
             <!--
               The stream and the trace preview are siblings, not layers. The
               panel narrows the stream instead of covering it, which is what
               lets a reader keep clicking rows while it is open.
             -->
-            <div class="flex min-h-0 flex-1 gap-4">
+            <div class="flex min-h-0 flex-1 border-t">
                 <div
-                    class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border bg-card"
+                    class="flex min-h-0 min-w-0 flex-1 flex-col"
                     data-test="logs-list"
                 >
-                    <!--
-              The stream's own header: what you are looking at, and whether it
-              is still moving. It lives outside the scroll area so the state
-              stays readable however far down the reader has gone.
-            -->
                     <header
-                        class="flex items-center gap-2 border-b px-3 py-1.5 text-xs"
+                        class="flex shrink-0 items-center gap-5 border-b column-header py-2.5 pr-4 pl-4 md:pr-10 md:pl-10"
                     >
-                        <p v-if="logs" class="text-muted-foreground">
-                            <span
-                                class="font-medium text-foreground tabular-nums"
-                            >
-                                {{ rows.length.toLocaleString() }}
-                            </span>
-                            {{ rows.length === 1 ? 'line' : 'lines' }} loaded
-                            <template v-if="activeFilterCount > 0">
-                                · {{ activeFilterCount }}
-                                {{
-                                    activeFilterCount === 1
-                                        ? 'filter'
-                                        : 'filters'
-                                }}
-                                active
-                            </template>
-                        </p>
-                        <p v-else class="text-muted-foreground">
-                            Loading lines…
-                        </p>
+                        <span class="w-[6.25rem] shrink-0">Time</span>
+                        <span class="w-11 shrink-0">Level</span>
+                        <span class="hidden w-32 shrink-0 sm:block"
+                            >Service</span
+                        >
+                        <span class="flex-1">Message</span>
 
-                        <p
+                        <span
                             v-if="firstLineLanded"
-                            class="inline-flex animate-in items-center gap-1.5 font-medium text-severity-info duration-500 fade-in slide-in-from-left-2 motion-reduce:animate-none"
+                            class="inline-flex animate-in items-center gap-1.5 tracking-normal text-severity-info normal-case duration-500 fade-in slide-in-from-left-2 motion-reduce:animate-none"
                             data-test="logs-first-line"
                         >
                             <span class="size-1.5 rounded-full bg-current" />
                             First line received. The pipe works.
-                        </p>
+                        </span>
 
-                        <p
+                        <span
                             v-if="liveTail && tailPaused"
-                            class="inline-flex items-center gap-1.5 rounded-full border border-severity-warn/40 bg-severity-warn/10 px-2 py-0.5 font-medium text-severity-warn"
+                            class="inline-flex items-center gap-1.5 rounded-full bg-severity-warn/10 px-2 py-0.5 tracking-normal text-severity-warn normal-case"
                             data-test="logs-tail-paused"
                         >
                             <span class="size-1.5 rounded-full bg-current" />
                             Tail paused while you read
-                        </p>
-                        <p
+                        </span>
+                        <span
                             v-else-if="liveTail"
-                            class="inline-flex items-center gap-1.5 font-medium text-severity-info"
+                            class="inline-flex items-center gap-1.5 tracking-normal text-severity-info normal-case"
                             data-test="logs-tail-live"
                         >
                             <span class="relative flex size-1.5">
@@ -936,28 +1042,7 @@ const activeFilterCount = computed(
                                 />
                             </span>
                             Tailing
-                        </p>
-
-                        <p
-                            class="ml-auto hidden text-muted-foreground sm:block"
-                            data-test="logs-timezone"
-                        >
-                            {{ timeZone }}
-                        </p>
-
-                        <button
-                            type="button"
-                            class="hidden items-center gap-1.5 rounded px-1.5 py-0.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none sm:inline-flex"
-                            data-test="logs-shortcuts-open"
-                            @click="shortcutsOpen = true"
-                        >
-                            <kbd
-                                class="inline-flex h-5 min-w-5 items-center justify-center rounded border border-input px-1 font-mono text-xs"
-                            >
-                                ?
-                            </kbd>
-                            Keyboard
-                        </button>
+                        </span>
                     </header>
 
                     <div
@@ -965,22 +1050,19 @@ const activeFilterCount = computed(
                         @scroll="onScroll"
                     >
                         <!--
-                  The skeleton mirrors the real row: timestamp, severity,
-                  service, body. A row-shaped wait reads as "logs are coming"
-                  rather than "a box is loading".
-                -->
+                          The skeleton mirrors the real row: time, level,
+                          service, body. A row-shaped wait reads as "logs are
+                          coming" rather than "a box is loading".
+                        -->
                         <div v-if="!logs" data-test="logs-skeleton">
                             <div
                                 v-for="index in 14"
                                 :key="index"
-                                class="flex items-center gap-3 border-b border-b-sidebar-border/70 px-3 py-1.5"
+                                class="flex items-center gap-5 border-b border-b-border/60 px-4 py-2 md:px-10"
                             >
-                                <Skeleton
-                                    class="h-3 w-3.5 shrink-0 rounded-sm"
-                                />
-                                <Skeleton class="h-3 w-40 shrink-0" />
-                                <Skeleton class="h-3 w-14 shrink-0" />
-                                <Skeleton class="h-3 w-28 shrink-0" />
+                                <Skeleton class="h-3 w-[6.25rem] shrink-0" />
+                                <Skeleton class="h-3 w-11 shrink-0" />
+                                <Skeleton class="h-3 w-32 shrink-0" />
                                 <Skeleton
                                     class="h-3 flex-1"
                                     :style="{
@@ -1012,9 +1094,9 @@ const activeFilterCount = computed(
                             data-test="logs-empty"
                         >
                             <!--
-                      The severity ramp, drawn flat: the shape the stream would
-                      have if it had anything to show.
-                    -->
+                              The severity ramp, drawn flat: the shape the
+                              stream would have if it had anything to show.
+                            -->
                             <div
                                 class="flex w-40 items-end gap-1.5"
                                 aria-hidden="true"
@@ -1069,22 +1151,43 @@ const activeFilterCount = computed(
                         </div>
 
                         <template v-else>
-                            <LogEntryRow
+                            <template
                                 v-for="(entry, index) in rows"
                                 :key="entryKey(entry, index)"
-                                :entry="entry"
-                                :data-log-index="index"
-                                :expanded="
-                                    expandedKey === entryKey(entry, index)
-                                "
-                                :fresh="freshKeys.has(freshId(entry))"
-                                :cursor="cursor === index"
-                                :team-slug="teamSlug"
-                                :autofix="autofixTarget(entry)"
-                                :credentials="autofix.credentials"
-                                @toggle="toggleExpanded(entryKey(entry, index))"
-                                @trace="onRowTrace(entry)"
-                            />
+                            >
+                                <div
+                                    v-if="dayStarts.has(index)"
+                                    class="flex items-center gap-2.5 px-4 pt-3 pb-2 text-xs text-muted-foreground md:px-10"
+                                    data-test="logs-day"
+                                >
+                                    <span class="font-medium text-foreground">{{
+                                        dayStarts.get(index)?.label
+                                    }}</span>
+                                    <span v-if="dayStarts.get(index)?.date">{{
+                                        dayStarts.get(index)?.date
+                                    }}</span>
+                                    <span
+                                        class="h-px flex-1 bg-border/70"
+                                        aria-hidden="true"
+                                    />
+                                </div>
+                                <LogEntryRow
+                                    :entry="entry"
+                                    :data-log-index="index"
+                                    :expanded="
+                                        expandedKey === entryKey(entry, index)
+                                    "
+                                    :fresh="freshKeys.has(freshId(entry))"
+                                    :cursor="cursor === index"
+                                    :team-slug="teamSlug"
+                                    :autofix="autofixTarget(entry)"
+                                    :credentials="autofix.credentials"
+                                    @toggle="
+                                        toggleExpanded(entryKey(entry, index))
+                                    "
+                                    @trace="onRowTrace(entry)"
+                                />
+                            </template>
 
                             <div v-if="nextCursor" class="p-3 text-center">
                                 <Button
@@ -1108,6 +1211,48 @@ const activeFilterCount = computed(
                             </div>
                         </template>
                     </div>
+
+                    <footer
+                        class="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t px-4 py-2.5 text-xs text-muted-foreground md:px-10"
+                    >
+                        <p>
+                            <template v-if="logs">
+                                <span class="text-foreground tabular-nums">{{
+                                    rows.length.toLocaleString()
+                                }}</span>
+                                {{ rows.length === 1 ? 'line' : 'lines' }}
+                                loaded · newest first
+                                <template v-if="activeFilterCount > 0">
+                                    · {{ activeFilterCount }}
+                                    {{
+                                        activeFilterCount === 1
+                                            ? 'filter'
+                                            : 'filters'
+                                    }}
+                                    active
+                                </template>
+                            </template>
+                            <template v-else>Loading lines…</template>
+                            <span
+                                class="hidden lg:inline"
+                                data-test="logs-timezone"
+                            >
+                                · {{ timeZone }}</span
+                            >
+                        </p>
+                        <div class="hidden items-center gap-3.5 sm:flex">
+                            <KeyHint :keys="['j', 'k']" label="move" />
+                            <KeyHint :keys="['↵']" label="expand" />
+                            <button
+                                type="button"
+                                class="rounded transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                                data-test="logs-shortcuts-open"
+                                @click="shortcutsOpen = true"
+                            >
+                                <KeyHint :keys="['?']" label="all keys" />
+                            </button>
+                        </div>
+                    </footer>
                 </div>
 
                 <TracePanel
@@ -1116,6 +1261,7 @@ const activeFilterCount = computed(
                     :team-slug="teamSlug"
                     :result="panelResult"
                     :failed="panelFailed"
+                    class="border-l"
                     @close="closeTracePanel"
                 />
             </div>

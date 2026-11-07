@@ -215,45 +215,61 @@ const onSelect = ({ dataIndex }: { dataIndex: number }) => {
 
 <template>
     <section
-        class="rounded-lg border bg-card px-3 pt-2.5 pb-1"
+        class="flex flex-col gap-2"
         data-test="trace-histogram"
         aria-label="Trace volume over the selected window"
     >
-        <header class="flex items-baseline justify-between gap-3 pb-1">
-            <p class="text-xs font-medium">
+        <header
+            class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-xs text-muted-foreground"
+        >
+            <p>
                 <template v-if="histogram && total > 0">
+                    <span class="font-medium text-foreground"
+                        >Traces per {{ intervalLabel }}</span
+                    >
+                    ·
                     <span class="tabular-nums">{{
                         total.toLocaleString()
                     }}</span>
-                    {{ total === 1 ? 'trace' : 'traces' }}
-                    <span class="font-normal text-muted-foreground">
-                        in this window
-                    </span>
+                    in this window
                     <template v-if="errors > 0">
-                        <span class="font-normal text-muted-foreground">
-                            ·
-                        </span>
+                        ·
                         <span
-                            class="text-severity-error tabular-nums"
+                            class="font-medium text-severity-error tabular-nums"
                             data-test="trace-histogram-errors"
                         >
                             {{ errors.toLocaleString() }} failed
                         </span>
                     </template>
+                    · click a bar to zoom
                 </template>
-                <template v-else-if="histogram"> Trace volume </template>
-                <template v-else>
-                    <span class="text-muted-foreground">Counting traces…</span>
+                <template v-else-if="histogram">
+                    <span class="font-medium text-foreground"
+                        >Trace volume</span
+                    >
                 </template>
+                <template v-else>Counting traces…</template>
             </p>
 
-            <p
-                v-if="histogram && total > 0"
-                class="text-xs text-muted-foreground tabular-nums"
-            >
-                {{ intervalLabel }} buckets · peak
-                {{ busiest.toLocaleString() }}
-            </p>
+            <div v-if="histogram && total > 0" class="flex items-center gap-3">
+                <span class="inline-flex items-center gap-1.5">
+                    <span
+                        class="size-2 rounded-sm bg-muted-foreground"
+                        aria-hidden="true"
+                    />
+                    Traces
+                </span>
+                <span class="inline-flex items-center gap-1.5">
+                    <span
+                        class="size-2 rounded-sm bg-severity-error"
+                        aria-hidden="true"
+                    />
+                    Failed
+                </span>
+                <span class="font-mono tabular-nums"
+                    >peak {{ busiest.toLocaleString() }}</span
+                >
+            </div>
         </header>
 
         <Skeleton
@@ -275,7 +291,7 @@ const onSelect = ({ dataIndex }: { dataIndex: number }) => {
             class="flex h-16 items-end"
             data-test="trace-histogram-empty"
         >
-            <div class="w-full border-b border-dashed" />
+            <div class="w-full border-b" />
         </div>
 
         <ChartCanvas

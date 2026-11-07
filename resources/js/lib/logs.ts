@@ -432,3 +432,81 @@ export function formatRelativeTime(timestamp: string): string {
 
     return `${Math.floor(hours / 24)}d ago`;
 }
+
+/**
+ * The time of day alone, `HH:MM:SS.mmm`, in the reader's zone.
+ *
+ * The stream prints the date once per day as a divider rather than on every
+ * row, so each line can spend its width on the message.
+ */
+export function formatLocalTime(timestamp: string): string {
+    const formatted = formatTimestamp(timestamp);
+
+    return formatted.includes(' ') ? formatted.split(' ')[1] : formatted;
+}
+
+/** The reader's calendar day, `YYYY-MM-DD`: the key the stream groups by. */
+export function localDayKey(timestamp: string): string {
+    return formatTimestamp(timestamp).split(' ')[0];
+}
+
+/**
+ * A day as a divider says it: "Today", "Yesterday", else "Wed, Nov 4".
+ *
+ * `now` is injectable so the wording is testable without a clock.
+ */
+export function formatDayHeading(
+    timestamp: string,
+    now: Date = new Date(),
+): { label: string; date: string } {
+    const date = parseTimestamp(timestamp);
+
+    if (Number.isNaN(date.getTime())) {
+        return { label: timestamp, date: '' };
+    }
+
+    const zone = browserTimeZone();
+    const key = (value: Date) => formatInZone(value, zone).split(' ')[0];
+    const today = key(now);
+    const yesterday = key(new Date(now.getTime() - 86_400_000));
+    const full = new Intl.DateTimeFormat('en-US', {
+        timeZone: zone,
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+    }).format(date);
+
+    if (key(date) === today) {
+        return { label: 'Today', date: full };
+    }
+
+    if (key(date) === yesterday) {
+        return { label: 'Yesterday', date: full };
+    }
+
+    return { label: full, date: '' };
+}
+
+/**
+ * Split a body that opens with an exception class — `TypeError: …`,
+ * `App\Exceptions\PaymentFailed: …`, `java.io.IOException: …` — into the class
+ * and the rest, so the class can be set in a heavier weight.
+ *
+ * Deliberately narrow: only a dotted/namespaced identifier ending in Error or
+ * Exception counts, so an ordinary sentence with a colon is left whole.
+ */
+export function splitExceptionHeadline(body: string): {
+    head: string;
+    rest: string;
+} {
+    const match =
+        /^((?:[A-Za-z_][\w$]*[.\\])*[A-Za-z_$]*(?:Error|Exception))(:\s|$)/.exec(
+            body,
+        );
+
+    if (!match) {
+        return { head: '', rest: body };
+    }
+
+    return { head: match[1], rest: body.slice(match[0].length) };
+}

@@ -47,6 +47,15 @@
         ],
         "createdAt": "2026-10-05T07:47:59.495Z",
         "reason": "Claude triage: header is text-xl over text-sm (1.43 ratio), copied verbatim from metrics/Index.vue and the other app pages; text-xs is the app-wide label size for toolbars and meta"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "resources/js/pages/issues/Show.vue"
+        ],
+        "createdAt": "2026-11-07T11:36:16.214Z",
+        "reason": "Claude: title already raised to text-xl (20px vs 14px body = 1.43); remaining sizes 11/12/14/20px are all DESIGN.md ramp steps used across the app"
       }
     ]
   }

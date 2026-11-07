@@ -12,7 +12,6 @@ import InviteMemberModal from '@/components/InviteMemberModal.vue';
 import PlanUsageCard from '@/components/PlanUsageCard.vue';
 import RemoveMemberModal from '@/components/RemoveMemberModal.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -152,428 +151,392 @@ const confirmCancelInvitation = (invitation: TeamInvitation) => {
 <template>
     <Head :title="pageTitle" />
 
-    <h1 class="sr-only">{{ pageTitle }}</h1>
+    <!-- Team name -->
+    <div v-if="permissions.canUpdateTeam" class="flex flex-col gap-5">
+        <Heading
+            variant="small"
+            title="Team settings"
+            description="Update your team name and settings"
+        />
 
-    <div class="flex flex-col space-y-10">
-        <!-- Team Name Section -->
-        <div v-if="permissions.canUpdateTeam" class="space-y-6">
-            <Heading
-                variant="small"
-                title="Team settings"
-                description="Update your team name and settings"
-            />
-
-            <Form
-                v-bind="update.form(team.slug)"
-                class="space-y-6"
-                v-slot="{ errors, processing }"
-            >
-                <div class="grid gap-2">
-                    <Label for="name">Team name</Label>
-                    <Input
-                        id="name"
-                        name="name"
-                        data-test="team-name-input"
-                        :default-value="team.name"
-                        required
-                    />
-                    <InputError :message="errors.name" />
-                </div>
-
-                <div class="flex items-center gap-4">
-                    <Button
-                        type="submit"
-                        data-test="team-save-button"
-                        :disabled="processing"
-                    >
-                        Save
-                    </Button>
-                </div>
-            </Form>
-        </div>
-
-        <div v-else class="space-y-6">
-            <Heading variant="small" :title="team.name" />
-        </div>
-
-        <!--
-          Plan and usage. It sits here rather than only on the dashboard
-          because members are added on this page: the meter that says how many
-          seats the Free plan carries belongs beside the button that spends
-          one. It still gates nothing.
-        -->
-        <div class="space-y-6">
-            <Heading
-                variant="small"
-                title="Plan &amp; usage"
-                description="Where this team stands against the Free allowances. All of them are soft."
-            />
-
-            <PlanUsageCard :usage="planUsage" />
-        </div>
-
-        <!--
-          The MCP connection. It sits on the team page because the access it
-          grants is team-wide: one command connects an agent to every project
-          the team owns, read-only.
-        -->
-        <div class="space-y-6">
-            <Heading
-                variant="small"
-                title="Agent access"
-                description="Point an MCP client at this instance and it can read your logs, traces and metrics while it works."
-            />
-
-            <ConnectAgentCard :url="mcpUrl" :docs-href="mcpDocsHref" />
-        </div>
-
-        <!-- Model API keys -->
-        <div v-if="permissions.canUpdateTeam" class="space-y-6">
-            <Heading
-                variant="small"
-                title="Model API keys"
-                description="The keys your team's autofix jobs run on. Scope each one to this team and give it a spend limit at the provider."
-            />
-
-            <div
-                v-if="llmCredentials.length"
-                class="divide-y divide-border rounded-lg border border-border"
-                data-test="team-llm-credentials"
-            >
-                <div
-                    v-for="credential in llmCredentials"
-                    :key="credential.id"
-                    class="flex flex-wrap items-center justify-between gap-3 p-4"
-                >
-                    <div class="min-w-0 space-y-1">
-                        <div class="flex items-center gap-2">
-                            <span class="truncate font-medium">
-                                {{ credential.label }}
-                            </span>
-                            <Badge
-                                v-if="credential.isDefault"
-                                variant="secondary"
-                            >
-                                Default
-                            </Badge>
-                        </div>
-                        <p class="text-sm text-muted-foreground">
-                            {{ credential.providerLabel }} · key ending
-                            <span class="font-mono">{{ credential.hint }}</span>
-                            <template v-if="addedOn(credential)">
-                                · added {{ addedOn(credential) }}
-                                <DeleteLlmCredentialModal
-                                    v-model:open="deleteCredentialOpen"
-                                    :team-slug="team.slug"
-                                    :credential="credentialToDelete"
-                                />
-                            </template>
-                        </p>
-                    </div>
-
-                    <div class="flex items-center gap-2">
-                        <Button
-                            v-if="!credential.isDefault"
-                            variant="secondary"
-                            size="sm"
-                            data-test="team-llm-credential-make-default"
-                            @click="makeDefault(credential)"
-                        >
-                            Make default
-                        </Button>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            data-test="team-llm-credential-delete"
-                            @click="confirmDeleteCredential(credential)"
-                        >
-                            <X class="size-4" />
-                            <span class="sr-only"
-                                >Remove {{ credential.label }}</span
-                            >
-                        </Button>
-                    </div>
-                </div>
+        <Form
+            v-bind="update.form(team.slug)"
+            class="flex flex-col gap-5"
+            v-slot="{ errors, processing }"
+        >
+            <div class="grid gap-2">
+                <Label for="name">Team name</Label>
+                <Input
+                    id="name"
+                    name="name"
+                    data-test="team-name-input"
+                    :default-value="team.name"
+                    required
+                />
+                <InputError :message="errors.name" />
             </div>
 
-            <p v-else class="text-sm text-muted-foreground">
-                No keys yet, so jobs fall back to this installation's key if it
-                has one and fail if it does not. Add a key below to run jobs on
-                your own budget.
-            </p>
-
-            <Form
-                v-bind="storeLlmCredential.form(team.slug)"
-                class="space-y-6"
-                :reset-on-success="['api_key', 'label']"
-                v-slot="{ errors, processing }"
-            >
-                <div class="grid gap-4 sm:grid-cols-2">
-                    <div class="grid gap-2">
-                        <Label for="llm_provider">Provider</Label>
-                        <Select v-model="newKeyProvider">
-                            <SelectTrigger
-                                id="llm_provider"
-                                class="w-full"
-                                data-test="team-llm-credential-provider"
-                            >
-                                <SelectValue placeholder="Pick a provider" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem
-                                    v-for="provider in llmProviders"
-                                    :key="provider.value"
-                                    :value="provider.value"
-                                >
-                                    {{ provider.label }}
-                                </SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <input
-                            type="hidden"
-                            name="provider"
-                            :value="newKeyProvider"
-                        />
-                        <InputError :message="errors.provider" />
-                    </div>
-
-                    <div class="grid gap-2">
-                        <Label for="llm_label">Name</Label>
-                        <Input
-                            id="llm_label"
-                            name="label"
-                            autocomplete="off"
-                            placeholder="Production budget"
-                            data-test="team-llm-credential-label"
-                        />
-                        <InputError :message="errors.label" />
-                    </div>
-                </div>
-
-                <div class="grid gap-2">
-                    <Label for="llm_api_key">API key</Label>
-                    <Input
-                        id="llm_api_key"
-                        name="api_key"
-                        type="password"
-                        autocomplete="off"
-                        data-test="team-llm-credential-input"
-                        :placeholder="newKeyPlaceholder"
-                    />
-                    <InputError :message="errors.api_key" />
-                    <p class="text-sm text-muted-foreground">
-                        Stored encrypted and never shown again — only the last
-                        four characters come back, so you can tell your keys
-                        apart. To replace a key, add the new one and remove the
-                        old.
-                    </p>
-                </div>
-
-                <div class="flex items-center gap-4">
-                    <Button
-                        type="submit"
-                        data-test="team-llm-credential-save-button"
-                        :disabled="processing"
-                    >
-                        Add key
-                    </Button>
-                </div>
-            </Form>
-        </div>
-
-        <!-- Members Section -->
-        <div class="space-y-6">
-            <div class="flex items-center justify-between">
-                <Heading
-                    variant="small"
-                    title="Team members"
-                    :description="
-                        permissions.canCreateInvitation
-                            ? 'Manage who belongs to this team'
-                            : ''
-                    "
-                />
-
+            <div class="flex items-center gap-4">
                 <Button
-                    v-if="permissions.canCreateInvitation"
+                    type="submit"
+                    data-test="team-save-button"
+                    :disabled="processing"
+                >
+                    Save
+                </Button>
+            </div>
+        </Form>
+    </div>
+
+    <Heading v-else variant="small" :title="team.name" />
+
+    <!--
+      Plan and usage. It sits here rather than only on the dashboard because
+      members are added on this page: the meter that says how many seats the
+      Free plan carries belongs right above the button that spends one. It
+      still gates nothing. The section carries its own heading.
+    -->
+    <PlanUsageCard :usage="planUsage" />
+
+    <!-- Members -->
+    <div class="flex flex-col gap-2">
+        <Heading
+            variant="small"
+            title="Team members"
+            :description="
+                permissions.canCreateInvitation
+                    ? 'Manage who belongs to this team'
+                    : ''
+            "
+        >
+            <template v-if="permissions.canCreateInvitation" #actions>
+                <Button
+                    size="sm"
                     data-test="invite-member-button"
                     @click="inviteDialogOpen = true"
                 >
                     <UserPlus /> Invite member
                 </Button>
-            </div>
+            </template>
+        </Heading>
 
-            <div class="space-y-3">
-                <div
-                    v-for="member in members"
-                    :key="member.id"
-                    data-test="member-row"
-                    class="flex items-center justify-between rounded-lg border p-4"
-                >
-                    <div class="flex items-center gap-4">
-                        <Avatar class="h-10 w-10">
-                            <AvatarImage
-                                v-if="member.avatar"
-                                :src="member.avatar"
-                                :alt="member.name"
-                            />
-                            <AvatarFallback>{{
-                                getInitials(member.name)
-                            }}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                            <div class="font-medium">
-                                {{ member.name }}
-                            </div>
-                            <div class="text-sm text-muted-foreground">
-                                {{ member.email }}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="flex items-center gap-2">
-                        <DropdownMenu
-                            v-if="
-                                member.role !== 'owner' &&
-                                permissions.canUpdateMember
-                            "
-                        >
-                            <DropdownMenuTrigger as-child>
-                                <Button
-                                    data-test="member-role-trigger"
-                                    variant="outline"
-                                    size="sm"
-                                >
-                                    {{ member.role_label }}
-                                    <ChevronDown
-                                        class="ml-2 h-4 w-4 opacity-50"
-                                    />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent>
-                                <DropdownMenuItem
-                                    v-for="role in availableRoles"
-                                    :key="role.value"
-                                    data-test="member-role-option"
-                                    @click="
-                                        updateMemberRole(member, role.value)
-                                    "
-                                >
-                                    {{ role.label }}
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                        <Badge v-else variant="secondary">
-                            {{ member.role_label }}
-                        </Badge>
-
-                        <TooltipProvider
-                            v-if="
-                                member.role !== 'owner' &&
-                                permissions.canRemoveMember
-                            "
-                        >
-                            <Tooltip>
-                                <TooltipTrigger as-child>
-                                    <Button
-                                        data-test="member-remove-button"
-                                        variant="ghost"
-                                        size="sm"
-                                        @click="confirmRemoveMember(member)"
-                                    >
-                                        <X class="h-4 w-4" />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>Remove member</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
+        <div>
+            <div
+                v-for="member in members"
+                :key="member.id"
+                data-test="member-row"
+                class="flex min-h-14 items-center justify-between gap-4 border-b border-border/60 py-2.5"
+            >
+                <div class="flex min-w-0 items-center gap-3">
+                    <Avatar class="size-8">
+                        <AvatarImage
+                            v-if="member.avatar"
+                            :src="member.avatar"
+                            :alt="member.name"
+                        />
+                        <AvatarFallback class="text-xs">{{
+                            getInitials(member.name)
+                        }}</AvatarFallback>
+                    </Avatar>
+                    <div class="flex min-w-0 flex-col gap-0.5">
+                        <span class="truncate text-sm font-medium">
+                            {{ member.name }}
+                        </span>
+                        <span class="truncate text-xs text-muted-foreground">
+                            {{ member.email }}
+                        </span>
                     </div>
                 </div>
-            </div>
-        </div>
 
-        <!-- Pending Invitations Section -->
-        <div v-if="invitations.length > 0" class="space-y-6">
-            <Heading
-                variant="small"
-                title="Pending invitations"
-                description="Invitations that haven't been accepted yet"
-            />
+                <div class="flex shrink-0 items-center gap-1">
+                    <DropdownMenu
+                        v-if="
+                            member.role !== 'owner' &&
+                            permissions.canUpdateMember
+                        "
+                    >
+                        <DropdownMenuTrigger as-child>
+                            <Button
+                                data-test="member-role-trigger"
+                                variant="outline"
+                                size="sm"
+                            >
+                                {{ member.role_label }}
+                                <ChevronDown class="size-4 opacity-50" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                                v-for="role in availableRoles"
+                                :key="role.value"
+                                data-test="member-role-option"
+                                @click="updateMemberRole(member, role.value)"
+                            >
+                                {{ role.label }}
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                    <span
+                        v-else
+                        class="inline-flex h-5 items-center rounded-full px-2 text-[11px] font-medium text-foreground/80 ring-1 ring-border ring-inset"
+                    >
+                        {{ member.role_label }}
+                    </span>
 
-            <div class="space-y-3">
-                <div
-                    v-for="invitation in invitations"
-                    :key="invitation.code"
-                    data-test="invitation-row"
-                    class="flex items-center justify-between rounded-lg border p-4"
-                >
-                    <div class="flex items-center gap-4">
-                        <div
-                            class="flex h-10 w-10 items-center justify-center rounded-full bg-muted"
-                        >
-                            <Mail class="h-5 w-5 text-muted-foreground" />
-                        </div>
-                        <div>
-                            <div class="font-medium">
-                                {{ invitation.email }}
-                            </div>
-                            <div class="text-sm text-muted-foreground">
-                                {{ invitation.role_label }}
-                            </div>
-                        </div>
-                    </div>
-
-                    <TooltipProvider v-if="permissions.canCancelInvitation">
+                    <TooltipProvider
+                        v-if="
+                            member.role !== 'owner' &&
+                            permissions.canRemoveMember
+                        "
+                    >
                         <Tooltip>
                             <TooltipTrigger as-child>
                                 <Button
-                                    data-test="invitation-cancel-button"
+                                    data-test="member-remove-button"
                                     variant="ghost"
                                     size="sm"
-                                    @click="confirmCancelInvitation(invitation)"
+                                    class="text-muted-foreground"
+                                    :aria-label="`Remove ${member.name}`"
+                                    @click="confirmRemoveMember(member)"
                                 >
-                                    <X class="h-4 w-4" />
+                                    <X class="size-4" />
                                 </Button>
                             </TooltipTrigger>
                             <TooltipContent>
-                                <p>Cancel invitation</p>
+                                <p>Remove member</p>
                             </TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Danger Zone -->
-        <div
-            v-if="permissions.canDeleteTeam && !team.isPersonal"
-            class="space-y-6"
-        >
-            <Heading
-                variant="small"
-                title="Delete team"
-                description="Permanently delete your team"
-            />
+    <!-- Pending invitations -->
+    <div v-if="invitations.length > 0" class="flex flex-col gap-2">
+        <Heading
+            variant="small"
+            title="Pending invitations"
+            description="Invitations that haven't been accepted yet"
+        />
+
+        <div>
             <div
-                class="space-y-4 rounded-lg border border-red-100 bg-red-50 p-4 dark:border-red-200/10 dark:bg-red-700/10"
+                v-for="invitation in invitations"
+                :key="invitation.code"
+                data-test="invitation-row"
+                class="flex min-h-14 items-center justify-between gap-4 border-b border-border/60 py-2.5"
             >
-                <div
-                    class="relative space-y-0.5 text-red-600 dark:text-red-100"
-                >
-                    <p class="font-medium">Warning</p>
-                    <p class="text-sm">
-                        Please proceed with caution, this cannot be undone.
+                <div class="flex min-w-0 items-center gap-3">
+                    <span
+                        class="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted"
+                    >
+                        <Mail class="size-4 text-muted-foreground" />
+                    </span>
+                    <div class="flex min-w-0 flex-col gap-0.5">
+                        <span class="truncate text-sm font-medium">
+                            {{ invitation.email }}
+                        </span>
+                        <span class="text-xs text-muted-foreground">
+                            {{ invitation.role_label }}
+                        </span>
+                    </div>
+                </div>
+
+                <TooltipProvider v-if="permissions.canCancelInvitation">
+                    <Tooltip>
+                        <TooltipTrigger as-child>
+                            <Button
+                                data-test="invitation-cancel-button"
+                                variant="ghost"
+                                size="sm"
+                                class="text-muted-foreground"
+                                :aria-label="`Cancel the invitation for ${invitation.email}`"
+                                @click="confirmCancelInvitation(invitation)"
+                            >
+                                <X class="size-4" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>Cancel invitation</p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+            </div>
+        </div>
+    </div>
+
+    <!--
+      The MCP connection. It sits on the team page because the access it
+      grants is team-wide: one command connects an agent to every project the
+      team owns, read-only.
+    -->
+    <ConnectAgentCard :url="mcpUrl" :docs-href="mcpDocsHref" />
+
+    <!-- Model API keys -->
+    <div v-if="permissions.canUpdateTeam" class="flex flex-col gap-5">
+        <Heading
+            variant="small"
+            title="Model API keys"
+            description="The keys your team's autofix jobs run on. Scope each one to this team and give it a spend limit at the provider."
+        />
+
+        <div v-if="llmCredentials.length" data-test="team-llm-credentials">
+            <div
+                v-for="credential in llmCredentials"
+                :key="credential.id"
+                class="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-border/60 py-2.5"
+            >
+                <div class="flex min-w-0 flex-col gap-0.5">
+                    <div class="flex min-w-0 items-center gap-2">
+                        <span class="truncate text-sm font-medium">
+                            {{ credential.label }}
+                        </span>
+                        <span
+                            v-if="credential.isDefault"
+                            class="inline-flex h-5 shrink-0 items-center rounded-full px-2 text-[11px] font-medium text-foreground/80 ring-1 ring-border ring-inset"
+                        >
+                            Default
+                        </span>
+                    </div>
+                    <p class="text-xs text-muted-foreground">
+                        {{ credential.providerLabel }} · key ending
+                        <span class="font-mono">{{ credential.hint }}</span>
+                        <template v-if="addedOn(credential)">
+                            · added {{ addedOn(credential) }}
+                        </template>
                     </p>
                 </div>
-                <Button
-                    data-test="delete-team-button"
-                    variant="destructive"
-                    @click="deleteDialogOpen = true"
-                    >Delete team</Button
-                >
+
+                <div class="flex items-center gap-1">
+                    <Button
+                        v-if="!credential.isDefault"
+                        variant="outline"
+                        size="sm"
+                        data-test="team-llm-credential-make-default"
+                        @click="makeDefault(credential)"
+                    >
+                        Make default
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        class="text-muted-foreground"
+                        data-test="team-llm-credential-delete"
+                        @click="confirmDeleteCredential(credential)"
+                    >
+                        <X class="size-4" />
+                        <span class="sr-only"
+                            >Remove {{ credential.label }}</span
+                        >
+                    </Button>
+                </div>
             </div>
+        </div>
+
+        <p v-else class="max-w-prose text-sm text-muted-foreground">
+            No keys yet, so jobs fall back to this installation's key if it has
+            one and fail if it does not. Add a key below to run jobs on your own
+            budget.
+        </p>
+
+        <Form
+            v-bind="storeLlmCredential.form(team.slug)"
+            class="flex flex-col gap-5"
+            :reset-on-success="['api_key', 'label']"
+            v-slot="{ errors, processing }"
+        >
+            <div class="grid gap-4 sm:grid-cols-2">
+                <div class="grid gap-2">
+                    <Label for="llm_provider">Provider</Label>
+                    <Select v-model="newKeyProvider">
+                        <SelectTrigger
+                            id="llm_provider"
+                            class="w-full"
+                            data-test="team-llm-credential-provider"
+                        >
+                            <SelectValue placeholder="Pick a provider" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem
+                                v-for="provider in llmProviders"
+                                :key="provider.value"
+                                :value="provider.value"
+                            >
+                                {{ provider.label }}
+                            </SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <input
+                        type="hidden"
+                        name="provider"
+                        :value="newKeyProvider"
+                    />
+                    <InputError :message="errors.provider" />
+                </div>
+
+                <div class="grid gap-2">
+                    <Label for="llm_label">Name</Label>
+                    <Input
+                        id="llm_label"
+                        name="label"
+                        autocomplete="off"
+                        placeholder="Production budget"
+                        data-test="team-llm-credential-label"
+                    />
+                    <InputError :message="errors.label" />
+                </div>
+            </div>
+
+            <div class="grid gap-2">
+                <Label for="llm_api_key">API key</Label>
+                <Input
+                    id="llm_api_key"
+                    name="api_key"
+                    type="password"
+                    autocomplete="off"
+                    data-test="team-llm-credential-input"
+                    :placeholder="newKeyPlaceholder"
+                />
+                <InputError :message="errors.api_key" />
+                <p class="text-xs text-muted-foreground">
+                    Stored encrypted and never shown again — only the last four
+                    characters come back, so you can tell your keys apart. To
+                    replace a key, add the new one and remove the old.
+                </p>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <Button
+                    type="submit"
+                    data-test="team-llm-credential-save-button"
+                    :disabled="processing"
+                >
+                    Add key
+                </Button>
+            </div>
+        </Form>
+    </div>
+
+    <!-- Danger zone: `destructive` is the one stated exception to ink-only chrome. -->
+    <div
+        v-if="permissions.canDeleteTeam && !team.isPersonal"
+        class="flex flex-col gap-5"
+    >
+        <Heading variant="small" title="Delete team" />
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <p class="max-w-prose text-sm text-muted-foreground">
+                Permanently delete this team and its memberships.
+                <span class="font-medium text-destructive"
+                    >This cannot be undone.</span
+                >
+            </p>
+            <Button
+                data-test="delete-team-button"
+                variant="destructive"
+                @click="deleteDialogOpen = true"
+                >Delete team</Button
+            >
         </div>
     </div>
 

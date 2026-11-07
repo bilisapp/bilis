@@ -129,14 +129,18 @@ const cursorRow = ref(1);
             description="the trace preview the log viewer opens beside itself when a line carries a TraceId. It is an in-flow column, not an overlay: the stream narrows rather than being covered, stays scrollable, and every row stays clickable so the panel can be swapped from line to line without closing. It reuses SpanWaterfall in `compact` mode — the Detail column drops and the Span column halves, but the timeline, the service colours and the collapse controls are the same component rather than a second implementation. Three of its four states are shown here; the fourth is a skeleton while the request is in flight. 'Go to detail' stays live even when the spans are gone, because the full page explains that case too."
         >
             <div class="grid items-start gap-4 lg:grid-cols-2">
-                <div class="flex h-[32rem] flex-col">
+                <div
+                    class="flex h-[32rem] flex-col overflow-hidden rounded-md border"
+                >
                     <TracePanel
                         :trace-id="DEMO_TRACE_PANEL.traceId"
                         team-slug="acme"
                         :result="DEMO_TRACE_PANEL"
                     />
                 </div>
-                <div class="flex h-[32rem] flex-col">
+                <div
+                    class="flex h-[32rem] flex-col overflow-hidden rounded-md border"
+                >
                     <TracePanel
                         :trace-id="DEMO_TRACE_PANEL_EXPIRED.traceId"
                         team-slug="acme"
@@ -150,7 +154,7 @@ const cursorRow = ref(1);
             title="SpanDetailPanel"
             description="what one span carries, beside the waterfall: its facts as a two-column grid, its status message when it failed, and its attributes, events and links behind tabs so a span with two hundred attributes cannot push the rest out of reach. The Links tab is how a span says it belongs with one in another trace — the relationship comes from the link's own attributes (`link.type: parent_of` is what Claude Code writes on every llm_request) — and a link is only offered as a way out when this instance actually holds the trace it names. The second link here is one it does not: naming a trace is not the same as having received it. Attribute keys sit above their values rather than beside them: in a 22rem panel a two-column grid gives every value whatever the longest key leaves behind, so one long attribute name starves the whole list. The 'View logs for this span' link is the reason both signals live in one product — the span already knows its trace and span ids, so the log viewer gets an exact predicate rather than a search."
         >
-            <div class="max-w-sm">
+            <div class="max-w-sm overflow-hidden rounded-md border">
                 <SpanDetailPanel
                     :span="DEMO_SPANS[1]"
                     team-slug="acme"
@@ -193,7 +197,7 @@ const cursorRow = ref(1);
 
         <DemoBlock
             title="TraceFact"
-            description="one cell of the trace header's fact grid: a quiet label over a loud value, optionally with a second muted line and a copy button. The contrast between label and value is what separates the facts at this density — a box around each one would only add lines to count. Used for the whole header and for the span panel's grid, which is why the two read as the same surface."
+            description="one cell of the span detail panel's fact grid: a quiet label over a loud value, optionally with a second muted line and a copy button. The contrast between label and value is what separates the facts at this density — a box around each one would only add lines to count. The trace page itself now leads with a KPI strip (duration, spans, services, errors) under its PageHeader, the dashboard's pattern, so these cells are the span-level counterpart."
         >
             <dl
                 class="grid max-w-2xl grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4"

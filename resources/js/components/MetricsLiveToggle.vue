@@ -35,8 +35,14 @@ const title = computed(() =>
 <template>
     <Button
         type="button"
-        size="sm"
         data-test="metrics-live"
+        :class="
+            cn(
+                'h-9 rounded-lg',
+                !live &&
+                    'border-border bg-transparent shadow-none dark:border-border dark:bg-transparent',
+            )
+        "
         :variant="live ? 'default' : 'outline'"
         :aria-pressed="live"
         :disabled="!available"

@@ -203,7 +203,7 @@ defineExpose({ focus: () => input.value?.focus(), clear });
         <label class="relative flex min-w-0 flex-1 items-center sm:max-w-md">
             <span class="sr-only">Search spans</span>
             <Search
-                class="pointer-events-none absolute left-2.5 size-3.5 text-muted-foreground"
+                class="pointer-events-none absolute left-3 size-4 text-muted-foreground"
                 aria-hidden="true"
             />
             <input
@@ -216,7 +216,7 @@ defineExpose({ focus: () => input.value?.focus(), clear });
                 placeholder="Search spans — name, service, attribute…"
                 :class="
                     cn(
-                        'h-8 w-full min-w-0 rounded-md border border-input bg-transparent pr-14 pl-8 text-xs shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground dark:bg-input/30',
+                        'h-9 w-full min-w-0 rounded-lg border border-input bg-transparent pr-14 pl-9 text-sm transition-[color,box-shadow] outline-none placeholder:text-muted-foreground dark:bg-input/30',
                         'focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
                         '[&::-webkit-search-cancel-button]:hidden',
                     )
@@ -225,12 +225,12 @@ defineExpose({ focus: () => input.value?.focus(), clear });
                 @keydown="onKeydown"
             />
             <span
-                class="pointer-events-none absolute right-2 flex items-center gap-1"
+                class="pointer-events-none absolute right-2.5 flex items-center gap-1"
             >
                 <button
                     v-if="query !== ''"
                     type="button"
-                    class="pointer-events-auto inline-flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                    class="pointer-events-auto inline-flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                     aria-label="Clear search"
                     data-test="span-search-clear"
                     @click="clear"
@@ -239,7 +239,7 @@ defineExpose({ focus: () => input.value?.focus(), clear });
                 </button>
                 <kbd
                     v-else
-                    class="rounded border px-1 font-mono text-[10px] text-muted-foreground"
+                    class="kbd text-muted-foreground"
                     aria-hidden="true"
                 >
                     /
@@ -258,14 +258,14 @@ defineExpose({ focus: () => input.value?.focus(), clear });
         >
             <template v-if="active">
                 <span>{{ summary }}</span>
-                <span v-if="position > 0" class="text-foreground">
+                <span v-if="position > 0" class="font-mono text-foreground">
                     · {{ position }}/{{ ordered.length }}
                 </span>
 
                 <span class="ml-1 inline-flex items-center">
                     <button
                         type="button"
-                        class="inline-flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-40"
+                        class="inline-flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-40"
                         aria-label="Previous match"
                         title="Previous match (Shift+Enter)"
                         :disabled="ordered.length === 0"
@@ -276,7 +276,7 @@ defineExpose({ focus: () => input.value?.focus(), clear });
                     </button>
                     <button
                         type="button"
-                        class="inline-flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-40"
+                        class="inline-flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-40"
                         aria-label="Next match"
                         title="Next match (Enter)"
                         :disabled="ordered.length === 0"

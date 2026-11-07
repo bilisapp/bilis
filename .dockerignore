@@ -51,3 +51,6 @@ storage/framework/views/*
 .DS_Store
 npm-debug.log
 yarn-error.log
+
+# Development-only demo pages (examples/error-shop).
+examples

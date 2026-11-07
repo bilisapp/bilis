@@ -43,7 +43,7 @@
     <script type="application/ld+json"
             nonce="{{ $cspNonce ?? '' }}">{!! json_encode($structuredData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) !!}</script>
 
-    <section class="mx-auto max-w-5xl px-6 pt-16 pb-12 sm:pt-20">
+    <section class="mx-auto max-w-content px-6 pt-16 pb-12 sm:pt-20">
         <p class="text-xs font-medium tracking-wide text-muted-foreground uppercase">Bilis vs Datadog</p>
 
         <h1 class="mt-4 max-w-3xl text-3xl leading-tight font-semibold tracking-tight sm:text-4xl">
@@ -59,7 +59,7 @@
 
     {{-- 01 — The short answer --}}
     <section class="border-y border-border bg-card">
-        <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+        <div class="mx-auto max-w-content px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '01', 'label' => 'The short answer'])
 
             <div class="mt-8 grid gap-6 lg:grid-cols-2">
@@ -92,7 +92,7 @@
 
     {{-- 02 — Side by side --}}
     <section>
-        <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+        <div class="mx-auto max-w-content px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '02', 'label' => 'Side by side'])
 
             <h2 class="mt-4 text-xl font-semibold tracking-tight">What each one is</h2>
@@ -122,7 +122,7 @@
 
     {{-- 03 — Cost --}}
     <section class="border-y border-border bg-card">
-        <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+        <div class="mx-auto max-w-content px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '03', 'label' => 'What logs cost'])
 
             <h2 class="mt-4 text-xl font-semibold tracking-tight">The same logs, priced two ways</h2>
@@ -172,7 +172,7 @@
 
     {{-- 04 — What Bilis does not do --}}
     <section>
-        <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+        <div class="mx-auto max-w-content px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '04', 'label' => 'Honest limits'])
 
             <h2 class="mt-4 text-xl font-semibold tracking-tight">What you give up</h2>
@@ -201,7 +201,7 @@
 
     {{-- 05 — Moving over --}}
     <section class="border-y border-border bg-card">
-        <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+        <div class="mx-auto max-w-content px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '05', 'label' => 'Trying it'])
 
             <h2 class="mt-4 text-xl font-semibold tracking-tight">Run both before you move anything</h2>
@@ -239,7 +239,7 @@
 
     {{-- 06 — FAQ --}}
     <section>
-        <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+        <div class="mx-auto max-w-content px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '06', 'label' => 'Questions'])
 
             <dl class="mt-8 divide-y divide-border border-y border-border">

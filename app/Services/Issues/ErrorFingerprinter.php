@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Autofix;
+namespace App\Services\Issues;
 
 /**
  * Turns one error log row into a stable identity for the error behind it.
@@ -99,6 +99,104 @@ class ErrorFingerprinter
      * a container mount point or a developer's home directory drops off.
      */
     private const PATH_SEGMENTS = 3;
+
+    /**
+     * The OTel severity number from which a record can become an issue.
+     *
+     * 17 is ERROR; everything above it (ERROR2-4, FATAL1-4) is worse.
+     */
+    public const ISSUE_SEVERITY_NUMBER = 17;
+
+    /**
+     * Decide whether a record is an exception worth grouping into an issue.
+     *
+     * Severity alone is not enough: `Log::error('payment declined')` is an
+     * error line, not a crash, and grouping it would bury the real exceptions
+     * under every message an application logs at ERROR. A record qualifies
+     * when it names an exception class or carries a stack trace. The severity
+     * check runs first because it is free and rules out almost every row.
+     *
+     * @param  ErrorRecord  $logRecord
+     */
+    public function isIssue(array $logRecord): bool
+    {
+        $severity = $logRecord['SeverityNumber'] ?? $logRecord['severityNumber'] ?? 0;
+
+        if (! is_numeric($severity) || (int) $severity < self::ISSUE_SEVERITY_NUMBER) {
+            return false;
+        }
+
+        return $this->namesExceptionType($logRecord) || $this->hasRealFrames($logRecord);
+    }
+
+    /**
+     * The attribute keys that, by convention, only ever hold an exception type.
+     *
+     * Unlike `error.type` (which OTel also uses for "timeout" or "500") or a
+     * bare `error` attribute, a value under one of these is believed as sent.
+     *
+     * @var list<string>
+     */
+    private const TYPE_KEYS = ['exception.type', 'exception.class', 'exception_class'];
+
+    /**
+     * A line that is unmistakably a stack frame: it carries a location.
+     *
+     * PHP `#0 /path/file.php(12): fn()` and the envelope's `#0 file.php:12 fn()`,
+     * V8 `at fn (file.js:12:3)` / `at file.js:12:3`, Java `at a.B.c(B.java:12)`,
+     * Python `File "x.py", line 12`. A line that merely starts with "at " ("at
+     * 5pm we retry") or "#1" is not one.
+     */
+    private const REAL_FRAME_PATTERN = '/^[ \t]*(?:#\d+[ \t]+\S.*?(?:\(\d+\)|:\d+)|at[ \t]+\S.*?:\d+(?::\d+)?\)?[ \t]*$|at[ \t]+[\w$.<>]+\([\w$.-]+:\d+\)|File "[^"]+", line \d+)/m';
+
+    /**
+     * Whether the record names its exception type, strictly.
+     *
+     * The issue gate deliberately does not use {@see exceptionClass()}'s
+     * looser fallbacks: `Checkout: payment declined` reads as a `Class:
+     * message` headline and `error=timeout` as a bare class name, and both
+     * are error lines, not exceptions. A type is believed from a type key, or
+     * when it reads like one — an `...Exception|Error|Throwable|Fault` name —
+     * anywhere in the error attributes, the message or the body.
+     *
+     * @param  ErrorRecord  $logRecord
+     */
+    private function namesExceptionType(array $logRecord): bool
+    {
+        $typed = $this->attribute($logRecord, self::TYPE_KEYS);
+
+        if ($typed !== null && $this->looksLikeClassName($typed)) {
+            return true;
+        }
+
+        $haystack = implode("\n", [
+            $this->attribute($logRecord, self::CLASS_KEYS) ?? '',
+            $this->body($logRecord),
+            $this->attribute($logRecord, self::MESSAGE_KEYS) ?? '',
+        ]);
+
+        return preg_match(self::CLASS_PATTERN, $haystack) === 1;
+    }
+
+    /**
+     * Whether the record carries at least one frame with a location in it.
+     *
+     * @param  ErrorRecord  $logRecord
+     */
+    private function hasRealFrames(array $logRecord): bool
+    {
+        return preg_match(self::REAL_FRAME_PATTERN, $this->stackTrace($logRecord)) === 1;
+    }
+
+    /**
+     * The fingerprint a record is grouped under, or '' when it is not an issue.
+     *
+     * @param  ErrorRecord  $logRecord
+     */
+    public function issueFingerprint(array $logRecord): string
+    {
+        return $this->isIssue($logRecord) ? $this->fingerprint($logRecord) : '';
+    }
 
     /**
      * Compute the stable fingerprint for one error record.

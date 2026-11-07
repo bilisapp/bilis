@@ -5,7 +5,6 @@ import { ref } from 'vue';
 import CreateTeamModal from '@/components/CreateTeamModal.vue';
 import Heading from '@/components/Heading.vue';
 import LeaveTeamModal from '@/components/LeaveTeamModal.vue';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Tooltip,
@@ -47,42 +46,43 @@ defineOptions({
 <template>
     <Head title="Teams" />
 
-    <h1 class="sr-only">Teams</h1>
+    <div class="flex flex-col gap-2">
+        <Heading
+            variant="small"
+            title="Teams"
+            description="Manage your teams and team memberships"
+        >
+            <template #actions>
+                <CreateTeamModal>
+                    <Button size="sm" data-test="teams-new-team-button">
+                        <Plus /> New team
+                    </Button>
+                </CreateTeamModal>
+            </template>
+        </Heading>
 
-    <div class="flex flex-col space-y-6">
-        <div class="flex items-center justify-between">
-            <Heading
-                variant="small"
-                title="Teams"
-                description="Manage your teams and team memberships"
-            />
-
-            <CreateTeamModal>
-                <Button data-test="teams-new-team-button">
-                    <Plus /> New team
-                </Button>
-            </CreateTeamModal>
-        </div>
-
-        <div class="space-y-3">
+        <div>
             <div
                 v-for="team in teams"
                 :key="team.id"
                 data-test="team-row"
-                class="flex items-center justify-between gap-4 rounded-lg border p-4"
+                class="flex min-h-14 items-center justify-between gap-4 border-b border-border/60 py-2.5"
             >
-                <div class="flex items-center gap-4">
-                    <div>
-                        <div class="flex items-center gap-2">
-                            <span class="font-medium">{{ team.name }}</span>
-                            <Badge v-if="team.isPersonal" variant="secondary">
-                                Personal
-                            </Badge>
-                        </div>
-                        <span class="text-sm text-muted-foreground">
-                            {{ team.roleLabel }}
+                <div class="flex min-w-0 flex-col gap-0.5">
+                    <div class="flex min-w-0 items-center gap-2">
+                        <span class="truncate text-sm font-medium">{{
+                            team.name
+                        }}</span>
+                        <span
+                            v-if="team.isPersonal"
+                            class="inline-flex h-5 shrink-0 items-center rounded-full px-2 text-[11px] font-medium text-foreground/80 ring-1 ring-border ring-inset"
+                        >
+                            Personal
                         </span>
                     </div>
+                    <span class="text-xs text-muted-foreground">
+                        {{ team.roleLabel }}
+                    </span>
                 </div>
 
                 <TooltipProvider>
@@ -144,7 +144,7 @@ defineOptions({
 
             <p
                 v-if="teams.length === 0"
-                class="py-8 text-center text-muted-foreground"
+                class="py-8 text-sm text-muted-foreground"
             >
                 You don't belong to any teams yet.
             </p>

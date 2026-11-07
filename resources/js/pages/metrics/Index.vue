@@ -4,6 +4,8 @@ import { computed } from 'vue';
 import MetricChart from '@/components/MetricChart.vue';
 import MetricsTabs from '@/components/MetricsTabs.vue';
 import MetricsToolbar from '@/components/MetricsToolbar.vue';
+import PageHeader from '@/components/PageHeader.vue';
+import StorageBusy from '@/components/StorageBusy.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMetricsLive } from '@/composables/useMetricsLive';
 import {
@@ -190,6 +192,21 @@ const sharedQuery = () => {
     return query;
 };
 
+/** The header's scope: which project, over which window. */
+const scope = computed(() => [
+    props.projects.find((option) => option.slug === props.filters.project)
+        ?.name ?? 'All projects',
+    RANGE_PRESETS.find((preset) => preset.value === range.value)?.label ??
+        'Custom range',
+]);
+
+/** Lines drawn, once the chart has answered with any. */
+const seriesCount = computed(() =>
+    props.series && !props.series.unavailable && props.series.kind !== null
+        ? props.series.series.length
+        : null,
+);
+
 const catalogEmpty = computed(
     () =>
         props.catalog !== undefined &&
@@ -201,55 +218,85 @@ const catalogEmpty = computed(
 <template>
     <Head title="Metrics" />
 
-    <div class="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
-        <div class="flex flex-col gap-1">
-            <h1 class="text-xl font-semibold tracking-tight">Metrics</h1>
-            <p class="text-sm text-muted-foreground">
-                One metric over the window, filtered and split by its
-                attributes. The URL is the chart — copy it to share it.
+    <div class="flex flex-1 flex-col">
+        <PageHeader title="Metrics" :eyebrow="scope">
+            <p data-test="metrics-summary">
+                <template v-if="filters.metric">
+                    <span class="font-mono font-medium text-foreground">{{
+                        filters.metric
+                    }}</span>
+                    <template v-if="selectedEntry">
+                        · {{ METRIC_TYPE_LABEL[selectedEntry.type] }}
+                    </template>
+                    <template v-if="seriesCount !== null">
+                        · {{ seriesCount.toLocaleString() }} series
+                    </template>
+                </template>
+                <template
+                    v-else-if="catalog && !catalog.unavailable && hasMetrics"
+                >
+                    <span class="font-medium text-foreground"
+                        >{{ catalog.metrics.length.toLocaleString() }}
+                        {{
+                            catalog.metrics.length === 1 ? 'metric' : 'metrics'
+                        }}</span
+                    >
+                    reported in this window · the URL is the chart, copy it to
+                    share it
+                </template>
+                <template v-else>
+                    One metric over the window, filtered and split by its
+                    attributes · the URL is the chart, copy it to share it
+                </template>
             </p>
+
+            <template #actions>
+                <MetricsTabs :team-slug="teamSlug" :query="sharedQuery" />
+            </template>
+        </PageHeader>
+
+        <div class="px-4 pb-5 md:px-10">
+            <MetricsToolbar
+                :projects="projects"
+                :project="filters.project"
+                :catalog="catalog"
+                :metric="filters.metric"
+                :service="filters.service"
+                :attributes="attributes"
+                :where="filters.where"
+                :group-by="filters.groupBy"
+                :agg="filters.agg"
+                :kind="series?.kind"
+                :range="range"
+                :can-reset="canReset"
+                :live="live"
+                :live-available="range !== 'custom'"
+                :refreshing="refreshing"
+                @update:live="live = $event"
+                @update:project="apply({ project: $event })"
+                @update:metric="selectMetric"
+                @update:service="apply({ service: $event })"
+                @update:where="apply({ where: $event })"
+                @update:group-by="apply({ group_by: $event })"
+                @update:agg="
+                    (value: MetricAggregation) => apply({ agg: value })
+                "
+                @update:range="applyRange"
+                @reset="reset"
+            />
         </div>
-
-        <MetricsTabs :team-slug="teamSlug" :query="sharedQuery" />
-
-        <MetricsToolbar
-            :projects="projects"
-            :project="filters.project"
-            :catalog="catalog"
-            :metric="filters.metric"
-            :service="filters.service"
-            :attributes="attributes"
-            :where="filters.where"
-            :group-by="filters.groupBy"
-            :agg="filters.agg"
-            :kind="series?.kind"
-            :range="range"
-            :can-reset="canReset"
-            :live="live"
-            :live-available="range !== 'custom'"
-            :refreshing="refreshing"
-            @update:live="live = $event"
-            @update:project="apply({ project: $event })"
-            @update:metric="selectMetric"
-            @update:service="apply({ service: $event })"
-            @update:where="apply({ where: $event })"
-            @update:group-by="apply({ group_by: $event })"
-            @update:agg="(value: MetricAggregation) => apply({ agg: value })"
-            @update:range="applyRange"
-            @reset="reset"
-        />
 
         <!--
           Three empty states, and they mean different things. Never having
           sent a data point is a setup problem and gets the setup text; an
           empty window is not, and says so plainly.
         -->
-        <div
+        <section
             v-if="!hasMetrics"
-            class="flex flex-col gap-3 rounded-lg border bg-card p-6"
+            class="flex flex-col gap-3 border-t px-4 py-8 md:px-10"
             data-test="metrics-empty-never"
         >
-            <p class="text-sm font-medium">No metrics yet</p>
+            <p class="text-sm font-medium text-foreground">No metrics yet</p>
             <p class="max-w-prose text-sm text-muted-foreground">
                 Point an OpenTelemetry metrics exporter at
                 <code class="font-mono">/api/v1/metrics</code> over OTLP/HTTP
@@ -258,7 +305,7 @@ const catalogEmpty = computed(
                 explicitly.
             </p>
             <pre
-                class="overflow-x-auto rounded-md border bg-muted/40 p-3 font-mono text-xs"
+                class="max-w-3xl overflow-x-auto rounded-lg border bg-muted/40 p-3 font-mono text-xs"
                 data-test="metrics-empty-snippet"
             ><code>{{ exporterSnippet }}</code></pre>
             <p class="text-sm text-muted-foreground">
@@ -271,20 +318,18 @@ const catalogEmpty = computed(
                 covers temporality, units and the SDKs that do not url-decode
                 the header.
             </p>
-        </div>
+        </section>
 
-        <p
+        <StorageBusy
             v-else-if="catalog?.unavailable && !filters.metric"
-            class="rounded-lg border bg-card p-6 text-sm text-muted-foreground"
+            store="Metric storage"
+            class="border-t"
             data-test="metrics-unavailable"
-        >
-            Metric storage is busy and could not answer in time. Nothing is lost
-            — retry in a moment.
-        </p>
+        />
 
         <p
             v-else-if="catalogEmpty && !filters.metric"
-            class="rounded-lg border bg-card p-6 text-sm text-muted-foreground"
+            class="border-t px-4 py-8 text-sm text-muted-foreground md:px-10"
             data-test="metrics-empty-window"
         >
             No metrics were reported in this window. Widen it, or check the
@@ -297,58 +342,66 @@ const catalogEmpty = computed(
         -->
         <section
             v-else-if="!filters.metric"
-            class="flex flex-col gap-3 rounded-lg border bg-card p-4"
+            class="flex flex-1 flex-col border-t"
             data-test="metrics-pick"
         >
-            <p class="text-sm text-muted-foreground">
-                Pick a metric to chart it. The busiest of each source:
-            </p>
-            <div v-if="!catalog" class="flex flex-col gap-2">
-                <Skeleton class="h-8 w-full animate-pulse" />
-                <Skeleton class="h-8 w-full animate-pulse" />
-                <Skeleton class="h-8 w-2/3 animate-pulse" />
+            <header
+                class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 border-b column-header px-4 py-2.5 md:grid-cols-[minmax(0,1fr)_12rem_7rem_6rem] md:px-10"
+            >
+                <span>Pick a metric · the busiest of each source</span>
+                <span class="hidden md:block">Service</span>
+                <span class="text-right md:text-left">Type</span>
+                <span class="hidden text-right md:block">Unit</span>
+            </header>
+            <div v-if="!catalog" class="flex flex-col gap-3 px-4 py-4 md:px-10">
+                <Skeleton class="h-7 w-full animate-pulse" />
+                <Skeleton class="h-7 w-full animate-pulse" />
+                <Skeleton class="h-7 w-2/3 animate-pulse" />
             </div>
             <ul v-else class="flex flex-col">
-                <li
-                    v-for="entry in suggestions"
-                    :key="entry.name"
-                    class="border-b last:border-0"
-                >
+                <li v-for="entry in suggestions" :key="entry.name">
                     <button
                         type="button"
-                        class="flex w-full items-baseline justify-between gap-3 rounded-sm px-2 py-1.5 text-left transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                        class="grid h-11 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 border-b border-border/60 px-4 text-left text-sm transition-colors hover:bg-muted/50 focus-visible:bg-muted/70 focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:outline-none focus-visible:ring-inset md:grid-cols-[minmax(0,1fr)_12rem_7rem_6rem] md:px-10"
                         :data-test="`metrics-suggestion-${entry.name}`"
                         @click="selectMetric(entry.name)"
                     >
-                        <span class="truncate font-mono text-sm">
+                        <span
+                            class="truncate font-mono font-medium text-foreground"
+                        >
                             {{ entry.name }}
                         </span>
                         <span
-                            class="shrink-0 text-xs text-muted-foreground tabular-nums"
+                            class="hidden truncate font-mono text-xs text-muted-foreground md:block"
                         >
-                            <template v-if="entry.services[0]">
-                                <span class="font-mono">{{
-                                    entry.services[0]
-                                }}</span>
-                                ·
-                            </template>
+                            {{ entry.services[0] ?? '—' }}
+                        </span>
+                        <span
+                            class="text-right text-xs text-muted-foreground md:text-left"
+                        >
                             {{ METRIC_TYPE_LABEL[entry.type] }}
-                            <template v-if="entry.unit">
-                                ·
-                                <span class="font-mono">{{ entry.unit }}</span>
-                            </template>
+                        </span>
+                        <span
+                            class="hidden truncate text-right font-mono text-xs text-muted-foreground md:block"
+                        >
+                            {{ entry.unit || '—' }}
                         </span>
                     </button>
                 </li>
             </ul>
         </section>
 
-        <template v-else>
+        <!-- The chart band: the plot, then what the metric is. -->
+        <section
+            v-else
+            class="flex flex-col gap-4 border-t px-4 pt-6 pb-10 md:px-10"
+            data-test="metrics-chart-band"
+        >
             <MetricChart :series="series" :metric="filters.metric" />
 
             <p
                 v-if="selectedEntry"
-                class="text-xs text-muted-foreground"
+                class="border-t pt-3 text-xs text-muted-foreground"
                 data-test="metrics-about"
             >
                 <template v-if="selectedEntry.description">
@@ -360,6 +413,6 @@ const catalogEmpty = computed(
                     <code class="font-mono">{{ selectedEntry.unit }}</code>
                 </template>
             </p>
-        </template>
+        </section>
     </div>
 </template>

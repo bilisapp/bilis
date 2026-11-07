@@ -62,7 +62,7 @@ const demoObservedServices = [
     <div class="space-y-6">
         <DemoBlock
             title="FixJobStatusBadge"
-            description="The badge stays achromatic — the dot is the only hue, and it is borrowed from the severity ramp: teal for an outcome that landed, crimson for one that did not, nothing while the job is still deciding. Running and validating pulse."
+            description="A hairline pill on the neutral ladder; the dot is borrowed from the severity ramp: teal for an outcome that landed, crimson for one that did not, nothing while the job is still deciding. Failed and timed-out attempts take the error wash, the way a regressed issue does. Running and validating pulse."
         >
             <div class="flex flex-wrap gap-2">
                 <FixJobStatusBadge

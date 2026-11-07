@@ -34,46 +34,47 @@
     $now = now();
 @endphp
 
-<div class="overflow-hidden rounded-lg border border-border bg-card dark:border-foreground/15"
+<div class="flex flex-col overflow-hidden rounded-lg bg-card ring-1 ring-border"
      data-live-tail>
     {{-- Chrome enough to place the pane, not so much that it cosplays a browser. --}}
-    <div class="flex items-center justify-between gap-4 border-b border-border px-4 py-2.5 dark:border-foreground/10">
+    <div class="flex min-h-11 items-center justify-between gap-4 border-b border-border px-5">
         <div class="flex min-w-0 items-center gap-3">
-            <span class="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border px-2 py-0.5 font-mono text-[11px] tracking-[0.14em] uppercase dark:border-foreground/15">
+            <span class="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-severity-info">
                 <span class="size-1.5 rounded-full bg-severity-info"
                       data-live-tail-pulse></span>
-                Live
+                Tailing
             </span>
-            <span class="hidden truncate font-mono text-[11px] text-muted-foreground sm:block">all projects · last hour</span>
+            <span class="hidden truncate font-mono text-xs text-muted-foreground sm:block">all projects · last hour</span>
         </div>
-        <span class="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
+        <span class="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
             <span data-live-tail-count>1284</span> lines
         </span>
     </div>
 
+    <div class="column-header hidden grid-cols-[6.5rem_3.25rem_5.5rem_minmax(0,1fr)] gap-x-4 border-b border-border px-5 py-2 sm:grid">
+        <span>Time</span><span>Level</span><span>Service</span><span>Message</span>
+    </div>
+
     {{-- The list holds a constant number of rows — one arrives at the top,
          the oldest leaves the bottom — so the height never changes and no
-         row is ever clipped half-way through. --}}
+         row is ever clipped half-way through. Each row wears the stream's
+         severity stripe down its left edge, as the log viewer does. --}}
     <ol class="overflow-hidden"
         data-live-tail-list>
         @foreach (collect($pool)->take($rows) as $index => $line)
-            <li class="grid grid-cols-[auto_auto_minmax(0,1fr)] items-baseline gap-x-3 px-4 py-[7px] font-mono text-[12px] leading-4 sm:grid-cols-[6.5rem_5.25rem_5rem_minmax(0,1fr)]">
-                {{-- Milliseconds and the severity word are desktop luxuries;
-                     on a phone the dot and the message are the whole story. --}}
+            <li class="relative grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-4 border-b border-border/60 px-5 py-[7px] font-mono text-xs leading-4 last:border-b-0 sm:grid-cols-[6.5rem_3.25rem_5.5rem_minmax(0,1fr)]">
+                <span class="absolute inset-y-0 left-0 w-0.5 bg-severity-{{ $line['severity'] }}"
+                      aria-hidden="true"
+                      data-live-tail-dot></span>
                 <time class="text-muted-foreground tabular-nums">
                     <span data-live-tail-time>{{ $now->copy()->subSeconds($index * 3 + 1)->format('H:i:s') }}</span><span class="hidden sm:inline"
                                                                                                                           data-live-tail-ms>.{{ $now->copy()->subSeconds($index * 3 + 1)->format('v') }}</span>
                 </time>
-                <span class="flex items-center gap-1.5 text-severity-{{ $line['severity'] }}"
-                      data-live-tail-badge>
-                    <span class="size-1.5 shrink-0 rounded-full bg-severity-{{ $line['severity'] }}"
-                          data-live-tail-dot></span>
-                    <span class="hidden sm:inline"
-                          data-live-tail-severity>{{ strtoupper($line['severity']) }}</span>
-                </span>
+                <span class="hidden text-label font-semibold tracking-[0.04em] text-severity-{{ $line['severity'] }} sm:inline"
+                      data-live-tail-badge><span data-live-tail-severity>{{ strtoupper($line['severity']) }}</span></span>
                 <span class="hidden truncate text-muted-foreground sm:block"
                       data-live-tail-service>{{ $line['service'] }}</span>
-                <span class="truncate text-foreground/90"
+                <span class="truncate text-foreground/85"
                       data-live-tail-message>{{ $line['message'] }}</span>
             </li>
         @endforeach

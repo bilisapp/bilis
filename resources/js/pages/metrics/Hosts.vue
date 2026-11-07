@@ -2,20 +2,16 @@
 import { Head, router, usePage } from '@inertiajs/vue3';
 import { RotateCcw } from '@lucide/vue';
 import { computed } from 'vue';
+import FilterSelect from '@/components/FilterSelect.vue';
 import HostsTable from '@/components/HostsTable.vue';
 import MetricChart from '@/components/MetricChart.vue';
 import MetricsLiveToggle from '@/components/MetricsLiveToggle.vue';
 import MetricsTabs from '@/components/MetricsTabs.vue';
+import PageHeader from '@/components/PageHeader.vue';
+import SectionHeader from '@/components/SectionHeader.vue';
 import ServerInstallCommand from '@/components/ServerInstallCommand.vue';
+import StorageBusy from '@/components/StorageBusy.vue';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMetricsLive } from '@/composables/useMetricsLive';
 import {
@@ -67,8 +63,6 @@ defineOptions({
         ],
     }),
 });
-
-const ALL_PROJECTS = '__all__';
 
 const page = usePage();
 
@@ -153,29 +147,54 @@ function selectHost(host: string) {
     apply({ host }, ['charts', 'filters']);
 }
 
-const projectValue = computed({
-    get: () => props.filters.project ?? ALL_PROJECTS,
-    set: (value: string) =>
-        apply({ project: value === ALL_PROJECTS ? null : value, host: null }),
-});
+function pickProject(project: string | null) {
+    apply({ project, host: null });
+}
 
-const rangeValue = computed({
-    get: () => range.value,
-    set: (preset: LogRangePreset) => {
-        const minutes = RANGE_PRESETS.find(
-            (option) => option.value === preset,
-        )?.minutes;
+function pickRange(value: string | null) {
+    const minutes = RANGE_PRESETS.find(
+        (option) => option.value === value,
+    )?.minutes;
 
-        if (minutes === undefined) {
-            return;
-        }
+    if (minutes === undefined || value === range.value) {
+        return;
+    }
 
-        const to = new Date();
-        const from = new Date(to.getTime() - minutes * 60_000);
+    const to = new Date();
+    const from = new Date(to.getTime() - minutes * 60_000);
 
-        apply({ from: from.toISOString(), to: to.toISOString() });
-    },
-});
+    apply({ from: from.toISOString(), to: to.toISOString() });
+}
+
+const projectOptions = computed(() =>
+    props.projects.map((option) => ({
+        value: option.slug,
+        label: option.name,
+    })),
+);
+
+/** A custom window is shown as such; it cannot be picked from here. */
+const rangeOptions = computed(() => [
+    ...RANGE_PRESETS.map((preset) => ({
+        value: preset.value,
+        label: preset.label,
+    })),
+    ...(range.value === 'custom'
+        ? [{ value: 'custom', label: 'Custom range' }]
+        : []),
+]);
+
+/** The header's scope: which project, over which window. */
+const scope = computed(() => [
+    props.projects.find((option) => option.slug === props.filters.project)
+        ?.name ?? 'All projects',
+    RANGE_PRESETS.find((preset) => preset.value === range.value)?.label ??
+        'Custom range',
+]);
+
+const hostCount = computed(() =>
+    props.hosts && !props.hosts.unavailable ? props.hosts.hosts.length : null,
+);
 
 function reset() {
     router.get(
@@ -215,126 +234,100 @@ const chartGroups = computed(() => {
 <template>
     <Head title="Hosts" />
 
-    <div class="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
-        <div class="flex flex-col gap-1">
-            <h1 class="text-xl font-semibold tracking-tight">Metrics</h1>
-            <p class="text-sm text-muted-foreground">
-                Every machine running the Bilis agent — or any Collector with
-                the host-metrics receiver — and how it is doing.
+    <div class="flex flex-1 flex-col">
+        <PageHeader title="Metrics" :eyebrow="scope">
+            <p data-test="hosts-summary">
+                <template v-if="!hasHosts">
+                    Every machine running the Bilis agent, and how it is doing.
+                </template>
+                <template v-else-if="hostCount !== null">
+                    <span class="font-medium text-foreground"
+                        >{{ hostCount.toLocaleString() }}
+                        {{ hostCount === 1 ? 'host' : 'hosts' }}</span
+                    >
+                    reporting · figures are the window's last 15 minutes
+                </template>
+                <template v-else>
+                    Every machine running the Bilis agent · figures are the
+                    window's last 15 minutes
+                </template>
             </p>
-        </div>
 
-        <MetricsTabs :team-slug="teamSlug" :query="sharedQuery" />
+            <template #actions>
+                <MetricsTabs :team-slug="teamSlug" :query="sharedQuery" />
+            </template>
+        </PageHeader>
 
         <!--
           Never having sent host metrics is a setup step, not an empty window:
           it gets the one command that fixes it.
         -->
-        <div
+        <section
             v-if="!hasHosts"
-            class="flex flex-col gap-3 rounded-lg border bg-card p-6"
+            class="flex flex-col gap-3 border-t px-4 py-8 md:px-10"
             data-test="hosts-empty-never"
         >
-            <p class="text-sm font-medium">No hosts yet</p>
+            <p class="text-sm font-medium text-foreground">No hosts yet</p>
             <p class="max-w-prose text-sm text-muted-foreground">
-                Run the agent on a Linux server and it appears here within a
-                minute — CPU, memory, disks, network and its Docker containers.
-                Use one of a project's API keys; the key-created dialog fills it
-                in for you.
+                Run the agent on a Linux server — or any Collector with the
+                host-metrics receiver — and it appears here within a minute:
+                CPU, memory, disks, network and its Docker containers. Use one
+                of a project's API keys; the key-created dialog fills it in for
+                you.
             </p>
-            <ServerInstallCommand />
-        </div>
+            <ServerInstallCommand class="max-w-3xl" />
+        </section>
 
         <template v-else>
-            <div
-                class="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border bg-card px-3 py-2"
-                data-test="hosts-toolbar"
-            >
-                <div class="flex items-center gap-2">
-                    <Label
-                        class="text-xs text-muted-foreground"
-                        for="hosts-project"
-                    >
-                        Project
-                    </Label>
-                    <Select v-model="projectValue">
-                        <SelectTrigger
-                            id="hosts-project"
-                            size="sm"
-                            class="min-w-40"
-                            data-test="hosts-project"
-                        >
-                            <SelectValue placeholder="All projects" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem :value="ALL_PROJECTS">
-                                All projects
-                            </SelectItem>
-                            <SelectItem
-                                v-for="option in projects"
-                                :key="option.slug"
-                                :value="option.slug"
-                            >
-                                {{ option.name }}
-                            </SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-
-                <div class="flex items-center gap-2">
-                    <Label
-                        class="text-xs text-muted-foreground"
-                        for="hosts-range"
-                    >
-                        Window
-                    </Label>
-                    <Select v-model="rangeValue">
-                        <SelectTrigger
-                            id="hosts-range"
-                            size="sm"
-                            class="min-w-40"
-                            data-test="hosts-range"
-                        >
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem
-                                v-for="preset in RANGE_PRESETS"
-                                :key="preset.value"
-                                :value="preset.value"
-                            >
-                                {{ preset.label }}
-                            </SelectItem>
-                            <SelectItem value="custom" disabled>
-                                Custom range
-                            </SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-
-                <p class="text-xs text-muted-foreground">
-                    Figures are the window's last 15 minutes.
-                </p>
-
-                <MetricsLiveToggle
-                    :live="live"
-                    :available="range !== 'custom'"
-                    :refreshing="refreshing"
-                    class="ml-auto"
-                    @update:live="live = $event"
-                />
-
-                <Button
-                    v-if="canReset"
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    data-test="hosts-reset"
-                    @click="reset"
+            <div class="px-4 pb-5 md:px-10">
+                <div
+                    class="flex flex-wrap items-center gap-2"
+                    data-test="hosts-toolbar"
                 >
-                    <RotateCcw class="size-4" />
-                    Reset
-                </Button>
+                    <FilterSelect
+                        id="hosts-range"
+                        label="Window"
+                        data-test="hosts-range"
+                        :model-value="range"
+                        :options="rangeOptions"
+                        @update:model-value="pickRange"
+                    />
+
+                    <FilterSelect
+                        v-if="projects.length > 1 || filters.project !== null"
+                        id="hosts-project"
+                        label="Project"
+                        all-label="All projects"
+                        data-test="hosts-project"
+                        :model-value="filters.project"
+                        :options="projectOptions"
+                        @update:model-value="pickProject"
+                    />
+
+                    <span
+                        class="mx-1 hidden h-5 w-px bg-border sm:block"
+                        aria-hidden="true"
+                    />
+
+                    <MetricsLiveToggle
+                        :live="live"
+                        :available="range !== 'custom'"
+                        :refreshing="refreshing"
+                        @update:live="live = $event"
+                    />
+
+                    <Button
+                        v-if="canReset"
+                        type="button"
+                        variant="ghost"
+                        class="text-muted-foreground"
+                        data-test="hosts-reset"
+                        @click="reset"
+                    >
+                        <RotateCcw class="size-3.5" />
+                        Reset
+                    </Button>
+                </div>
             </div>
 
             <HostsTable
@@ -345,48 +338,54 @@ const chartGroups = computed(() => {
 
             <div
                 v-if="!charts && (hosts?.hosts.length ?? 1) > 0"
-                class="grid gap-4 lg:grid-cols-2"
+                class="grid gap-x-10 gap-y-8 px-4 py-8 md:px-10 lg:grid-cols-2"
                 data-test="hosts-charts-skeleton"
             >
                 <Skeleton
                     v-for="index in 4"
                     :key="index"
-                    class="h-72 w-full animate-pulse"
+                    class="h-64 w-full animate-pulse"
                 />
             </div>
 
-            <p
+            <StorageBusy
                 v-else-if="charts?.unavailable"
-                class="rounded-lg border bg-card p-6 text-sm text-muted-foreground"
+                store="Metric storage"
                 data-test="hosts-charts-unavailable"
-            >
-                Metric storage is busy and could not answer in time. Nothing is
-                lost — retry in a moment.
-            </p>
+            />
 
             <p
                 v-else-if="charts && charts.host === null && filters.host"
-                class="rounded-lg border bg-card p-6 text-sm text-muted-foreground"
+                class="px-4 py-8 text-sm text-muted-foreground md:px-10"
                 data-test="hosts-charts-missing"
             >
-                <span class="font-mono">{{ filters.host }}</span> did not report
-                in this window.
+                <span class="font-mono text-foreground">{{
+                    filters.host
+                }}</span>
+                did not report in this window.
             </p>
 
+            <!--
+              The selected host's curated charts: one section per group, a
+              heading on a hairline, the charts flat on the surface.
+            -->
             <section
                 v-for="group in chartGroups"
                 :key="group.id"
-                class="flex flex-col gap-3"
+                class="flex flex-col gap-6 px-4 pt-8 pb-6 md:px-10"
                 :aria-label="group.label ?? `${selectedHost ?? 'Host'} charts`"
                 :data-test="`hosts-charts-${group.id}`"
             >
-                <h2
-                    v-if="group.label"
-                    class="text-sm font-medium text-muted-foreground"
+                <SectionHeader
+                    :note="`${group.charts.length} ${group.charts.length === 1 ? 'chart' : 'charts'}`"
                 >
-                    {{ group.label }}
-                </h2>
-                <div class="grid gap-4 lg:grid-cols-2">
+                    <template #title>
+                        <span :class="group.label ? undefined : 'font-mono'">{{
+                            group.label ?? selectedHost ?? 'Host'
+                        }}</span>
+                    </template>
+                </SectionHeader>
+                <div class="grid gap-x-10 gap-y-10 lg:grid-cols-2">
                     <MetricChart
                         v-for="chart in group.charts"
                         :key="chart.id"
@@ -394,6 +393,7 @@ const chartGroups = computed(() => {
                         :metric="chart.metric"
                         :title="chart.title"
                         :explorer-href="explorerHref(chart)"
+                        heading-tag="h3"
                         height="14rem"
                         :data-test="`hosts-chart-${chart.id}`"
                     />

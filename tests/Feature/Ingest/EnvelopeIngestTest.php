@@ -100,6 +100,26 @@ test('an exception envelope from a real client becomes one log record', function
 
         expect($row['Timestamp'])->toStartWith('2026-08-28 10:40:00.');
 
+        // The issue page's structured view: frames with their in-app flag, the
+        // cause behind the thrown exception, and timed breadcrumbs.
+        $frames = json_decode($row['LogAttributes']['exception.frames'], true);
+        expect($frames[0])->toMatchArray(['filename' => 'app/Http/Controllers/CheckoutController.php', 'lineno' => 42, 'in_app' => true])
+            ->and($frames[1]['in_app'])->toBeFalse();
+
+        expect(json_decode($row['LogAttributes']['exception.chain'], true))
+            ->toBe([[
+                'type' => 'PDOException',
+                'message' => 'SQLSTATE[HY000]: server has gone away',
+                'origin' => 'vendor/laravel/framework/src/Illuminate/Database/Connection.php:812 Illuminate\\Database\\Connection::runQueryCallback()',
+                'stacktrace' => "#0 vendor/laravel/framework/src/Illuminate/Database/Connection.php:812 Illuminate\\Database\\Connection::runQueryCallback()\n#1 public/index.php:17 require()",
+            ]]);
+
+        expect(json_decode($row['LogAttributes']['breadcrumbs.json'], true)[0])
+            ->toMatchArray(['category' => 'http', 'message' => 'POST https://payments.example.com/charge']);
+
+        // An exception at ERROR: LogWriter groups it into an issue.
+        expect($row['IssueFingerprint'])->toMatch('/^[0-9a-f]{64}$/');
+
         return true;
     });
 });

@@ -12,16 +12,13 @@ import {
 } from '@lucide/vue';
 import { computed, onMounted, ref } from 'vue';
 import CodeCanvas from '@/components/CodeCanvas.vue';
+import FactStrip from '@/components/FactStrip.vue';
 import FixJobEventRow from '@/components/FixJobEventRow.vue';
 import FixJobStatusBadge from '@/components/FixJobStatusBadge.vue';
+import PageHeader from '@/components/PageHeader.vue';
+import PageSection from '@/components/PageSection.vue';
+import TraceFact from '@/components/TraceFact.vue';
 import { Button } from '@/components/ui/button';
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
 import {
     Collapsible,
     CollapsibleContent,
@@ -316,333 +313,310 @@ const expanded = ref(false);
 <template>
     <Head :title="job.title" />
 
-    <div class="flex h-full flex-1 flex-col gap-4 p-4">
-        <header class="space-y-3">
-            <div class="flex flex-wrap items-start justify-between gap-3">
-                <div class="min-w-0 space-y-1">
-                    <div class="flex flex-wrap items-center gap-2">
-                        <FixJobStatusBadge
-                            :status="job.status"
-                            :label="job.statusLabel"
-                        />
+    <div class="flex flex-1 flex-col">
+        <PageHeader :title="job.title">
+            <template #title>
+                <span class="flex min-w-0 items-center gap-3">
+                    <span
+                        v-if="isCustom"
+                        class="inline-flex h-5 shrink-0 items-center rounded-full px-2 text-[11px] font-medium tracking-normal text-foreground/80 ring-1 ring-border ring-inset"
+                        data-test="fix-job-custom-marker"
+                    >
+                        {{ job.typeLabel }}
+                    </span>
+                    <span class="truncate" :title="job.title">{{
+                        job.title
+                    }}</span>
+                    <FixJobStatusBadge
+                        :status="job.status"
+                        :label="job.statusLabel"
+                        class="tracking-normal"
+                    />
+                </span>
+            </template>
+
+            <div class="flex max-w-4xl flex-col gap-1.5">
+                <p
+                    v-if="!isCustom && job.message"
+                    class="break-words text-foreground/80"
+                >
+                    {{ job.message }}
+                </p>
+                <p>
+                    <template v-if="!isCustom && job.occurrences !== null">
+                        <span class="font-medium text-foreground"
+                            >{{
+                                new Intl.NumberFormat().format(job.occurrences)
+                            }}
+                            occurrences</span
+                        >
+                        ·
+                    </template>
+                    against
+                    <span class="font-mono">{{ job.repository }}</span>
+                    · started {{ formatTime(job.createdAt) }}
+                    <template v-if="streamStatus === 'live'">
+                        ·
                         <span
-                            v-if="streamStatus === 'live'"
-                            class="inline-flex items-center gap-1.5 text-xs font-medium text-severity-info"
+                            class="inline-flex items-center gap-1 font-medium text-foreground"
                             data-test="fix-job-live"
                         >
                             <Radio class="size-3.5" /> Live
                         </span>
-                        <span
-                            v-else-if="streamStatus === 'reconnecting'"
-                            class="text-xs text-muted-foreground"
-                            data-test="fix-job-reconnecting"
+                    </template>
+                    <template v-else-if="streamStatus === 'reconnecting'">
+                        ·
+                        <span data-test="fix-job-reconnecting"
+                            >Reconnecting…</span
                         >
-                            Reconnecting…
-                        </span>
-                        <span
-                            v-else-if="streamStatus === 'unavailable'"
-                            class="text-xs text-muted-foreground"
-                            data-test="fix-job-stream-unavailable"
+                    </template>
+                    <template v-else-if="streamStatus === 'unavailable'">
+                        ·
+                        <span data-test="fix-job-stream-unavailable"
+                            >Live updates unavailable — showing what was
+                            recorded.</span
                         >
-                            Live updates unavailable — showing what was
-                            recorded.
-                        </span>
-                    </div>
-
-                    <div class="flex min-w-0 items-center gap-2">
-                        <span
-                            v-if="isCustom"
-                            class="shrink-0 rounded-sm border px-1.5 py-0.5 text-xs font-medium tracking-[0.06em] text-muted-foreground uppercase"
-                            data-test="fix-job-custom-marker"
-                        >
-                            {{ job.typeLabel }}
-                        </span>
-                        <h1
-                            class="truncate text-xl font-semibold tracking-tight"
-                        >
-                            {{ job.title }}
-                        </h1>
-                    </div>
-                    <p
-                        v-if="!isCustom && job.message"
-                        class="max-w-prose text-sm text-muted-foreground"
-                    >
-                        {{ job.message }}
-                    </p>
-                </div>
-
-                <div class="flex shrink-0 flex-wrap items-center gap-2">
-                    <Button
-                        v-if="!isCustom"
-                        variant="outline"
-                        size="sm"
-                        as-child
-                    >
-                        <Link :href="logsHref" data-test="fix-job-logs-link">
-                            <ScrollText /> View in logs
-                        </Link>
-                    </Button>
-
-                    <Button v-if="job.prUrl" size="sm" as-child>
-                        <a
-                            :href="job.prUrl"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            data-test="fix-job-pr-button"
-                        >
-                            <GitPullRequest /> Pull request #{{ job.prNumber }}
-                            <ExternalLink />
-                        </a>
-                    </Button>
-
-                    <Form
-                        v-if="canCancel"
-                        v-bind="cancelJob.form([teamSlug, job.uuid])"
-                        v-slot="{ processing }"
-                    >
-                        <Button
-                            type="submit"
-                            variant="outline"
-                            size="sm"
-                            :disabled="processing"
-                            data-test="fix-job-cancel"
-                        >
-                            <XCircle /> Cancel
-                        </Button>
-                    </Form>
-                </div>
+                    </template>
+                </p>
             </div>
 
-            <dl
-                class="grid grid-cols-2 gap-x-6 gap-y-3 rounded-xl border bg-card p-4 sm:grid-cols-3 lg:grid-cols-6"
-            >
-                <div v-for="stat in stats" :key="stat.label" class="min-w-0">
-                    <dt
-                        class="text-[11px] font-medium tracking-[0.08em] text-muted-foreground uppercase"
+            <template #actions>
+                <Button v-if="job.prUrl" as-child>
+                    <a
+                        :href="job.prUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        data-test="fix-job-pr-button"
                     >
-                        {{ stat.label }}
-                    </dt>
-                    <dd class="truncate font-mono text-sm">{{ stat.value }}</dd>
-                </div>
-            </dl>
+                        <GitPullRequest /> Pull request #{{ job.prNumber }}
+                        <ExternalLink />
+                    </a>
+                </Button>
 
-            <!--
-              What was asked for, in the words it was asked in. Long requests
-              fold, because the timeline underneath is the reason to be here.
-            -->
-            <Collapsible
-                v-if="isCustom && instructions"
-                v-model:open="expanded"
-                class="rounded-xl border bg-card p-4"
-                data-test="fix-job-instructions"
-            >
-                <div class="flex items-baseline justify-between gap-3">
-                    <p
-                        class="text-xs font-medium tracking-[0.06em] text-muted-foreground uppercase"
-                    >
-                        Requested
-                    </p>
+                <Button v-if="!isCustom" variant="outline" as-child>
+                    <Link :href="logsHref" data-test="fix-job-logs-link">
+                        <ScrollText /> View in logs
+                    </Link>
+                </Button>
 
-                    <CollapsibleTrigger
-                        v-if="foldable"
-                        class="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground underline-offset-4 hover:underline"
-                        data-test="fix-job-instructions-toggle"
-                    >
-                        {{ expanded ? 'Show less' : 'Show all' }}
-                        <ChevronDown
-                            class="size-3.5 transition-transform"
-                            :class="expanded ? 'rotate-180' : undefined"
-                        />
-                    </CollapsibleTrigger>
-                </div>
-
-                <p
-                    v-if="!foldable || !expanded"
-                    class="mt-1.5 text-sm whitespace-pre-wrap text-foreground"
-                    :class="foldable ? 'line-clamp-3' : undefined"
+                <Form
+                    v-if="canCancel"
+                    v-bind="cancelJob.form([teamSlug, job.uuid])"
+                    v-slot="{ processing }"
                 >
-                    {{ instructions }}
-                </p>
-
-                <CollapsibleContent v-if="foldable">
-                    <p
-                        class="mt-1.5 text-sm whitespace-pre-wrap text-foreground"
+                    <Button
+                        type="submit"
+                        variant="ghost"
+                        class="text-muted-foreground"
+                        :disabled="processing"
+                        data-test="fix-job-cancel"
                     >
-                        {{ instructions }}
-                    </p>
-                </CollapsibleContent>
-            </Collapsible>
-        </header>
+                        <XCircle /> Cancel
+                    </Button>
+                </Form>
+            </template>
+        </PageHeader>
+
+        <!-- The run's facts, on one hairline-bounded strip. -->
+        <FactStrip :columns="6" data-test="fix-job-facts">
+            <TraceFact
+                v-for="stat in stats"
+                :key="stat.label"
+                :label="stat.label"
+                :value="stat.value"
+                mono
+            />
+        </FactStrip>
 
         <p
             v-if="job.failureReason"
-            class="rounded-lg border border-severity-error/40 bg-card p-3 text-sm text-severity-error"
+            class="border-b bg-severity-error/10 px-4 py-3 text-sm text-severity-error md:px-10"
             data-test="fix-job-failure"
         >
             {{ job.failureReason }}
         </p>
 
-        <div class="grid gap-4 lg:grid-cols-2">
-            <Card class="min-w-0">
-                <CardHeader>
-                    <CardTitle>Session</CardTitle>
-                    <CardDescription>
-                        What the agent did, in order. The transcript is stored
-                        with the job, so it reads the same after the run ends.
-                    </CardDescription>
-                </CardHeader>
+        <!--
+          What was asked for, in the words it was asked in. Long requests
+          fold, because the timeline underneath is the reason to be here.
+        -->
+        <Collapsible
+            v-if="isCustom && instructions"
+            v-model:open="expanded"
+            class="border-b px-4 py-5 md:px-10"
+            data-test="fix-job-instructions"
+        >
+            <div class="flex items-baseline justify-between gap-3">
+                <p class="eyebrow">Requested</p>
 
-                <CardContent>
-                    <ol
-                        v-if="events.length > 0"
-                        class="relative"
-                        data-test="fix-job-timeline"
+                <CollapsibleTrigger
+                    v-if="foldable"
+                    class="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                    data-test="fix-job-instructions-toggle"
+                >
+                    {{ expanded ? 'Show less' : 'Show all' }}
+                    <ChevronDown
+                        class="size-3.5 transition-transform"
+                        :class="expanded ? 'rotate-180' : undefined"
+                    />
+                </CollapsibleTrigger>
+            </div>
+
+            <p
+                v-if="!foldable || !expanded"
+                class="mt-2 max-w-4xl text-sm whitespace-pre-wrap text-foreground"
+                :class="foldable ? 'line-clamp-3' : undefined"
+            >
+                {{ instructions }}
+            </p>
+
+            <CollapsibleContent v-if="foldable">
+                <p
+                    class="mt-2 max-w-4xl text-sm whitespace-pre-wrap text-foreground"
+                >
+                    {{ instructions }}
+                </p>
+            </CollapsibleContent>
+        </Collapsible>
+
+        <div class="grid flex-1 grid-cols-1 lg:grid-cols-2">
+            <PageSection
+                title="Session"
+                description="What the agent did, in order. The transcript is stored with the job, so it reads the same after the run ends."
+                class="pt-8 pb-10"
+                data-test="fix-job-session"
+            >
+                <template v-if="events.length > 0" #aside>
+                    <span class="font-mono tabular-nums"
+                        >{{ events.length }} events</span
                     >
-                        <FixJobEventRow
-                            v-for="(event, index) in events"
-                            :key="`${event.seq ?? event.data?.stream_id ?? index}-${event.ts}`"
-                            :event="event"
-                            :last="index === events.length - 1"
-                        />
-                    </ol>
+                </template>
 
+                <ol
+                    v-if="events.length > 0"
+                    class="relative"
+                    data-test="fix-job-timeline"
+                >
+                    <FixJobEventRow
+                        v-for="(event, index) in events"
+                        :key="`${event.seq ?? event.data?.stream_id ?? index}-${event.ts}`"
+                        :event="event"
+                        :last="index === events.length - 1"
+                    />
+                </ol>
+
+                <p
+                    v-else
+                    class="py-4 text-sm text-muted-foreground"
+                    data-test="fix-job-timeline-empty"
+                >
+                    No session events recorded yet.
+                </p>
+            </PageSection>
+
+            <div
+                class="flex min-w-0 flex-col border-t pb-10 lg:border-t-0 lg:border-l"
+            >
+                <PageSection title="Proposed change" class="pt-8">
+                    <template #description>
+                        The validated diff, against
+                        <code class="font-mono">{{ job.defaultBranch }}</code
+                        >. Machine-generated — read it the way you would read a
+                        stranger's patch.
+                    </template>
+
+                    <CodeCanvas
+                        v-if="job.diff"
+                        :patch="job.diff"
+                        data-test="fix-job-diff"
+                    />
+                    <div
+                        v-else-if="job.status === 'no_change'"
+                        class="flex flex-col gap-2 py-4"
+                        data-test="fix-job-no-change"
+                    >
+                        <p
+                            class="inline-flex items-center gap-2 text-sm font-medium text-foreground"
+                        >
+                            <FileCheck2 class="size-4 text-muted-foreground" />
+                            No change needed
+                        </p>
+                        <p class="max-w-prose text-sm text-muted-foreground">
+                            The agent finished without touching the tree. Its
+                            reasoning is in the session transcript.
+                        </p>
+                    </div>
                     <p
                         v-else
-                        class="py-8 text-center text-sm text-muted-foreground"
-                        data-test="fix-job-timeline-empty"
+                        class="py-4 text-sm text-muted-foreground"
+                        data-test="fix-job-diff-empty"
                     >
-                        No session events recorded yet.
+                        No diff has come back for this job yet.
                     </p>
-                </CardContent>
-            </Card>
+                </PageSection>
 
-            <div class="flex min-w-0 flex-col gap-4">
-                <Card class="min-w-0">
-                    <CardHeader>
-                        <CardTitle>Proposed change</CardTitle>
-                        <CardDescription>
-                            The validated diff, against
-                            <code class="font-mono">{{
-                                job.defaultBranch
-                            }}</code
-                            >. Machine-generated — read it the way you would
-                            read a stranger's patch.
-                        </CardDescription>
-                    </CardHeader>
-
-                    <CardContent>
-                        <CodeCanvas
-                            v-if="job.diff"
-                            :patch="job.diff"
-                            data-test="fix-job-diff"
-                        />
-                        <div
-                            v-else-if="job.status === 'no_change'"
-                            class="flex flex-col items-center gap-3 py-10 text-center"
-                            data-test="fix-job-no-change"
-                        >
-                            <span
-                                class="flex size-12 items-center justify-center rounded-full border bg-card text-muted-foreground"
-                            >
-                                <FileCheck2 class="size-5" />
-                            </span>
-                            <div class="space-y-1">
-                                <p class="text-sm font-medium">
-                                    No change needed
-                                </p>
-                                <p
-                                    class="mx-auto max-w-sm text-sm text-muted-foreground"
-                                >
-                                    The agent finished without touching the
-                                    tree. Its reasoning is in the session
-                                    transcript.
-                                </p>
-                            </div>
-                        </div>
-                        <p
-                            v-else
-                            class="py-6 text-center text-sm text-muted-foreground"
-                            data-test="fix-job-diff-empty"
-                        >
-                            No diff has come back for this job yet.
-                        </p>
-                    </CardContent>
-                </Card>
-
-                <Card v-if="job.stack" class="min-w-0">
-                    <CardHeader>
-                        <CardTitle>Stack trace</CardTitle>
-                        <CardDescription>
-                            The trace the fingerprint was cut from — what the
-                            agent was given to work with.
-                        </CardDescription>
-                    </CardHeader>
-
-                    <CardContent>
-                        <CodeCanvas
-                            :code="job.stack"
-                            filename="stack.log"
-                            max-height="20rem"
-                            hide-header
-                            data-test="fix-job-stack"
-                        />
-                    </CardContent>
-                </Card>
+                <PageSection
+                    v-if="job.stack"
+                    title="Stack trace"
+                    description="The trace the fingerprint was cut from — what the agent was given to work with."
+                >
+                    <CodeCanvas
+                        :code="job.stack"
+                        filename="stack.log"
+                        max-height="20rem"
+                        hide-header
+                        data-test="fix-job-stack"
+                    />
+                </PageSection>
 
                 <!--
                   The trace as the agent read it: the same bounded text the
                   prompt carried, so a reviewer sees exactly what the model
                   saw rather than a richer view of it.
                 -->
-                <Card v-if="trace" class="min-w-0" data-test="fix-job-trace">
-                    <CardHeader>
-                        <div
-                            class="flex flex-wrap items-start justify-between gap-3"
+                <PageSection
+                    v-if="trace"
+                    title="Trace"
+                    data-test="fix-job-trace"
+                >
+                    <template #aside>
+                        <Link
+                            v-if="traceHref && trace.state !== 'missing'"
+                            :href="traceHref"
+                            class="inline-flex items-center gap-1.5 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                            data-test="fix-job-trace-link"
                         >
-                            <div class="min-w-0 space-y-1.5">
-                                <CardTitle>Trace</CardTitle>
-                                <CardDescription>
-                                    <template v-if="trace.state === 'rendered'">
-                                        The waterfall the agent was handed —
-                                        {{ trace.rendered_spans }} of
-                                        {{ trace.span_count }} spans,
-                                        {{ trace.error_count }} with Error
-                                        status. <code>&gt;&gt;</code> marks the
-                                        span that emitted the log line,
-                                        <code>!!</code> a span that failed.
-                                    </template>
-                                    <template v-else>{{
-                                        traceNotice
-                                    }}</template>
-                                </CardDescription>
-                            </div>
-
-                            <Button
-                                v-if="traceHref && trace.state !== 'missing'"
-                                variant="outline"
-                                size="sm"
-                                as-child
+                            <Waypoints class="size-3.5" /> Open trace
+                        </Link>
+                    </template>
+                    <template #description>
+                        <template v-if="trace.state === 'rendered'">
+                            The waterfall the agent was handed —
+                            <span class="font-mono tabular-nums"
+                                >{{ trace.rendered_spans }} of
+                                {{ trace.span_count }}</span
                             >
-                                <Link
-                                    :href="traceHref"
-                                    data-test="fix-job-trace-link"
-                                >
-                                    <Waypoints /> Open trace
-                                </Link>
-                            </Button>
-                        </div>
-                    </CardHeader>
-
-                    <CardContent v-if="trace.waterfall">
-                        <CodeCanvas
-                            :code="trace.waterfall"
-                            filename="trace.txt"
-                            max-height="24rem"
-                            hide-header
-                            data-test="fix-job-trace-waterfall"
-                        />
-                    </CardContent>
-                </Card>
+                            spans,
+                            <span class="font-mono tabular-nums">{{
+                                trace.error_count
+                            }}</span>
+                            with Error status.
+                            <code class="font-mono">&gt;&gt;</code> marks the
+                            span that emitted the log line,
+                            <code class="font-mono">!!</code> a span that
+                            failed.
+                        </template>
+                        <template v-else>{{ traceNotice }}</template>
+                    </template>
+                    <CodeCanvas
+                        v-if="trace.waterfall"
+                        :code="trace.waterfall"
+                        filename="trace.txt"
+                        max-height="24rem"
+                        hide-header
+                        data-test="fix-job-trace-waterfall"
+                    />
+                </PageSection>
             </div>
         </div>
     </div>

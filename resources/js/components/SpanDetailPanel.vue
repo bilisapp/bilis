@@ -128,7 +128,7 @@ const logsHref = computed(() => {
 
 <template>
     <aside
-        class="flex min-h-0 flex-col gap-4 overflow-y-auto rounded-lg border bg-card p-4"
+        class="flex min-h-0 flex-col gap-5 overflow-y-auto p-4 md:p-5"
         data-test="span-detail"
     >
         <header class="flex flex-col gap-2">
@@ -144,12 +144,14 @@ const logsHref = computed(() => {
                     "
                     aria-hidden="true"
                 />
-                <h2 class="min-w-0 flex-1 truncate text-sm font-semibold">
+                <h2
+                    class="min-w-0 flex-1 truncate text-base font-semibold tracking-tight"
+                >
                     {{ heading }}
                 </h2>
                 <span
                     v-if="SPAN_KIND_LABEL[span.kind]"
-                    class="shrink-0 rounded border px-1.5 text-xs text-muted-foreground"
+                    class="inline-flex h-5 shrink-0 items-center rounded-full px-2 text-[11px] font-medium text-foreground/80 ring-1 ring-border ring-inset"
                 >
                     {{ SPAN_KIND_LABEL[span.kind] }}
                 </span>
@@ -169,7 +171,7 @@ const logsHref = computed(() => {
             </p>
 
             <p
-                class="text-xs text-muted-foreground"
+                class="font-mono text-xs text-muted-foreground"
                 :title="formatUtcTimestamp(span.timestamp)"
             >
                 {{ formatTimestamp(span.timestamp) }}
@@ -178,7 +180,7 @@ const logsHref = computed(() => {
 
         <div
             v-if="status === 'Error'"
-            class="rounded-md border border-severity-error/40 bg-severity-error/[0.06] p-3"
+            class="rounded-lg bg-severity-error/10 p-3"
         >
             <p
                 :class="
@@ -240,7 +242,7 @@ const logsHref = computed(() => {
                     type="button"
                     :class="
                         cn(
-                            '-mb-px flex items-center gap-1.5 border-b-2 px-2 py-1.5 text-xs transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
+                            '-mb-px flex items-center gap-1.5 border-b-2 px-2 py-2 text-sm transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
                             activeTab === tab.id
                                 ? 'border-foreground font-medium text-foreground'
                                 : 'border-transparent text-muted-foreground hover:text-foreground',
@@ -257,7 +259,7 @@ const logsHref = computed(() => {
                     {{ tab.label }}
                     <span
                         v-if="tab.count > 0"
-                        class="rounded-full bg-muted px-1.5 text-muted-foreground tabular-nums"
+                        class="rounded-full bg-muted px-1.5 font-mono text-[11px] text-muted-foreground tabular-nums"
                     >
                         {{ tab.count }}
                     </span>
@@ -266,7 +268,7 @@ const logsHref = computed(() => {
                 <button
                     v-if="activeTab === 'attributes' && tabs[0].count > 0"
                     type="button"
-                    class="ml-auto inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                    class="ml-auto inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                     :aria-label="copied ? 'Copied' : 'Copy attributes as JSON'"
                     :title="copied ? 'Copied' : 'Copy attributes as JSON'"
                     data-test="span-copy-attributes"
@@ -300,13 +302,13 @@ const logsHref = computed(() => {
                 id="span-tabpanel-events"
                 role="tabpanel"
                 aria-labelledby="span-tab-events"
-                class="flex flex-col gap-2"
+                class="flex flex-col"
                 data-test="span-events"
             >
                 <div
                     v-for="(event, index) in span.events"
                     :key="`${event.name}-${index}`"
-                    class="rounded-md border p-2"
+                    class="border-b border-border/60 py-2.5 first:pt-0 last:border-b-0"
                 >
                     <div class="flex items-baseline justify-between gap-2">
                         <span class="text-xs font-medium break-words">
@@ -348,7 +350,7 @@ const logsHref = computed(() => {
                 id="span-tabpanel-links"
                 role="tabpanel"
                 aria-labelledby="span-tab-links"
-                class="flex flex-col gap-2"
+                class="flex flex-col"
                 data-test="span-links"
             >
                 <template
@@ -364,9 +366,9 @@ const logsHref = computed(() => {
                         "
                         :class="
                             cn(
-                                'flex flex-col gap-1 rounded-md border p-2',
+                                '-mx-2 flex flex-col gap-1 rounded-md border-b border-border/60 px-2 py-2.5 last:border-b-0',
                                 resolve(link).href
-                                    ? 'transition-colors hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:outline-none'
+                                    ? 'transition-colors hover:bg-muted/50 focus-visible:bg-muted/60 focus-visible:outline-none'
                                     : '',
                             )
                         "

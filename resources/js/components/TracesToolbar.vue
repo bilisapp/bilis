@@ -1,48 +1,60 @@
 <script setup lang="ts">
-import { RotateCcw, TriangleAlert } from '@lucide/vue';
+import { RotateCcw, Search, TriangleAlert } from '@lucide/vue';
 import { useDebounceFn } from '@vueuse/core';
 import { computed, ref, watch } from 'vue';
+import FilterSelect from '@/components/FilterSelect.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import { RANGE_PRESETS } from '@/lib/logs';
 import { cn } from '@/lib/utils';
 import type { LogProject, LogRangePreset } from '@/types';
 
-const props = defineProps<{
-    projects: LogProject[];
-    project: string | null;
-    /**
-     * The root services seen for the projects in scope; deferred, so it can
-     * arrive late. Suggestions, not a constraint: the field stays free text,
-     * because the latency tab matches any span's service and a service that
-     * never roots a trace is still worth asking about.
-     */
-    services?: string[];
-    /** Matches the trace's root service — all the summary table knows. */
-    service: string | null;
-    errors: boolean;
-    /** Milliseconds. */
-    minDuration: number | null;
-    range: LogRangePreset;
-    /** The filters are not already at their default state. */
-    canReset: boolean;
-    /**
-     * Whether the list is polling for traces that arrived after it loaded.
-     * Absent on views that have nothing to tail — the latency tab renders the
-     * same toolbar and must not offer a control that would do nothing.
-     */
-    live?: boolean;
-    /** A poll is in flight right now, which the dot reports. */
-    polling?: boolean;
-}>();
+/**
+ * The traces surface's controls, as one row: the root-service field, then the
+ * window, scope and slowness as chips, the errors-only toggle, and — on the
+ * list only — Live at the far end. Every control emits; the page owns the
+ * query string.
+ */
+const props = withDefaults(
+    defineProps<{
+        projects: LogProject[];
+        project: string | null;
+        /**
+         * The root services seen for the projects in scope; deferred, so it can
+         * arrive late. Suggestions, not a constraint: the field stays free text,
+         * because the latency tab matches any span's service and a service that
+         * never roots a trace is still worth asking about.
+         */
+        services?: string[];
+        /** Matches the trace's root service — all the summary table knows. */
+        service: string | null;
+        errors: boolean;
+        /** Milliseconds. */
+        minDuration: number | null;
+        range: LogRangePreset;
+        /** The filters are not already at their default state. */
+        canReset: boolean;
+        /**
+         * Whether the list is polling for traces that arrived after it loaded.
+         * Absent on views that have nothing to tail — the latency tab renders the
+         * same toolbar and must not offer a control that would do nothing.
+         */
+        live?: boolean;
+        /** A poll is in flight right now, which the dot reports. */
+        polling?: boolean;
+        /** `/` focuses the service field on this page, so the field says so. */
+        slashHint?: boolean;
+    }>(),
+    {
+        services: undefined,
+        // An explicit `undefined`: Vue casts an absent boolean prop to
+        // `false`, which would draw Live on the latency tab after all.
+        live: undefined,
+        polling: false,
+        slashHint: false,
+    },
+);
 
 const emit = defineEmits<{
     (event: 'update:project', value: string | null): void;
@@ -53,8 +65,6 @@ const emit = defineEmits<{
     (event: 'update:live', value: boolean): void;
     (event: 'reset'): void;
 }>();
-
-const ALL_PROJECTS = '__all__';
 
 const serviceTerm = ref(props.service ?? '');
 const durationTerm = ref(
@@ -136,206 +146,190 @@ const serviceOptions = computed(() => {
     return [...names].sort((a, b) => a.localeCompare(b));
 });
 
-const projectValue = computed({
-    get: () => props.project ?? ALL_PROJECTS,
-    set: (value: string) =>
-        emit('update:project', value === ALL_PROJECTS ? null : value),
-});
+const projectOptions = computed(() =>
+    props.projects.map((option) => ({
+        value: option.slug,
+        label: option.name,
+    })),
+);
 
-const rangeValue = computed({
-    get: () => props.range,
-    set: (value: LogRangePreset) => emit('update:range', value),
-});
+/**
+ * The window presets. "Custom range" is listed only while it is the truth —
+ * a zoomed histogram bar — so the chip can name it; choosing it does nothing.
+ */
+const rangeOptions = computed(() => [
+    ...RANGE_PRESETS.map((preset) => ({
+        value: preset.value as string,
+        label: preset.label,
+    })),
+    ...(props.range === 'custom'
+        ? [{ value: 'custom', label: 'Custom range' }]
+        : []),
+]);
+
+function onRange(value: string | null) {
+    if (value === null || value === 'custom') {
+        return;
+    }
+
+    emit('update:range', value as LogRangePreset);
+}
 </script>
 
 <template>
-    <div
-        class="flex flex-col rounded-lg border bg-card"
-        data-test="traces-toolbar"
-    >
-        <div class="flex flex-wrap items-center gap-2 p-3">
-            <div class="min-w-56 flex-1">
-                <Label class="sr-only" for="traces-service">
-                    Filter by root service
-                </Label>
-                <!--
-                  A datalist rather than a select: the list is a suggestion
-                  drawn from the last week's root services, and the field has
-                  to accept a name that is not in it.
-                -->
-                <Input
-                    id="traces-service"
-                    v-model="serviceTerm"
-                    data-test="traces-service"
-                    list="traces-service-options"
-                    autocomplete="off"
-                    placeholder="Root service…"
-                    class="h-10 text-sm"
-                    @input="emitService"
+    <div class="flex flex-wrap items-center gap-2" data-test="traces-toolbar">
+        <div class="relative min-w-56 flex-1">
+            <Label class="sr-only" for="traces-service">
+                Filter by root service
+            </Label>
+            <Search
+                class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden="true"
+            />
+            <!--
+              A datalist rather than a select: the list is a suggestion drawn
+              from the last week's root services, and the field has to accept a
+              name that is not in it.
+            -->
+            <Input
+                id="traces-service"
+                v-model="serviceTerm"
+                data-test="traces-service"
+                list="traces-service-options"
+                autocomplete="off"
+                placeholder="Root service…"
+                :class="
+                    cn('h-9 rounded-lg pl-9 text-sm', slashHint ? 'pr-10' : '')
+                "
+                @input="emitService"
+            />
+            <kbd
+                v-if="slashHint"
+                class="pointer-events-none absolute top-1/2 right-2.5 kbd -translate-y-1/2 text-muted-foreground"
+                aria-hidden="true"
+                >/</kbd
+            >
+            <datalist
+                id="traces-service-options"
+                data-test="traces-service-options"
+            >
+                <option
+                    v-for="name in serviceOptions"
+                    :key="name"
+                    :value="name"
                 />
-                <datalist
-                    id="traces-service-options"
-                    data-test="traces-service-options"
-                >
-                    <option
-                        v-for="name in serviceOptions"
-                        :key="name"
-                        :value="name"
-                    />
-                </datalist>
-            </div>
-
-            <!--
-              Errors-only is the filter people reach for first on this page, so
-              it gets a control of its own rather than a place in a dropdown.
-              It reads sum(ErrorCount) over the whole trace, not the root span.
-            -->
-            <Button
-                type="button"
-                size="lg"
-                data-test="traces-errors-only"
-                :variant="errors ? 'default' : 'outline'"
-                :aria-pressed="errors"
-                @click="emit('update:errors', !errors)"
-            >
-                <TriangleAlert class="size-4" />
-                Errors only
-            </Button>
-
-            <!--
-              Live sits beside the filters rather than above the list: it is a
-              statement about what the window means — "and everything that has
-              arrived since" — not a property of the rows.
-            -->
-            <Button
-                v-if="live !== undefined"
-                type="button"
-                size="lg"
-                data-test="traces-live"
-                :variant="live ? 'default' : 'outline'"
-                :aria-pressed="live"
-                @click="emit('update:live', !live)"
-            >
-                <span class="relative flex size-2 items-center justify-center">
-                    <span
-                        v-if="live"
-                        class="absolute inline-flex size-2 animate-ping rounded-full bg-current opacity-60 motion-reduce:hidden"
-                    />
-                    <span
-                        :class="
-                            cn(
-                                'relative inline-flex size-2 rounded-full',
-                                live
-                                    ? 'bg-current'
-                                    : 'border border-current opacity-60',
-                                polling && 'opacity-100',
-                            )
-                        "
-                    />
-                </span>
-                Live
-            </Button>
+            </datalist>
         </div>
 
-        <div
-            class="flex flex-wrap items-center gap-x-4 gap-y-2 border-t px-3 py-2"
+        <FilterSelect
+            id="traces-range"
+            label="Window"
+            data-test="traces-range"
+            :model-value="range"
+            :options="rangeOptions"
+            @update:model-value="onRange"
+        />
+
+        <FilterSelect
+            id="traces-project"
+            label="Project"
+            all-label="All projects"
+            data-test="traces-project"
+            :model-value="project"
+            :options="projectOptions"
+            @update:model-value="emit('update:project', $event)"
+        />
+
+        <!--
+          A chip with a field inside: the label reads as a sentence with the
+          number — "Slower than 250 ms" — the way the select chips do.
+        -->
+        <label
+            for="traces-min-duration"
+            class="inline-flex h-9 cursor-text items-center gap-1.5 rounded-lg border px-3 text-sm transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50"
         >
-            <div class="flex items-center gap-2">
-                <Label
-                    class="text-xs text-muted-foreground"
-                    for="traces-project"
-                >
-                    Project
-                </Label>
-                <Select v-model="projectValue">
-                    <SelectTrigger
-                        id="traces-project"
-                        size="sm"
-                        class="min-w-40"
-                        data-test="traces-project"
-                    >
-                        <SelectValue placeholder="All projects" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem :value="ALL_PROJECTS">
-                            All projects
-                        </SelectItem>
-                        <SelectItem
-                            v-for="option in projects"
-                            :key="option.slug"
-                            :value="option.slug"
-                        >
-                            {{ option.name }}
-                        </SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
+            <span class="text-muted-foreground">Slower than</span>
+            <input
+                id="traces-min-duration"
+                v-model="durationTerm"
+                data-test="traces-min-duration"
+                inputmode="numeric"
+                placeholder="0"
+                class="w-12 min-w-0 bg-transparent font-mono font-medium text-foreground tabular-nums outline-none placeholder:text-muted-foreground"
+                @input="emitDuration"
+            />
+            <span class="text-muted-foreground">ms</span>
+        </label>
 
-            <div class="flex items-center gap-2">
-                <Label
-                    class="text-xs text-muted-foreground"
-                    for="traces-min-duration"
-                >
-                    Slower than
-                </Label>
-                <div class="relative">
-                    <Input
-                        id="traces-min-duration"
-                        v-model="durationTerm"
-                        data-test="traces-min-duration"
-                        inputmode="numeric"
-                        placeholder="0"
-                        class="h-8 w-24 pr-8 text-sm"
-                        @input="emitDuration"
-                    />
-                    <span
-                        class="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-xs text-muted-foreground"
-                    >
-                        ms
-                    </span>
-                </div>
-            </div>
+        <!--
+          Errors-only is the filter people reach for first on this page, so it
+          gets a control of its own rather than a place in a dropdown. It reads
+          sum(ErrorCount) over the whole trace, not the root span.
+        -->
+        <button
+            type="button"
+            data-test="traces-errors-only"
+            :aria-pressed="errors"
+            :class="
+                cn(
+                    'inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
+                    errors
+                        ? 'bg-muted font-medium text-foreground'
+                        : 'text-muted-foreground hover:text-foreground',
+                )
+            "
+            @click="emit('update:errors', !errors)"
+        >
+            <TriangleAlert class="size-3.5" />
+            Errors only
+        </button>
 
-            <div class="flex items-center gap-2">
-                <Label class="text-xs text-muted-foreground" for="traces-range">
-                    Window
-                </Label>
-                <Select v-model="rangeValue">
-                    <SelectTrigger
-                        id="traces-range"
-                        size="sm"
-                        class="min-w-40"
-                        data-test="traces-range"
-                    >
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem
-                            v-for="preset in RANGE_PRESETS"
-                            :key="preset.value"
-                            :value="preset.value"
-                        >
-                            {{ preset.label }}
-                        </SelectItem>
-                        <SelectItem value="custom" disabled>
-                            Custom range
-                        </SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
+        <Button
+            v-if="canReset"
+            type="button"
+            variant="ghost"
+            size="sm"
+            class="h-9 text-muted-foreground"
+            data-test="traces-reset"
+            @click="emit('reset')"
+        >
+            <RotateCcw class="size-3.5" />
+            Reset
+        </Button>
 
-            <Button
-                v-if="canReset"
-                type="button"
-                variant="ghost"
-                size="sm"
-                class="ml-auto"
-                data-test="traces-reset"
-                @click="emit('reset')"
-            >
-                <RotateCcw class="size-4" />
-                Reset
-            </Button>
-        </div>
+        <!--
+          Live sits with the filters rather than above the list: it is a
+          statement about what the window means — "and everything that has
+          arrived since" — not a property of the rows. Dressed like the log
+          viewer's: ink while it is an offer, quiet with a pulse while on.
+        -->
+        <Button
+            v-if="live !== undefined"
+            type="button"
+            class="ml-auto h-9"
+            data-test="traces-live"
+            :variant="live ? 'outline' : 'default'"
+            :aria-pressed="live"
+            @click="emit('update:live', !live)"
+        >
+            <span class="relative flex size-2 items-center justify-center">
+                <span
+                    v-if="live"
+                    class="absolute inline-flex size-2 animate-ping rounded-full bg-severity-info opacity-60 motion-reduce:hidden"
+                />
+                <span
+                    :class="
+                        cn(
+                            'relative inline-flex size-2 rounded-full',
+                            live
+                                ? 'bg-severity-info'
+                                : 'ring-[1.5px] ring-current ring-inset',
+                            polling && 'opacity-100',
+                        )
+                    "
+                />
+            </span>
+            {{ live ? 'Live' : 'Go live' }}
+        </Button>
     </div>
 </template>

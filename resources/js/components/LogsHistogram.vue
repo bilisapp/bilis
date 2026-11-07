@@ -215,34 +215,35 @@ const onSelect = ({ dataIndex }: { dataIndex: number }) => {
 
 <template>
     <section
-        class="rounded-lg border bg-card px-3 pt-2.5 pb-1"
+        class="flex flex-col gap-2"
         data-test="logs-histogram"
         aria-label="Log volume over the selected window"
     >
-        <header class="flex items-baseline justify-between gap-3 pb-1">
-            <p class="text-xs font-medium">
+        <header
+            class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1"
+        >
+            <p class="text-xs text-muted-foreground">
                 <template v-if="histogram && total > 0">
+                    <span class="font-medium text-foreground"
+                        >Lines per {{ intervalLabel }}</span
+                    >
+                    ·
                     <span class="tabular-nums">{{
                         total.toLocaleString()
                     }}</span>
-                    {{ total === 1 ? 'log' : 'logs' }}
-                    <span class="font-normal text-muted-foreground">
-                        in this window
-                    </span>
+                    in this window · peak
+                    <span class="font-mono tabular-nums">{{
+                        busiest.toLocaleString()
+                    }}</span>
+                    · click a bar to zoom
                 </template>
-                <template v-else-if="histogram"> Log volume </template>
-                <template v-else>
-                    <span class="text-muted-foreground">Counting logs…</span>
+                <template v-else-if="histogram">
+                    <span class="font-medium text-foreground">Log volume</span>
                 </template>
+                <template v-else>Counting logs…</template>
             </p>
 
-            <p
-                v-if="histogram && total > 0"
-                class="text-xs text-muted-foreground tabular-nums"
-            >
-                {{ intervalLabel }} buckets · peak
-                {{ busiest.toLocaleString() }}
-            </p>
+            <slot name="legend" />
         </header>
 
         <Skeleton
@@ -264,7 +265,7 @@ const onSelect = ({ dataIndex }: { dataIndex: number }) => {
             class="flex h-16 items-end"
             data-test="logs-histogram-empty"
         >
-            <div class="w-full border-b border-dashed" />
+            <div class="w-full border-b" />
         </div>
 
         <ChartCanvas

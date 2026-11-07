@@ -32,24 +32,22 @@ const handleDelete = () => {
 </script>
 
 <template>
-    <div class="flex items-center justify-between border-b p-4 last:border-b-0">
+    <div
+        class="flex items-center justify-between gap-4 border-b border-border/60 py-3"
+    >
         <div class="flex items-center gap-4">
-            <div
-                class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted"
-            >
-                <KeyRound class="h-5 w-5 text-muted-foreground" />
-            </div>
+            <KeyRound class="size-4 shrink-0 text-muted-foreground" />
             <div class="space-y-1">
                 <div class="flex items-center gap-2.5">
-                    <p class="font-medium tracking-tight">{{ passkey.name }}</p>
+                    <p class="text-sm font-medium">{{ passkey.name }}</p>
                     <span
                         v-if="passkey.authenticator"
-                        class="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase ring-1 ring-border ring-inset"
+                        class="inline-flex h-5 items-center rounded-full px-2 text-[11px] font-medium text-foreground/80 ring-1 ring-border ring-inset"
                     >
                         {{ passkey.authenticator }}
                     </span>
                 </div>
-                <p class="text-sm text-muted-foreground">
+                <p class="text-xs text-muted-foreground">
                     Added {{ passkey.created_at_diff }}
                     <template v-if="passkey.last_used_at_diff">
                         <span class="mx-1 text-muted-foreground/50">/</span>
@@ -79,7 +77,7 @@ const handleDelete = () => {
                 </DialogDescription>
                 <DialogFooter class="gap-2">
                     <DialogClose as-child>
-                        <Button variant="secondary">Cancel</Button>
+                        <Button variant="outline">Cancel</Button>
                     </DialogClose>
                     <Button
                         variant="destructive"

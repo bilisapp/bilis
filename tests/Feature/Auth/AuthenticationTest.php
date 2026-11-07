@@ -105,6 +105,18 @@ test('users can logout', function () {
     $response->assertRedirect(route('home'));
 });
 
+test('an inertia logout leaves with a full page load, because the landing page is not inertia', function () {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->withHeaders(['X-Inertia' => 'true'])
+        ->post(route('logout'));
+
+    $this->assertGuest();
+    $response->assertStatus(409)
+        ->assertHeader('X-Inertia-Location', route('home'));
+});
+
 test('users are rate limited', function () {
     $user = User::factory()->create();
 

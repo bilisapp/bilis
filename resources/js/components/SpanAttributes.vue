@@ -167,7 +167,7 @@ function copyValue(attribute: SpanAttribute): void {
             <button
                 v-if="!flat"
                 type="button"
-                class="group -mx-1 flex items-center gap-1.5 rounded px-1 py-0.5 text-left transition-colors hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                class="group -mx-1 flex items-center gap-1.5 rounded px-1 py-0.5 text-left transition-colors hover:bg-muted/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                 :aria-expanded="isOpen(group)"
                 :data-test="`span-attribute-group-${group.id}`"
                 @click="toggle(group.id)"

@@ -10,7 +10,7 @@
          someone who has not signed up, on a locked-down browser, on a phone,
          first try. The form posts, the row is written, and the mail is only a
          notification. --}}
-    <section class="mx-auto max-w-5xl px-6 pt-16 pb-12 sm:pt-20">
+    <section class="mx-auto max-w-content px-6 pt-16 pb-12 sm:pt-20">
         <p class="text-xs font-medium tracking-wide text-muted-foreground uppercase">Contact</p>
 
         <h1 class="mt-4 max-w-3xl text-3xl leading-tight font-semibold tracking-tight sm:text-4xl">
@@ -26,7 +26,7 @@
     </section>
 
     <section class="border-y border-border bg-card">
-        <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+        <div class="mx-auto max-w-content px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '01', 'label' => 'Write to us'])
 
             @if ($sent)
@@ -158,7 +158,7 @@
     </section>
 
     <section>
-        <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+        <div class="mx-auto max-w-content px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '02', 'label' => 'The other addresses'])
 
             <h2 class="mt-4 text-xl font-semibold tracking-tight">Some things have a better door</h2>

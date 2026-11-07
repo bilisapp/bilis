@@ -2,6 +2,7 @@
 import { Plus, RotateCcw, X } from '@lucide/vue';
 import { useDebounceFn } from '@vueuse/core';
 import { computed, ref, watch } from 'vue';
+import FilterSelect from '@/components/FilterSelect.vue';
 import MetricsLiveToggle from '@/components/MetricsLiveToggle.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -69,9 +70,6 @@ const emit = defineEmits<{
     (event: 'update:live', value: boolean): void;
     (event: 'reset'): void;
 }>();
-
-const ALL_PROJECTS = '__all__';
-const NO_GROUPING = '__none__';
 
 const serviceTerm = ref(props.service ?? '');
 
@@ -177,27 +175,40 @@ const groupByOptions = computed(() => {
     return [...keys];
 });
 
-const groupByValue = computed({
-    get: () => props.groupBy ?? NO_GROUPING,
-    set: (value: string) =>
-        emit('update:groupBy', value === NO_GROUPING ? null : value),
-});
+const groupByChoices = computed(() =>
+    groupByOptions.value.map((key) => ({ value: key, label: key })),
+);
 
-const projectValue = computed({
-    get: () => props.project ?? ALL_PROJECTS,
-    set: (value: string) =>
-        emit('update:project', value === ALL_PROJECTS ? null : value),
-});
+const projectOptions = computed(() =>
+    props.projects.map((option) => ({
+        value: option.slug,
+        label: option.name,
+    })),
+);
 
-const aggValue = computed({
-    get: () => props.agg,
-    set: (value: MetricAggregation) => emit('update:agg', value),
-});
+const aggOptions = METRIC_AGGREGATIONS.map((option) => ({
+    value: option.value,
+    label: option.label,
+}));
 
-const rangeValue = computed({
-    get: () => props.range,
-    set: (value: LogRangePreset) => emit('update:range', value),
-});
+/** A custom window is shown as such; it cannot be picked from here. */
+const rangeOptions = computed(() => [
+    ...RANGE_PRESETS.map((preset) => ({
+        value: preset.value,
+        label: preset.label,
+    })),
+    ...(props.range === 'custom'
+        ? [{ value: 'custom', label: 'Custom range' }]
+        : []),
+]);
+
+function pickRange(value: string | null) {
+    if (value === null || value === 'custom' || value === props.range) {
+        return;
+    }
+
+    emit('update:range', value as LogRangePreset);
+}
 
 const filterEntries = computed(() => Object.entries(props.where));
 
@@ -254,273 +265,178 @@ function removeFilter(key: string) {
 </script>
 
 <template>
-    <div
-        class="flex flex-col rounded-lg border bg-card"
-        data-test="metrics-toolbar"
-    >
-        <div class="flex flex-wrap items-center gap-2 p-3">
-            <div class="min-w-64 flex-[2]">
-                <Label class="sr-only" for="metrics-metric">Metric</Label>
-                <Select v-model="metricValue" :disabled="metricDisabled">
-                    <SelectTrigger
-                        id="metrics-metric"
-                        class="w-full font-mono text-sm data-[size=default]:h-10"
-                        data-test="metrics-metric"
-                    >
-                        <!--
-                          The item shows its unit beside the name; the trigger
-                          shows the name alone, since reka joins an item's text
-                          and would print "process.memory.usageBy".
-                        -->
-                        <SelectValue :placeholder="metricPlaceholder">
-                            {{ metric ?? metricPlaceholder }}
-                        </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent class="max-h-96">
-                        <SelectGroup v-if="orphanMetric">
-                            <SelectLabel
-                                >Not reported in this window</SelectLabel
-                            >
-                            <SelectItem :value="orphanMetric" class="font-mono">
-                                {{ orphanMetric }}
-                            </SelectItem>
-                        </SelectGroup>
-                        <SelectGroup
-                            v-for="group in catalogGroups"
-                            :key="group.type"
-                        >
-                            <SelectLabel>{{ group.label }}</SelectLabel>
-                            <SelectItem
-                                v-for="entry in group.metrics"
-                                :key="entry.name"
-                                :value="entry.name"
-                                :data-test="`metrics-metric-option-${entry.name}`"
-                            >
-                                <span class="truncate font-mono">
-                                    {{ entry.name }}
-                                </span>
-                                <span
-                                    v-if="entry.unit"
-                                    class="font-mono text-xs text-muted-foreground"
-                                >
-                                    {{ entry.unit }}
-                                </span>
-                            </SelectItem>
-                        </SelectGroup>
-                    </SelectContent>
-                </Select>
-            </div>
-
-            <div class="min-w-48 flex-1">
-                <Label class="sr-only" for="metrics-service">
-                    Filter by service
-                </Label>
-                <!--
-                  A datalist, not a select: the suggestions are the services
-                  that reported this metric lately, and a service outside them
-                  is still a fair question.
-                -->
-                <Input
-                    id="metrics-service"
-                    v-model="serviceTerm"
-                    data-test="metrics-service"
-                    list="metrics-service-options"
-                    autocomplete="off"
-                    placeholder="Service…"
-                    class="h-10 text-sm"
-                    @input="emitService"
-                />
-                <datalist
-                    id="metrics-service-options"
-                    data-test="metrics-service-options"
+    <!--
+      One wrapping row: the metric and the service first, as the widest
+      controls, then the filters as chips, Live and Reset last. The attribute
+      filters join the row once there is a metric — its keys are what they
+      offer.
+    -->
+    <div class="flex flex-wrap items-center gap-2" data-test="metrics-toolbar">
+        <div class="min-w-64 flex-[2]">
+            <Label class="sr-only" for="metrics-metric">Metric</Label>
+            <Select v-model="metricValue" :disabled="metricDisabled">
+                <SelectTrigger
+                    id="metrics-metric"
+                    class="h-9 w-full justify-start gap-1.5 rounded-lg border-border pr-2.5 pl-3 text-sm shadow-none data-[size=default]:h-9 dark:bg-transparent"
+                    data-test="metrics-metric"
                 >
-                    <option
-                        v-for="name in serviceOptions"
-                        :key="name"
-                        :value="name"
-                    />
-                </datalist>
-            </div>
+                    <span class="text-muted-foreground">Metric</span>
+                    <!--
+                      The item shows its unit beside the name; the trigger
+                      shows the name alone, since reka joins an item's text
+                      and would print "process.memory.usageBy".
+                    -->
+                    <SelectValue
+                        :placeholder="metricPlaceholder"
+                        :class="
+                            metric
+                                ? 'min-w-0 flex-1 font-mono font-medium text-foreground'
+                                : 'min-w-0 flex-1'
+                        "
+                    >
+                        {{ metric ?? metricPlaceholder }}
+                    </SelectValue>
+                </SelectTrigger>
+                <SelectContent class="max-h-96">
+                    <SelectGroup v-if="orphanMetric">
+                        <SelectLabel>Not reported in this window</SelectLabel>
+                        <SelectItem :value="orphanMetric" class="font-mono">
+                            {{ orphanMetric }}
+                        </SelectItem>
+                    </SelectGroup>
+                    <SelectGroup
+                        v-for="group in catalogGroups"
+                        :key="group.type"
+                    >
+                        <SelectLabel>{{ group.label }}</SelectLabel>
+                        <SelectItem
+                            v-for="entry in group.metrics"
+                            :key="entry.name"
+                            :value="entry.name"
+                            :data-test="`metrics-metric-option-${entry.name}`"
+                        >
+                            <span class="truncate font-mono">
+                                {{ entry.name }}
+                            </span>
+                            <span
+                                v-if="entry.unit"
+                                class="font-mono text-xs text-muted-foreground"
+                            >
+                                {{ entry.unit }}
+                            </span>
+                        </SelectItem>
+                    </SelectGroup>
+                </SelectContent>
+            </Select>
         </div>
 
-        <div
-            class="flex flex-wrap items-center gap-x-4 gap-y-2 border-t px-3 py-2"
-        >
-            <div class="flex items-center gap-2">
-                <Label
-                    class="text-xs text-muted-foreground"
-                    for="metrics-project"
-                >
-                    Project
-                </Label>
-                <Select v-model="projectValue">
-                    <SelectTrigger
-                        id="metrics-project"
-                        size="sm"
-                        class="min-w-40"
-                        data-test="metrics-project"
-                    >
-                        <SelectValue placeholder="All projects" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem :value="ALL_PROJECTS">
-                            All projects
-                        </SelectItem>
-                        <SelectItem
-                            v-for="option in projects"
-                            :key="option.slug"
-                            :value="option.slug"
-                        >
-                            {{ option.name }}
-                        </SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-
-            <div class="flex items-center gap-2">
-                <Label
-                    class="text-xs text-muted-foreground"
-                    for="metrics-group-by"
-                >
-                    Group by
-                </Label>
-                <Select v-model="groupByValue" :disabled="metric === null">
-                    <SelectTrigger
-                        id="metrics-group-by"
-                        size="sm"
-                        class="min-w-40 font-mono"
-                        data-test="metrics-group-by"
-                    >
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem :value="NO_GROUPING" class="font-sans">
-                            None
-                        </SelectItem>
-                        <SelectItem
-                            v-for="key in groupByOptions"
-                            :key="key"
-                            :value="key"
-                            class="font-mono"
-                        >
-                            {{ key }}
-                        </SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-
+        <div class="min-w-48 flex-1">
+            <Label class="sr-only" for="metrics-service">
+                Filter by service
+            </Label>
             <!--
-              Aggregation combines the series of a level into one line per
-              group. A rate is always summed and a distribution is read at a
-              percentile, so for those the control would change nothing.
+              A datalist, not a select: the suggestions are the services
+              that reported this metric lately, and a service outside them
+              is still a fair question.
             -->
-            <div v-if="kind === 'value'" class="flex items-center gap-2">
-                <Label class="text-xs text-muted-foreground" for="metrics-agg">
-                    Combine
-                </Label>
-                <Select v-model="aggValue">
-                    <SelectTrigger
-                        id="metrics-agg"
-                        size="sm"
-                        class="min-w-28"
-                        data-test="metrics-agg"
-                    >
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem
-                            v-for="option in METRIC_AGGREGATIONS"
-                            :key="option.value"
-                            :value="option.value"
-                        >
-                            {{ option.label }}
-                        </SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-
-            <div class="flex items-center gap-2">
-                <Label
-                    class="text-xs text-muted-foreground"
-                    for="metrics-range"
-                >
-                    Window
-                </Label>
-                <Select v-model="rangeValue">
-                    <SelectTrigger
-                        id="metrics-range"
-                        size="sm"
-                        class="min-w-40"
-                        data-test="metrics-range"
-                    >
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem
-                            v-for="preset in RANGE_PRESETS"
-                            :key="preset.value"
-                            :value="preset.value"
-                        >
-                            {{ preset.label }}
-                        </SelectItem>
-                        <SelectItem value="custom" disabled>
-                            Custom range
-                        </SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-
-            <MetricsLiveToggle
-                :live="live ?? false"
-                :available="liveAvailable"
-                :refreshing="refreshing"
-                class="ml-auto"
-                @update:live="emit('update:live', $event)"
+            <Input
+                id="metrics-service"
+                v-model="serviceTerm"
+                data-test="metrics-service"
+                list="metrics-service-options"
+                autocomplete="off"
+                placeholder="Service…"
+                class="h-9 rounded-lg font-mono text-sm shadow-none placeholder:font-sans dark:bg-transparent"
+                @input="emitService"
             />
-
-            <Button
-                v-if="canReset"
-                type="button"
-                variant="ghost"
-                size="sm"
-                data-test="metrics-reset"
-                @click="emit('reset')"
+            <datalist
+                id="metrics-service-options"
+                data-test="metrics-service-options"
             >
-                <RotateCcw class="size-4" />
-                Reset
-            </Button>
+                <option
+                    v-for="name in serviceOptions"
+                    :key="name"
+                    :value="name"
+                />
+            </datalist>
         </div>
+
+        <FilterSelect
+            id="metrics-range"
+            label="Window"
+            data-test="metrics-range"
+            :model-value="range"
+            :options="rangeOptions"
+            @update:model-value="pickRange"
+        />
+
+        <FilterSelect
+            v-if="projects.length > 1 || project !== null"
+            id="metrics-project"
+            label="Project"
+            all-label="All projects"
+            data-test="metrics-project"
+            :model-value="project"
+            :options="projectOptions"
+            @update:model-value="emit('update:project', $event)"
+        />
+
+        <FilterSelect
+            v-if="metric !== null"
+            id="metrics-group-by"
+            label="Group by"
+            all-label="None"
+            all-short="None"
+            data-test="metrics-group-by"
+            :model-value="groupBy"
+            :options="groupByChoices"
+            @update:model-value="emit('update:groupBy', $event)"
+        />
 
         <!--
-          Attribute filters belong to the selected metric — its keys are what
-          the pickers offer — so the row appears once there is a metric.
+          Aggregation combines the series of a level into one line per
+          group. A rate is always summed and a distribution is read at a
+          percentile, so for those the control would change nothing.
         -->
+        <FilterSelect
+            v-if="kind === 'value'"
+            id="metrics-agg"
+            label="Combine"
+            data-test="metrics-agg"
+            :model-value="agg"
+            :options="aggOptions"
+            @update:model-value="
+                emit('update:agg', ($event ?? agg) as MetricAggregation)
+            "
+        />
+
         <div
             v-if="metric !== null"
-            class="flex flex-wrap items-center gap-2 border-t px-3 py-2"
+            class="contents"
             data-test="metrics-filters"
         >
-            <span class="text-xs text-muted-foreground">Where</span>
-
             <span
                 v-for="[key, value] in filterEntries"
                 :key="key"
-                class="inline-flex max-w-full items-center gap-1 rounded-full border bg-secondary py-0.5 pr-0.5 pl-2.5 font-mono text-xs text-secondary-foreground"
+                class="inline-flex h-9 max-w-full items-center gap-1.5 rounded-lg border pr-1.5 pl-3 text-sm"
                 :data-test="`metrics-filter-${key}`"
             >
-                <span class="truncate">
-                    {{ key }}
-                    <span class="text-muted-foreground">=</span>
-                    {{ value }}
+                <span class="flex min-w-0 gap-1 font-mono text-xs">
+                    <span class="shrink-0 text-muted-foreground"
+                        >{{ key }} =</span
+                    >
+                    <span class="truncate font-medium text-foreground">{{
+                        value
+                    }}</span>
                 </span>
                 <button
                     type="button"
-                    class="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                    class="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                     :aria-label="`Remove filter ${key} = ${value}`"
                     :data-test="`metrics-filter-remove-${key}`"
                     @click="removeFilter(key)"
                 >
-                    <X class="size-3" />
+                    <X class="size-3.5" />
                 </button>
             </span>
 
@@ -537,8 +453,7 @@ function removeFilter(key: string) {
                 <Select v-model="draftKey">
                     <SelectTrigger
                         id="metrics-filter-key"
-                        size="sm"
-                        class="min-w-40 font-mono"
+                        class="h-9 min-w-40 rounded-lg border-border font-mono text-sm shadow-none data-[size=default]:h-9 dark:bg-transparent"
                         data-test="metrics-filter-key"
                     >
                         <SelectValue
@@ -569,7 +484,7 @@ function removeFilter(key: string) {
                     list="metrics-filter-value-options"
                     autocomplete="off"
                     placeholder="Value…"
-                    class="h-8 w-48 font-mono text-sm"
+                    class="h-9 w-48 rounded-lg font-mono text-sm shadow-none dark:bg-transparent"
                 />
                 <datalist id="metrics-filter-value-options">
                     <option
@@ -581,7 +496,6 @@ function removeFilter(key: string) {
 
                 <Button
                     type="submit"
-                    size="sm"
                     :disabled="!draftKey || draftValue.trim() === ''"
                     data-test="metrics-filter-apply"
                 >
@@ -589,8 +503,8 @@ function removeFilter(key: string) {
                 </Button>
                 <Button
                     type="button"
-                    size="sm"
                     variant="ghost"
+                    class="text-muted-foreground"
                     @click="closeFilterForm"
                 >
                     Cancel
@@ -600,8 +514,8 @@ function removeFilter(key: string) {
             <Button
                 v-else
                 type="button"
-                variant="outline"
-                size="sm"
+                variant="ghost"
+                class="text-muted-foreground"
                 :disabled="!canAddFilter"
                 :title="
                     canAddFilter
@@ -611,9 +525,33 @@ function removeFilter(key: string) {
                 data-test="metrics-filter-add"
                 @click="openFilterForm"
             >
-                <Plus class="size-4" />
-                Add filter
+                <Plus class="size-3.5" />
+                Filter
             </Button>
         </div>
+
+        <span
+            class="mx-1 hidden h-5 w-px bg-border sm:block"
+            aria-hidden="true"
+        />
+
+        <MetricsLiveToggle
+            :live="live ?? false"
+            :available="liveAvailable"
+            :refreshing="refreshing"
+            @update:live="emit('update:live', $event)"
+        />
+
+        <Button
+            v-if="canReset"
+            type="button"
+            variant="ghost"
+            class="text-muted-foreground"
+            data-test="metrics-reset"
+            @click="emit('reset')"
+        >
+            <RotateCcw class="size-3.5" />
+            Reset
+        </Button>
     </div>
 </template>

@@ -1,20 +1,15 @@
 <script setup lang="ts">
 import { Head, Link, usePage } from '@inertiajs/vue3';
-import { Activity, ArrowRight, Database } from '@lucide/vue';
+import { ArrowRight } from '@lucide/vue';
 import { computed } from 'vue';
-import DitherSparkline from '@/components/DitherSparkline.vue';
+import BarSparkline from '@/components/BarSparkline.vue';
 import GetStartedPanel from '@/components/GetStartedPanel.vue';
 import IngestRateCard from '@/components/IngestRateCard.vue';
+import PageHeader from '@/components/PageHeader.vue';
 import PendingInvitationsModal from '@/components/PendingInvitationsModal.vue';
 import PlanUsageCard from '@/components/PlanUsageCard.vue';
+import SectionHeader from '@/components/SectionHeader.vue';
 import { Button } from '@/components/ui/button';
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
 import {
     formatBytes,
     formatHourLabel,
@@ -24,7 +19,9 @@ import {
     parseTimestamp,
     timeZoneNotice,
 } from '@/lib/logs';
+import { splitExceptionHeadline } from '@/lib/logs';
 import { dashboard } from '@/routes';
+import { index as issuesIndex } from '@/routes/issues';
 import { index as logsIndex } from '@/routes/logs';
 import { show as projectShow } from '@/routes/projects';
 import type {
@@ -210,19 +207,6 @@ const errorRate = computed<number | null>(() => {
     );
 });
 
-/** The Errors tile's caption: the share first, then the change. */
-const errorsCaption = computed(() => {
-    if (!props.digest) {
-        return '';
-    }
-
-    const delta = deltaLabel(props.digest.errors);
-
-    return errorRate.value === null
-        ? delta
-        : `${errorRate.value}% of all logs · ${delta}`;
-});
-
 /**
  * The plain-language reading of the error rate.
  *
@@ -259,6 +243,38 @@ const measuredAgo = computed(() =>
  * A project's bar as a share of the whole table, floored so the smallest
  * project with any data still shows a visible sliver.
  */
+/** The rail's own count, read here too: one number for "what needs looking at". */
+const issueBadge = computed(() => page.props.issueBadge ?? null);
+
+const servicesReporting = computed(
+    () => props.digest?.services.filter((service) => !service.quiet) ?? [],
+);
+
+/** The most recently heard-from service, for the KPI's caption. */
+const lastHeard = computed(() => {
+    const services = props.digest?.services ?? [];
+
+    if (services.length === 0) {
+        return null;
+    }
+
+    const newest = services.reduce((latest, service) =>
+        parseTimestamp(service.lastSeen).getTime() >
+        parseTimestamp(latest.lastSeen).getTime()
+            ? service
+            : latest,
+    );
+
+    return formatRelativeTime(newest.lastSeen);
+});
+
+const serviceSeriesMax = computed(() =>
+    Math.max(
+        1,
+        ...(props.digest?.services ?? []).flatMap((service) => service.series),
+    ),
+);
+
 function storageBarWidth(project: LogStorageProject): number {
     if (!props.storage || props.storage.totalBytes <= 0 || project.bytes <= 0) {
         return 0;
@@ -276,8 +292,47 @@ function storageBarWidth(project: LogStorageProject): number {
         :invitations="pendingInvitations"
     />
 
-    <div class="flex h-full flex-1 flex-col gap-4 p-4">
-        <h1 class="sr-only">Dashboard</h1>
+    <div class="flex flex-1 flex-col">
+        <PageHeader
+            title="Dashboard"
+            :eyebrow="[page.props.currentTeam?.name ?? 'Team', 'Last 24 hours']"
+        >
+            <p v-if="stage === 'ready' && digest && !digest.unavailable">
+                <span
+                    v-if="errorVerdict"
+                    :class="
+                        errorVerdict.severe
+                            ? 'font-medium text-severity-error'
+                            : 'text-foreground'
+                    "
+                    data-test="dashboard-digest-verdict"
+                    >{{ errorVerdict.text }}</span
+                >
+                <span v-if="measuredAgo" data-test="dashboard-digest-measured">
+                    Updated {{ measuredAgo }}</span
+                ><span class="hidden sm:inline" data-test="dashboard-timezone">
+                    · {{ timeZone }}</span
+                >
+            </p>
+            <p v-else-if="stage !== 'ready'">
+                Two steps between you and your first line.
+            </p>
+
+            <template v-if="stage === 'ready'" #actions>
+                <Button variant="outline" as-child>
+                    <Link :href="issuesIndex(teamSlug)">
+                        Open issues
+                        <ArrowRight />
+                    </Link>
+                </Button>
+                <Button as-child data-test="dashboard-logs-link">
+                    <Link :href="logsIndex(teamSlug)">
+                        Open the log viewer
+                        <ArrowRight />
+                    </Link>
+                </Button>
+            </template>
+        </PageHeader>
 
         <!--
           Until logs flow, the dashboard IS onboarding: the same panel the
@@ -285,23 +340,19 @@ function storageBarWidth(project: LogStorageProject): number {
           Once the team is ready the panel disappears for good — the health
           digest below is the dashboard's real content.
         -->
-        <GetStartedPanel
-            v-if="stage !== 'ready'"
-            :stage="stage"
-            :projects="projects"
-            :team-slug="teamSlug"
-            data-test="dashboard-onboarding"
-            :data-stage="stage"
-        />
+        <div v-if="stage !== 'ready'" class="px-4 pb-10 md:px-10">
+            <GetStartedPanel
+                :stage="stage"
+                :projects="projects"
+                :team-slug="teamSlug"
+                data-test="dashboard-onboarding"
+                :data-stage="stage"
+            />
+        </div>
 
-        <!--
-          Once logs flow the page is a health board, not a column: the tiles,
-          the two lists and storage share one grid so a wide screen is read
-          in two columns instead of leaving half of itself empty.
-        -->
         <div
             v-else
-            class="grid w-full max-w-6xl gap-4 xl:grid-cols-2"
+            class="flex flex-col px-4 pb-10 md:px-10"
             data-test="dashboard-health"
         >
             <!--
@@ -310,251 +361,299 @@ function storageBarWidth(project: LogStorageProject): number {
             -->
             <section
                 v-if="digest"
-                class="grid gap-4 xl:col-span-2 xl:grid-cols-2"
-                aria-labelledby="dashboard-digest-heading"
+                class="flex flex-col"
+                aria-label="System health"
                 data-test="dashboard-digest"
             >
-                <div
-                    class="flex flex-wrap items-center justify-between gap-2 xl:col-span-2"
-                >
-                    <h2
-                        id="dashboard-digest-heading"
-                        class="flex items-center gap-2 text-sm font-medium"
-                    >
-                        <span
-                            class="flex size-8 items-center justify-center rounded-full bg-muted text-muted-foreground"
-                        >
-                            <Activity class="size-4" />
-                        </span>
-                        System health
-                        <span
-                            v-if="!digest.unavailable && measuredAgo"
-                            class="text-xs font-normal text-muted-foreground"
-                            data-test="dashboard-digest-measured"
-                        >
-                            as of {{ measuredAgo }}
-                        </span>
-                        <!--
-                          Every chart below is labelled on the reader's clock;
-                          this is where the page admits which one that is.
-                        -->
-                        <span
-                            class="hidden text-xs font-normal text-muted-foreground sm:inline"
-                            data-test="dashboard-timezone"
-                        >
-                            · {{ timeZone }}
-                        </span>
-                    </h2>
-
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        as-child
-                        data-test="dashboard-logs-link"
-                    >
-                        <Link :href="logsIndex(teamSlug)">
-                            Open the log viewer
-                            <ArrowRight />
-                        </Link>
-                    </Button>
-                </div>
-
                 <p
                     v-if="digest.unavailable"
-                    class="text-sm text-muted-foreground xl:col-span-2"
+                    class="border-y py-6 text-sm text-muted-foreground"
                 >
                     The last 24 hours are momentarily unavailable while the log
                     store is busy. They will be back on the next visit.
                 </p>
 
                 <template v-else>
-                    <div class="grid gap-4 sm:grid-cols-2 xl:col-span-2">
+                    <!--
+                      The numbers, on the surface rather than in five cards:
+                      one strip, hairlines between, the figure large and its
+                      context small. Only the error figure carries a hue.
+                    -->
+                    <div
+                        class="grid grid-cols-2 border-y md:grid-cols-3 xl:grid-cols-5"
+                        data-test="dashboard-kpis"
+                    >
                         <Link
                             :href="logsLink"
-                            class="rounded-xl transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                            class="group -ml-3 flex flex-col gap-1.5 border-b py-5 pr-6 pl-3 transition-colors hover:bg-muted/40 md:border-b-0 xl:border-r"
                             data-test="dashboard-digest-logs-link"
                         >
-                            <Card
-                                class="h-full hover:border-ring/60"
+                            <span
+                                class="text-xs font-medium text-muted-foreground"
                                 data-test="dashboard-digest-logs"
+                                >Logs</span
                             >
-                                <CardHeader>
-                                    <CardDescription>
-                                        Logs · 24h
-                                    </CardDescription>
-                                    <CardTitle class="font-mono text-2xl">
-                                        {{
-                                            digest.logs.current.toLocaleString()
-                                        }}
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent class="flex flex-col gap-2">
-                                    <DitherSparkline
-                                        :values="logsSeries"
-                                        :labels="hourLabels"
-                                        :utc-labels="utcHourLabels"
-                                        tone="volume"
-                                        unit="logs"
-                                    />
-                                    <div
-                                        class="flex items-baseline justify-between gap-2 text-xs text-muted-foreground"
-                                    >
-                                        <span>24h ago</span>
-                                        <span>now</span>
-                                    </div>
-                                    <p class="text-xs text-muted-foreground">
-                                        {{ deltaLabel(digest.logs) }}
-                                    </p>
-                                </CardContent>
-                            </Card>
+                            <span
+                                class="text-3xl leading-9 font-semibold tracking-tight tabular-nums"
+                                >{{
+                                    digest.logs.current.toLocaleString()
+                                }}</span
+                            >
+                            <span class="text-xs text-muted-foreground">{{
+                                deltaLabel(digest.logs)
+                            }}</span>
                         </Link>
 
                         <Link
                             :href="errorsLink"
-                            class="rounded-xl transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                            class="flex flex-col gap-1.5 border-b py-5 pr-6 pl-6 transition-colors hover:bg-muted/40 md:border-b-0 xl:border-r"
                             data-test="dashboard-digest-errors-link"
                         >
-                            <Card
-                                class="h-full hover:border-ring/60"
+                            <span
+                                class="text-xs font-medium text-muted-foreground"
                                 data-test="dashboard-digest-errors"
+                                >Errors</span
                             >
-                                <CardHeader>
-                                    <CardDescription>
-                                        Errors · 24h
-                                    </CardDescription>
-                                    <CardTitle
-                                        class="font-mono text-2xl"
-                                        :class="
-                                            digest.errors.current > 0
-                                                ? 'text-severity-error'
-                                                : ''
-                                        "
-                                    >
-                                        {{
-                                            digest.errors.current.toLocaleString()
-                                        }}
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent class="flex flex-col gap-2">
-                                    <DitherSparkline
-                                        :values="errorsSeries"
-                                        :labels="hourLabels"
-                                        :utc-labels="utcHourLabels"
-                                        tone="error"
-                                        unit="errors"
-                                    />
-                                    <div
-                                        class="flex items-baseline justify-between gap-2 text-xs text-muted-foreground"
-                                    >
-                                        <span>24h ago</span>
-                                        <span>now</span>
-                                    </div>
-                                    <p class="text-xs text-muted-foreground">
-                                        {{ errorsCaption }}
-                                    </p>
-                                    <!--
-                                      The verdict the number alone does not
-                                      give. Severity hue only when errors are
-                                      the majority of the day — the rest is
-                                      an observation, not an alarm.
-                                    -->
-                                    <p
-                                        v-if="errorVerdict"
-                                        class="text-xs"
-                                        :class="
-                                            errorVerdict.severe
-                                                ? 'text-severity-error'
-                                                : 'text-muted-foreground'
-                                        "
-                                        data-test="dashboard-digest-verdict"
-                                    >
-                                        {{ errorVerdict.text }}
-                                    </p>
-                                </CardContent>
-                            </Card>
+                            <span class="flex items-baseline gap-2">
+                                <span
+                                    class="text-3xl leading-9 font-semibold tracking-tight tabular-nums"
+                                    :class="
+                                        digest.errors.current > 0
+                                            ? 'text-severity-error'
+                                            : ''
+                                    "
+                                    >{{
+                                        digest.errors.current.toLocaleString()
+                                    }}</span
+                                >
+                                <span
+                                    v-if="errorRate !== null"
+                                    class="font-mono text-xs text-muted-foreground"
+                                    >{{ errorRate }}%</span
+                                >
+                            </span>
+                            <span class="text-xs text-muted-foreground">{{
+                                errorRate === null
+                                    ? deltaLabel(digest.errors)
+                                    : `of all logs · ${deltaLabel(digest.errors)}`
+                            }}</span>
                         </Link>
+
+                        <Link
+                            :href="issuesIndex(teamSlug)"
+                            class="-ml-3 flex flex-col gap-1.5 py-5 pr-6 pl-3 transition-colors hover:bg-muted/40 md:ml-0 md:border-l md:pl-6 xl:border-r xl:border-l-0"
+                            data-test="dashboard-issues"
+                        >
+                            <span
+                                class="text-xs font-medium text-muted-foreground"
+                                >Unresolved issues</span
+                            >
+                            <span
+                                class="text-3xl leading-9 font-semibold tracking-tight tabular-nums"
+                                >{{
+                                    issueBadge
+                                        ? issueBadge.unresolved.toLocaleString()
+                                        : '—'
+                                }}</span
+                            >
+                            <span class="text-xs text-muted-foreground">
+                                <template v-if="issueBadge === null"
+                                    >last 7 days</template
+                                >
+                                <template v-else-if="issueBadge.regressed > 0">
+                                    <span
+                                        class="font-medium text-severity-error"
+                                        >{{
+                                            issueBadge.regressed
+                                        }}
+                                        regressed</span
+                                    >
+                                    · last 7 days
+                                </template>
+                                <template v-else>last 7 days</template>
+                            </span>
+                        </Link>
+
+                        <div
+                            class="flex flex-col gap-1.5 border-t py-5 pr-6 pl-6 md:border-t-0 md:border-l md:pl-6 xl:border-r xl:border-l-0"
+                        >
+                            <span
+                                class="text-xs font-medium text-muted-foreground"
+                                >Services reporting</span
+                            >
+                            <span
+                                class="text-3xl leading-9 font-semibold tracking-tight tabular-nums"
+                                >{{ servicesReporting.length }}
+                                <span
+                                    v-if="
+                                        digest.services.length >
+                                        servicesReporting.length
+                                    "
+                                    class="text-base font-medium text-muted-foreground"
+                                    >/ {{ digest.services.length }}</span
+                                ></span
+                            >
+                            <span class="text-xs text-muted-foreground">{{
+                                lastHeard
+                                    ? `last heard ${lastHeard}`
+                                    : 'nothing heard yet'
+                            }}</span>
+                        </div>
+
+                        <div
+                            class="flex flex-col gap-1.5 border-t py-5 pr-6 md:pl-6 xl:border-t-0 xl:pl-6"
+                            data-test="dashboard-stored"
+                        >
+                            <span
+                                class="text-xs font-medium text-muted-foreground"
+                                >Stored</span
+                            >
+                            <span
+                                class="text-3xl leading-9 font-semibold tracking-tight tabular-nums"
+                                >{{
+                                    storage && !storage.unavailable
+                                        ? formatBytes(storage.totalBytes)
+                                        : '—'
+                                }}</span
+                            >
+                            <span class="text-xs text-muted-foreground"
+                                >compressed · on disk now</span
+                            >
+                        </div>
                     </div>
 
-                    <Card data-test="dashboard-digest-top-errors">
-                        <CardHeader>
-                            <CardTitle class="text-sm">
-                                Top errors (24h)
-                            </CardTitle>
-                            <CardDescription>
-                                The failures repeating most often, by log body.
-                            </CardDescription>
-                        </CardHeader>
+                    <!--
+                      The day, hour by hour: volume in the chart colour, the
+                      part of each hour that broke drawn over it in red.
+                    -->
+                    <section
+                        class="flex flex-col gap-2 py-7"
+                        data-test="dashboard-volume"
+                    >
+                        <p class="text-xs text-muted-foreground">
+                            <span class="font-medium text-foreground"
+                                >Logs per hour</span
+                            >
+                            · errors drawn over the volume
+                        </p>
+                        <BarSparkline
+                            :values="logsSeries"
+                            :error-values="errorsSeries"
+                            :labels="hourLabels"
+                            :utc-labels="utcHourLabels"
+                            :bar-max-width="28"
+                            tone="volume"
+                            unit="logs"
+                            :height="128"
+                        />
+                        <div
+                            class="flex justify-between font-mono text-[11px] text-muted-foreground"
+                        >
+                            <span>{{ hourLabels[0] ?? '24h ago' }}</span>
+                            <span>{{
+                                hourLabels[Math.floor(hourLabels.length / 2)] ??
+                                ''
+                            }}</span>
+                            <span class="text-foreground">now</span>
+                        </div>
+                    </section>
 
-                        <CardContent>
+                    <div class="grid gap-x-12 gap-y-8 pb-8 xl:grid-cols-5">
+                        <section
+                            class="flex flex-col xl:col-span-3"
+                            data-test="dashboard-digest-top-errors"
+                        >
+                            <SectionHeader
+                                title="Top errors"
+                                note="repeating most often · 24h"
+                            />
                             <p
                                 v-if="digest.topErrors.length === 0"
-                                class="text-sm text-muted-foreground"
+                                class="py-4 text-sm text-muted-foreground"
                             >
                                 No errors in the last 24 hours.
                             </p>
-
-                            <ul v-else class="flex flex-col gap-2">
+                            <ul v-else>
                                 <li
                                     v-for="error in digest.topErrors"
                                     :key="error.body"
-                                    class="flex items-baseline justify-between gap-3 text-sm"
+                                    class="border-b border-border/60 last:border-b-0"
                                 >
                                     <Link
                                         :href="topErrorLink(error.body)"
-                                        class="min-w-0 truncate font-mono text-xs hover:underline"
+                                        class="-mx-3 flex h-11 items-center gap-4 rounded-md px-3 text-sm transition-colors hover:bg-muted/40"
                                         :title="error.body"
                                         data-test="dashboard-digest-error-link"
                                     >
-                                        {{ error.body }}
+                                        <span
+                                            class="min-w-0 flex-1 truncate font-mono text-xs text-foreground/80"
+                                        >
+                                            <span
+                                                v-if="
+                                                    splitExceptionHeadline(
+                                                        error.body,
+                                                    ).head
+                                                "
+                                                class="font-semibold text-foreground"
+                                                >{{
+                                                    splitExceptionHeadline(
+                                                        error.body,
+                                                    ).head
+                                                }}&nbsp;</span
+                                            >{{
+                                                splitExceptionHeadline(
+                                                    error.body,
+                                                ).rest
+                                            }}
+                                        </span>
+                                        <span
+                                            class="w-12 shrink-0 text-right font-mono text-sm font-medium tabular-nums"
+                                        >
+                                            {{ error.total.toLocaleString() }}
+                                        </span>
                                     </Link>
-                                    <span
-                                        class="shrink-0 font-mono text-xs text-muted-foreground"
-                                    >
-                                        {{ error.total.toLocaleString() }}×
-                                    </span>
                                 </li>
                             </ul>
-                        </CardContent>
-                    </Card>
+                        </section>
 
-                    <Card
-                        v-if="digest.services.length > 0"
-                        data-test="dashboard-digest-services"
-                    >
-                        <CardHeader>
-                            <CardTitle class="text-sm">Services</CardTitle>
-                            <CardDescription>
-                                When each shipper was last heard from. Quiet
-                                ones have said nothing for over an hour.
-                            </CardDescription>
-                        </CardHeader>
-
-                        <CardContent>
-                            <ul class="flex flex-col gap-2">
+                        <section
+                            v-if="digest.services.length > 0"
+                            class="flex flex-col xl:col-span-2"
+                            data-test="dashboard-digest-services"
+                        >
+                            <SectionHeader
+                                title="Services"
+                                note="quiet = nothing for over an hour"
+                            />
+                            <ul>
                                 <li
                                     v-for="service in digest.services"
                                     :key="service.name"
                                     :data-quiet="service.quiet"
+                                    class="border-b border-border/60 last:border-b-0"
                                 >
                                     <!--
                                       A fixed column template, identical on
                                       every row, so the charts share one
-                                      x-origin and one right edge: the rows
-                                      become comparable little histograms
-                                      instead of ragged decorations. Every
-                                      cell is always rendered — the status
-                                      cell reserves its width even when the
-                                      service is healthy — so nothing shifts
-                                      when a row gains or loses the pill.
+                                      x-origin, one right edge and one scale.
                                     -->
                                     <Link
                                         :href="serviceLink(service.name)"
-                                        class="grid grid-cols-[7.5rem_minmax(4rem,1fr)_3.5rem_4.25rem] items-center gap-3 text-sm hover:underline"
+                                        class="-mx-3 grid h-11 grid-cols-[0.5rem_minmax(0,1fr)_6rem_4.5rem] items-center gap-3 rounded-md px-3 text-sm transition-colors hover:bg-muted/40"
                                         :title="`Show the last 7 days of ${service.name}`"
                                         data-test="dashboard-digest-service-link"
                                     >
                                         <span
-                                            class="min-w-0 truncate font-mono text-xs"
+                                            class="size-2 rounded-full"
+                                            :class="
+                                                service.quiet
+                                                    ? 'ring-1 ring-muted-foreground/60 ring-inset'
+                                                    : 'bg-foreground'
+                                            "
+                                            aria-hidden="true"
+                                        />
+                                        <span
+                                            class="min-w-0 truncate font-mono text-xs font-medium"
                                             :class="
                                                 service.quiet
                                                     ? 'text-muted-foreground'
@@ -563,39 +662,28 @@ function storageBarWidth(project: LogStorageProject): number {
                                             :title="service.name"
                                         >
                                             {{ service.name }}
+                                            <span
+                                                v-if="service.quiet"
+                                                class="ml-1 font-sans text-[11px] font-normal tracking-wide uppercase"
+                                                >quiet</span
+                                            >
                                         </span>
-                                        <!--
-                                          The row's own 24 hours. A shipper
-                                          that is alive shows texture; a dead
-                                          one shows the flat baseline, which
-                                          is what makes "quiet" visible
-                                          rather than merely labelled.
-                                        -->
                                         <span
                                             class="min-w-0"
                                             data-test="dashboard-digest-service-series"
                                         >
-                                            <DitherSparkline
+                                            <BarSparkline
                                                 :values="service.series"
                                                 :error-values="
                                                     service.errorSeries
                                                 "
                                                 :labels="hourLabels"
                                                 :utc-labels="utcHourLabels"
-                                                :height="32"
+                                                :max="serviceSeriesMax"
+                                                :height="24"
                                                 tone="volume"
                                                 unit="logs"
                                             />
-                                        </span>
-                                        <span
-                                            class="flex justify-center text-xs text-muted-foreground"
-                                        >
-                                            <span
-                                                v-if="service.quiet"
-                                                class="rounded-full border border-border px-1.5 py-0.5 text-xs tracking-wide uppercase"
-                                            >
-                                                quiet
-                                            </span>
                                         </span>
                                         <span
                                             class="text-right text-xs text-muted-foreground tabular-nums"
@@ -614,42 +702,44 @@ function storageBarWidth(project: LogStorageProject): number {
                                     </Link>
                                 </li>
                             </ul>
-                        </CardContent>
-                    </Card>
+                        </section>
+                    </div>
                 </template>
             </section>
 
             <!--
-              Storage only appears once logs are flowing: during onboarding a
-              card full of zeroes would just be noise next to the setup steps.
+              Capacity: what is on disk, how close the shippers are to being
+              turned away, and where the team stands on its plan. Three reads
+              of headroom side by side, below the health of the day.
             -->
-            <Card v-if="storage" data-test="dashboard-storage">
-                <CardHeader>
-                    <CardTitle class="flex items-center justify-between gap-2">
-                        <span class="flex items-center gap-2">
-                            <span
-                                class="flex size-8 items-center justify-center rounded-full bg-muted text-muted-foreground"
-                            >
-                                <Database class="size-4" />
-                            </span>
-                            Storage
-                        </span>
-                        <span
-                            v-if="!storage.unavailable"
-                            class="font-mono text-sm text-muted-foreground"
-                            data-test="dashboard-storage-total"
+            <div
+                class="grid gap-x-12 gap-y-10 border-t pt-7 lg:grid-cols-2 xl:grid-cols-3"
+                data-test="dashboard-capacity"
+            >
+                <section
+                    v-if="storage"
+                    class="flex flex-col gap-4"
+                    data-test="dashboard-storage"
+                >
+                    <header class="flex flex-col gap-1.5">
+                        <h3
+                            class="flex items-center justify-between gap-2 text-base font-semibold tracking-tight"
                         >
-                            {{ formatBytes(storage.totalBytes) }}
-                        </span>
-                    </CardTitle>
+                            Storage
+                            <span
+                                v-if="!storage.unavailable"
+                                class="font-mono text-sm font-normal text-muted-foreground"
+                                data-test="dashboard-storage-total"
+                            >
+                                {{ formatBytes(storage.totalBytes) }}
+                            </span>
+                        </h3>
+                        <p class="text-sm text-muted-foreground">
+                            Compressed bytes on disk across the 30-day retention
+                            window. The per-project split is an estimate.
+                        </p>
+                    </header>
 
-                    <CardDescription>
-                        Compressed bytes on disk across the 30-day retention
-                        window. The per-project split is an estimate.
-                    </CardDescription>
-                </CardHeader>
-
-                <CardContent>
                     <p
                         v-if="storage.unavailable"
                         class="text-sm text-muted-foreground"
@@ -662,7 +752,7 @@ function storageBarWidth(project: LogStorageProject): number {
                         <li
                             v-for="project in storage.projects"
                             :key="project.slug"
-                            class="flex flex-col gap-1"
+                            class="flex flex-col gap-1.5"
                         >
                             <div
                                 class="flex items-baseline justify-between gap-2 text-sm"
@@ -677,7 +767,7 @@ function storageBarWidth(project: LogStorageProject): number {
                                 </Link>
                                 <!--
                                   "stored" and "retained" are load-bearing: the
-                                  tiles above count the last 24 hours, this
+                                  numbers above count the last 24 hours, this
                                   counts everything still on disk.
                                 -->
                                 <span
@@ -688,11 +778,11 @@ function storageBarWidth(project: LogStorageProject): number {
                                 </span>
                             </div>
                             <div
-                                class="h-1.5 overflow-hidden rounded-full bg-muted"
+                                class="h-1 overflow-hidden rounded-full bg-muted"
                                 role="presentation"
                             >
                                 <div
-                                    class="h-full rounded-full bg-foreground/60"
+                                    class="h-full rounded-full bg-foreground/70"
                                     :style="{
                                         width: `${storageBarWidth(project)}%`,
                                     }"
@@ -700,24 +790,12 @@ function storageBarWidth(project: LogStorageProject): number {
                             </div>
                         </li>
                     </ul>
-                </CardContent>
-            </Card>
+                </section>
 
-            <!--
-              The other half of "is ingest healthy": storage says what arrived,
-              this says how close the shippers are to being turned away. A
-              live per-minute reading, so it sits beside storage rather than
-              inside the 24 hour digest above.
-            -->
-            <IngestRateCard v-if="ingestRate" :usage="ingestRate" />
+                <IngestRateCard v-if="ingestRate" :usage="ingestRate" />
 
-            <!--
-              Where the team stands on the Free plan. It sits with the other
-              two capacity cards rather than at the top of the page: it is a
-              report on headroom, not an ask, and it is present from the first
-              visit because "0 of 3 projects" is already the answer.
-            -->
-            <PlanUsageCard :usage="planUsage" />
+                <PlanUsageCard :usage="planUsage" />
+            </div>
         </div>
     </div>
 </template>

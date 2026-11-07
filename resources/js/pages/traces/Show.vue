@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ExternalLink } from '@lucide/vue';
+import { Check, Copy, ExternalLink, ScrollText } from '@lucide/vue';
+import { useClipboard } from '@vueuse/core';
 import { computed, ref } from 'vue';
+import PageHeader from '@/components/PageHeader.vue';
 import SpanDetailPanel from '@/components/SpanDetailPanel.vue';
 import SpanSearch from '@/components/SpanSearch.vue';
 import SpanWaterfall from '@/components/SpanWaterfall.vue';
-import TraceFact from '@/components/TraceFact.vue';
+import StorageBusy from '@/components/StorageBusy.vue';
+import { Button } from '@/components/ui/button';
 import { formatTimestamp, formatUtcTimestamp } from '@/lib/logs';
 import {
+    durationClass,
     formatDuration,
     parentLink,
     serviceColours,
@@ -246,8 +250,21 @@ const spansExpired = computed(
         !props.unavailable,
 );
 
-const heading = computed(
-    () => props.summary?.rootName || 'Root span not received',
+/**
+ * How many services the drawn spans touch. Read from the spans this page holds,
+ * so a trace cut at the span cap says "at least".
+ */
+const serviceCount = computed(
+    () =>
+        new Set(props.spans.map((span) => span.serviceName || 'unknown')).size,
+);
+
+const { copy, copied } = useClipboard({ copiedDuring: 1_500, legacy: true });
+
+const heading = computed(() =>
+    props.summary === null
+        ? 'Trace'
+        : props.summary.rootName || 'Root span not received',
 );
 
 /**
@@ -284,118 +301,186 @@ const logsValue = computed(() => {
 <template>
     <Head :title="`Trace ${traceId.slice(0, 12)}`" />
 
-    <div class="flex min-h-0 flex-1 flex-col gap-4 p-4">
+    <div class="flex min-h-0 flex-1 flex-col">
         <!--
           The header answers "what am I looking at, and did it work?" before the
-          waterfall is read at all. It is a grid of quiet labels over loud
-          values rather than a row of boxes: at this density the type contrast
-          separates the facts, and boxes would only add lines to count.
+          waterfall is read at all: the root operation as the title, where it
+          ran as one sentence, and the numbers as a strip below.
         -->
-        <header class="flex flex-col gap-4 rounded-lg border bg-card p-4">
-            <div class="flex flex-wrap items-baseline justify-between gap-2">
-                <h1 class="text-xl font-semibold break-words">
-                    {{ heading }}
-                </h1>
-                <p
-                    v-if="summary"
-                    class="text-xs text-muted-foreground"
-                    :title="formatUtcTimestamp(summary.startedAt)"
+        <PageHeader :title="heading">
+            <template #title>
+                <span
+                    :class="
+                        cn(
+                            'break-words',
+                            summary !== null &&
+                                !summary.rootName &&
+                                'text-muted-foreground',
+                        )
+                    "
+                    :title="heading"
+                    >{{ heading }}</span
                 >
-                    {{ formatTimestamp(summary.startedAt) }}
-                </p>
-            </div>
+            </template>
 
-            <dl
+            <p
                 v-if="summary"
-                class="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3 lg:grid-cols-4"
-                data-test="trace-summary"
+                class="flex flex-wrap items-center gap-x-1.5 gap-y-1"
+                data-test="trace-context"
             >
-                <TraceFact label="Status" :value="failed ? 'error' : 'ok'">
-                    <span class="inline-flex items-center gap-1.5">
-                        <span
-                            :class="
-                                cn(
-                                    'size-1.5 rounded-full',
-                                    failed
-                                        ? SPAN_STATUS_BAR_CLASS.Error
-                                        : SPAN_STATUS_BAR_CLASS.Ok,
-                                )
-                            "
-                            aria-hidden="true"
-                        />
-                        <span
-                            :class="failed ? SPAN_STATUS_TEXT_CLASS.Error : ''"
-                        >
-                            {{ failed ? 'error' : 'ok' }}
-                        </span>
-                    </span>
-                </TraceFact>
-
-                <TraceFact
-                    label="Duration"
-                    :value="formatDuration(summary.durationMs)"
-                />
-
-                <TraceFact
-                    label="Spans"
-                    :value="String(summary.spanCount)"
-                    :detail="
-                        summary.errorCount > 0
-                            ? `${summary.errorCount} error${summary.errorCount === 1 ? '' : 's'}`
-                            : undefined
-                    "
-                />
-
-                <TraceFact
-                    label="Service"
-                    :value="summary.rootService || '—'"
-                    :detail="serviceVersion ?? undefined"
-                />
-
-                <TraceFact
-                    label="Started"
-                    :value="formatTimestamp(summary.startedAt)"
-                />
-
-                <TraceFact
-                    v-if="environment"
-                    label="Environment"
-                    :value="environment"
-                />
-
-                <TraceFact v-if="sdk" label="Instrumentation" :value="sdk" />
-
-                <!--
-                  "0 logs" still renders — a trace that wrote nothing is a
-                  fact worth a glance — and the value is the link, because the
-                  count is the reason to click.
-                -->
-                <TraceFact
-                    v-if="logs && logsHref"
-                    label="Logs"
-                    :value="logsValue"
-                    :detail="
-                        logs.count === null ? 'Count unavailable' : undefined
-                    "
+                <span class="inline-flex items-center gap-1.5">
+                    <span
+                        :class="
+                            cn(
+                                'size-1.5 rounded-full',
+                                failed
+                                    ? SPAN_STATUS_BAR_CLASS.Error
+                                    : SPAN_STATUS_BAR_CLASS.Ok,
+                            )
+                        "
+                        aria-hidden="true"
+                    />
+                    <span
+                        :class="
+                            failed
+                                ? cn(
+                                      'font-medium',
+                                      SPAN_STATUS_TEXT_CLASS.Error,
+                                  )
+                                : 'text-foreground'
+                        "
+                        >{{ failed ? 'error' : 'ok' }}</span
+                    >
+                </span>
+                <span class="text-input" aria-hidden="true">·</span>
+                <span class="font-mono text-foreground">{{
+                    summary.rootService || '—'
+                }}</span>
+                <span v-if="serviceVersion" class="font-mono">{{
+                    serviceVersion
+                }}</span>
+                <template v-if="environment">
+                    <span class="text-input" aria-hidden="true">·</span>
+                    <span>{{ environment }}</span>
+                </template>
+                <span class="text-input" aria-hidden="true">·</span>
+                <span
+                    class="font-mono"
+                    :title="formatUtcTimestamp(summary.startedAt)"
+                    >{{ formatTimestamp(summary.startedAt) }}</span
                 >
+                <template v-if="sdk">
+                    <span class="text-input" aria-hidden="true">·</span>
+                    <span>{{ sdk }}</span>
+                </template>
+            </p>
+            <p v-else class="font-mono">{{ traceId }}</p>
+
+            <template #actions>
+                <Button
+                    v-if="summary"
+                    type="button"
+                    variant="ghost"
+                    class="font-mono text-muted-foreground"
+                    :title="traceId"
+                    :aria-label="copied ? 'Copied' : 'Copy Trace ID'"
+                    data-test="trace-copy-id"
+                    @click="copy(traceId)"
+                >
+                    {{ traceId.slice(0, 16) }}…
+                    <component :is="copied ? Check : Copy" class="size-3.5" />
+                </Button>
+                <!--
+                  "0 logs" still renders — a trace that wrote nothing is a fact
+                  worth a glance — and the count is the label, because it is the
+                  reason to click.
+                -->
+                <Button v-if="logs && logsHref" variant="outline" as-child>
                     <Link
                         :href="logsHref"
-                        class="underline-offset-2 hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                         data-test="trace-logs-link"
+                        :title="
+                            logs.count === null
+                                ? 'Count unavailable'
+                                : undefined
+                        "
                     >
+                        <ScrollText class="size-4" />
                         {{ logsValue }}
                     </Link>
-                </TraceFact>
+                </Button>
+            </template>
+        </PageHeader>
 
-                <TraceFact
-                    label="Trace ID"
-                    :value="traceId"
-                    mono
-                    copyable
-                    class="col-span-2"
-                />
+        <!--
+          The numbers, on the surface: one strip, hairlines between, the figure
+          large and its context small — the dashboard's KPI strip. Duration
+          takes its magnitude, errors take severity; the rest stay ink.
+        -->
+        <div v-if="summary" class="px-4 pb-6 md:px-10">
+            <dl
+                class="grid grid-cols-2 border-y sm:grid-cols-4"
+                data-test="trace-summary"
+            >
+                <div class="flex flex-col gap-1.5 py-5 pr-6">
+                    <dt class="text-xs font-medium text-muted-foreground">
+                        Duration
+                    </dt>
+                    <dd
+                        :class="
+                            cn(
+                                'font-mono text-3xl leading-9 font-semibold tracking-tight tabular-nums',
+                                durationClass(summary.durationMs),
+                            )
+                        "
+                    >
+                        {{ formatDuration(summary.durationMs) }}
+                    </dd>
+                </div>
+
+                <div class="flex flex-col gap-1.5 border-l py-5 pr-6 pl-6">
+                    <dt class="text-xs font-medium text-muted-foreground">
+                        Spans
+                    </dt>
+                    <dd
+                        class="text-3xl leading-9 font-semibold tracking-tight tabular-nums"
+                    >
+                        {{ summary.spanCount.toLocaleString() }}
+                    </dd>
+                </div>
+
+                <div
+                    class="flex flex-col gap-1.5 border-t py-5 pr-6 sm:border-t-0 sm:border-l sm:pl-6"
+                >
+                    <dt class="text-xs font-medium text-muted-foreground">
+                        Services
+                    </dt>
+                    <dd
+                        class="text-3xl leading-9 font-semibold tracking-tight tabular-nums"
+                    >
+                        {{ spans.length > 0 ? serviceCount : '—' }}
+                    </dd>
+                </div>
+
+                <div
+                    class="flex flex-col gap-1.5 border-t border-l py-5 pr-6 pl-6 sm:border-t-0"
+                >
+                    <dt class="text-xs font-medium text-muted-foreground">
+                        Errors
+                    </dt>
+                    <dd
+                        :class="
+                            cn(
+                                'text-3xl leading-9 font-semibold tracking-tight tabular-nums',
+                                failed && SPAN_STATUS_TEXT_CLASS.Error,
+                            )
+                        "
+                    >
+                        {{ summary.errorCount.toLocaleString() }}
+                    </dd>
+                </div>
             </dl>
-        </header>
+        </div>
 
         <!--
           Why this trace starts where it does. A root span that names a parent
@@ -403,86 +488,92 @@ const logsValue = computed(() => {
           and saying so is the difference between "a span from nowhere" and "the
           rest of this is somewhere else".
         -->
-        <component
-            :is="inboundLink?.href ? Link : 'div'"
-            v-if="inboundLink"
-            v-bind="inboundLink.href ? { href: inboundLink.href } : {}"
-            :class="
-                cn(
-                    'flex items-start gap-2 rounded-lg border bg-card px-4 py-3 text-xs text-muted-foreground',
-                    inboundLink.href &&
-                        'transition-colors hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:outline-none',
-                )
-            "
-            data-test="trace-inbound-link"
-        >
-            <span class="min-w-0 flex-1">
-                <template v-if="inboundLink.trace">
-                    Continues
-                    <span class="font-medium text-foreground">
-                        {{
-                            inboundLink.trace.rootName ||
-                            'a trace with no root span'
-                        }}
-                    </span>
-                    — this trace's root links to it as its parent.
-                </template>
-                <template v-else>
-                    This trace's root names a parent span in trace
-                    <span class="font-mono break-all">
-                        {{ inboundLink.link.traceId }}
-                    </span>
-                    , which is not stored here — it was never sent to this
-                    instance, or its spans have aged out. That is why the
-                    waterfall starts where it does.
-                </template>
-            </span>
+        <div v-if="inboundLink" class="px-4 pb-5 md:px-10">
+            <component
+                :is="inboundLink.href ? Link : 'div'"
+                v-bind="inboundLink.href ? { href: inboundLink.href } : {}"
+                :class="
+                    cn(
+                        'flex items-start gap-2 rounded-lg border px-4 py-3 text-sm text-muted-foreground',
+                        inboundLink.href &&
+                            'transition-colors hover:bg-muted/50 focus-visible:bg-muted/60 focus-visible:outline-none',
+                    )
+                "
+                data-test="trace-inbound-link"
+            >
+                <span class="min-w-0 flex-1">
+                    <template v-if="inboundLink.trace">
+                        Continues
+                        <span class="font-medium text-foreground">
+                            {{
+                                inboundLink.trace.rootName ||
+                                'a trace with no root span'
+                            }}
+                        </span>
+                        — this trace's root links to it as its parent.
+                    </template>
+                    <template v-else>
+                        This trace's root names a parent span in trace
+                        <span class="font-mono break-all">
+                            {{ inboundLink.link.traceId }}
+                        </span>
+                        , which is not stored here — it was never sent to this
+                        instance, or its spans have aged out. That is why the
+                        waterfall starts where it does.
+                    </template>
+                </span>
 
-            <ExternalLink
-                v-if="inboundLink.href"
-                class="mt-0.5 size-3.5 shrink-0"
-                aria-hidden="true"
-            />
-        </component>
+                <ExternalLink
+                    v-if="inboundLink.href"
+                    class="mt-0.5 size-3.5 shrink-0"
+                    aria-hidden="true"
+                />
+            </component>
+        </div>
 
-        <p
+        <StorageBusy
             v-if="unavailable"
-            class="rounded-lg border bg-card p-6 text-sm text-muted-foreground"
+            store="Trace storage"
+            class="border-t"
             data-test="trace-unavailable"
-        >
-            Trace storage is busy and could not answer in time. Nothing is lost
-            — retry in a moment.
-        </p>
+        />
 
-        <p
+        <div
             v-else-if="summary === null"
-            class="rounded-lg border bg-card p-6 text-sm text-muted-foreground"
+            class="flex flex-col gap-2 border-t px-4 py-8 md:px-10"
             data-test="trace-not-found"
         >
-            No trace with this id is stored for your projects. Trace summaries
-            are kept for 90 days.
-        </p>
+            <p class="text-sm font-medium text-foreground">No such trace</p>
+            <p class="max-w-prose text-sm text-muted-foreground">
+                No trace with this id is stored for your projects. Trace
+                summaries are kept for 90 days.
+            </p>
+        </div>
 
         <p
             v-else-if="spansExpired"
-            class="rounded-lg border bg-card p-6 text-sm text-muted-foreground"
+            class="border-t px-4 py-8 text-sm text-muted-foreground md:px-10"
             data-test="trace-spans-expired"
         >
             This trace's spans have passed the 30-day retention window, so the
             waterfall cannot be drawn. The summary above is kept for 90 days.
         </p>
 
+        <!--
+          The waterfall sits on the surface, on the page gutter; the span
+          detail is an in-flow column beside it, separated by a hairline.
+        -->
         <div
             v-else
-            class="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]"
+            class="grid min-h-0 flex-1 border-t lg:grid-cols-[minmax(0,1fr)_24rem]"
         >
             <section
-                class="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card"
+                class="flex min-h-0 flex-col overflow-hidden"
                 data-test="trace-waterfall"
             >
                 <p
                     v-if="truncated"
-                    class="border-b px-3 py-2 text-xs text-muted-foreground"
+                    class="border-b px-4 py-2.5 text-xs text-muted-foreground md:pl-10"
                     data-test="trace-truncated"
                 >
                     Showing the first {{ spanLimit.toLocaleString() }} spans of
@@ -495,7 +586,7 @@ const logsValue = computed(() => {
                   acts on these rows and nothing else. Matches dim the rest
                   rather than filtering, so no bar moves while the reader types.
                 -->
-                <div class="border-b px-3 py-2">
+                <div class="border-b px-4 py-3 md:pl-10">
                     <SpanSearch
                         :spans="spans"
                         :selected-span-id="selectedSpan?.spanId ?? null"
@@ -509,6 +600,7 @@ const logsValue = computed(() => {
                     :selected-span-id="selectedSpan?.spanId ?? null"
                     :reveal-span-id="revealSpanId"
                     :matches="matches"
+                    gutter
                     @select="select($event)"
                 />
             </section>
@@ -519,6 +611,7 @@ const logsValue = computed(() => {
                 :team-slug="teamSlug"
                 :colour="colours.get(selectedSpan.serviceName || 'unknown')"
                 :linked-traces="linkedTraces"
+                class="border-t lg:border-t-0 lg:border-l"
             />
         </div>
     </div>

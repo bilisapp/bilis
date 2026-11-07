@@ -5,7 +5,7 @@
     {{-- The masthead sits on the card ground, so the archive below it reads
          as the page proper rather than as a second block on the same sheet. --}}
     <section class="border-b border-border bg-card">
-        <div class="mx-auto max-w-5xl px-6 py-14 sm:py-16">
+        <div class="mx-auto max-w-content px-6 py-14 sm:py-16">
             <p class="flex items-center gap-3 font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
                 <span class="text-foreground/45">{{ str_pad((string) count($posts), 2, '0', STR_PAD_LEFT) }}</span>
                 <span class="h-px w-6 bg-border"
@@ -40,7 +40,7 @@
         </div>
     </section>
 
-    <div class="mx-auto max-w-5xl px-6 py-14 sm:py-16">
+    <div class="mx-auto max-w-content px-6 py-14 sm:py-16">
         @if ($posts === [])
             <p class="text-sm text-muted-foreground">Nothing published yet.</p>
         @else

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Head, router, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
+import PageHeader from '@/components/PageHeader.vue';
 import ServiceLatencySection from '@/components/ServiceLatencySection.vue';
 import TracesTabs from '@/components/TracesTabs.vue';
 import TracesToolbar from '@/components/TracesToolbar.vue';
@@ -58,6 +59,22 @@ const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
 const range = computed<LogRangePreset>(() =>
     presetForRange(props.filters.from, props.filters.to),
 );
+
+const windowLabel = computed(() =>
+    range.value === 'custom'
+        ? 'in the chosen window'
+        : `in the ${(
+              RANGE_PRESETS.find((preset) => preset.value === range.value)
+                  ?.label ?? 'window'
+          ).toLowerCase()}`,
+);
+
+/** The span total the summary sentence leads with. */
+const spanTotal = computed(() =>
+    (props.serviceLatency?.rows ?? []).reduce((sum, row) => sum + row.spans, 0),
+);
+
+const serviceCount = computed(() => props.serviceLatency?.rows.length ?? 0);
 
 const canReset = computed(
     () =>
@@ -118,8 +135,33 @@ function reset() {
 <template>
     <Head title="Service latency" />
 
-    <div class="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
-        <TracesTabs :team-slug="teamSlug" :query="query" />
+    <div class="flex flex-1 flex-col overflow-y-auto">
+        <PageHeader title="Service latency">
+            <p data-test="latency-summary">
+                <template
+                    v-if="
+                        serviceLatency &&
+                        !serviceLatency.unavailable &&
+                        serviceCount > 0
+                    "
+                >
+                    <span class="font-medium text-foreground"
+                        >{{ serviceCount.toLocaleString() }}
+                        {{ serviceCount === 1 ? 'service' : 'services' }}</span
+                    >
+                    · {{ spanTotal.toLocaleString() }}
+                    {{ spanTotal === 1 ? 'span' : 'spans' }}
+                    {{ windowLabel }}
+                </template>
+                <template v-else>
+                    p95 and p99 span duration per service
+                </template>
+            </p>
+
+            <template #actions>
+                <TracesTabs :team-slug="teamSlug" :query="query" />
+            </template>
+        </PageHeader>
 
         <!--
           The same toolbar as the list, minus the Live control: latency is a
@@ -127,22 +169,24 @@ function reset() {
           seconds would be unreadable rather than current. Everything else is
           shared so a window chosen on either tab means the same thing on both.
         -->
-        <TracesToolbar
-            :projects="projects"
-            :project="filters.project"
-            :services="services"
-            :service="filters.service"
-            :errors="filters.errors"
-            :min-duration="filters.minDuration"
-            :range="range"
-            :can-reset="canReset"
-            @update:project="apply({ project: $event })"
-            @update:service="apply({ service: $event })"
-            @update:errors="apply({ errors: $event })"
-            @update:min-duration="apply({ min_duration: $event })"
-            @update:range="applyRange"
-            @reset="reset"
-        />
+        <div class="px-4 pb-5 md:px-10">
+            <TracesToolbar
+                :projects="projects"
+                :project="filters.project"
+                :services="services"
+                :service="filters.service"
+                :errors="filters.errors"
+                :min-duration="filters.minDuration"
+                :range="range"
+                :can-reset="canReset"
+                @update:project="apply({ project: $event })"
+                @update:service="apply({ service: $event })"
+                @update:errors="apply({ errors: $event })"
+                @update:min-duration="apply({ min_duration: $event })"
+                @update:range="applyRange"
+                @reset="reset"
+            />
+        </div>
 
         <!--
           Never having sent a span is a setup problem, and it reads the same way
@@ -150,10 +194,10 @@ function reset() {
         -->
         <div
             v-if="!hasTraces"
-            class="flex flex-col gap-2 rounded-lg border bg-card p-6"
+            class="flex flex-col gap-2 border-t px-4 py-8 md:px-10"
             data-test="latency-empty-never"
         >
-            <p class="text-sm font-medium">No traces yet</p>
+            <p class="text-sm font-medium text-foreground">No traces yet</p>
             <p class="max-w-prose text-sm text-muted-foreground">
                 Point an OpenTelemetry exporter at
                 <code class="font-mono">/api/v1/traces</code> over OTLP/HTTP

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
 import {
+    BookOpen,
+    Bug,
     ChartLine,
     FolderKanban,
     LayoutGrid,
@@ -10,9 +12,8 @@ import {
 } from '@lucide/vue';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
+import NavAccount from '@/components/NavAccount.vue';
 import NavMain from '@/components/NavMain.vue';
-import NavUser from '@/components/NavUser.vue';
-import TeamSwitcher from '@/components/TeamSwitcher.vue';
 import {
     Sidebar,
     SidebarContent,
@@ -21,16 +22,16 @@ import {
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
+    SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
 import { index as autofixIndex } from '@/routes/autofix';
+import { index as docsIndex } from '@/routes/docs';
+import { index as issuesIndex } from '@/routes/issues';
 import { index as logsIndex } from '@/routes/logs';
 import { index as metricsIndex } from '@/routes/metrics';
 import { index as projectsIndex } from '@/routes/projects';
-import {
-    index as tracesIndex,
-    latency as tracesLatency,
-} from '@/routes/traces';
+import { index as tracesIndex } from '@/routes/traces';
 import type { NavItem } from '@/types';
 
 const page = usePage();
@@ -43,6 +44,10 @@ const logsUrl = computed(() =>
     page.props.currentTeam ? logsIndex(page.props.currentTeam.slug).url : '/',
 );
 
+const issuesUrl = computed(() =>
+    page.props.currentTeam ? issuesIndex(page.props.currentTeam.slug).url : '/',
+);
+
 const autofixUrl = computed(() =>
     page.props.currentTeam
         ? autofixIndex(page.props.currentTeam.slug).url
@@ -51,12 +56,6 @@ const autofixUrl = computed(() =>
 
 const tracesUrl = computed(() =>
     page.props.currentTeam ? tracesIndex(page.props.currentTeam.slug).url : '/',
-);
-
-const tracesLatencyUrl = computed(() =>
-    page.props.currentTeam
-        ? tracesLatency(page.props.currentTeam.slug).url
-        : '/',
 );
 
 const metricsUrl = computed(() =>
@@ -72,19 +71,23 @@ const projectsUrl = computed(() =>
 );
 
 /**
- * Logs sits above Projects on purpose: the viewer is the surface people come
- * back to, projects are the thing you set up once. Traces sits directly under
- * Logs because the two are one investigation read two ways, and a reader moves
- * between them constantly; Metrics follows as the third signal, the one you
- * read for a trend rather than for a request. Autofix comes last: it is downstream of both, and
- * reads as a consequence of the logs rather than a place you go first.
+ * The rail, in the order a reader reaches for it.
+ *
+ * Dashboard stands alone. Explore holds what Bilis stores — logs, traces,
+ * metrics — and Triage what it concludes from them: issues, and the fixes
+ * Autofix proposes. Setup is what a team configures, plus the docs. Traces and
+ * Metrics each have two views, but those are tabs on the page (they carry the
+ * filters across); a sub-menu in the rail would only repeat them.
  */
-const mainNavItems = computed<NavItem[]>(() => [
+const homeNavItems = computed<NavItem[]>(() => [
     {
         title: 'Dashboard',
         href: dashboardUrl.value,
         icon: LayoutGrid,
     },
+]);
+
+const exploreNavItems = computed<NavItem[]>(() => [
     {
         title: 'Logs',
         href: logsUrl.value,
@@ -94,28 +97,27 @@ const mainNavItems = computed<NavItem[]>(() => [
         title: 'Traces',
         href: tracesUrl.value,
         icon: Waypoints,
-        /*
-         * Traces is the one section with two views of the same window: the
-         * list answers "what happened to this request", latency answers
-         * "which service is slow". Both are places, so both get a line in the
-         * rail; the in-page tabs remain the way to move between them carrying
-         * the filters you already set.
-         */
-        items: [
-            {
-                title: 'All traces',
-                href: tracesUrl.value,
-            },
-            {
-                title: 'Service latency',
-                href: tracesLatencyUrl.value,
-            },
-        ],
     },
     {
         title: 'Metrics',
         href: metricsUrl.value,
         icon: ChartLine,
+    },
+]);
+
+const issueBadge = computed(() => page.props.issueBadge ?? null);
+
+const triageNavItems = computed<NavItem[]>(() => [
+    {
+        title: 'Issues',
+        href: issuesUrl.value,
+        icon: Bug,
+        badge: issueBadge.value
+            ? {
+                  count: issueBadge.value.unresolved,
+                  alert: issueBadge.value.regressed > 0,
+              }
+            : null,
     },
 
     // Autofix is off for a deployment that has no control plane configured,
@@ -132,11 +134,17 @@ const mainNavItems = computed<NavItem[]>(() => [
         : []),
 ]);
 
-const resourceNavItems = computed<NavItem[]>(() => [
+const setupNavItems = computed<NavItem[]>(() => [
     {
         title: 'Projects',
         href: projectsUrl.value,
         icon: FolderKanban,
+    },
+    {
+        title: 'Docs',
+        href: docsIndex().url,
+        icon: BookOpen,
+        external: true,
     },
 ]);
 </script>
@@ -144,48 +152,41 @@ const resourceNavItems = computed<NavItem[]>(() => [
 <template>
     <Sidebar collapsible="icon" variant="inset">
         <!--
-          The brand stands alone up here. It used to share the header with the
-          team switcher, which set the team name in a heavier style directly
-          under the product name — so the rail read as if the team were the
-          title and Bilis its caption.
+          The brand stands alone up here, with the rail's own toggle beside it.
+          The team lives at the foot with the account: both answer "who am I
+          acting as", and a team name under the product name read as if the
+          team were the title and Bilis its caption.
         -->
-        <SidebarHeader class="pb-1">
+        <SidebarHeader class="pt-3 pb-2">
             <SidebarMenu>
-                <SidebarMenuItem>
+                <SidebarMenuItem
+                    class="flex items-center gap-1 group-data-[collapsible=icon]:flex-col"
+                >
                     <SidebarMenuButton
                         size="lg"
                         as-child
-                        class="hover:bg-sidebar-accent/60"
+                        class="min-w-0 flex-1 hover:bg-sidebar-accent/60"
                     >
                         <Link :href="dashboardUrl">
                             <AppLogo />
                         </Link>
                     </SidebarMenuButton>
+                    <SidebarTrigger
+                        class="hidden shrink-0 text-sidebar-foreground/80 md:inline-flex"
+                    />
                 </SidebarMenuItem>
             </SidebarMenu>
         </SidebarHeader>
 
-        <SidebarContent class="flex flex-col gap-5">
-            <NavMain :items="mainNavItems" />
-            <NavMain
-                label="Resources"
-                :items="resourceNavItems"
-                class="mt-auto mb-2"
-            />
+        <SidebarContent class="flex flex-col gap-5 pt-2">
+            <NavMain :items="homeNavItems" />
+            <NavMain label="Explore" :items="exploreNavItems" />
+            <NavMain label="Triage" :items="triageNavItems" />
+            <NavMain label="Setup" :items="setupNavItems" />
         </SidebarContent>
 
-        <!--
-          Team and account belong together: both answer "who am I acting as",
-          and both are switched rarely. Pairing them at the foot also stops the
-          rail's lower half from reading as leftover space.
-        -->
-        <SidebarFooter class="gap-1 border-t border-sidebar-border/60 pt-2">
-            <SidebarMenu>
-                <SidebarMenuItem>
-                    <TeamSwitcher />
-                </SidebarMenuItem>
-            </SidebarMenu>
-            <NavUser />
+        <SidebarFooter class="pt-2 pb-3">
+            <NavAccount />
         </SidebarFooter>
     </Sidebar>
     <slot />

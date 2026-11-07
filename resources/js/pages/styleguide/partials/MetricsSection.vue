@@ -185,7 +185,7 @@ function resetDemo() {
 
         <DemoBlock
             title="MetricsToolbar — loading"
-            description="before the deferred catalog lands the picker is disabled and says what it is waiting for, and the pickers that depend on a metric stay disabled until there is one."
+            description="before the deferred catalog lands the picker is disabled and says what it is waiting for, and the controls that depend on a metric (group by, combine, the where filters) appear once there is one."
         >
             <MetricsToolbar
                 :projects="demoProjects"

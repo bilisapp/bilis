@@ -20,4 +20,13 @@ export type NavItem = {
      * a sitemap, not a way to get around.
      */
     items?: NavItem[];
+    /**
+     * A live count beside the label — how much is waiting there.
+     *
+     * Only the count is achromatic; `alert` adds the one dot of severity
+     * colour, and is reserved for "something came back that was fixed".
+     */
+    badge?: { count: number; alert?: boolean } | null;
+    /** Leaves the app (the public docs): opens in a new tab, marked with ↗. */
+    external?: boolean;
 };

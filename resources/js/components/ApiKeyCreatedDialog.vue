@@ -74,7 +74,7 @@ const emit = defineEmits<{
                 class="flex items-start gap-2 text-sm text-muted-foreground"
                 data-test="api-key-warning"
             >
-                <TriangleAlert class="text-crimson mt-0.5 size-4 shrink-0" />
+                <TriangleAlert class="mt-0.5 size-4 shrink-0 text-foreground" />
                 <span>
                     Copy it now — only a hash is stored, so this is the last
                     time Bilis can show you the key. Lose it and you will have

@@ -54,7 +54,7 @@ const cancelInvitation = () => {
 
             <DialogFooter class="gap-2">
                 <DialogClose as-child>
-                    <Button variant="secondary"> Keep invitation </Button>
+                    <Button variant="outline"> Keep invitation </Button>
                 </DialogClose>
 
                 <Button

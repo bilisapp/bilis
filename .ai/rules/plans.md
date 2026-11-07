@@ -19,7 +19,7 @@ Retention comes from `legal.log_retention_days` and requests-per-minute from `se
 `resources/docs/reference/limits-and-behavior.md` hardcodes the numbers, because docs markdown is static. `tests/Feature/DocsTest.php` asserts the page contains what `PlanLimits` currently returns, so changing a `BILIS_PLAN_FREE_*` default without editing the doc trips a test rather than shipping a lie.
 
 ## PlanUsage counts events the way LogQuery reads logs
-`PlanUsage::forTeam()` counts projects and members live from SQLite (they are cheap, and a stale count on the page someone just created a project from reads as a bug) and today's events from ClickHouse. Both event counts are plain SCHEMA.md R4 range reads — `ProjectId IN {projectIds:Array(String)}` and a closed `Timestamp` window, no bucket expression, every value a `{name:Type}` parameter. An empty project list short-circuits to zeroes with no HTTP call at all; `DashboardTest` pins that.
+`PlanUsage::forTeam()` counts projects and members live from the app database (PostgreSQL) (they are cheap, and a stale count on the page someone just created a project from reads as a bug) and today's events from ClickHouse. Both event counts are plain SCHEMA.md R4 range reads — `ProjectId IN {projectIds:Array(String)}` and a closed `Timestamp` window, no bucket expression, every value a `{name:Type}` parameter. An empty project list short-circuits to zeroes with no HTTP call at all; `DashboardTest` pins that.
 
 The count is cached 300s under a key carrying **today's UTC date**, so yesterday's total cannot survive midnight. A `ClickHouseException::isOverload()` yields `unavailable: true`, is reported, and is never cached — an outage must not freeze the card for the whole window. Any other ClickHouse error is rethrown.
 

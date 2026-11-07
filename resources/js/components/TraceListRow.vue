@@ -64,28 +64,32 @@ const operation = computed(
 </script>
 
 <template>
+    <!--
+      The grid template is shared with the list header in pages/traces/Index.vue
+      so the numeric lanes line up from header to last row.
+    -->
     <component
         :is="expired ? 'div' : Link"
         v-bind="expired ? {} : { href }"
         :class="
             cn(
-                'group/row grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 border-b px-4 py-3 text-xs sm:grid-cols-[minmax(0,1fr)_7rem_5rem_5rem_10rem]',
+                'group/row grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 gap-y-1 border-b border-border/70 px-4 py-4 md:grid-cols-[minmax(0,1fr)_6rem_5rem_5rem_11rem] md:px-10',
                 expired
                     ? 'cursor-default opacity-70'
-                    : 'transition-colors hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:outline-none',
+                    : 'transition-colors hover:bg-muted/50 focus-visible:bg-muted/60 focus-visible:outline-none',
                 fresh &&
                     'animate-in duration-300 ease-out fade-in slide-in-from-top-1 motion-reduce:animate-none',
                 // The keyboard cursor reads as a held row: a ring that carries
                 // the state without depending on colour, the same treatment the
-                // log stream gives its cursor row.
-                cursor && 'bg-accent/70 ring-1 ring-ring/60 ring-inset',
+                // log stream and the issue list give their cursor rows.
+                cursor && 'bg-muted/70 ring-1 ring-ring/50 ring-inset',
             )
         "
         :data-test="`trace-row-${trace.traceId}`"
         :data-cursor="cursor ? 'true' : undefined"
         :aria-disabled="expired ? 'true' : undefined"
     >
-        <div class="flex min-w-0 flex-col gap-0.5">
+        <div class="flex min-w-0 flex-col gap-1">
             <div class="flex min-w-0 items-center gap-2">
                 <!--
                   Colour is reserved for data. A failed trace takes the severity
@@ -106,22 +110,35 @@ const operation = computed(
                 <span
                     :class="
                         cn(
-                            'truncate font-medium',
-                            !trace.rootName && 'text-muted-foreground italic',
+                            'truncate font-mono text-sm font-medium',
+                            trace.rootName
+                                ? 'text-foreground'
+                                : 'font-sans text-muted-foreground italic',
                         )
                     "
+                    :title="trace.rootName || undefined"
                 >
                     {{ operation }}
                 </span>
             </div>
 
-            <div class="flex min-w-0 items-center gap-2 text-muted-foreground">
-                <span v-if="trace.rootService" class="truncate">
+            <div
+                class="flex min-w-0 items-center gap-1.5 pl-3.5 font-mono text-xs text-muted-foreground"
+            >
+                <span
+                    v-if="trace.rootService"
+                    class="truncate text-foreground/75"
+                >
                     {{ trace.rootService }}
                 </span>
-                <span v-if="trace.rootService" aria-hidden="true">·</span>
                 <span
-                    class="inline-flex min-w-0 items-center gap-1 font-mono"
+                    v-if="trace.rootService"
+                    class="text-input"
+                    aria-hidden="true"
+                    >·</span
+                >
+                <span
+                    class="inline-flex min-w-0 items-center gap-1"
                     :title="trace.traceId"
                 >
                     <span class="truncate">{{
@@ -136,7 +153,7 @@ const operation = computed(
                         type="button"
                         :class="
                             cn(
-                                'inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity group-hover/row:opacity-100 hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
+                                'inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity group-hover/row:opacity-100 hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
                                 (copied || cursor) && 'opacity-100',
                             )
                         "
@@ -160,7 +177,7 @@ const operation = computed(
         <div
             :class="
                 cn(
-                    'text-right font-mono tabular-nums sm:text-left',
+                    'text-right font-mono text-sm font-medium tabular-nums',
                     durationClass(trace.durationMs),
                 )
             "
@@ -168,22 +185,29 @@ const operation = computed(
             {{ formatDuration(trace.durationMs) }}
         </div>
 
-        <div class="hidden text-muted-foreground tabular-nums sm:block">
-            {{ trace.spanCount }}
-            <span>{{ trace.spanCount === 1 ? 'span' : 'spans' }}</span>
+        <div
+            class="hidden text-right font-mono text-sm text-foreground/75 tabular-nums md:block"
+            :title="`${trace.spanCount} ${trace.spanCount === 1 ? 'span' : 'spans'}`"
+        >
+            {{ trace.spanCount.toLocaleString() }}
         </div>
 
-        <div class="hidden tabular-nums sm:block">
-            <span v-if="failed" class="text-severity-error">
-                {{ trace.errorCount }} error{{
-                    trace.errorCount === 1 ? '' : 's'
-                }}
+        <div
+            class="hidden text-right font-mono text-sm tabular-nums md:block"
+            :title="
+                failed
+                    ? `${trace.errorCount} error${trace.errorCount === 1 ? '' : 's'}`
+                    : 'No errors'
+            "
+        >
+            <span v-if="failed" class="font-medium text-severity-error">
+                {{ trace.errorCount.toLocaleString() }}
             </span>
             <span v-else class="text-muted-foreground">—</span>
         </div>
 
         <div
-            class="hidden text-muted-foreground sm:block"
+            class="hidden truncate text-right font-mono text-xs text-muted-foreground tabular-nums md:block"
             :title="formatUtcTimestamp(trace.startedAt)"
         >
             {{ formatTimestamp(trace.startedAt) }}
@@ -191,7 +215,7 @@ const operation = computed(
 
         <p
             v-if="expired"
-            class="col-span-full text-muted-foreground"
+            class="col-span-full max-w-prose pl-3.5 text-xs text-muted-foreground"
             data-test="trace-row-expired"
         >
             Spans for this trace have passed the 30-day retention window. The

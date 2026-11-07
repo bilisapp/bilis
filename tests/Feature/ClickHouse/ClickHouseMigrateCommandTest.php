@@ -57,8 +57,8 @@ test('the migrate command creates the database and the otel logs table', functio
             && ($query['database'] ?? null) === 'bilis';
     });
 
-    // The database plus fourteen schema files.
-    Http::assertSentCount(15);
+    // The database plus nineteen schema files.
+    Http::assertSentCount(20);
 });
 
 test('the migrate command may be run repeatedly', function () {
@@ -67,7 +67,7 @@ test('the migrate command may be run repeatedly', function () {
     $this->artisan('clickhouse:migrate')->assertSuccessful();
     $this->artisan('clickhouse:migrate')->assertSuccessful();
 
-    Http::assertSentCount(30);
+    Http::assertSentCount(40);
 });
 
 test('the migrate command fails when clickhouse rejects the schema', function () {
@@ -292,3 +292,40 @@ test('the migrate command creates the five metrics tables', function (string $ta
         'Quantile Float64,',
     ]],
 ]);
+
+test('the migrate command adds the issue fingerprint to a deployed logs table', function () {
+    Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
+
+    $this->artisan('clickhouse:migrate')->assertSuccessful();
+
+    /*
+     * Applied schema files are append-only, so 0001 never carries the column:
+     * every database gets it here. Both clauses are guarded so every container
+     * role can run this on every boot.
+     */
+    Http::assertSent(fn (Request $request): bool => str_contains($request->body(), 'ALTER TABLE otel_logs')
+        && str_contains($request->body(), "ADD COLUMN IF NOT EXISTS IssueFingerprint String DEFAULT ''")
+        && str_contains($request->body(), 'ADD INDEX IF NOT EXISTS idx_issue_fingerprint IssueFingerprint TYPE bloom_filter(0.001) GRANULARITY 1'));
+});
+
+test('the migrate command creates the issue tables and the views that feed them', function () {
+    Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
+
+    $this->artisan('clickhouse:migrate')->assertSuccessful();
+
+    Http::assertSent(fn (Request $request): bool => str_contains($request->body(), 'CREATE TABLE IF NOT EXISTS issue_summary')
+        && str_contains($request->body(), 'ENGINE = AggregatingMergeTree')
+        && str_contains($request->body(), 'ORDER BY (ProjectId, IssueFingerprint)')
+        // argMax, never any/anyLast: a merge must not pick the headline at random.
+        && str_contains($request->body(), "ExceptionType    AggregateFunction(argMax, String, DateTime64(9, 'UTC'))")
+        && ! str_contains($request->body(), 'SimpleAggregateFunction(any'));
+
+    Http::assertSent(fn (Request $request): bool => str_contains($request->body(), 'CREATE MATERIALIZED VIEW IF NOT EXISTS issue_summary_mv TO issue_summary')
+        && str_contains($request->body(), "WHERE IssueFingerprint != ''"));
+
+    Http::assertSent(fn (Request $request): bool => str_contains($request->body(), 'CREATE TABLE IF NOT EXISTS issue_hourly')
+        && str_contains($request->body(), 'ORDER BY (ProjectId, Hour, IssueFingerprint)')
+        && str_contains($request->body(), 'ttl_only_drop_parts = 1'));
+
+    Http::assertSent(fn (Request $request): bool => str_contains($request->body(), 'CREATE MATERIALIZED VIEW IF NOT EXISTS issue_hourly_mv TO issue_hourly'));
+});

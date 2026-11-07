@@ -22,21 +22,15 @@ const passwordInput = useTemplateRef('passwordInput');
 </script>
 
 <template>
-    <div class="space-y-6">
-        <Heading
-            variant="small"
-            title="Delete account"
-            description="Delete your account and all of its resources"
-        />
-        <div
-            class="space-y-4 rounded-lg border border-red-100 bg-red-50 p-4 dark:border-red-200/10 dark:bg-red-700/10"
-        >
-            <div class="relative space-y-0.5 text-red-600 dark:text-red-100">
-                <p class="font-medium">Warning</p>
-                <p class="text-sm">
-                    Please proceed with caution, this cannot be undone.
-                </p>
-            </div>
+    <div class="flex flex-col gap-5">
+        <Heading variant="small" title="Delete account" />
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <p class="max-w-prose text-sm text-muted-foreground">
+                Deleting your account removes all of its resources for good.
+                <span class="font-medium text-destructive"
+                    >This cannot be undone.</span
+                >
+            </p>
             <Dialog>
                 <DialogTrigger as-child>
                     <Button variant="destructive" data-test="delete-user-button"
@@ -84,7 +78,7 @@ const passwordInput = useTemplateRef('passwordInput');
                         <DialogFooter class="gap-2">
                             <DialogClose as-child>
                                 <Button
-                                    variant="secondary"
+                                    variant="outline"
                                     @click="
                                         () => {
                                             clearErrors();

@@ -107,7 +107,11 @@ const BENEFITS = [
 
             <DialogFooter class="gap-2 sm:justify-between">
                 <AskAiMenu :entry="entry" align="start">
-                    <Button type="button" variant="outline">
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        class="text-muted-foreground"
+                    >
                         Ask an assistant now
                     </Button>
                 </AskAiMenu>

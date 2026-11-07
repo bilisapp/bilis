@@ -7,6 +7,7 @@ use App\Enums\FixJobType;
 use App\Jobs\DispatchFixJob;
 use App\Models\FixJob;
 use App\Models\ProjectRepository;
+use App\Services\Issues\ErrorFingerprinter;
 use App\Services\Logs\LogQuery;
 use Illuminate\Support\Carbon;
 

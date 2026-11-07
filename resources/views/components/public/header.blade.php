@@ -18,6 +18,7 @@
 @php
     $links = [
         'features' => ['label' => 'Features', 'href' => route('features')],
+        'mcp' => ['label' => 'MCP', 'href' => route('features.mcp')],
         'pricing' => ['label' => 'Pricing', 'href' => route('pricing')],
         'docs' => ['label' => 'Docs', 'href' => route('docs.index')],
         'blog' => ['label' => 'Blog', 'href' => route('blog.index')],
@@ -28,7 +29,7 @@
     <div @class([
         'mx-auto flex h-16 items-center justify-between gap-4 px-4 sm:px-6',
         'max-w-7xl' => $wide,
-        'max-w-5xl' => ! $wide,
+        'max-w-content' => ! $wide,
     ])>
         <div class="flex min-w-0 items-center gap-2.5">
             <a href="{{ route('home') }}"
@@ -40,7 +41,7 @@
             </a>
 
             @if ($badge)
-                <span class="hidden rounded-md border border-border px-1.5 py-0.5 font-mono text-[11px] tracking-[0.14em] text-muted-foreground uppercase sm:inline">{{ $badge }}</span>
+                <x-ui.badge class="hidden uppercase tracking-label sm:inline-flex">{{ $badge }}</x-ui.badge>
             @endif
         </div>
 
@@ -67,20 +68,14 @@
 
             @auth
                 @if ($team = auth()->user()->currentTeam)
-                    <a href="{{ route('dashboard', $team) }}"
-                       class="rounded-md bg-primary px-3 py-2 text-primary-foreground transition-colors hover:bg-primary/90 sm:px-4">
-                        Dashboard
-                    </a>
+                    <x-ui.button :href="route('dashboard', $team)" class="ml-1">Open the app</x-ui.button>
                 @endif
             @else
                 <a href="{{ route('login') }}"
-                   class="rounded-md px-3 py-2 transition-colors hover:bg-accent hover:text-accent-foreground sm:px-4">
+                   class="rounded-md px-3 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground sm:px-4">
                     Log in
                 </a>
-                <a href="{{ route('register') }}"
-                   class="rounded-md bg-primary px-3 py-2 text-primary-foreground transition-colors hover:bg-primary/90 sm:px-4">
-                    Get started
-                </a>
+                <x-ui.button :href="route('register')">Get started</x-ui.button>
             @endauth
         </nav>
     </div>

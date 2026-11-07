@@ -2,7 +2,9 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\Issues\IssueBadge;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -52,6 +54,17 @@ class HandleInertiaRequests extends Middleware
              * offer a door that does not open.
              */
             'autofix' => ['enabled' => config('autofix.enabled') === true],
+            /*
+             * The count beside "Issues" in the rail. Deferred so no page waits
+             * on ClickHouse to paint, and kept by the client for a minute so
+             * moving between pages does not ask again; rescued, so a busy
+             * store hides the count instead of failing the page.
+             */
+            'issueBadge' => Inertia::defer(
+                fn (): ?array => $user?->currentTeam ? app(IssueBadge::class)->forTeam($user->currentTeam) : null,
+                'nav',
+                rescue: true,
+            )->once(until: IssueBadge::CACHE_SECONDS),
         ];
     }
 }
