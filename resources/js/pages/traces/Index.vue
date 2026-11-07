@@ -3,6 +3,7 @@ import { Head, router, useHttp, usePage } from '@inertiajs/vue3';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import KeyHint from '@/components/KeyHint.vue';
 import PageHeader from '@/components/PageHeader.vue';
+import StorageBusy from '@/components/StorageBusy.vue';
 import TraceHistogram from '@/components/TraceHistogram.vue';
 import TraceListRow from '@/components/TraceListRow.vue';
 import TracesTabs from '@/components/TracesTabs.vue';
@@ -482,14 +483,11 @@ watch(cursor, (index) => {
                 <Skeleton v-for="index in 6" :key="index" class="h-12 w-full" />
             </div>
 
-            <p
+            <StorageBusy
                 v-else-if="traces.unavailable"
-                class="px-4 py-8 text-sm text-muted-foreground md:px-10"
+                store="Trace storage"
                 data-test="traces-unavailable"
-            >
-                Trace storage is busy and could not answer in time. Nothing is
-                lost — retry in a moment.
-            </p>
+            />
 
             <!--
               Three empty states, and they mean different things. Never having

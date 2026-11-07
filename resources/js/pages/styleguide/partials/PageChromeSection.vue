@@ -1,11 +1,18 @@
 <script setup lang="ts">
 import { RotateCcw, Undo2 } from '@lucide/vue';
 import { ref } from 'vue';
+import FactStrip from '@/components/FactStrip.vue';
 import FilterSelect from '@/components/FilterSelect.vue';
 import KeyHint from '@/components/KeyHint.vue';
+import KeyValueList from '@/components/KeyValueList.vue';
 import LogsSeverityFilter from '@/components/LogsSeverityFilter.vue';
 import PageHeader from '@/components/PageHeader.vue';
+import PageSection from '@/components/PageSection.vue';
+import SectionHeader from '@/components/SectionHeader.vue';
 import SegmentedControl from '@/components/SegmentedControl.vue';
+import StorageBusy from '@/components/StorageBusy.vue';
+import SurfaceMessage from '@/components/SurfaceMessage.vue';
+import TraceFact from '@/components/TraceFact.vue';
 import { Button } from '@/components/ui/button';
 import type { SeverityLevel } from '@/types';
 import DemoBlock from './DemoBlock.vue';
@@ -176,6 +183,109 @@ const severity = ref<SeverityLevel[]>(['error', 'fatal']);
                         row[2]
                     }}</span>
                 </div>
+            </div>
+        </DemoBlock>
+
+        <DemoBlock
+            title="SectionHeader"
+            description="the heading of every section inside a page: a base-size title over a hairline, a short muted note at the right — a count, a unit, a scope — or the section's own link. Type and a rule, never a box. The dashboard's digest columns and the host chart groups use it bare; PageSection wraps it."
+        >
+            <div class="flex flex-col gap-6">
+                <SectionHeader
+                    title="Top errors"
+                    note="repeating most often · 24h"
+                />
+                <SectionHeader title="Trace">
+                    <template #aside>
+                        <a
+                            href="#"
+                            class="underline-offset-4 hover:text-foreground hover:underline"
+                            >Open trace</a
+                        >
+                    </template>
+                </SectionHeader>
+            </div>
+        </DemoBlock>
+
+        <DemoBlock
+            title="PageSection"
+            description="one section of a page on the gutter: SectionHeader, an optional sentence on what it shows, then the body, 40px below the section before it. 'flush' lets a table run edge to edge under a guttered heading; 'collapsible' folds the body behind the heading — the issue page's 'All attributes'."
+        >
+            <div class="-mx-4 pb-6">
+                <PageSection
+                    title="Proposed change"
+                    description="The validated diff, against main. Machine-generated — read it the way you would read a stranger's patch."
+                    class="pt-6"
+                >
+                    <p class="text-sm text-muted-foreground">
+                        The body sits 16px under the heading.
+                    </p>
+                </PageSection>
+                <PageSection title="All attributes" collapsible>
+                    <template #aside>
+                        <span class="font-mono tabular-nums">3</span>
+                    </template>
+                    <KeyValueList
+                        :entries="[
+                            ['code.namespace', 'App\\Payments\\ChargeCard'],
+                            ['messaging.batch.size', '1'],
+                            ['otel.scope.name', 'bilis.envelope'],
+                        ]"
+                        wide
+                    />
+                </PageSection>
+            </div>
+        </DemoBlock>
+
+        <DemoBlock
+            title="FactStrip"
+            description="the hairline-bounded strip under a detail page's header — where a thing lives and what it is — one TraceFact per cell: a quiet label over a loud value, mono for machine-authored text, a copy button where the value is worth pasting. Two columns on a phone, three on a tablet, four to six from lg. The issue page and the Autofix job page share it."
+        >
+            <div class="-mx-4">
+                <FactStrip>
+                    <TraceFact label="Project" value="Checkout" />
+                    <TraceFact label="Service" value="checkout-api" mono />
+                    <TraceFact
+                        label="Origin"
+                        value="ChargeCard.php:41 handle()"
+                        mono
+                    />
+                    <TraceFact label="Environments" value="production" mono />
+                    <TraceFact
+                        label="Fingerprint"
+                        value="a3f1c9e0b7d2"
+                        mono
+                        copyable
+                    />
+                </FactStrip>
+            </div>
+        </DemoBlock>
+
+        <DemoBlock
+            title="KeyValueList"
+            description="attribute pairs as hairline-ruled rows: the key quiet and truncated in a fixed 9rem lane (12rem with 'wide'), the value in mono taking the rest and breaking anywhere. 'preserve-whitespace' keeps the line breaks a value arrived with."
+        >
+            <div class="max-w-md">
+                <KeyValueList
+                    :entries="[
+                        ['http.request.method', 'POST'],
+                        ['url.path', '/checkout/confirm'],
+                        ['http.response.status_code', '500'],
+                    ]"
+                />
+            </div>
+        </DemoBlock>
+
+        <DemoBlock
+            title="SurfaceMessage · StorageBusy"
+            description="a sentence standing in for content that is not there — an empty window, expired events — on the gutter, never in a card: an optional title in ink, the explanation in muted prose. StorageBusy is the one wording for a ClickHouse read that did not answer in time, used by every page and panel; 'inset' off drops the gutter inside a panel that has its own padding."
+        >
+            <div class="-mx-4 flex flex-col divide-y">
+                <SurfaceMessage title="These events have expired">
+                    This issue's events are older than the 30 days events are
+                    kept, so there is no stack trace or context to show.
+                </SurfaceMessage>
+                <StorageBusy store="Trace storage" />
             </div>
         </DemoBlock>
     </div>

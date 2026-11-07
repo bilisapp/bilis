@@ -3,6 +3,7 @@ import { Link, router } from '@inertiajs/vue3';
 import { ArrowUpRight, X } from '@lucide/vue';
 import { computed } from 'vue';
 import SpanWaterfall from '@/components/SpanWaterfall.vue';
+import StorageBusy from '@/components/StorageBusy.vue';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatTimestamp, formatUtcTimestamp } from '@/lib/logs';
@@ -150,14 +151,12 @@ function openSpan(spanId: string) {
                 row again.
             </p>
 
-            <p
+            <StorageBusy
                 v-else-if="result?.unavailable"
-                class="text-sm text-muted-foreground"
+                store="Trace storage"
+                :inset="false"
                 data-test="trace-panel-unavailable"
-            >
-                Trace storage is busy and could not answer in time. Nothing is
-                lost — retry in a moment.
-            </p>
+            />
 
             <p
                 v-else-if="summary === null"

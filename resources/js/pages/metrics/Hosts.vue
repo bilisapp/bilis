@@ -8,7 +8,9 @@ import MetricChart from '@/components/MetricChart.vue';
 import MetricsLiveToggle from '@/components/MetricsLiveToggle.vue';
 import MetricsTabs from '@/components/MetricsTabs.vue';
 import PageHeader from '@/components/PageHeader.vue';
+import SectionHeader from '@/components/SectionHeader.vue';
 import ServerInstallCommand from '@/components/ServerInstallCommand.vue';
+import StorageBusy from '@/components/StorageBusy.vue';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMetricsLive } from '@/composables/useMetricsLive';
@@ -346,14 +348,11 @@ const chartGroups = computed(() => {
                 />
             </div>
 
-            <p
+            <StorageBusy
                 v-else-if="charts?.unavailable"
-                class="px-4 py-8 text-sm text-muted-foreground md:px-10"
+                store="Metric storage"
                 data-test="hosts-charts-unavailable"
-            >
-                Metric storage is busy and could not answer in time. Nothing is
-                lost — retry in a moment.
-            </p>
+            />
 
             <p
                 v-else-if="charts && charts.host === null && filters.host"
@@ -377,23 +376,15 @@ const chartGroups = computed(() => {
                 :aria-label="group.label ?? `${selectedHost ?? 'Host'} charts`"
                 :data-test="`hosts-charts-${group.id}`"
             >
-                <div
-                    class="flex items-baseline justify-between gap-4 border-b pb-2.5"
+                <SectionHeader
+                    :note="`${group.charts.length} ${group.charts.length === 1 ? 'chart' : 'charts'}`"
                 >
-                    <h2
-                        :class="
-                            group.label
-                                ? 'text-base font-semibold tracking-tight'
-                                : 'truncate font-mono text-base font-semibold tracking-tight'
-                        "
-                    >
-                        {{ group.label ?? selectedHost ?? 'Host' }}
-                    </h2>
-                    <p class="shrink-0 text-xs text-muted-foreground">
-                        {{ group.charts.length }}
-                        {{ group.charts.length === 1 ? 'chart' : 'charts' }}
-                    </p>
-                </div>
+                    <template #title>
+                        <span :class="group.label ? undefined : 'font-mono'">{{
+                            group.label ?? selectedHost ?? 'Host'
+                        }}</span>
+                    </template>
+                </SectionHeader>
                 <div class="grid gap-x-10 gap-y-10 lg:grid-cols-2">
                     <MetricChart
                         v-for="chart in group.charts"

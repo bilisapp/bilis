@@ -4,9 +4,13 @@ import type {
     FixJobStatus,
     HostList,
     IngestRateUsage,
+    IssueDetail,
+    IssueEvent,
+    IssueEventList,
     IssueHistograms,
     IssueListItem,
     IssueTagResult,
+    LogAutofixState,
     LogEntry,
     LogHistogram,
     MetricAttributes,
@@ -1840,3 +1844,106 @@ export function demoIssueHistograms(): IssueHistograms {
         },
     };
 }
+
+/**
+ * The issue page's headline for the first demo issue, as `issues.show` sends
+ * it: the list row's summary plus where it stands.
+ */
+export const DEMO_ISSUE_DETAIL: IssueDetail = {
+    projectId: '1',
+    projectSlug: 'checkout',
+    projectName: 'Checkout',
+    fingerprint: DEMO_ISSUES[0].fingerprint,
+    type: DEMO_ISSUES[0].type,
+    message: DEMO_ISSUES[0].message,
+    origin: DEMO_ISSUES[0].origin,
+    service: 'checkout-api',
+    services: ['checkout-api'],
+    environments: ['production', 'staging'],
+    firstSeen: ISSUE_NOW - 21 * 86_400_000,
+    lastSeen: ISSUE_NOW - 4 * 60_000,
+    lastIngested: ISSUE_NOW - 4 * 60_000,
+    events: 18_240,
+    users: 1_312,
+    firstRelease: 'checkout@2026.10.14',
+    lastRelease: 'checkout@2026.11.06',
+    status: 'regressed',
+    resolvedAt: new Date(ISSUE_NOW - 3 * 86_400_000).toISOString(),
+    statusChangedBy: 'Ana Novak',
+    statusChangedAt: new Date(ISSUE_NOW - 3 * 86_400_000).toISOString(),
+};
+
+/** One stored occurrence of that issue, carrying request, user and runtime context. */
+export const DEMO_ISSUE_EVENT_ROW: LogEntry = {
+    projectId: '1',
+    timestamp: '2026-11-07 11:56:02.418000000',
+    traceId: '4f2a9c1e7b3d48a5b6c0d1e2f3a4b5c6',
+    spanId: 'a1b2c3d4e5f60718',
+    severityText: 'ERROR',
+    severityNumber: 17,
+    serviceName: 'checkout-api',
+    body: DEMO_ISSUES[0].message,
+    scopeName: 'bilis.envelope',
+    scopeVersion: '1.0.0',
+    resourceAttributes: {
+        'service.version': 'checkout@2026.11.06',
+        'deployment.environment': 'production',
+        'host.name': 'checkout-web-02',
+        'process.runtime.name': 'php',
+        'process.runtime.version': '8.4.12',
+    },
+    logAttributes: {
+        'event.id': '9b1f0c2d7e8a4b3c9d0e1f2a3b4c5d6e',
+        'exception.type': DEMO_ISSUES[0].type,
+        'exception.message': DEMO_ISSUES[0].message,
+        'exception.handled': 'false',
+        'exception.mechanism': 'laravel',
+        'http.request.method': 'POST',
+        'url.path': '/checkout/confirm',
+        'http.response.status_code': '500',
+        'user.id': '48211',
+        'user.email': 'jo@example.com',
+        'tag.payment.provider': 'stripe',
+        'tag.locale': 'sk_SK',
+        'context.order.id': 'ord_7Hq2kd',
+        'context.order.total': '149.90 EUR',
+        'messaging.batch.size': '1',
+        'code.namespace': 'App\\Payments\\ChargeCard',
+    },
+};
+
+export const DEMO_ISSUE_EVENT: IssueEvent = {
+    row: DEMO_ISSUE_EVENT_ROW,
+    eventKey: '1730980562418',
+    hasOlder: true,
+    hasNewer: false,
+    unavailable: false,
+    expired: false,
+};
+
+export const DEMO_ISSUE_RECENT_EVENTS: IssueEventList = {
+    unavailable: false,
+    rows: [
+        ['2026-11-07 11:56:02.418000000', '1730980562418', 'jo@example.com'],
+        ['2026-11-07 11:41:37.090000000', '1730979697090', '48207'],
+        ['2026-11-07 10:12:55.731000000', '1730974375731', ''],
+    ].map(([timestamp, eventKey, user]) => ({
+        timestamp,
+        eventKey,
+        eventId: eventKey,
+        serviceName: 'checkout-api',
+        traceId: '',
+        release: 'checkout@2026.11.06',
+        environment: 'production',
+        user,
+        message: DEMO_ISSUES[0].message,
+    })),
+};
+
+/** Autofix switched off for the deployment, so no fix button is offered. */
+export const DEMO_AUTOFIX_OFF: LogAutofixState = {
+    enabled: false,
+    connected: false,
+    projects: {},
+    credentials: [],
+};

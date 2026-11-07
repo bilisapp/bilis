@@ -90,6 +90,12 @@ export function issueHref(
 }
 
 /**
+ * The props an event step reloads. Stepping changes the event, not the issue:
+ * the histogram, tag breakdown and recent events stay as they are.
+ */
+export const ISSUE_EVENT_PROPS = ['event', 'exception'];
+
+/**
  * A count as people read it at a glance: 950, 1.2k, 34k, 1.5M.
  */
 export function formatCount(count: number): string {

@@ -7,6 +7,7 @@ import IssuesToolbar from '@/components/IssuesToolbar.vue';
 import KeyHint from '@/components/KeyHint.vue';
 import PageHeader from '@/components/PageHeader.vue';
 import SegmentedControl from '@/components/SegmentedControl.vue';
+import StorageBusy from '@/components/StorageBusy.vue';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useListCursor } from '@/composables/useListCursor';
@@ -313,14 +314,11 @@ watch(cursor, (index) => {
                 <Skeleton v-for="index in 6" :key="index" class="h-16 w-full" />
             </div>
 
-            <p
+            <StorageBusy
                 v-else-if="result.unavailable"
-                class="px-4 py-8 text-sm text-muted-foreground md:px-10"
+                store="Issue storage"
                 data-test="issues-unavailable"
-            >
-                Issue storage is busy and could not answer in time. Nothing is
-                lost — retry in a moment.
-            </p>
+            />
 
             <!--
               Three empty states, each a different fact: no project to report

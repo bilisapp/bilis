@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import StorageBusy from '@/components/StorageBusy.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatRelativeTime } from '@/lib/logs';
 import { formatRatio, ratioMagnitude } from '@/lib/metrics';
@@ -82,14 +83,11 @@ const LANES =
                     <Skeleton class="h-9 w-full animate-pulse" />
                 </div>
 
-                <p
+                <StorageBusy
                     v-else-if="hosts.unavailable"
-                    class="px-4 py-8 text-sm text-muted-foreground md:px-10"
+                    store="Metric storage"
                     data-test="hosts-unavailable"
-                >
-                    Metric storage is busy and could not answer in time. Nothing
-                    is lost — retry in a moment.
-                </p>
+                />
 
                 <p
                     v-else-if="hosts.hosts.length === 0"

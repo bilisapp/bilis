@@ -5,6 +5,7 @@ import MetricChart from '@/components/MetricChart.vue';
 import MetricsTabs from '@/components/MetricsTabs.vue';
 import MetricsToolbar from '@/components/MetricsToolbar.vue';
 import PageHeader from '@/components/PageHeader.vue';
+import StorageBusy from '@/components/StorageBusy.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMetricsLive } from '@/composables/useMetricsLive';
 import {
@@ -319,14 +320,12 @@ const catalogEmpty = computed(
             </p>
         </section>
 
-        <p
+        <StorageBusy
             v-else-if="catalog?.unavailable && !filters.metric"
-            class="border-t px-4 py-8 text-sm text-muted-foreground md:px-10"
+            store="Metric storage"
+            class="border-t"
             data-test="metrics-unavailable"
-        >
-            Metric storage is busy and could not answer in time. Nothing is lost
-            — retry in a moment.
-        </p>
+        />
 
         <p
             v-else-if="catalogEmpty && !filters.metric"

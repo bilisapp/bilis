@@ -12,9 +12,12 @@ import {
 } from '@lucide/vue';
 import { computed, onMounted, ref } from 'vue';
 import CodeCanvas from '@/components/CodeCanvas.vue';
+import FactStrip from '@/components/FactStrip.vue';
 import FixJobEventRow from '@/components/FixJobEventRow.vue';
 import FixJobStatusBadge from '@/components/FixJobStatusBadge.vue';
 import PageHeader from '@/components/PageHeader.vue';
+import PageSection from '@/components/PageSection.vue';
+import TraceFact from '@/components/TraceFact.vue';
 import { Button } from '@/components/ui/button';
 import {
     Collapsible,
@@ -305,12 +308,6 @@ const LONG_REQUEST = 320;
 const instructions = computed(() => props.job.instructions ?? '');
 const foldable = computed(() => instructions.value.length > LONG_REQUEST);
 const expanded = ref(false);
-
-/** A section heading on the surface: type over a hairline, a note at right. */
-const SECTION_HEADER =
-    'flex items-baseline justify-between gap-3 border-b pb-2.5';
-const SECTION_TITLE = 'text-base font-semibold tracking-tight';
-const SECTION_NOTE = 'pt-3 pb-4 text-xs text-muted-foreground';
 </script>
 
 <template>
@@ -421,19 +418,15 @@ const SECTION_NOTE = 'pt-3 pb-4 text-xs text-muted-foreground';
         </PageHeader>
 
         <!-- The run's facts, on one hairline-bounded strip. -->
-        <dl
-            class="grid grid-cols-2 gap-x-8 gap-y-4 border-y px-4 py-4 sm:grid-cols-3 md:px-10 lg:grid-cols-6"
-            data-test="fix-job-facts"
-        >
-            <div v-for="stat in stats" :key="stat.label" class="min-w-0">
-                <dt class="eyebrow">
-                    {{ stat.label }}
-                </dt>
-                <dd class="mt-1 truncate font-mono text-sm" :title="stat.value">
-                    {{ stat.value }}
-                </dd>
-            </div>
-        </dl>
+        <FactStrip :columns="6" data-test="fix-job-facts">
+            <TraceFact
+                v-for="stat in stats"
+                :key="stat.label"
+                :label="stat.label"
+                :value="stat.value"
+                mono
+            />
+        </FactStrip>
 
         <p
             v-if="job.failureReason"
@@ -487,22 +480,17 @@ const SECTION_NOTE = 'pt-3 pb-4 text-xs text-muted-foreground';
         </Collapsible>
 
         <div class="grid flex-1 grid-cols-1 lg:grid-cols-2">
-            <section
-                class="flex min-w-0 flex-col px-4 pt-8 pb-10 md:px-10"
+            <PageSection
+                title="Session"
+                description="What the agent did, in order. The transcript is stored with the job, so it reads the same after the run ends."
+                class="pt-8 pb-10"
                 data-test="fix-job-session"
             >
-                <header :class="SECTION_HEADER">
-                    <h2 :class="SECTION_TITLE">Session</h2>
-                    <span
-                        v-if="events.length > 0"
-                        class="font-mono text-xs text-muted-foreground tabular-nums"
+                <template v-if="events.length > 0" #aside>
+                    <span class="font-mono tabular-nums"
                         >{{ events.length }} events</span
                     >
-                </header>
-                <p :class="SECTION_NOTE">
-                    What the agent did, in order. The transcript is stored with
-                    the job, so it reads the same after the run ends.
-                </p>
+                </template>
 
                 <ol
                     v-if="events.length > 0"
@@ -524,21 +512,18 @@ const SECTION_NOTE = 'pt-3 pb-4 text-xs text-muted-foreground';
                 >
                     No session events recorded yet.
                 </p>
-            </section>
+            </PageSection>
 
             <div
                 class="flex min-w-0 flex-col border-t pb-10 lg:border-t-0 lg:border-l"
             >
-                <section class="flex min-w-0 flex-col px-4 pt-8 md:px-10">
-                    <header :class="SECTION_HEADER">
-                        <h2 :class="SECTION_TITLE">Proposed change</h2>
-                    </header>
-                    <p :class="SECTION_NOTE">
+                <PageSection title="Proposed change" class="pt-8">
+                    <template #description>
                         The validated diff, against
                         <code class="font-mono">{{ job.defaultBranch }}</code
                         >. Machine-generated — read it the way you would read a
                         stranger's patch.
-                    </p>
+                    </template>
 
                     <CodeCanvas
                         v-if="job.diff"
@@ -568,19 +553,13 @@ const SECTION_NOTE = 'pt-3 pb-4 text-xs text-muted-foreground';
                     >
                         No diff has come back for this job yet.
                     </p>
-                </section>
+                </PageSection>
 
-                <section
+                <PageSection
                     v-if="job.stack"
-                    class="flex min-w-0 flex-col px-4 pt-10 md:px-10"
+                    title="Stack trace"
+                    description="The trace the fingerprint was cut from — what the agent was given to work with."
                 >
-                    <header :class="SECTION_HEADER">
-                        <h2 :class="SECTION_TITLE">Stack trace</h2>
-                    </header>
-                    <p :class="SECTION_NOTE">
-                        The trace the fingerprint was cut from — what the agent
-                        was given to work with.
-                    </p>
                     <CodeCanvas
                         :code="job.stack"
                         filename="stack.log"
@@ -588,20 +567,19 @@ const SECTION_NOTE = 'pt-3 pb-4 text-xs text-muted-foreground';
                         hide-header
                         data-test="fix-job-stack"
                     />
-                </section>
+                </PageSection>
 
                 <!--
                   The trace as the agent read it: the same bounded text the
                   prompt carried, so a reviewer sees exactly what the model
                   saw rather than a richer view of it.
                 -->
-                <section
+                <PageSection
                     v-if="trace"
-                    class="flex min-w-0 flex-col px-4 pt-10 md:px-10"
+                    title="Trace"
                     data-test="fix-job-trace"
                 >
-                    <header :class="SECTION_HEADER">
-                        <h2 :class="SECTION_TITLE">Trace</h2>
+                    <template #aside>
                         <Link
                             v-if="traceHref && trace.state !== 'missing'"
                             :href="traceHref"
@@ -610,8 +588,8 @@ const SECTION_NOTE = 'pt-3 pb-4 text-xs text-muted-foreground';
                         >
                             <Waypoints class="size-3.5" /> Open trace
                         </Link>
-                    </header>
-                    <p :class="SECTION_NOTE">
+                    </template>
+                    <template #description>
                         <template v-if="trace.state === 'rendered'">
                             The waterfall the agent was handed —
                             <span class="font-mono tabular-nums"
@@ -629,7 +607,7 @@ const SECTION_NOTE = 'pt-3 pb-4 text-xs text-muted-foreground';
                             failed.
                         </template>
                         <template v-else>{{ traceNotice }}</template>
-                    </p>
+                    </template>
                     <CodeCanvas
                         v-if="trace.waterfall"
                         :code="trace.waterfall"
@@ -638,7 +616,7 @@ const SECTION_NOTE = 'pt-3 pb-4 text-xs text-muted-foreground';
                         hide-header
                         data-test="fix-job-trace-waterfall"
                     />
-                </section>
+                </PageSection>
             </div>
         </div>
     </div>

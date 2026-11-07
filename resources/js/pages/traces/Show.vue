@@ -7,6 +7,7 @@ import PageHeader from '@/components/PageHeader.vue';
 import SpanDetailPanel from '@/components/SpanDetailPanel.vue';
 import SpanSearch from '@/components/SpanSearch.vue';
 import SpanWaterfall from '@/components/SpanWaterfall.vue';
+import StorageBusy from '@/components/StorageBusy.vue';
 import { Button } from '@/components/ui/button';
 import { formatTimestamp, formatUtcTimestamp } from '@/lib/logs';
 import {
@@ -530,14 +531,12 @@ const logsValue = computed(() => {
             </component>
         </div>
 
-        <p
+        <StorageBusy
             v-if="unavailable"
-            class="border-t px-4 py-8 text-sm text-muted-foreground md:px-10"
+            store="Trace storage"
+            class="border-t"
             data-test="trace-unavailable"
-        >
-            Trace storage is busy and could not answer in time. Nothing is lost
-            — retry in a moment.
-        </p>
+        />
 
         <div
             v-else-if="summary === null"

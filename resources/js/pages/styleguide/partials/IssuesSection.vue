@@ -1,15 +1,25 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import BreadcrumbList from '@/components/BreadcrumbList.vue';
+import IssueEventContext from '@/components/IssueEventContext.vue';
+import IssueEventNav from '@/components/IssueEventNav.vue';
+import IssueException from '@/components/IssueException.vue';
+import IssueHeader from '@/components/IssueHeader.vue';
 import IssueListRow from '@/components/IssueListRow.vue';
+import IssueRecentEvents from '@/components/IssueRecentEvents.vue';
 import IssueStatusBadge from '@/components/IssueStatusBadge.vue';
 import IssuesToolbar from '@/components/IssuesToolbar.vue';
 import IssueTagBars from '@/components/IssueTagBars.vue';
 import StackTrace from '@/components/StackTrace.vue';
 import { parseStackTrace } from '@/lib/issues';
 import {
+    DEMO_AUTOFIX_OFF,
     DEMO_ISSUE_BREADCRUMBS,
+    DEMO_ISSUE_DETAIL,
+    DEMO_ISSUE_EVENT,
+    DEMO_ISSUE_EVENT_ROW,
     DEMO_ISSUE_FRAMES,
+    DEMO_ISSUE_RECENT_EVENTS,
     DEMO_ISSUE_TAGS,
     DEMO_ISSUE_TEXT_STACK,
     DEMO_ISSUES,
@@ -118,6 +128,76 @@ const textFrames = parseStackTrace(DEMO_ISSUE_TEXT_STACK);
         >
             <div class="max-w-sm">
                 <IssueTagBars :tags="DEMO_ISSUE_TAGS" />
+            </div>
+        </DemoBlock>
+
+        <DemoBlock
+            title="IssueHeader"
+            description="the top of the issue page: the exception type as the title with its status (and 'Unhandled' when the SDK said nothing caught it), the message, one sentence of counts and releases, what happened to it since it was decided — then resolve/ignore (or reopen) and Autofix on the right, and the FactStrip of where it lives. The buttons PATCH the issue and reload only the issue prop."
+        >
+            <div class="-mx-4">
+                <IssueHeader
+                    :issue="DEMO_ISSUE_DETAIL"
+                    :exception="null"
+                    :row="DEMO_ISSUE_EVENT_ROW"
+                    :autofix="DEMO_AUTOFIX_OFF"
+                    team-slug="acme"
+                />
+            </div>
+        </DemoBlock>
+
+        <DemoBlock
+            title="IssueEventNav"
+            description="which occurrence is on screen, the way out to the log stream a minute either side of it and to its trace, and the stepper through the others. Every step is a link — an event is shareable — that reloads only the event; a step with nowhere to go is drawn but not a link. Here the newest event is open, so 'newer' and 'latest' are off."
+        >
+            <div class="-mx-4">
+                <IssueEventNav
+                    :event="DEMO_ISSUE_EVENT"
+                    team-slug="acme"
+                    project-slug="checkout"
+                    :fingerprint="DEMO_ISSUE_DETAIL.fingerprint"
+                />
+            </div>
+        </DemoBlock>
+
+        <DemoBlock
+            title="IssueException"
+            description="one event's exception as a PageSection: the StackTrace, most recent call first, then each cause behind it, nearest first, under a 'Caused by' eyebrow."
+        >
+            <div class="-mx-4">
+                <IssueException
+                    :row="DEMO_ISSUE_EVENT_ROW"
+                    :stacktrace="DEMO_ISSUE_TEXT_STACK"
+                    class="pt-0"
+                />
+            </div>
+        </DemoBlock>
+
+        <DemoBlock
+            title="IssueEventContext"
+            description="what the event knew about its surroundings: request, user, runtime and release panels, one per application context ('context.order.*' becomes 'Order'), each a KeyValueList holding only the keys it carries, plus the SDK's tags as key/value chips. Renders nothing when the event carried none of them."
+        >
+            <div class="-mx-4">
+                <IssueEventContext :row="DEMO_ISSUE_EVENT_ROW" class="pt-0" />
+            </div>
+        </DemoBlock>
+
+        <DemoBlock
+            title="IssueRecentEvents"
+            description="the newest occurrences as a flush table under a guttered heading: time (a link that opens that event in place), service, release, environment, user and message. The event on screen is shaded; a skeleton holds the place while the deferred prop loads."
+        >
+            <div class="-mx-4">
+                <IssueRecentEvents
+                    :events="DEMO_ISSUE_RECENT_EVENTS"
+                    team-slug="acme"
+                    project-slug="checkout"
+                    :fingerprint="DEMO_ISSUE_DETAIL.fingerprint"
+                    :current="{
+                        timestamp: DEMO_ISSUE_EVENT_ROW.timestamp,
+                        eventKey: DEMO_ISSUE_EVENT.eventKey,
+                    }"
+                    class="pt-0"
+                />
             </div>
         </DemoBlock>
     </div>

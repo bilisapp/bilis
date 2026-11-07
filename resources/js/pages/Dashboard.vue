@@ -8,6 +8,7 @@ import IngestRateCard from '@/components/IngestRateCard.vue';
 import PageHeader from '@/components/PageHeader.vue';
 import PendingInvitationsModal from '@/components/PendingInvitationsModal.vue';
 import PlanUsageCard from '@/components/PlanUsageCard.vue';
+import SectionHeader from '@/components/SectionHeader.vue';
 import { Button } from '@/components/ui/button';
 import {
     formatBytes,
@@ -384,7 +385,7 @@ function storageBarWidth(project: LogStorageProject): number {
                     >
                         <Link
                             :href="logsLink"
-                            class="group flex flex-col gap-1.5 border-b py-5 pr-6 transition-colors hover:bg-muted/40 md:border-b-0 xl:border-r"
+                            class="group -ml-3 flex flex-col gap-1.5 border-b py-5 pr-6 pl-3 transition-colors hover:bg-muted/40 md:border-b-0 xl:border-r"
                             data-test="dashboard-digest-logs-link"
                         >
                             <span
@@ -440,7 +441,7 @@ function storageBarWidth(project: LogStorageProject): number {
 
                         <Link
                             :href="issuesIndex(teamSlug)"
-                            class="flex flex-col gap-1.5 py-5 pr-6 transition-colors hover:bg-muted/40 md:border-l md:pl-6 xl:border-r xl:border-l-0"
+                            class="-ml-3 flex flex-col gap-1.5 py-5 pr-6 pl-3 transition-colors hover:bg-muted/40 md:ml-0 md:border-l md:pl-6 xl:border-r xl:border-l-0"
                             data-test="dashboard-issues"
                         >
                             <span
@@ -562,18 +563,10 @@ function storageBarWidth(project: LogStorageProject): number {
                             class="flex flex-col xl:col-span-3"
                             data-test="dashboard-digest-top-errors"
                         >
-                            <header
-                                class="flex items-baseline justify-between gap-3 border-b pb-2.5"
-                            >
-                                <h2
-                                    class="text-base font-semibold tracking-tight"
-                                >
-                                    Top errors
-                                </h2>
-                                <span class="text-xs text-muted-foreground"
-                                    >repeating most often · 24h</span
-                                >
-                            </header>
+                            <SectionHeader
+                                title="Top errors"
+                                note="repeating most often · 24h"
+                            />
                             <p
                                 v-if="digest.topErrors.length === 0"
                                 class="py-4 text-sm text-muted-foreground"
@@ -588,7 +581,7 @@ function storageBarWidth(project: LogStorageProject): number {
                                 >
                                     <Link
                                         :href="topErrorLink(error.body)"
-                                        class="flex h-11 items-center gap-4 text-sm transition-colors hover:bg-muted/40"
+                                        class="-mx-3 flex h-11 items-center gap-4 rounded-md px-3 text-sm transition-colors hover:bg-muted/40"
                                         :title="error.body"
                                         data-test="dashboard-digest-error-link"
                                     >
@@ -628,18 +621,10 @@ function storageBarWidth(project: LogStorageProject): number {
                             class="flex flex-col xl:col-span-2"
                             data-test="dashboard-digest-services"
                         >
-                            <header
-                                class="flex items-baseline justify-between gap-3 border-b pb-2.5"
-                            >
-                                <h2
-                                    class="text-base font-semibold tracking-tight"
-                                >
-                                    Services
-                                </h2>
-                                <span class="text-xs text-muted-foreground"
-                                    >quiet = nothing for over an hour</span
-                                >
-                            </header>
+                            <SectionHeader
+                                title="Services"
+                                note="quiet = nothing for over an hour"
+                            />
                             <ul>
                                 <li
                                     v-for="service in digest.services"
@@ -654,7 +639,7 @@ function storageBarWidth(project: LogStorageProject): number {
                                     -->
                                     <Link
                                         :href="serviceLink(service.name)"
-                                        class="grid h-11 grid-cols-[0.5rem_minmax(0,1fr)_6rem_4.5rem] items-center gap-3 text-sm transition-colors hover:bg-muted/40"
+                                        class="-mx-3 grid h-11 grid-cols-[0.5rem_minmax(0,1fr)_6rem_4.5rem] items-center gap-3 rounded-md px-3 text-sm transition-colors hover:bg-muted/40"
                                         :title="`Show the last 7 days of ${service.name}`"
                                         data-test="dashboard-digest-service-link"
                                     >

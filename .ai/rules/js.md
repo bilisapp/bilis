@@ -19,3 +19,6 @@ Inertia SSR is off in both places that matter: `config/inertia.php` (`ssr.enable
 
 ## Code and diff rendering uses @pierre/diffs
 All code visualization in the app — diffs (autofix job diffs, PR previews) and any rendered source files — uses the @pierre/diffs library (diffs.com) via its **vanilla JS API** (FileDiff / CodeView / File; docs: https://diffs.com/docs#vanilla-js-api), wrapped in a reusable Vue component. Do not hand-roll diff HTML and do not use react-diff-view/diff2html/etc. It is Shiki-based: theme it from the app's CSS tokens / dark-light modes like ChartCanvas does for ECharts — no hardcoded highlight themes that ignore the mode.
+
+## A hoverable row never puts its text on the hover edge
+Anything that fills on hover (a row, a list link, a KPI tile) has at least 12px of horizontal padding of its own. Full-bleed lists get it from the gutter (`px-4 md:px-10` on the row). A row inside a guttered column, which has to stay aligned with its SectionHeader, spills into the gutter instead: `-mx-3 px-3 rounded-md` (a KPI tile that starts a row: `-ml-3 pl-3`). Without this the hover band starts exactly at the first character and the numbers touch its right edge.
