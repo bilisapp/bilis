@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatTimestamp, formatUtcTimestamp } from '@/lib/logs';
 import {
+    durationClass,
     formatDuration,
     SPAN_STATUS_BAR_CLASS,
     SPAN_STATUS_TEXT_CLASS,
@@ -87,12 +88,12 @@ function openSpan(spanId: string) {
       with extra steps.
     -->
     <aside
-        class="flex min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-lg border bg-card lg:w-[28rem]"
+        class="flex min-h-0 w-full shrink-0 flex-col overflow-hidden lg:w-[28rem]"
         data-test="trace-panel"
         aria-label="Trace preview"
     >
-        <header class="flex items-start gap-2 border-b px-3 py-2">
-            <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+        <header class="flex items-start gap-2 border-b px-4 py-3">
+            <div class="flex min-w-0 flex-1 flex-col gap-1">
                 <div class="flex min-w-0 items-center gap-2">
                     <span
                         :class="
@@ -107,7 +108,9 @@ function openSpan(spanId: string) {
                         "
                         aria-hidden="true"
                     />
-                    <h2 class="min-w-0 truncate text-sm font-semibold">
+                    <h2
+                        class="min-w-0 truncate text-base font-semibold tracking-tight"
+                    >
                         {{ summary?.rootName || 'Trace' }}
                     </h2>
                 </div>
@@ -118,7 +121,7 @@ function openSpan(spanId: string) {
 
             <button
                 type="button"
-                class="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                class="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                 aria-label="Close trace preview"
                 data-test="trace-panel-close"
                 @click="emit('close')"
@@ -127,7 +130,7 @@ function openSpan(spanId: string) {
             </button>
         </header>
 
-        <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
+        <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
             <!-- Loading. -->
             <template v-if="!result && !failed">
                 <div class="flex gap-4">
@@ -166,16 +169,23 @@ function openSpan(spanId: string) {
             </p>
 
             <template v-else>
-                <dl class="grid grid-cols-3 gap-x-4 gap-y-2">
+                <dl class="grid grid-cols-3 gap-x-4 gap-y-3">
                     <div class="flex min-w-0 flex-col gap-0.5">
                         <dt class="text-xs text-muted-foreground">Duration</dt>
-                        <dd class="text-sm tabular-nums">
+                        <dd
+                            :class="
+                                cn(
+                                    'font-mono text-sm font-medium tabular-nums',
+                                    durationClass(summary.durationMs),
+                                )
+                            "
+                        >
                             {{ formatDuration(summary.durationMs) }}
                         </dd>
                     </div>
                     <div class="flex min-w-0 flex-col gap-0.5">
                         <dt class="text-xs text-muted-foreground">Spans</dt>
-                        <dd class="text-sm tabular-nums">
+                        <dd class="font-mono text-sm tabular-nums">
                             {{ summary.spanCount.toLocaleString() }}
                         </dd>
                     </div>
@@ -184,7 +194,7 @@ function openSpan(spanId: string) {
                         <dd
                             :class="
                                 cn(
-                                    'text-sm tabular-nums',
+                                    'font-mono text-sm tabular-nums',
                                     failedTrace
                                         ? SPAN_STATUS_TEXT_CLASS.Error
                                         : 'text-muted-foreground',
@@ -196,14 +206,14 @@ function openSpan(spanId: string) {
                     </div>
                     <div class="col-span-2 flex min-w-0 flex-col gap-0.5">
                         <dt class="text-xs text-muted-foreground">Service</dt>
-                        <dd class="truncate text-sm">
+                        <dd class="truncate font-mono text-sm">
                             {{ summary.rootService || '—' }}
                         </dd>
                     </div>
                     <div class="flex min-w-0 flex-col gap-0.5">
                         <dt class="text-xs text-muted-foreground">Started</dt>
                         <dd
-                            class="truncate text-sm tabular-nums"
+                            class="truncate font-mono text-xs leading-5 tabular-nums"
                             :title="formatUtcTimestamp(summary.startedAt)"
                         >
                             {{ formatTimestamp(summary.startedAt) }}
@@ -232,9 +242,8 @@ function openSpan(spanId: string) {
                         detail for the whole trace.
                     </p>
 
-                    <div
-                        class="flex min-h-40 flex-col overflow-hidden rounded-md border"
-                    >
+                    <!-- Full-bleed inside the panel: hairlines, not a box. -->
+                    <div class="-mx-4 flex min-h-40 flex-col border-y">
                         <SpanWaterfall
                             :spans="result?.spans ?? []"
                             :selected-span-id="null"
@@ -251,7 +260,7 @@ function openSpan(spanId: string) {
           between them, so it stays put at the bottom rather than scrolling away
           with the spans — and it works even when the spans are gone.
         -->
-        <footer class="border-t p-3">
+        <footer class="border-t px-4 py-3">
             <Button
                 as-child
                 variant="outline"

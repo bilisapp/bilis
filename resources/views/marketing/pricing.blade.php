@@ -10,7 +10,7 @@
          different voice reads as if a different company wrote it. Every
          number comes from PlanLimits through $free; nothing here is a
          literal, so the page and the meters inside the app cannot disagree. --}}
-    <section class="mx-auto max-w-5xl px-6 pt-16 pb-12 sm:pt-20">
+    <section class="mx-auto max-w-content px-6 pt-16 pb-12 sm:pt-20">
         <p class="text-xs font-medium tracking-wide text-muted-foreground uppercase">Pricing</p>
 
         <h1 class="mt-4 max-w-3xl text-3xl leading-tight font-semibold tracking-tight sm:text-4xl">
@@ -28,7 +28,7 @@
     {{-- 01 — The two plans --}}
     <section id="plans"
              class="scroll-mt-20 border-y border-border bg-card">
-        <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+        <div class="mx-auto max-w-content px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '01', 'label' => 'The plans'])
 
             <h2 class="mt-4 text-xl font-semibold tracking-tight">One that is free, and one that is a
@@ -136,7 +136,7 @@
     {{-- 02 — Self-hosting --}}
     <section id="self-hosting"
              class="scroll-mt-20">
-        <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+        <div class="mx-auto max-w-content px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '02', 'label' => 'Self-hosting'])
 
             <h2 class="mt-4 text-xl font-semibold tracking-tight">Self-hosting stays first-class</h2>
@@ -172,7 +172,7 @@
     {{-- 03 — Questions --}}
     <section id="questions"
              class="scroll-mt-20 border-y border-border bg-card">
-        <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+        <div class="mx-auto max-w-content px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '03', 'label' => 'Questions'])
 
             <h2 class="mt-4 text-xl font-semibold tracking-tight">The five we actually get asked</h2>

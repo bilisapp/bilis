@@ -8,6 +8,7 @@ import ComponentsOverlays from './partials/ComponentsOverlays.vue';
 import IssuesSection from './partials/IssuesSection.vue';
 import MagnitudeSection from './partials/MagnitudeSection.vue';
 import MetricsSection from './partials/MetricsSection.vue';
+import PageChromeSection from './partials/PageChromeSection.vue';
 import PaletteSection from './partials/PaletteSection.vue';
 import SeveritySection from './partials/SeveritySection.vue';
 import TokensSection from './partials/TokensSection.vue';
@@ -114,6 +115,13 @@ export const STYLEGUIDE_CATEGORIES: StyleguideCategory[] = [
                     'Everything that opens on top of the page or expands in place: dialogs, menus, sheets, tooltips and toasts.',
                 component: ComponentsOverlays,
                 bodyClass: 'grid items-start gap-4 lg:grid-cols-2',
+            },
+            {
+                id: 'page-chrome',
+                name: 'Page chrome',
+                description:
+                    'What every in-app page is assembled from, on the white work surface rather than in cards: the page header (trail, title, one summary sentence, actions), the toolbar row of filter chips, segmented tabs, the severity legend that filters, and the keyboard hints a list footer prints.',
+                component: PageChromeSection,
             },
             {
                 id: 'charts',

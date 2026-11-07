@@ -2,12 +2,12 @@
 import { Check, Copy } from '@lucide/vue';
 import { useClipboard } from '@vueuse/core';
 import { computed, ref } from 'vue';
+import SegmentedControl from '@/components/SegmentedControl.vue';
 import {
     ERROR_MONITORING_TABS,
     errorMonitoringSnippets,
 } from '@/lib/errorMonitoring';
 import type { ErrorMonitoringTab } from '@/lib/errorMonitoring';
-import { cn } from '@/lib/utils';
 
 type Props = {
     /** The project's DSN, when it has a key; otherwise a placeholder is shown. */
@@ -25,6 +25,11 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const tab = ref<ErrorMonitoringTab>('workers-otlp');
+
+const tabOptions = ERROR_MONITORING_TABS.map((item) => ({
+    value: item.id as ErrorMonitoringTab,
+    label: item.label,
+}));
 
 const HINTS: Record<ErrorMonitoringTab, string> = {
     'workers-otlp':
@@ -53,37 +58,19 @@ const { copy, copied } = useClipboard({ copiedDuring: 1_500, legacy: true });
 </script>
 
 <template>
-    <div class="space-y-3" data-test="error-monitoring-setup">
-        <div
-            class="flex flex-wrap gap-1 border-b"
-            role="tablist"
+    <div class="flex flex-col gap-3" data-test="error-monitoring-setup">
+        <SegmentedControl
+            v-model="tab"
+            class="self-start"
+            :options="tabOptions"
             aria-label="Error monitoring setup"
-        >
-            <button
-                v-for="item in ERROR_MONITORING_TABS"
-                :key="item.id"
-                type="button"
-                role="tab"
-                :aria-selected="tab === item.id"
-                :data-test="`error-monitoring-tab-${item.id}`"
-                :class="
-                    cn(
-                        '-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors',
-                        tab === item.id
-                            ? 'border-primary text-foreground'
-                            : 'border-transparent text-muted-foreground hover:text-foreground',
-                    )
-                "
-                @click="tab = item.id"
-            >
-                {{ item.label }}
-            </button>
-        </div>
+            data-test-prefix="error-monitoring-tab"
+        />
 
         <p class="text-sm text-muted-foreground">{{ HINTS[tab] }}</p>
 
         <div
-            class="relative overflow-hidden rounded-lg border border-input bg-muted/40"
+            class="relative overflow-hidden rounded-lg border bg-muted/40"
             role="tabpanel"
         >
             <pre

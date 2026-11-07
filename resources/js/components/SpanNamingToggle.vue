@@ -20,7 +20,7 @@ const { naming, setNaming } = useSpanNaming();
       which one is a derivation without needing a sentence.
     -->
     <div
-        class="flex items-center rounded-md border p-0.5"
+        class="flex items-center gap-0.5 rounded-md bg-muted p-0.5"
         role="group"
         aria-label="Span naming"
         data-test="span-naming-toggle"
@@ -31,9 +31,9 @@ const { naming, setNaming } = useSpanNaming();
             type="button"
             :class="
                 cn(
-                    'rounded-sm px-1.5 py-0.5 text-xs transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
+                    'rounded-sm px-1.5 py-0.5 text-xs font-medium transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
                     naming === option.value
-                        ? 'bg-accent font-medium text-foreground'
+                        ? 'bg-card text-foreground ring-1 ring-border'
                         : 'text-muted-foreground hover:text-foreground',
                 )
             "

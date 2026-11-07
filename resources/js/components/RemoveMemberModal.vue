@@ -53,7 +53,7 @@ const removeMember = () => {
 
             <DialogFooter class="gap-2">
                 <DialogClose as-child>
-                    <Button variant="secondary"> Cancel </Button>
+                    <Button variant="outline"> Cancel </Button>
                 </DialogClose>
 
                 <Button

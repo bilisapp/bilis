@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { ChevronRight } from '@lucide/vue';
+import { ArrowUpRight, ChevronRight } from '@lucide/vue';
 import { ref } from 'vue';
 import {
     Collapsible,
@@ -12,6 +12,7 @@ import {
     SidebarGroupLabel,
     SidebarMenu,
     SidebarMenuAction,
+    SidebarMenuBadge,
     SidebarMenuButton,
     SidebarMenuItem,
     SidebarMenuSub,
@@ -25,9 +26,10 @@ import type { NavItem } from '@/types';
 withDefaults(
     defineProps<{
         items: NavItem[];
+        /** Names the group; a group without one (Dashboard) stands alone. */
         label?: string;
     }>(),
-    { label: 'Platform' },
+    { label: undefined },
 );
 
 const { isCurrentUrl, isCurrentOrParentUrl } = useCurrentUrl();
@@ -77,7 +79,8 @@ const setOpen = (item: NavItem, open: boolean) => {
 <template>
     <SidebarGroup class="px-2 py-0">
         <SidebarGroupLabel
-            class="h-6 px-2 text-[11px] font-semibold tracking-[0.12em] text-sidebar-foreground/45 uppercase"
+            v-if="label"
+            class="h-6 px-2 text-[11px] font-semibold tracking-[0.12em] text-sidebar-foreground/70 uppercase"
         >
             {{ label }}
         </SidebarGroupLabel>
@@ -97,21 +100,60 @@ const setOpen = (item: NavItem, open: boolean) => {
             >
                 <SidebarMenuItem>
                     <!--
-                      The active item takes the work surface as its fill, so the
-                      current page is legible from the rail's silhouette. Hover
+                      The active item takes the work surface as its fill and a
+                      hairline for an edge, so the current page is legible from
+                      the rail's silhouette without a resting shadow. Hover
                       stays a quiet lift, which keeps the two states distinct.
                     -->
                     <SidebarMenuButton
                         as-child
                         :is-active="isActive(item)"
                         :tooltip="item.title"
-                        class="data-[active=true]:bg-sidebar-primary data-[active=true]:font-semibold data-[active=true]:text-sidebar-primary-foreground data-[active=true]:hover:bg-sidebar-primary data-[active=true]:hover:text-sidebar-primary-foreground"
+                        class="text-sidebar-foreground data-[active=true]:bg-sidebar-primary data-[active=true]:font-medium data-[active=true]:text-sidebar-primary-foreground data-[active=true]:ring-1 data-[active=true]:ring-sidebar-border data-[active=true]:hover:bg-sidebar-primary data-[active=true]:hover:text-sidebar-primary-foreground [&>svg]:text-sidebar-foreground/80 data-[active=true]:[&>svg]:text-sidebar-primary-foreground"
                     >
-                        <Link :href="item.href">
+                        <a
+                            v-if="item.external"
+                            :href="
+                                typeof item.href === 'string'
+                                    ? item.href
+                                    : item.href.url
+                            "
+                            target="_blank"
+                            rel="noopener"
+                        >
+                            <component :is="item.icon" />
+                            <span>{{ item.title }}</span>
+                            <ArrowUpRight
+                                class="ml-auto !size-3.5 opacity-60"
+                                aria-hidden="true"
+                            />
+                        </a>
+                        <Link v-else :href="item.href">
                             <component :is="item.icon" />
                             <span>{{ item.title }}</span>
                         </Link>
                     </SidebarMenuButton>
+
+                    <!--
+                      The count is chrome — a neutral number — and only its
+                      dot is data: severity-error, shown when something that
+                      was fixed came back. A busy store shows no count at all.
+                    -->
+                    <SidebarMenuBadge
+                        v-if="item.badge && item.badge.count > 0"
+                        class="top-1.5 h-5 gap-1.5 rounded-md bg-muted px-1.5 font-mono text-[11px] font-medium text-foreground/80 tabular-nums peer-data-[active=true]/menu-button:text-foreground"
+                        :data-test="`nav-badge-${item.title.toLowerCase()}`"
+                    >
+                        <span
+                            v-if="item.badge.alert"
+                            class="size-1.5 rounded-full bg-severity-error"
+                            aria-hidden="true"
+                        />
+                        {{ item.badge.count > 99 ? '99+' : item.badge.count }}
+                        <span v-if="item.badge.alert" class="sr-only"
+                            >, some regressed</span
+                        >
+                    </SidebarMenuBadge>
 
                     <!--
                       A section header is still a page, so the chevron is a

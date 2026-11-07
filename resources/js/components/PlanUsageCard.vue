@@ -1,13 +1,5 @@
 <script setup lang="ts">
-import { Layers } from '@lucide/vue';
 import { computed } from 'vue';
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
 import {
     allowanceBarClass,
     allowanceLevel,
@@ -122,26 +114,21 @@ const upgradeHref = computed(() =>
 </script>
 
 <template>
-    <Card data-test="dashboard-plan-usage">
-        <CardHeader>
-            <CardTitle class="flex items-center justify-between gap-2">
-                <span class="flex items-center gap-2">
-                    <span
-                        class="flex size-8 items-center justify-center rounded-full bg-muted text-muted-foreground"
-                    >
-                        <Layers class="size-4" />
-                    </span>
-                    Plan &amp; usage
-                </span>
+    <section class="flex flex-col gap-4" data-test="dashboard-plan-usage">
+        <header class="flex flex-col gap-1.5">
+            <h3
+                class="flex items-center justify-between gap-2 text-base font-semibold tracking-tight"
+            >
+                <span class="flex items-center gap-2"> Plan &amp; usage </span>
                 <span
                     class="rounded-md border border-border px-1.5 py-0.5 font-mono text-[11px] tracking-[0.14em] text-muted-foreground uppercase"
                     data-test="dashboard-plan-badge"
                 >
                     Free
                 </span>
-            </CardTitle>
+            </h3>
 
-            <CardDescription>
+            <p class="text-sm text-muted-foreground">
                 What this team is using of the Free allowances.
                 <!--
                   Said before the numbers rather than after them: the meters
@@ -150,10 +137,10 @@ const upgradeHref = computed(() =>
                 -->
                 Every limit here is soft — nothing is dropped and nothing is
                 blocked when one is passed.
-            </CardDescription>
-        </CardHeader>
+            </p>
+        </header>
 
-        <CardContent>
+        <div>
             <ul class="flex flex-col gap-3">
                 <li
                     v-for="meter in meters"
@@ -188,7 +175,7 @@ const upgradeHref = computed(() =>
                         </span>
                     </div>
                     <div
-                        class="h-1.5 overflow-hidden rounded-full bg-muted"
+                        class="h-1 overflow-hidden rounded-full bg-muted"
                         role="presentation"
                     >
                         <div
@@ -272,6 +259,6 @@ const upgradeHref = computed(() =>
                     tell us what you run </a
                 >when you want more room.
             </p>
-        </CardContent>
-    </Card>
+        </div>
+    </section>
 </template>

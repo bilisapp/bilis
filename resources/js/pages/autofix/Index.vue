@@ -1,17 +1,12 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ExternalLink, GitPullRequest, Plus, Wrench } from '@lucide/vue';
+import { ExternalLink, GitPullRequest, Plus, RotateCcw } from '@lucide/vue';
 import { computed } from 'vue';
 import CreateFixJobModal from '@/components/CreateFixJobModal.vue';
+import FilterSelect from '@/components/FilterSelect.vue';
 import FixJobStatusBadge from '@/components/FixJobStatusBadge.vue';
+import PageHeader from '@/components/PageHeader.vue';
 import { Button } from '@/components/ui/button';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import { index as autofixIndex, show as autofixShow } from '@/routes/autofix';
 import { index as projectsIndex } from '@/routes/projects';
 import type {
@@ -47,36 +42,64 @@ defineOptions({
     }),
 });
 
-/** `all` is the placeholder value a Select needs; the server sees no filter. */
-const ALL = 'all';
-
-const projectFilter = computed({
-    get: () => props.filters.project ?? ALL,
-    set: (value: string) => applyFilters({ project: value }),
-});
-
-const statusFilter = computed({
-    get: () => props.filters.status ?? ALL,
-    set: (value: string) => applyFilters({ status: value }),
-});
-
-function applyFilters(change: { project?: string; status?: string }) {
+/**
+ * Push a filter into the URL; `null` is "all", which the server sees as no
+ * filter at all. Changing a filter starts again from the first page.
+ */
+function applyFilters(change: {
+    project?: string | null;
+    status?: string | null;
+}) {
     const next = {
-        project: change.project ?? props.filters.project ?? ALL,
-        status: change.status ?? props.filters.status ?? ALL,
+        project:
+            change.project !== undefined
+                ? change.project
+                : props.filters.project,
+        status:
+            change.status !== undefined ? change.status : props.filters.status,
     };
 
     router.get(
         autofixIndex(props.teamSlug, {
             query: {
-                project: next.project === ALL ? undefined : next.project,
-                status: next.status === ALL ? undefined : next.status,
+                project: next.project ?? undefined,
+                status: next.status ?? undefined,
             },
         }),
         {},
         { preserveState: true, preserveScroll: true, replace: true },
     );
 }
+
+const projectOptions = computed(() =>
+    props.projects.map((project) => ({
+        value: project.slug,
+        label: project.name,
+    })),
+);
+
+const statusOptions = computed(() =>
+    props.statuses.map((status) => ({
+        value: status.value,
+        label: status.label,
+    })),
+);
+
+/** The scope the list covers, printed above the title. */
+const scope = computed(() => [
+    props.projects.find((project) => project.slug === props.filters.project)
+        ?.name ?? 'All projects',
+    props.statuses.find((status) => status.value === props.filters.status)
+        ?.label ?? 'Any status',
+]);
+
+const canReset = computed(
+    () => props.filters.project !== null || props.filters.status !== null,
+);
+
+/** One template for the column header and every row, so the lanes align. */
+const COLUMNS =
+    'grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 gap-y-1 md:grid-cols-[minmax(0,1fr)_9rem_8.5rem_6rem_7.5rem_7.5rem]';
 
 const formatTime = (iso: string | null): string => {
     if (!iso) {
@@ -118,91 +141,48 @@ function goToPage(page: number) {
 <template>
     <Head title="Autofix" />
 
-    <div class="flex h-full flex-1 flex-col gap-4 p-4">
-        <header class="flex flex-wrap items-end justify-between gap-4">
-            <div class="space-y-1">
-                <h1 class="text-xl font-semibold tracking-tight">Autofix</h1>
-                <p class="max-w-prose text-sm text-muted-foreground">
-                    Every attempt the agent has made at a production error, and
-                    what came of it. A fix only ever reaches your repository as
-                    a pull request — nothing is merged for you.
-                </p>
-            </div>
+    <div class="flex flex-1 flex-col">
+        <PageHeader title="Autofix" :eyebrow="scope">
+            <p data-test="autofix-summary">
+                <template v-if="hasRepository && jobs.total > 0">
+                    <span class="font-medium text-foreground"
+                        >{{ jobs.total.toLocaleString() }}
+                        {{ jobs.total === 1 ? 'job' : 'jobs' }}</span
+                    >
+                    ·
+                </template>
+                Every attempt the agent has made, and what came of it. A fix
+                only reaches your repository as a pull request — nothing is
+                merged for you.
+            </p>
 
-            <div v-if="hasRepository" class="flex items-center gap-2">
+            <template v-if="hasRepository && canCreateJob" #actions>
                 <CreateFixJobModal
-                    v-if="canCreateJob"
                     :team-slug="teamSlug"
                     :repositories="autofixRepositories"
                     :credentials="llmCredentials"
                 >
-                    <Button size="sm" data-test="autofix-new-job">
+                    <Button data-test="autofix-new-job">
                         <Plus /> New job
                     </Button>
                 </CreateFixJobModal>
-
-                <Select v-model="projectFilter">
-                    <SelectTrigger
-                        size="sm"
-                        class="w-40"
-                        data-test="autofix-project-filter"
-                    >
-                        <SelectValue placeholder="Project" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem :value="ALL">All projects</SelectItem>
-                        <SelectItem
-                            v-for="project in projects"
-                            :key="project.slug"
-                            :value="project.slug"
-                        >
-                            {{ project.name }}
-                        </SelectItem>
-                    </SelectContent>
-                </Select>
-
-                <Select v-model="statusFilter">
-                    <SelectTrigger
-                        size="sm"
-                        class="w-40"
-                        data-test="autofix-status-filter"
-                    >
-                        <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem :value="ALL">Any status</SelectItem>
-                        <SelectItem
-                            v-for="status in statuses"
-                            :key="status.value"
-                            :value="status.value"
-                        >
-                            {{ status.label }}
-                        </SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-        </header>
+            </template>
+        </PageHeader>
 
         <!--
           Nothing is connected yet: the honest next step is project settings,
-          not a filter bar over an empty table.
+          not a filter bar over an empty list.
         -->
         <div
             v-if="!hasRepository"
-            class="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 rounded-xl border bg-card px-6 py-16 text-center"
+            class="flex flex-col items-start gap-4 border-t px-4 py-8 md:px-10"
             data-test="autofix-not-configured"
         >
-            <span
-                class="flex size-11 items-center justify-center rounded-full bg-muted text-muted-foreground"
-            >
-                <Wrench class="size-5" />
-            </span>
-
-            <div class="space-y-1">
-                <p class="text-base font-semibold">
+            <div class="flex flex-col gap-2">
+                <p class="text-sm font-medium text-foreground">
                     Connect a repository first
                 </p>
-                <p class="max-w-sm text-sm text-balance text-muted-foreground">
+                <p class="max-w-prose text-sm text-muted-foreground">
                     Autofix reads the errors already in your logs, then opens a
                     pull request against the repository that project ships from.
                     Until one is connected, there is nothing for it to work on.
@@ -216,173 +196,236 @@ function goToPage(page: number) {
             </Button>
         </div>
 
-        <div
-            v-else-if="!hasJobs"
-            class="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 rounded-xl border bg-card px-6 py-16 text-center"
-            data-test="autofix-empty"
-        >
-            <span
-                class="flex size-11 items-center justify-center rounded-full bg-muted text-muted-foreground"
-            >
-                <Wrench class="size-5" />
-            </span>
-
-            <div class="space-y-1">
-                <p class="font-medium">No fix jobs yet</p>
-                <p class="max-w-sm text-sm text-muted-foreground">
-                    Bilis scans for repeating errors every few minutes. The
-                    first attempt appears here once one crosses the threshold —
-                    or you can ask for a change yourself.
-                </p>
+        <template v-else>
+            <div class="px-4 pb-5 md:px-10">
+                <div
+                    class="flex flex-wrap items-center gap-2"
+                    data-test="autofix-toolbar"
+                >
+                    <FilterSelect
+                        v-if="projects.length > 1"
+                        id="autofix-project"
+                        label="Project"
+                        all-label="All projects"
+                        data-test="autofix-project-filter"
+                        :model-value="filters.project"
+                        :options="projectOptions"
+                        @update:model-value="applyFilters({ project: $event })"
+                    />
+                    <FilterSelect
+                        id="autofix-status"
+                        label="Status"
+                        all-label="Any status"
+                        all-short="Any"
+                        data-test="autofix-status-filter"
+                        :model-value="filters.status"
+                        :options="statusOptions"
+                        @update:model-value="applyFilters({ status: $event })"
+                    />
+                    <Button
+                        v-if="canReset"
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        class="h-9 text-muted-foreground"
+                        data-test="autofix-reset"
+                        @click="applyFilters({ project: null, status: null })"
+                    >
+                        <RotateCcw class="size-3.5" />
+                        Reset
+                    </Button>
+                </div>
             </div>
 
-            <CreateFixJobModal
-                v-if="canCreateJob"
-                :team-slug="teamSlug"
-                :repositories="autofixRepositories"
-                :credentials="llmCredentials"
+            <section
+                class="flex flex-1 flex-col border-t"
+                data-test="autofix-list"
             >
-                <Button size="sm" data-test="autofix-empty-new-job">
-                    <Plus /> New job
-                </Button>
-            </CreateFixJobModal>
-        </div>
-
-        <div v-else class="overflow-hidden rounded-xl border bg-card">
-            <table class="w-full text-sm">
-                <thead
-                    class="border-b bg-muted/40 text-left text-xs text-muted-foreground uppercase"
+                <header
+                    :class="[
+                        COLUMNS,
+                        'border-b column-header px-4 py-2.5 md:px-10',
+                    ]"
                 >
-                    <tr>
-                        <th scope="col" class="px-4 py-2.5 font-medium">Job</th>
-                        <th scope="col" class="px-4 py-2.5 font-medium">
-                            Project
-                        </th>
-                        <th scope="col" class="px-4 py-2.5 font-medium">
-                            Status
-                        </th>
-                        <th scope="col" class="px-4 py-2.5 font-medium">
-                            Pull request
-                        </th>
-                        <th scope="col" class="px-4 py-2.5 font-medium">
-                            Started
-                        </th>
-                        <th scope="col" class="px-4 py-2.5 font-medium">
-                            Finished
-                        </th>
-                    </tr>
-                </thead>
+                    <span>Job</span>
+                    <span class="hidden md:block">Project</span>
+                    <span>Status</span>
+                    <span class="hidden md:block">Pull request</span>
+                    <span class="hidden text-right md:block">Started</span>
+                    <span class="hidden text-right md:block">Finished</span>
+                </header>
 
-                <tbody class="divide-y divide-border">
-                    <tr
+                <div
+                    v-if="!hasJobs"
+                    class="flex flex-col items-start gap-4 px-4 py-8 md:px-10"
+                    data-test="autofix-empty"
+                >
+                    <div class="flex flex-col gap-2">
+                        <p class="text-sm font-medium text-foreground">
+                            No fix jobs yet
+                        </p>
+                        <p class="max-w-prose text-sm text-muted-foreground">
+                            Bilis scans for repeating errors every few minutes.
+                            The first attempt appears here once one crosses the
+                            threshold — or you can ask for a change yourself.
+                        </p>
+                    </div>
+
+                    <CreateFixJobModal
+                        v-if="canCreateJob"
+                        :team-slug="teamSlug"
+                        :repositories="autofixRepositories"
+                        :credentials="llmCredentials"
+                    >
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            data-test="autofix-empty-new-job"
+                        >
+                            <Plus /> New job
+                        </Button>
+                    </CreateFixJobModal>
+                </div>
+
+                <div v-else>
+                    <div
                         v-for="job in jobs.data"
                         :key="job.uuid"
-                        class="transition-colors hover:bg-accent/40"
+                        :class="[
+                            COLUMNS,
+                            'relative border-b border-border/70 px-4 py-4 transition-colors hover:bg-muted/50 md:px-10',
+                        ]"
                         data-test="fix-job-row"
                     >
-                        <td class="max-w-md px-4 py-3">
-                            <Link
-                                :href="autofixShow([teamSlug, job.uuid])"
-                                class="block min-w-0 space-y-0.5"
+                        <!--
+                          The title's link covers the whole row; the pull
+                          request link sits above it so both stay clickable.
+                        -->
+                        <Link
+                            :href="autofixShow([teamSlug, job.uuid])"
+                            class="flex min-w-0 flex-col gap-1 after:absolute after:inset-0 focus-visible:outline-none"
+                        >
+                            <span class="flex min-w-0 items-center gap-2">
+                                <span
+                                    v-if="job.type === 'custom'"
+                                    class="inline-flex h-5 shrink-0 items-center rounded-full px-2 text-[11px] font-medium text-foreground/80 ring-1 ring-border ring-inset"
+                                    data-test="fix-job-custom-marker"
+                                >
+                                    {{ job.typeLabel }}
+                                </span>
+                                <span
+                                    class="truncate text-sm font-semibold text-foreground"
+                                    :title="job.title"
+                                    >{{ job.title }}</span
+                                >
+                            </span>
+                            <span
+                                class="flex min-w-0 items-center gap-1.5 font-mono text-xs text-muted-foreground"
                             >
-                                <span
-                                    class="flex min-w-0 items-center gap-1.5 font-medium"
-                                >
-                                    <span
-                                        v-if="job.type === 'custom'"
-                                        class="shrink-0 rounded-sm border px-1.5 py-0.5 text-xs font-medium tracking-[0.06em] text-muted-foreground uppercase"
-                                        data-test="fix-job-custom-marker"
-                                    >
-                                        {{ job.typeLabel }}
-                                    </span>
+                                <template v-if="job.type === 'custom'">
                                     <span class="truncate">{{
-                                        job.title
+                                        job.repository
                                     }}</span>
-                                </span>
+                                </template>
+                                <template v-else>
+                                    <span class="truncate text-foreground/75">{{
+                                        job.serviceName ?? job.repository
+                                    }}</span>
+                                    <span class="text-input" aria-hidden="true"
+                                        >·</span
+                                    >
+                                    <span class="shrink-0">{{
+                                        job.fingerprint?.slice(0, 12)
+                                    }}</span>
+                                </template>
                                 <span
-                                    class="block truncate font-mono text-xs text-muted-foreground"
+                                    class="text-input md:hidden"
+                                    aria-hidden="true"
+                                    >·</span
                                 >
-                                    <template v-if="job.type === 'custom'">
-                                        {{ job.repository }}
-                                    </template>
-                                    <template v-else>
-                                        {{ job.serviceName ?? job.repository }}
-                                        · {{ job.fingerprint?.slice(0, 12) }}
-                                    </template>
-                                </span>
-                            </Link>
-                        </td>
+                                <span class="shrink-0 font-sans md:hidden">{{
+                                    job.project.name
+                                }}</span>
+                            </span>
+                        </Link>
 
-                        <td class="px-4 py-3 text-muted-foreground">
+                        <span
+                            class="hidden truncate text-sm text-foreground/80 md:block"
+                        >
                             {{ job.project.name }}
-                        </td>
+                        </span>
 
-                        <td class="px-4 py-3">
+                        <span>
                             <FixJobStatusBadge
                                 :status="job.status"
                                 :label="job.statusLabel"
                             />
-                        </td>
+                        </span>
 
-                        <td class="px-4 py-3">
+                        <span class="hidden md:block">
                             <a
                                 v-if="job.prUrl"
                                 :href="job.prUrl"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                class="inline-flex items-center gap-1.5 font-mono text-xs text-foreground underline underline-offset-4"
+                                class="relative z-10 inline-flex items-center gap-1.5 font-mono text-xs text-foreground underline-offset-4 hover:underline"
                                 data-test="fix-job-pr-link"
                             >
                                 <GitPullRequest class="size-3.5" />
                                 #{{ job.prNumber }}
                                 <ExternalLink class="size-3" />
                             </a>
-                            <span v-else class="text-muted-foreground">—</span>
-                        </td>
+                            <span v-else class="text-sm text-muted-foreground"
+                                >—</span
+                            >
+                        </span>
 
-                        <td
-                            class="px-4 py-3 font-mono text-xs text-muted-foreground"
+                        <span
+                            class="hidden text-right font-mono text-xs text-muted-foreground tabular-nums md:block"
                         >
                             {{ formatTime(job.createdAt) }}
-                        </td>
+                        </span>
 
-                        <td
-                            class="px-4 py-3 font-mono text-xs text-muted-foreground"
+                        <span
+                            class="hidden text-right font-mono text-xs text-muted-foreground tabular-nums md:block"
                         >
                             {{ formatTime(job.completedAt) }}
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-
-            <div
-                v-if="jobs.lastPage > 1"
-                class="flex items-center justify-between gap-3 border-t px-4 py-3 text-xs text-muted-foreground"
-            >
-                <span>
-                    Page {{ jobs.currentPage }} of {{ jobs.lastPage }} ·
-                    {{ jobs.total }} jobs
-                </span>
-
-                <div class="flex gap-2">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        :disabled="jobs.currentPage <= 1"
-                        @click="goToPage(jobs.currentPage - 1)"
-                    >
-                        Newer
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        :disabled="jobs.currentPage >= jobs.lastPage"
-                        @click="goToPage(jobs.currentPage + 1)"
-                    >
-                        Older
-                    </Button>
+                        </span>
+                    </div>
                 </div>
-            </div>
-        </div>
+
+                <footer
+                    v-if="hasJobs"
+                    class="mt-auto flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-xs text-muted-foreground md:px-10"
+                >
+                    <span>
+                        <template v-if="jobs.lastPage > 1">
+                            Page {{ jobs.currentPage }} of {{ jobs.lastPage }} ·
+                        </template>
+                        {{ jobs.total.toLocaleString() }}
+                        {{ jobs.total === 1 ? 'job' : 'jobs' }} · newest first
+                    </span>
+
+                    <div v-if="jobs.lastPage > 1" class="flex gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            :disabled="jobs.currentPage <= 1"
+                            @click="goToPage(jobs.currentPage - 1)"
+                        >
+                            Newer
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            :disabled="jobs.currentPage >= jobs.lastPage"
+                            @click="goToPage(jobs.currentPage + 1)"
+                        >
+                            Older
+                        </Button>
+                    </div>
+                </footer>
+            </section>
+        </template>
     </div>
 </template>

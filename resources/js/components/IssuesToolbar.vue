@@ -2,36 +2,20 @@
 import { RotateCcw, Search } from '@lucide/vue';
 import { useDebounceFn } from '@vueuse/core';
 import { computed, ref, watch } from 'vue';
+import FilterSelect from '@/components/FilterSelect.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
-import {
-    ISSUE_PERIOD_LABEL,
-    ISSUE_SORTS,
-    ISSUE_STATUS_FILTERS,
-} from '@/lib/issues';
-import { cn } from '@/lib/utils';
-import type {
-    IssuePeriod,
-    IssueSort,
-    IssueStatusFilter,
-    LogProject,
-} from '@/types';
+import { ISSUE_PERIOD_LABEL, ISSUE_SORTS } from '@/lib/issues';
+import type { IssuePeriod, IssueSort, LogProject } from '@/types';
 
 /**
- * The issue list's controls: a search over the exception's type, message and
- * origin; the status tabs; and the window, sort and scope pickers.
+ * The issue list's controls, as one row: a search over the exception's type,
+ * message and origin, then the window and scope as chips, then the sort.
  *
- * Status is a row of tabs rather than a dropdown because it is the filter
- * triage lives in — "what is still open" and "what came back" are one click
- * apart. Every control emits; the page owns the query string.
+ * Status is not here: it is the filter triage lives in, so it sits in the page
+ * header as segmented tabs. Every control emits; the page owns the query
+ * string.
  */
 const props = defineProps<{
     projects: LogProject[];
@@ -40,7 +24,6 @@ const props = defineProps<{
     service: string | null;
     environments: string[];
     environment: string | null;
-    status: IssueStatusFilter;
     period: IssuePeriod;
     periods: IssuePeriod[];
     sort: IssueSort;
@@ -52,14 +35,11 @@ const emit = defineEmits<{
     (event: 'update:project', value: string | null): void;
     (event: 'update:service', value: string | null): void;
     (event: 'update:environment', value: string | null): void;
-    (event: 'update:status', value: IssueStatusFilter): void;
     (event: 'update:period', value: IssuePeriod): void;
     (event: 'update:sort', value: IssueSort): void;
     (event: 'update:query', value: string | null): void;
     (event: 'reset'): void;
 }>();
-
-const ALL = '__all__';
 
 const searchTerm = ref(props.query ?? '');
 const lastEmittedQuery = ref<string | null>(props.query);
@@ -88,279 +68,144 @@ const emitQuery = useDebounceFn(() => {
 }, 350);
 
 /**
- * A picker that may be narrowed to "all", keeping a selected value listed
- * even when the current window no longer contains it.
+ * A picker's options, keeping a selected value listed even when the current
+ * window no longer contains it.
  */
-function picker(
-    options: () => string[],
-    selected: () => string | null,
-    update: (value: string | null) => void,
-) {
-    return {
-        options: computed(() => {
-            const values = new Set(options());
-            const current = selected();
+function withSelected(options: string[], selected: string | null) {
+    const values = new Set(options);
 
-            if (current) {
-                values.add(current);
-            }
+    if (selected) {
+        values.add(selected);
+    }
 
-            return [...values].sort((a, b) => a.localeCompare(b));
-        }),
-        model: computed({
-            get: () => selected() ?? ALL,
-            set: (value: string) => update(value === ALL ? null : value),
-        }),
-    };
+    return [...values]
+        .sort((a, b) => a.localeCompare(b))
+        .map((value) => ({ value, label: value }));
 }
 
-const project = computed({
-    get: () => props.project ?? ALL,
-    set: (value: string) =>
-        emit('update:project', value === ALL ? null : value),
-});
-
-const service = picker(
-    () => props.services,
-    () => props.service,
-    (value) => emit('update:service', value),
+const serviceOptions = computed(() =>
+    withSelected(props.services, props.service),
 );
 
-const environment = picker(
-    () => props.environments,
-    () => props.environment,
-    (value) => emit('update:environment', value),
+const environmentOptions = computed(() =>
+    withSelected(props.environments, props.environment),
 );
 
-const period = computed({
-    get: () => props.period,
-    set: (value: string) => emit('update:period', value as IssuePeriod),
-});
+const projectOptions = computed(() =>
+    props.projects.map((option) => ({
+        value: option.slug,
+        label: option.name,
+    })),
+);
 
-const sort = computed({
-    get: () => props.sort,
-    set: (value: string) => emit('update:sort', value as IssueSort),
-});
+const periodOptions = computed(() =>
+    props.periods.map((option) => ({
+        value: option,
+        label: ISSUE_PERIOD_LABEL[option],
+    })),
+);
 
-const serviceModel = service.model;
-const serviceOptions = service.options;
-const environmentModel = environment.model;
-const environmentOptions = environment.options;
+const sortOptions = ISSUE_SORTS.map((option) => ({
+    value: option.value as string,
+    label: option.label,
+}));
 </script>
 
 <template>
-    <div
-        class="flex flex-col rounded-lg border bg-card"
-        data-test="issues-toolbar"
-    >
-        <div class="flex flex-wrap items-center gap-2 p-3">
-            <div class="relative min-w-56 flex-1">
-                <Label class="sr-only" for="issues-search">
-                    Search issues
-                </Label>
-                <Search
-                    class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-                    aria-hidden="true"
-                />
-                <Input
-                    id="issues-search"
-                    v-model="searchTerm"
-                    data-test="issues-search"
-                    autocomplete="off"
-                    placeholder="Exception type, message or file…"
-                    class="h-10 pl-9 text-sm"
-                    @input="emitQuery"
-                />
-            </div>
-
-            <div
-                class="inline-flex h-10 items-center rounded-md border p-0.5"
-                role="tablist"
-                aria-label="Status"
+    <div class="flex flex-wrap items-center gap-2" data-test="issues-toolbar">
+        <div class="relative min-w-56 flex-1">
+            <Label class="sr-only" for="issues-search">Search issues</Label>
+            <Search
+                class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden="true"
+            />
+            <Input
+                id="issues-search"
+                v-model="searchTerm"
+                data-test="issues-search"
+                autocomplete="off"
+                placeholder="Search exception type, message or file"
+                class="h-9 rounded-lg pr-10 pl-9 text-sm"
+                @input="emitQuery"
+            />
+            <kbd
+                class="pointer-events-none absolute top-1/2 right-2.5 kbd -translate-y-1/2 text-muted-foreground"
+                aria-hidden="true"
+                >/</kbd
             >
-                <button
-                    v-for="option in ISSUE_STATUS_FILTERS"
-                    :key="option.value"
-                    type="button"
-                    role="tab"
-                    :aria-selected="status === option.value"
-                    :data-test="`issues-status-${option.value}`"
-                    :class="
-                        cn(
-                            'h-full rounded-[5px] px-3 text-sm transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
-                            status === option.value
-                                ? 'bg-accent font-medium text-foreground'
-                                : 'text-muted-foreground hover:text-foreground',
-                        )
-                    "
-                    @click="emit('update:status', option.value)"
-                >
-                    {{ option.label }}
-                </button>
-            </div>
         </div>
 
-        <div
-            class="flex flex-wrap items-center gap-x-4 gap-y-2 border-t px-3 py-2"
+        <FilterSelect
+            id="issues-period"
+            label="Window"
+            data-test="issues-period"
+            :model-value="period"
+            :options="periodOptions"
+            @update:model-value="
+                emit('update:period', ($event ?? period) as IssuePeriod)
+            "
+        />
+
+        <FilterSelect
+            v-if="projects.length > 1"
+            id="issues-project"
+            label="Project"
+            all-label="All projects"
+            data-test="issues-project"
+            :model-value="project"
+            :options="projectOptions"
+            @update:model-value="emit('update:project', $event)"
+        />
+
+        <FilterSelect
+            v-if="serviceOptions.length > 0"
+            id="issues-service"
+            label="Service"
+            all-label="All services"
+            data-test="issues-service"
+            :model-value="service"
+            :options="serviceOptions"
+            @update:model-value="emit('update:service', $event)"
+        />
+
+        <FilterSelect
+            v-if="environmentOptions.length > 0"
+            id="issues-environment"
+            label="Env"
+            all-label="All environments"
+            data-test="issues-environment"
+            :model-value="environment"
+            :options="environmentOptions"
+            @update:model-value="emit('update:environment', $event)"
+        />
+
+        <span
+            class="mx-1 hidden h-5 w-px bg-border sm:block"
+            aria-hidden="true"
+        />
+
+        <FilterSelect
+            id="issues-sort"
+            label="Sort"
+            data-test="issues-sort"
+            :model-value="sort"
+            :options="sortOptions"
+            @update:model-value="
+                emit('update:sort', ($event ?? sort) as IssueSort)
+            "
+        />
+
+        <Button
+            v-if="canReset"
+            type="button"
+            variant="ghost"
+            size="sm"
+            class="h-9 text-muted-foreground"
+            data-test="issues-reset"
+            @click="emit('reset')"
         >
-            <div class="flex items-center gap-2">
-                <Label
-                    class="text-xs text-muted-foreground"
-                    for="issues-period"
-                >
-                    Window
-                </Label>
-                <Select v-model="period">
-                    <SelectTrigger
-                        id="issues-period"
-                        size="sm"
-                        class="min-w-36"
-                        data-test="issues-period"
-                    >
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem
-                            v-for="option in periods"
-                            :key="option"
-                            :value="option"
-                        >
-                            {{ ISSUE_PERIOD_LABEL[option] }}
-                        </SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-
-            <div class="flex items-center gap-2">
-                <Label class="text-xs text-muted-foreground" for="issues-sort">
-                    Sort
-                </Label>
-                <Select v-model="sort">
-                    <SelectTrigger
-                        id="issues-sort"
-                        size="sm"
-                        class="min-w-32"
-                        data-test="issues-sort"
-                    >
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem
-                            v-for="option in ISSUE_SORTS"
-                            :key="option.value"
-                            :value="option.value"
-                        >
-                            {{ option.label }}
-                        </SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-
-            <div v-if="projects.length > 1" class="flex items-center gap-2">
-                <Label
-                    class="text-xs text-muted-foreground"
-                    for="issues-project"
-                >
-                    Project
-                </Label>
-                <Select v-model="project">
-                    <SelectTrigger
-                        id="issues-project"
-                        size="sm"
-                        class="min-w-36"
-                        data-test="issues-project"
-                    >
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem :value="ALL">All projects</SelectItem>
-                        <SelectItem
-                            v-for="option in projects"
-                            :key="option.slug"
-                            :value="option.slug"
-                        >
-                            {{ option.name }}
-                        </SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-
-            <div
-                v-if="serviceOptions.length > 0"
-                class="flex items-center gap-2"
-            >
-                <Label
-                    class="text-xs text-muted-foreground"
-                    for="issues-service"
-                >
-                    Service
-                </Label>
-                <Select v-model="serviceModel">
-                    <SelectTrigger
-                        id="issues-service"
-                        size="sm"
-                        class="min-w-36"
-                        data-test="issues-service"
-                    >
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem :value="ALL">All services</SelectItem>
-                        <SelectItem
-                            v-for="option in serviceOptions"
-                            :key="option"
-                            :value="option"
-                        >
-                            {{ option }}
-                        </SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-
-            <div
-                v-if="environmentOptions.length > 0"
-                class="flex items-center gap-2"
-            >
-                <Label
-                    class="text-xs text-muted-foreground"
-                    for="issues-environment"
-                >
-                    Environment
-                </Label>
-                <Select v-model="environmentModel">
-                    <SelectTrigger
-                        id="issues-environment"
-                        size="sm"
-                        class="min-w-36"
-                        data-test="issues-environment"
-                    >
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem :value="ALL">All environments</SelectItem>
-                        <SelectItem
-                            v-for="option in environmentOptions"
-                            :key="option"
-                            :value="option"
-                        >
-                            {{ option }}
-                        </SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-
-            <Button
-                v-if="canReset"
-                type="button"
-                variant="ghost"
-                size="sm"
-                class="ml-auto"
-                data-test="issues-reset"
-                @click="emit('reset')"
-            >
-                <RotateCcw class="size-3.5" />
-                Reset
-            </Button>
-        </div>
+            <RotateCcw class="size-3.5" />
+            Reset
+        </Button>
     </div>
 </template>

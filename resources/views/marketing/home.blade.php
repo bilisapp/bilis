@@ -29,109 +29,96 @@
     >
         {{-- Scrim: the sheets are bright where they are bright, and the
              headline has to win regardless of where they drift. --}}
-        <div class="pointer-events-none absolute inset-0 bg-gradient-to-r from-background/90 via-background/45 to-transparent dark:to-background/10" aria-hidden="true"></div>
+        <div class="pointer-events-none absolute inset-0 bg-gradient-to-r from-background/90 via-background/50 to-transparent dark:to-background/20" aria-hidden="true"></div>
 
         {{-- Fade into the page ground so the band ends rather than stops. --}}
-        <div class="pointer-events-none absolute inset-x-0 bottom-0 h-48 bg-gradient-to-b from-transparent via-background/70 to-background" aria-hidden="true"></div>
+        <div class="pointer-events-none absolute inset-x-0 bottom-0 h-72 bg-gradient-to-b from-transparent via-background/80 to-background" aria-hidden="true"></div>
 
-        <div class="relative mx-auto max-w-5xl px-6 pt-20 pb-12 sm:pt-28 sm:pb-16">
-            <h1 class="max-w-4xl text-4xl leading-[0.96] font-semibold tracking-[-0.04em] text-balance sm:text-6xl lg:text-7xl">
-                <span class="block">Observability your</span>
-                <span class="block">coding agent can read.</span>
+        <div class="relative mx-auto flex max-w-content flex-col gap-7 px-4 pt-16 pb-12 sm:px-6 sm:pt-28 sm:pb-14">
+            <x-ui.eyebrow>
+                <span>Self-hosted</span><span class="text-input">/</span>
+                <span>Source-available</span><span class="text-input">/</span>
+                <span>OpenTelemetry in</span>
+            </x-ui.eyebrow>
+
+            <h1 class="max-w-4xl text-5xl leading-none font-semibold tracking-display text-balance sm:text-6xl lg:text-display">
+                Observability your coding agent can read.
             </h1>
 
-            <div class="mt-10 grid gap-8 border-t border-foreground/15 pt-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start dark:border-foreground/20">
-                <p class="max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-                    Bilis keeps your logs, traces and metrics on hardware you own, with no per-gigabyte
-                    bill, and gets you from
-                    “something is wrong” to the exact line or span that explains it in seconds. Your
-                    coding agent gets the same view: connect Claude Code, Cursor or any MCP client in one
-                    line, and it can search production while it works in the code that produced it.
+            <div class="flex flex-col gap-8 border-t border-border pt-6 lg:flex-row lg:items-end lg:justify-between">
+                <p class="max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lead">
+                    Logs, traces and metrics on hardware you own, with
+                    <span class="font-medium text-foreground">no per-gigabyte bill</span>. From
+                    “something is wrong” to the exact line or span that explains it in seconds — and
+                    your coding agent gets the same view: connect Claude Code, Cursor or any MCP
+                    client in one line.
                 </p>
 
-                <div class="flex flex-wrap gap-3 sm:flex-nowrap sm:justify-end">
+                <div class="flex flex-wrap gap-3">
                     @auth
                         @if ($team = auth()->user()->currentTeam)
-                            <a href="{{ route('dashboard', $team) }}"
-                               class="rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
-                                Open the app
-                            </a>
+                            <x-ui.button size="lg" :href="route('dashboard', $team)">Open the app</x-ui.button>
                         @endif
                     @else
-                        <a href="{{ route('register') }}"
-                           class="rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
-                            Create an account
-                        </a>
+                        <x-ui.button size="lg" :href="route('register')">Create an account</x-ui.button>
                     @endauth
-
-                    <a href="{{ route('features.mcp') }}"
-                       class="rounded-md border border-border px-5 py-2.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground dark:border-foreground/25 dark:hover:bg-foreground/10 dark:hover:text-foreground">
+                    <x-ui.button size="lg" variant="outline" :href="route('features.mcp')">
                         Connect your agent
-                    </a>
+                        <svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </x-ui.button>
                 </div>
             </div>
         </div>
 
-        {{-- The stream itself, tailing. Not a picture of one. --}}
-        <figure class="relative mx-auto max-w-5xl px-6 pb-16 sm:pb-24">
-            @include('marketing.partials.live-tail')
+        {{-- The product itself, in the app's own language. Not a screenshot. --}}
+        <figure class="relative mx-auto max-w-content px-4 pb-16 sm:px-6 sm:pb-24">
+            @include('marketing.partials.home.product-frame')
         </figure>
     </section>
 
-    {{-- Product evidence sets the page's rhythm: traces get the large field,
-         logs answer from a smaller, offset field below. --}}
-    <section id="product" data-marketing-section class="mx-auto max-w-5xl scroll-mt-28 px-6 py-20 sm:scroll-mt-16 sm:py-28">
-        <div class="grid gap-8 border-b border-border pb-10 sm:grid-cols-12 sm:items-end">
-            <h2 class="text-3xl leading-tight font-semibold tracking-[-0.035em] text-balance sm:col-span-7 sm:text-4xl">
-                See the whole request.<br>
-                Then find the line that explains it.
-            </h2>
-            <p class="text-sm leading-relaxed text-muted-foreground sm:col-span-4 sm:col-start-9">
-                One trace id joins the waterfall and the stream. The investigation stays in one place,
-                and each view is one click from the other.
-            </p>
-        </div>
+    {{-- Four figures that answer "why this one", on hairlines like the
+         dashboard's own strip. --}}
+    <div class="mx-auto max-w-content px-4 sm:px-6">
+        <dl class="grid grid-cols-2 border-y border-border lg:grid-cols-4" aria-label="Bilis at a glance">
+            <x-ui.figure label="Signals" value="3 in 1" caption="logs, traces and metrics, linked" class="pr-6" />
+            <x-ui.figure label="Per-gigabyte bill" value="None" caption="self-hosted retention costs only disk" class="border-l border-border pl-6" />
+            <x-ui.figure label="To run it" value="1 app" caption="and one database, an afternoon to set up" class="border-t border-border pr-6 lg:border-t-0 lg:border-l lg:pl-6" />
+            <x-ui.figure label="For your agent" value="10 tools" caption="read-only over MCP, one line to connect" class="border-t border-l border-border pl-6 lg:border-t-0" />
+        </dl>
+    </div>
 
-        <div class="mt-12 grid gap-6 lg:grid-cols-12 lg:items-start">
-            <div class="lg:col-span-3 lg:pt-8">
-                <p class="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">Traces</p>
-                <h3 class="mt-3 text-lg font-semibold tracking-tight">Where the request spent its time</h3>
-                <p class="mt-3 text-sm leading-relaxed text-muted-foreground">
+    {{-- 01 — the investigation: the waterfall gets the large field, the
+         stream answers from below. One trace id joins them in the app. --}}
+    <section id="product" data-marketing-section class="mx-auto max-w-content scroll-mt-28 px-4 pt-20 sm:scroll-mt-16 sm:px-6 sm:pt-section">
+        <x-ui.section-header number="01" label="Investigate">
+            <x-slot:title>See the whole request. Then find the line that explains it.</x-slot:title>
+            One trace id joins the waterfall and the stream. The investigation stays in one place,
+            and each view is one click from the other.
+        </x-ui.section-header>
+
+        <div class="mt-12 grid gap-8 lg:grid-cols-12 lg:items-start">
+            <div class="flex flex-col gap-3 lg:col-span-4 lg:pt-2 lg:pr-6">
+                <x-ui.eyebrow>Traces</x-ui.eyebrow>
+                <h3 class="text-xl font-semibold tracking-tight">Where the request spent its time</h3>
+                <p class="text-sm leading-relaxed text-muted-foreground">
                     Every span in order, durations to scale, services separated, and the failure marked.
-                    Select a span to inspect its attributes or jump straight to its logs.
+                    Select a span to read its attributes or jump straight to its logs.
                 </p>
             </div>
-
-            <figure class="overflow-hidden rounded-lg border border-border bg-card transition-transform duration-300 ease-out hover:-translate-y-1 motion-reduce:transform-none motion-reduce:transition-none lg:col-span-9">
-                <picture>
-                    <source media="(prefers-color-scheme: dark)"
-                            srcset="/screenshot-trace-dark.png">
-                    <img src="/screenshot-trace-light.png"
-                         alt="A trace waterfall in Bilis: a deploy request across three services — keel-api, keel-db and keel-worker — with each span's duration drawn to scale and a detail panel listing the selected span's attributes."
-                         width="1440"
-                         height="900"
-                         loading="lazy">
-                </picture>
-            </figure>
+            <div class="lg:col-span-8">
+                @include('marketing.partials.home.waterfall')
+            </div>
         </div>
 
-        <div class="mt-16 grid gap-6 lg:grid-cols-12 lg:items-end">
-            <figure class="order-2 overflow-hidden rounded-lg border border-border bg-card transition-transform duration-300 ease-out hover:-translate-y-1 motion-reduce:transform-none motion-reduce:transition-none lg:order-1 lg:col-span-8">
-                <picture>
-                    <source media="(prefers-color-scheme: dark)"
-                            srcset="/screenshot-logs-dark.png">
-                    <img src="/screenshot-logs-light.png"
-                         alt="The Bilis log viewer: severity-coloured log lines under a volume histogram, with full-text search, scope, time-window and severity filters above the stream."
-                         width="1440"
-                         height="900"
-                         loading="lazy">
-                </picture>
+        <div class="mt-12 grid gap-8 lg:grid-cols-12 lg:items-end">
+            <figure class="order-2 lg:order-1 lg:col-span-8">
+                @include('marketing.partials.live-tail')
+                <figcaption class="mt-3 text-xs text-muted-foreground">Illustrative lines, rendered and tailed in the page itself — not a screenshot.</figcaption>
             </figure>
-
-            <div class="order-1 lg:order-2 lg:col-span-4 lg:pb-8 lg:pl-4">
-                <p class="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">Logs</p>
-                <h3 class="mt-3 text-lg font-semibold tracking-tight">What the code said about it</h3>
-                <p class="mt-3 text-sm leading-relaxed text-muted-foreground">
+            <div class="order-1 flex flex-col gap-3 lg:order-2 lg:col-span-4 lg:pb-10 lg:pl-6">
+                <x-ui.eyebrow>Logs</x-ui.eyebrow>
+                <h3 class="text-xl font-semibold tracking-tight">What the code said about it</h3>
+                <p class="text-sm leading-relaxed text-muted-foreground">
                     Search every line, narrow by time, project, service or severity, and leave a live
                     tail open while the deploy goes out. Every search is a URL you can share.
                 </p>
@@ -139,251 +126,190 @@
         </div>
     </section>
 
-    {{-- Ingest reads as a simple input/output instrument, not another
-         stack of explanatory cards. --}}
-    <section id="ingest" data-marketing-section class="scroll-mt-28 border-y border-border bg-card sm:scroll-mt-16">
-        <div class="mx-auto max-w-5xl px-6 py-20 sm:py-28">
-            <div class="grid gap-10 lg:grid-cols-12 lg:items-start">
-                <div class="lg:col-span-4">
-                    <h2 class="text-3xl leading-tight font-semibold tracking-[-0.035em] text-balance sm:text-4xl">
-                        Works with the stack you already run.
-                    </h2>
-                    <p class="mt-5 text-sm leading-relaxed text-muted-foreground">
-                        If your services already export OpenTelemetry, sending logs, traces and metrics
-                        to Bilis means pointing the exporter at a new endpoint and adding a key. The code
-                        stays as it is.
-                    </p>
-                    <p class="mt-4 text-sm leading-relaxed text-muted-foreground">
-                        Plain JSON covers everything else. Existing Sentry SDKs can report straight to
-                        Bilis too.
-                    </p>
-                </div>
+    {{-- 02 — connecting: the round trip on the left, the agent on the right. --}}
+    <section id="ingest" data-marketing-section class="mx-auto max-w-content scroll-mt-28 px-4 pt-20 sm:scroll-mt-16 sm:px-6 sm:pt-section">
+        <x-ui.section-header number="02" label="Connect">
+            <x-slot:title>Works with the stack you already run.</x-slot:title>
+            Point the OpenTelemetry exporter you already have at a new endpoint and add a key. Plain
+            JSON covers everything else, and existing Sentry SDKs report straight in.
+        </x-ui.section-header>
 
-                {{-- A round trip, not a snippet: the request and what actually
-                     comes back. `LogIngestController` answers 202 with those two
-                     counts, so the contract is shown rather than asserted. --}}
-                <div class="overflow-hidden rounded-lg border border-border bg-background lg:col-span-7 lg:col-start-6">
-                    <div class="flex items-center justify-between gap-4 border-b border-border px-4 py-2">
-                        <span class="font-mono text-[11px] tracking-[0.14em] text-muted-foreground uppercase">Request</span>
+        <div class="mt-12 grid gap-6 lg:grid-cols-2">
+            {{-- A round trip, not a snippet: the request and what actually
+                 comes back. `LogIngestController` answers 202 with those two
+                 counts, so the contract is shown rather than asserted. --}}
+            <x-ui.panel>
+                <x-slot:header>
+                    <span class="eyebrow">Your services</span>
+                    <button type="button"
+                            hidden
+                            data-copy="ingest-request"
+                            class="-mr-1.5 rounded px-1.5 py-0.5 eyebrow transition-colors hover:bg-accent hover:text-accent-foreground">
+                        <span data-copy-idle>Copy</span>
+                        <span data-copy-done hidden class="text-severity-debug">Copied</span>
+                    </button>
+                </x-slot:header>
 
-                        <button type="button"
-                                hidden
-                                data-copy="ingest-request"
-                                class="-mr-1.5 rounded px-1.5 py-0.5 font-mono text-[11px] tracking-[0.14em] text-muted-foreground uppercase transition-colors hover:bg-accent hover:text-accent-foreground">
-                            <span data-copy-idle>Copy</span>
-                            <span data-copy-done hidden class="text-severity-debug">Copied</span>
-                        </button>
-                    </div>
-
-                    <div class="scrollbar-stream overflow-x-auto px-4 py-5">
+                <div class="scrollbar-stream overflow-x-auto px-5 py-5">
 <pre id="ingest-request"
      class="font-mono text-xs leading-relaxed"
-     data-copy-text='curl -X POST https://bilis.app/api/v1/ingest -H "Authorization: Bearer bilis_KEY" -H "Content-Type: application/json" -d "{\"severity\":\"error\",\"service\":\"billing\",\"message\":\"Stripe webhook timed out\"}"'><span class="text-muted-foreground"># One log line, no collector, no SDK.</span>
+     data-copy-text='curl -X POST https://bilis.app/api/v1/ingest -H "Authorization: Bearer bilis_KEY" -H "Content-Type: application/json" -d "{\"severity\":\"error\",\"service\":\"billing\",\"message\":\"Stripe webhook timed out\"}"'><span class="text-muted-foreground"># The OTLP endpoint your exporter already knows.</span>
+OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs
+
+<span class="text-muted-foreground"># Or one log line, no collector, no SDK.</span>
 curl -X POST https://bilis.app/api/v1/ingest \
   -H <span class="text-severity-debug">"Authorization: Bearer bilis_&hellip;"</span> \
   -H <span class="text-severity-debug">"Content-Type: application/json"</span> \
-  -d '<span class="text-severity-debug">{"severity":"error","service":"billing","message":"Stripe webhook timed out"}</span>'
-
-<span class="text-muted-foreground"># Or the OTLP endpoint your exporter already knows.</span>
-OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs</pre>
-                    </div>
-
-                    <div class="border-t border-border px-4 py-3">
-                        <span class="font-mono text-[11px] tracking-[0.14em] text-muted-foreground uppercase">
-                            Response <span class="text-severity-debug">202 Accepted</span>
-                        </span>
-                        <pre class="mt-2 overflow-x-auto font-mono text-xs leading-relaxed">{"accepted":<span class="text-severity-info">1</span>,"skipped":<span class="text-severity-info">0</span>}</pre>
-                    </div>
+  -d '<span class="text-severity-debug">{"severity":"error","service":"billing","message":"Stripe webhook timed out"}</span>'</pre>
                 </div>
-            </div>
 
-            <p class="mt-5 border-t border-border pt-4 text-xs leading-relaxed text-muted-foreground lg:ml-[41.666667%]">
-                A malformed record is skipped and counted, and the rest of the batch is still accepted.
-                Writes are queued, so a 202 means accepted, not yet on disk.
-            </p>
+                <div class="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-3">
+                    <span class="eyebrow">Response <span class="font-mono tracking-normal text-severity-debug normal-case">202 Accepted</span></span>
+                    <pre class="font-mono text-xs">{"accepted":<span class="text-severity-info">1</span>,"skipped":<span class="text-severity-info">0</span>}</pre>
+                </div>
+            </x-ui.panel>
 
-            <div class="mt-16 grid gap-10 border-t border-border pt-12 lg:grid-cols-12">
-                <div class="lg:col-span-4">
-                    <h3 class="text-lg font-semibold tracking-tight">Your coding agent counts too</h3>
-                    <p class="mt-3 text-sm leading-relaxed text-muted-foreground">
-                        Claude Code speaks OpenTelemetry out of the box. A few lines of configuration put
-                        every prompt, tool call, token and dollar it spends beside the application it is
-                        editing. No plugin, no proxy.
+            <x-ui.panel title="Your coding agent" meta="OAuth · read-only">
+                <div class="flex flex-col gap-4 px-5 py-5 font-mono text-xs leading-5">
+                    <p class="break-all"><span class="text-muted-foreground">$ </span>claude mcp add --transport http bilis {{ url('/mcp') }}</p>
+                    <div class="flex flex-col gap-1 border-l-2 border-border pl-3">
+                        <p class="text-muted-foreground">› Why did checkout fail in the last hour?</p>
+                        <p><span class="text-chart-2" aria-hidden="true">●</span> bilis · error-summary</p>
+                        <p><span class="text-chart-2" aria-hidden="true">●</span> bilis · get-trace <span class="text-muted-foreground">4bf92f35…</span></p>
+                    </div>
+                    <p class="font-sans text-sm leading-relaxed text-foreground/85">
+                        Eight declines since 15:16, all from <code class="font-mono text-xs">payments</code> in
+                        release <code class="font-mono text-xs">1.5.1</code>. The issuer call fails after 590 ms, and
+                        <code class="font-mono text-xs">chargeCard()</code> does not handle insufficient funds.
                     </p>
-                    <a href="{{ route('docs.show', ['section' => 'ingestion', 'page' => 'claude-code']) }}"
-                       class="mt-4 inline-block text-sm font-medium underline underline-offset-4 hover:text-foreground">
-                        Point Claude Code at Bilis &rarr;
-                    </a>
+                    <p class="font-sans text-xs text-muted-foreground">An illustrative session. The tools are the real ones — ten of them, all read-only.</p>
                 </div>
-
-                <div class="lg:col-span-7 lg:col-start-6">
-                    <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                        <div>
-                            <h3 class="text-lg font-semibold tracking-tight">One key, one project</h3>
-                            <p class="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-                                Revocable in a click, and useless for anything but writing telemetry to
-                                that project.
-                            </p>
-                        </div>
-                    </div>
-
-                    <figure class="overflow-hidden rounded-lg border border-border bg-background">
-                        <picture>
-                            <source media="(prefers-color-scheme: dark)" srcset="/screenshot-project-dark.png">
-                            <img src="/screenshot-project-light.png"
-                                 alt="A Bilis project's API keys panel, showing three issued keys with their creation and last-used dates."
-                                 width="1440"
-                                 height="900"
-                                 loading="lazy"
-                                 class="h-[280px] w-full object-cover object-top">
-                        </picture>
-                    </figure>
-                </div>
-            </div>
+            </x-ui.panel>
         </div>
+
+        <p class="mt-5 text-xs leading-relaxed text-muted-foreground">
+            A malformed record is skipped and counted, and the rest of the batch is still accepted.
+            Writes are queued, so a 202 means accepted, not yet on disk.
+            <a href="{{ route('docs.show', ['section' => 'ingestion', 'page' => 'claude-code']) }}"
+               class="font-medium text-foreground underline underline-offset-4">Point Claude Code's own telemetry at Bilis &rarr;</a>
+        </p>
     </section>
 
-    {{-- The position is a manifesto on the left and a ruled proof ledger on
-         the right — not three interchangeable feature cards. --}}
-    <section id="why" data-marketing-section class="mx-auto max-w-5xl scroll-mt-28 px-6 py-20 sm:scroll-mt-16 sm:py-28">
+    {{-- 03 — the position: a manifesto on the left, a ruled ledger on the right. --}}
+    <section id="why" data-marketing-section class="mx-auto max-w-content scroll-mt-28 px-4 pt-20 sm:scroll-mt-16 sm:px-6 sm:pt-section">
         <div class="grid gap-12 lg:grid-cols-12 lg:items-start">
-            <div class="lg:col-span-6">
-                <h2 class="text-3xl leading-tight font-semibold tracking-[-0.035em] text-balance sm:text-5xl">
-                    Keep the data.<br>
-                    Lose the telemetry tax.
+            <div class="flex flex-col gap-5 lg:col-span-5">
+                <x-ui.eyebrow number="03">Own it</x-ui.eyebrow>
+                <h2 class="text-4xl leading-[1.08] font-semibold tracking-display text-balance sm:text-headline">
+                    Keep the data. Lose the telemetry tax.
                 </h2>
-                <p class="mt-6 max-w-md text-sm leading-relaxed text-muted-foreground">
+                <p class="max-w-md text-sm leading-relaxed text-muted-foreground">
                     Bilis is built for the team that owns the box, reads its own incidents, and does
                     not want observability to become another platform to operate.
                 </p>
             </div>
 
-            <dl class="divide-y divide-border border-y border-border lg:col-span-5 lg:col-start-8">
-                <div class="py-6 first:pt-0 lg:first:pt-6">
-                    <dt class="text-base font-semibold tracking-tight">Your data never leaves the building</dt>
-                    <dd class="mt-2 text-sm leading-relaxed text-muted-foreground">
-                        You own the box, so you own the logs — all of them, for as long as your disk
-                        allows. Retention costs the disk you already pay for, and a noisy deploy never
-                        shows up on an invoice.
-                    </dd>
-                </div>
-                <div class="py-6">
-                    <dt class="text-base font-semibold tracking-tight">Small enough to run yourself</dt>
-                    <dd class="mt-2 text-sm leading-relaxed text-muted-foreground">
-                        The whole deployment is one app and one database. You can set it up in an
-                        afternoon and keep it healthy without a platform team.
-                    </dd>
-                </div>
-                <div class="py-6 last:pb-0 lg:last:pb-6">
-                    <dt class="text-base font-semibold tracking-tight">Nothing to migrate away from</dt>
-                    <dd class="mt-2 text-sm leading-relaxed text-muted-foreground">
-                        Standard OpenTelemetry in, standard tables underneath. Your scripts, queries
-                        and AI tools work on the data today, and walking away is a SELECT, not a migration.
-                        The code is <a href="{{ config('bilis.github_url') }}"
-                                       class="underline underline-offset-4 hover:text-foreground"
-                                       target="_blank" rel="noopener noreferrer">public</a>.
-                    </dd>
-                </div>
+            <dl class="border-t border-border lg:col-span-6 lg:col-start-7">
+                @foreach ([
+                    ['A', 'Your data never leaves the building', 'You own the box, so you own the logs — all of them, for as long as your disk allows. Retention costs the disk you already pay for, and a noisy deploy never shows up on an invoice.'],
+                    ['B', 'Small enough to run yourself', 'The whole deployment is one app and one database. You can set it up in an afternoon and keep it healthy without a platform team.'],
+                    ['C', 'Nothing to migrate away from', null],
+                ] as [$letter, $title, $body])
+                    <div class="flex gap-6 border-b border-border py-6">
+                        <span class="w-6 shrink-0 font-mono text-xs leading-6 text-muted-foreground">{{ $letter }}</span>
+                        <div class="flex flex-col gap-1.5">
+                            <dt class="text-base font-semibold tracking-tight">{{ $title }}</dt>
+                            <dd class="text-sm leading-relaxed text-muted-foreground">
+                                @if ($body)
+                                    {{ $body }}
+                                @else
+                                    Standard OpenTelemetry in, standard tables underneath. Your scripts, queries
+                                    and AI tools work on the data today, and walking away is a
+                                    <code class="font-mono text-xs text-foreground">SELECT</code>, not a migration.
+                                    The code is <a href="{{ config('bilis.github_url') }}"
+                                                   class="underline underline-offset-4 hover:text-foreground"
+                                                   target="_blank" rel="noopener noreferrer">public</a>.
+                                @endif
+                            </dd>
+                        </div>
+                    </div>
+                @endforeach
             </dl>
         </div>
     </section>
 
-    {{-- A quieter future-facing band after the high-contrast manifesto. --}}
-    <section id="direction" data-marketing-section class="scroll-mt-28 border-y border-border bg-card sm:scroll-mt-16">
-        <div class="mx-auto max-w-5xl px-6 py-20 sm:py-28">
-            <div class="grid gap-8 sm:grid-cols-12 sm:items-end">
-                <h2 class="text-3xl leading-tight font-semibold tracking-[-0.035em] text-balance sm:col-span-7 sm:text-5xl">
-                    Logs, traces and metrics today.<br>
-                    Alerting next.
-                </h2>
-                <p class="text-sm leading-relaxed text-muted-foreground sm:col-span-4 sm:col-start-9">
-                    Logs and traces link in both directions, your coding agent reads all three over MCP,
-                    and Autofix hands an error to an agent with the failing trace attached. Alerting is
-                    the next piece. Self-hosting stays first-class through all of it.
-                </p>
-            </div>
+    {{-- 04 — where it stands: shipped, next, and out on purpose, as a list
+         in the app's own ruled style. --}}
+    <section id="direction" data-marketing-section class="mx-auto max-w-content scroll-mt-28 px-4 pt-20 sm:scroll-mt-16 sm:px-6 sm:pt-section">
+        <x-ui.section-header number="04" label="Status" :rule="false">
+            <x-slot:title>Logs, traces and metrics today. Alerting next.</x-slot:title>
+            Self-hosting stays first-class through all of it. eBPF collection, S3 tiering,
+            replication and OTLP over gRPC stay a bigger platform's job.
+        </x-ui.section-header>
 
-            <div class="mt-14 grid gap-12 sm:grid-cols-2">
-                <div>
-                    <h3 class="text-sm font-semibold">In the product today</h3>
-                    <ul class="mt-4 divide-y divide-border border-y border-border">
-                        @foreach ([
-                            'OTLP, plain JSON, and Sentry-compatible ingest',
-                            'Fast full-text search across every log body',
-                            'Distributed traces drawn as a span waterfall',
-                            'Logs and traces linked in both directions',
-                            'OTLP metrics, charted as rates, levels and percentiles',
-                            'An MCP server, so coding agents can search all of it',
-                            'Autofix: an agent drafts the fix, with the failing trace attached',
-                            'Live tail, teams, projects, and revocable keys',
-                            'Standard OpenTelemetry tables you can query directly',
-                        ] as $item)
-                            <li class="py-3 text-sm">{{ $item }}</li>
-                        @endforeach
-                    </ul>
-                </div>
-
-                <div>
-                    <h3 class="text-sm font-semibold text-muted-foreground">Where it is heading</h3>
-                    <ul class="mt-4 divide-y divide-border border-y border-border text-muted-foreground">
-                        @foreach ([
-                            'Alerting, so the stack tells you when to look',
-                        ] as $item)
-                            <li class="py-3 text-sm">{{ $item }}</li>
-                        @endforeach
-                    </ul>
-                    <p class="mt-4 text-xs leading-relaxed text-muted-foreground">
-                        eBPF collection, S3 tiering, replication and OTLP over gRPC stay a bigger
-                        platform's job.
-                    </p>
-                </div>
+        <div class="mt-10 border-t border-border">
+            <div class="column-header hidden grid-cols-[12rem_minmax(0,1fr)_6rem] gap-6 border-b border-border py-2.5 sm:grid">
+                <span>Capability</span><span>Detail</span><span class="text-right">Status</span>
             </div>
+            <ul>
+                @foreach ([
+                    ['Ingest', 'OTLP logs, traces and metrics · plain JSON · Sentry-compatible SDKs', true],
+                    ['Search', 'Fast full-text search across every log body', true],
+                    ['Traces', 'Span waterfall, linked to logs in both directions', true],
+                    ['Metrics', 'OTLP metrics charted as rates, levels and percentiles; hosts from one installer', true],
+                    ['Issues', 'Exceptions grouped, with stack, breadcrumbs and regressions', true],
+                    ['MCP', 'Coding agents search all of it, read-only, behind OAuth', true],
+                    ['Autofix', 'An agent drafts the fix, with the failing trace attached', true],
+                    ['Alerting', 'So the stack tells you when to look', false],
+                ] as [$name, $detail, $shipped])
+                    <li class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 gap-y-1 border-b border-border/70 py-3.5 sm:grid-cols-[12rem_minmax(0,1fr)_6rem]">
+                        <span @class(['text-base font-medium tracking-tight', 'text-muted-foreground' => ! $shipped])>{{ $name }}</span>
+                        <span class="order-3 col-span-2 text-sm text-muted-foreground sm:order-none sm:col-span-1">{{ $detail }}</span>
+                        <span class="flex justify-end">
+                            @if ($shipped)
+                                <x-ui.badge>
+                                    <svg class="size-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+                                    Shipped
+                                </x-ui.badge>
+                            @else
+                                <x-ui.badge variant="muted">Next</x-ui.badge>
+                            @endif
+                        </span>
+                    </li>
+                @endforeach
+            </ul>
         </div>
     </section>
 
-    {{-- Closing --}}
-    <section id="start" data-marketing-section class="scroll-mt-28 sm:scroll-mt-16">
-        <div class="mx-auto grid max-w-5xl gap-10 px-6 py-20 sm:py-28 lg:grid-cols-12 lg:items-start">
-            <h2 class="text-3xl leading-tight font-semibold tracking-[-0.035em] text-balance sm:text-5xl lg:col-span-7">
-                Bilis is early.<br>
-                The product is not hypothetical.
-            </h2>
-
-            <div class="lg:col-span-4 lg:col-start-9">
+    {{-- Closing: one raised surface, one decision. --}}
+    <section id="start" data-marketing-section class="mx-auto max-w-content scroll-mt-28 px-4 py-20 sm:scroll-mt-16 sm:px-6 sm:py-section">
+        <div class="flex flex-col gap-8 rounded-xl bg-card p-8 ring-1 ring-border sm:p-14 lg:flex-row lg:items-end lg:justify-between">
+            <div class="flex max-w-xl flex-col gap-4">
+                <x-ui.eyebrow>Start</x-ui.eyebrow>
+                <h2 class="text-4xl leading-[1.08] font-semibold tracking-display text-balance sm:text-headline">
+                    Bilis is early. The product is not hypothetical.
+                </h2>
                 <p class="text-sm leading-relaxed text-muted-foreground">
-                    Run it on your own box today, or sign up on bilis.app — the Free plan has
-                    published limits and no card. Self-hosting is free, has no plan, and stays the
-                    first-class way to use Bilis. <a href="{{ route('pricing') }}"
+                    Run it on your own box today — free, with no plan — or sign up on bilis.app, where the
+                    Free plan has published limits and no card. <a href="{{ route('pricing') }}"
                        class="underline underline-offset-2 transition-colors hover:text-foreground">See
-                        pricing</a>.
+                        pricing</a>. The source is on GitHub, so you can read exactly what it does with
+                    your telemetry before you point anything at it.
                 </p>
-                <p class="mt-4 text-sm leading-relaxed text-muted-foreground">
-                    The source is on GitHub, so you can read exactly what it does with your telemetry
-                    before you point anything at it.
-                </p>
+            </div>
 
-                <div class="mt-8 flex flex-wrap items-center gap-3">
-                    @auth
-                        @if ($team = auth()->user()->currentTeam)
-                            <a href="{{ route('dashboard', $team) }}"
-                               class="inline-block rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
-                                Open the app
-                            </a>
-                        @endif
-                    @else
-                        <a href="{{ route('register') }}"
-                           class="rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
-                            Create an account
-                        </a>
-                    @endauth
-
-                    <a href="{{ config('bilis.github_url') }}"
-                       class="flex items-center gap-2 rounded-md border border-border px-5 py-2.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
-                       target="_blank" rel="noopener noreferrer">
-                        <x-icons.github class="size-4" />
-                        Read the source
-                    </a>
-                </div>
+            <div class="flex flex-wrap items-center gap-3">
+                @auth
+                    @if ($team = auth()->user()->currentTeam)
+                        <x-ui.button size="lg" :href="route('dashboard', $team)">Open the app</x-ui.button>
+                    @endif
+                @else
+                    <x-ui.button size="lg" :href="route('register')">Create an account</x-ui.button>
+                @endauth
+                <x-ui.button size="lg" variant="outline" :href="config('bilis.github_url')" external>
+                    <x-icons.github class="size-4" />
+                    Read the source
+                </x-ui.button>
             </div>
         </div>
     </section>

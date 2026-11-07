@@ -60,8 +60,13 @@ function follow(event: MouseEvent, tab: Tab) {
 </script>
 
 <template>
+    <!--
+      Drawn as the shared segmented control (SegmentedControl's segment
+      classes), but kept as its own links: the query must be built when a tab
+      is followed, and SegmentedControl's hrefs are fixed at render time.
+    -->
     <nav
-        class="flex items-center gap-1 border-b"
+        class="inline-flex h-9 max-w-full items-center gap-0.5 overflow-x-auto rounded-lg bg-muted p-[3px]"
         aria-label="Metric views"
         data-test="metrics-tabs"
     >
@@ -71,10 +76,10 @@ function follow(event: MouseEvent, tab: Tab) {
             :href="tab.href()"
             :class="
                 cn(
-                    '-mb-px border-b-2 px-3 py-2 text-sm transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
+                    'inline-flex h-full items-center rounded-md px-3 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
                     tab.active
-                        ? 'border-foreground font-medium text-foreground'
-                        : 'border-transparent text-muted-foreground hover:text-foreground',
+                        ? 'bg-card text-foreground ring-1 ring-border'
+                        : 'text-muted-foreground hover:text-foreground',
                 )
             "
             :aria-current="tab.active ? 'page' : undefined"

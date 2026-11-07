@@ -48,12 +48,18 @@ const props = withDefaults(
         title?: string;
         /** Where this chart opens with every control — the explorer. */
         explorerHref?: string;
+        /**
+         * The chart's heading level: h3 when it sits under a section heading
+         * of its own (the Hosts tab's host and container groups).
+         */
+        headingTag?: 'h2' | 'h3';
     }>(),
     {
         series: undefined,
         height: '20rem',
         title: undefined,
         explorerHref: undefined,
+        headingTag: 'h2',
     },
 );
 
@@ -247,8 +253,12 @@ const intervalLabel = computed(() => {
 </script>
 
 <template>
+    <!--
+      Flat on the work surface: the page decides the band and its hairlines,
+      the chart brings only its caption line and the plot.
+    -->
     <section
-        class="flex flex-col gap-3 rounded-lg border bg-card p-4"
+        class="flex min-w-0 flex-col gap-3"
         data-test="metric-chart"
         :aria-label="
             metric
@@ -257,9 +267,10 @@ const intervalLabel = computed(() => {
         "
     >
         <header class="flex flex-wrap items-center justify-between gap-2">
-            <h2
+            <component
+                :is="headingTag"
                 v-if="title"
-                class="flex min-w-0 items-baseline gap-2 text-sm font-medium"
+                class="flex min-w-0 items-baseline gap-2 text-sm font-medium text-foreground"
             >
                 {{ title }}
                 <span
@@ -267,15 +278,19 @@ const intervalLabel = computed(() => {
                 >
                     {{ metric }}
                 </span>
-            </h2>
-            <h2 v-else class="min-w-0 truncate font-mono text-sm font-medium">
+            </component>
+            <component
+                :is="headingTag"
+                v-else
+                class="min-w-0 truncate font-mono text-sm font-medium text-foreground"
+            >
                 {{ metric ?? 'No metric selected' }}
-            </h2>
+            </component>
 
             <div class="flex items-center gap-3">
                 <p
                     v-if="series && hasPoints"
-                    class="text-xs text-muted-foreground tabular-nums"
+                    class="font-mono text-xs text-muted-foreground tabular-nums"
                 >
                     {{ intervalLabel }} buckets
                 </p>
@@ -296,7 +311,7 @@ const intervalLabel = computed(() => {
                 -->
                 <div
                     v-if="percentileGrouped && percentileOptions.length > 1"
-                    class="flex items-center rounded-md border p-0.5"
+                    class="inline-flex h-7 items-center gap-0.5 rounded-md bg-muted p-[3px]"
                     role="group"
                     aria-label="Percentile"
                     data-test="metric-chart-percentile"
@@ -307,9 +322,9 @@ const intervalLabel = computed(() => {
                         type="button"
                         :class="
                             cn(
-                                'rounded-sm px-1.5 py-0.5 font-mono text-xs transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
+                                'inline-flex h-full items-center rounded-sm px-2 font-mono text-xs transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
                                 percentile === option
-                                    ? 'bg-accent font-medium text-foreground'
+                                    ? 'bg-card font-medium text-foreground ring-1 ring-border'
                                     : 'text-muted-foreground hover:text-foreground',
                             )
                         "

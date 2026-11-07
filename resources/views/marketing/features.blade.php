@@ -10,7 +10,7 @@
          page ground and gets straight to the ledger, using the same grammar —
          numbered mono section labels, hairline dividers, alternating card
          bands — so the two read as one site. --}}
-    <section class="mx-auto max-w-5xl px-6 pt-16 pb-12 sm:pt-20">
+    <section class="mx-auto max-w-content px-6 pt-16 pb-12 sm:pt-20">
         <p class="text-xs font-medium tracking-wide text-muted-foreground uppercase">Features</p>
 
         <h1 class="mt-4 max-w-3xl text-3xl leading-tight font-semibold tracking-tight sm:text-4xl">
@@ -51,7 +51,7 @@
     {{-- 01 — Ingest --}}
     <section id="ingest"
              class="scroll-mt-20 border-y border-border bg-card">
-        <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+        <div class="mx-auto max-w-content px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '01', 'label' => 'Ingest'])
 
             <h2 class="mt-4 text-xl font-semibold tracking-tight">If your stack can emit it, Bilis can take
@@ -182,7 +182,7 @@ curl -X POST https://bilis.example.com/api/v1/ingest \
     {{-- 02 — Storage --}}
     <section id="storage"
              class="scroll-mt-20">
-        <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+        <div class="mx-auto max-w-content px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '02', 'label' => 'Storage'])
 
             <h2 class="mt-4 text-xl font-semibold tracking-tight">Your data stays yours, in a format everything can
@@ -251,7 +251,7 @@ curl -X POST https://bilis.example.com/api/v1/ingest \
     {{-- 03 — The viewer --}}
     <section id="viewer"
              class="scroll-mt-20 border-y border-border bg-card">
-        <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+        <div class="mx-auto max-w-content px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '03', 'label' => 'The viewer'])
 
             <h2 class="mt-4 text-xl font-semibold tracking-tight">From “something is wrong” to the line that
@@ -361,7 +361,7 @@ curl -X POST https://bilis.example.com/api/v1/ingest \
     {{-- 04 — Dashboard --}}
     <section id="dashboard"
              class="scroll-mt-20">
-        <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+        <div class="mx-auto max-w-content px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '04', 'label' => 'Dashboard'])
 
             <h2 class="mt-4 text-xl font-semibold tracking-tight">Open the app, know how things are</h2>
@@ -405,7 +405,7 @@ curl -X POST https://bilis.example.com/api/v1/ingest \
     {{-- 05 — Projects, teams and keys --}}
     <section id="projects"
              class="scroll-mt-20 border-y border-border bg-card">
-        <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+        <div class="mx-auto max-w-content px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '05', 'label' => 'Projects and keys'])
 
             <h2 class="mt-4 text-xl font-semibold tracking-tight">A leaked key is a small problem, not a
@@ -455,7 +455,7 @@ curl -X POST https://bilis.example.com/api/v1/ingest \
     {{-- 06 — Running it --}}
     <section id="running"
              class="scroll-mt-20">
-        <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+        <div class="mx-auto max-w-content px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '06', 'label' => 'Running it'])
 
             <h2 class="mt-4 text-xl font-semibold tracking-tight">You can run the whole thing yourself</h2>
@@ -543,7 +543,7 @@ php artisan clickhouse:migrate</pre>
     {{-- 07 — Honest limits --}}
     <section id="limits"
              class="scroll-mt-20 border-y border-border bg-card">
-        <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+        <div class="mx-auto max-w-content px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '07', 'label' => 'Honest limits'])
 
             <h2 class="mt-4 text-xl font-semibold tracking-tight">The parts a demo would leave out</h2>
@@ -579,7 +579,7 @@ php artisan clickhouse:migrate</pre>
     {{-- 08 — Scope --}}
     <section id="scope"
              class="scroll-mt-20">
-        <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+        <div class="mx-auto max-w-content px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '08', 'label' => 'Where it goes'])
 
             <h2 class="mt-4 text-xl font-semibold tracking-tight">What is coming, and what stays out</h2>
@@ -640,7 +640,7 @@ php artisan clickhouse:migrate</pre>
 
     {{-- Closing --}}
     <section class="border-t border-border bg-card">
-        <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+        <div class="mx-auto max-w-content px-6 py-16 sm:py-20">
             <h2 class="text-xl font-semibold tracking-tight">Point something at it</h2>
             <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
                 A project, a key, and one line of curl is the whole first run — your own logs in the viewer

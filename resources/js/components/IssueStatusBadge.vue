@@ -32,10 +32,10 @@ const icon = computed(
     <span
         :class="
             cn(
-                'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium',
+                'inline-flex h-5 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] font-medium',
                 status === 'regressed'
-                    ? 'border-severity-error/40 text-severity-error'
-                    : 'text-muted-foreground',
+                    ? 'bg-severity-error/10 text-severity-error'
+                    : 'text-muted-foreground ring-1 ring-border ring-inset',
             )
         "
         :data-test="`issue-status-${status}`"

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import BarSparkline from '@/components/BarSparkline.vue';
 import ChartCanvas from '@/components/ChartCanvas.vue';
 import DitherSparkline from '@/components/DitherSparkline.vue';
 import IssueHistogram from '@/components/IssueHistogram.vue';
@@ -155,6 +156,50 @@ const issueHistograms = demoIssueHistograms();
             description="Accepted ingest rate per project over 12 hours. No colours are set on the series at all — they take --chart-1 through --chart-5 from the theme, in order."
         >
             <ChartCanvas :option="ingestOption" height="18rem" />
+        </DemoBlock>
+
+        <DemoBlock
+            title="BarSparkline"
+            description="The redesign's trend: one bar per bucket on a hairline baseline, because hours with exceptions and hours without are discrete facts a filled line would smear together. Tone picks the token family exactly as DitherSparkline does. errorValues draws the broken share over the volume in --severity-error; max gives a column of sparklines one shared scale, so a tall bar means the same number on every row (the issue list and the dashboard's services use it); barMaxWidth keeps a week of daily buckets reading as bars."
+        >
+            <div class="flex flex-col gap-6">
+                <div class="flex flex-col gap-2">
+                    <p class="text-xs text-muted-foreground">
+                        <span class="font-medium text-foreground"
+                            >Logs per hour</span
+                        >
+                        · errors drawn over the volume
+                    </p>
+                    <BarSparkline
+                        :values="SPARKLINE_VOLUME_24H"
+                        :error-values="SPARKLINE_ERRORS_24H"
+                        :labels="SPARKLINE_HOUR_LABELS"
+                        :utc-labels="SPARKLINE_UTC_HOUR_LABELS"
+                        :bar-max-width="28"
+                        :height="96"
+                        tone="volume"
+                        unit="logs"
+                    />
+                </div>
+                <div class="grid max-w-md gap-3">
+                    <div
+                        v-for="(row, index) in [
+                            [0, 0, 0, 2, 1, 0, 0, 0, 0, 0, 3, 8],
+                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 5],
+                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
+                        ]"
+                        :key="index"
+                        class="grid grid-cols-[minmax(0,1fr)_10.5rem] items-center gap-4 font-mono text-sm"
+                    >
+                        <span class="truncate font-semibold">{{
+                            ['PaymentDeclinedError', 'TypeError', 'RangeError'][
+                                index
+                            ]
+                        }}</span>
+                        <BarSparkline :values="row" tone="error" :max="8" />
+                    </div>
+                </div>
+            </div>
         </DemoBlock>
 
         <DemoBlock

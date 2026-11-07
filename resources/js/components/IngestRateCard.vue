@@ -1,13 +1,5 @@
 <script setup lang="ts">
-import { Gauge } from '@lucide/vue';
 import { computed } from 'vue';
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
 import type { IngestRateKey, IngestRateUsage } from '@/types';
 
 const props = defineProps<{
@@ -67,27 +59,22 @@ const totalAttempts = computed(() =>
 </script>
 
 <template>
-    <Card data-test="dashboard-ingest-rate">
-        <CardHeader>
-            <CardTitle class="flex items-center justify-between gap-2">
-                <span class="flex items-center gap-2">
-                    <span
-                        class="flex size-8 items-center justify-center rounded-full bg-muted text-muted-foreground"
-                    >
-                        <Gauge class="size-4" />
-                    </span>
-                    Ingest rate limit
-                </span>
+    <section class="flex flex-col gap-4" data-test="dashboard-ingest-rate">
+        <header class="flex flex-col gap-1.5">
+            <h3
+                class="flex items-center justify-between gap-2 text-base font-semibold tracking-tight"
+            >
+                <span class="flex items-center gap-2"> Ingest rate limit </span>
                 <span
                     v-if="!usage.disabled"
-                    class="font-mono text-sm text-muted-foreground"
+                    class="font-mono text-sm font-normal text-muted-foreground"
                     data-test="dashboard-ingest-rate-limit"
                 >
                     {{ usage.limit.toLocaleString() }}/min per key
                 </span>
-            </CardTitle>
+            </h3>
 
-            <CardDescription>
+            <p class="text-sm text-muted-foreground">
                 Ingest requests each API key has spent in the current minute.
                 <!--
                   Said plainly, because the number is a rolling one-minute
@@ -96,10 +83,10 @@ const totalAttempts = computed(() =>
                 -->
                 The window is the limiter's own rolling minute, so these numbers
                 rise and reset as you watch.
-            </CardDescription>
-        </CardHeader>
+            </p>
+        </header>
 
-        <CardContent>
+        <div>
             <p
                 v-if="usage.keys.length === 0"
                 class="text-sm text-muted-foreground"
@@ -152,7 +139,7 @@ const totalAttempts = computed(() =>
                             </span>
                         </div>
                         <div
-                            class="h-1.5 overflow-hidden rounded-full bg-muted"
+                            class="h-1 overflow-hidden rounded-full bg-muted"
                             role="presentation"
                         >
                             <div
@@ -176,6 +163,6 @@ const totalAttempts = computed(() =>
                     payload.
                 </p>
             </template>
-        </CardContent>
-    </Card>
+        </div>
+    </section>
 </template>

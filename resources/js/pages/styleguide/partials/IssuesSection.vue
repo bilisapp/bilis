@@ -114,7 +114,7 @@ const textFrames = parseStackTrace(DEMO_ISSUE_TEXT_STACK);
 
         <DemoBlock
             title="IssueTagBars"
-            description="who and where an issue happens to: the top values of each tag as shares of the events that carried it. The bars are a quantity, not a category, so they take the magnitude ladder, and the percentage is always printed beside them. 'User' is the first non-empty identity the event carried — the same expression the users count is built from."
+            description="who and where an issue happens to: the top values of each tag as shares of the events that carried it. A share is a length, not a category or a duration, so the bars stay on the neutral ladder, and the percentage is always printed beside them. 'User' is the first non-empty identity the event carried — the same expression the users count is built from."
         >
             <div class="max-w-sm">
                 <IssueTagBars :tags="DEMO_ISSUE_TAGS" />

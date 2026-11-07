@@ -15,6 +15,7 @@ import BreadcrumbList from '@/components/BreadcrumbList.vue';
 import IssueHistogram from '@/components/IssueHistogram.vue';
 import IssueStatusBadge from '@/components/IssueStatusBadge.vue';
 import IssueTagBars from '@/components/IssueTagBars.vue';
+import PageHeader from '@/components/PageHeader.vue';
 import RunAutofixModal from '@/components/RunAutofixModal.vue';
 import StackTrace from '@/components/StackTrace.vue';
 import TraceFact from '@/components/TraceFact.vue';
@@ -69,7 +70,15 @@ const props = defineProps<{
 }>();
 
 defineOptions({
-    layout: (layoutProps: { currentTeam?: Team | null }) => ({
+    /*
+     * Issues / project / this issue. The page header prints every crumb but
+     * the last as its eyebrow, so the way back is the list and the list
+     * narrowed to this issue's project.
+     */
+    layout: (layoutProps: {
+        currentTeam?: Team | null;
+        issue?: IssueDetail;
+    }) => ({
         breadcrumbs: [
             {
                 title: 'Issues',
@@ -77,7 +86,24 @@ defineOptions({
                     ? issuesIndex(layoutProps.currentTeam.slug)
                     : '/',
             },
-            { title: 'Issue', href: '#' },
+            ...(layoutProps.issue
+                ? [
+                      {
+                          title: layoutProps.issue.projectName,
+                          href: layoutProps.currentTeam
+                              ? issuesIndex(layoutProps.currentTeam.slug, {
+                                    query: {
+                                        project: layoutProps.issue.projectSlug,
+                                    },
+                                })
+                              : '/',
+                      },
+                  ]
+                : []),
+            {
+                title: layoutProps.issue?.type || 'Issue',
+                href: '#',
+            },
         ],
     }),
 });
@@ -213,66 +239,107 @@ const lastSeen = computed(() =>
 const firstSeen = computed(() =>
     formatRelativeTime(isoFromMs(props.issue.firstSeen)),
 );
+
+/** A section heading on the surface: type over a hairline, a note at right. */
+const SECTION_HEADER =
+    'flex items-baseline justify-between gap-3 border-b pb-2.5';
+const SECTION_TITLE = 'text-base font-semibold tracking-tight';
+const LABEL = 'eyebrow';
+
+/** The event stepper's segments: a link when there is somewhere to go. */
+const STEP =
+    'inline-flex size-[26px] items-center justify-center rounded-[5px] transition-colors';
+const STEP_ON = 'text-foreground hover:bg-card hover:ring-1 hover:ring-border';
+const STEP_OFF = 'text-muted-foreground/40';
 </script>
 
 <template>
     <Head :title="title" />
 
-    <div class="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
-        <!-- What broke, and what to do about it. -->
-        <section
-            class="flex flex-col gap-4 rounded-lg border bg-card p-4"
-            data-test="issue-header"
-        >
-            <div class="flex flex-wrap items-start justify-between gap-3">
-                <div class="flex min-w-0 flex-col gap-1">
-                    <div class="flex flex-wrap items-center gap-2">
-                        <h1
-                            class="min-w-0 font-mono text-xl font-semibold break-all"
-                        >
-                            {{ title }}
-                        </h1>
+    <div class="flex flex-1 flex-col">
+        <!-- What broke, how often, and what to do about it. -->
+        <div data-test="issue-header">
+            <PageHeader :title="title">
+                <template #title>
+                    <span class="flex min-w-0 items-center gap-3">
+                        <span class="truncate font-mono" :title="title">{{
+                            title
+                        }}</span>
                         <IssueStatusBadge :status="issue.status" />
                         <span
                             v-if="handled === 'false'"
-                            class="rounded-full border border-severity-error/40 px-2 py-0.5 text-[11px] font-medium text-severity-error"
+                            class="inline-flex h-5 shrink-0 items-center rounded-full bg-severity-error/10 px-2 font-sans text-[11px] font-medium tracking-normal text-severity-error"
                             :title="
                                 mechanism ? `Caught by ${mechanism}` : undefined
                             "
+                            data-test="issue-unhandled"
                         >
                             Unhandled
                         </span>
-                    </div>
+                    </span>
+                </template>
+
+                <div class="flex max-w-4xl flex-col gap-1.5">
                     <p
                         v-if="message"
-                        class="text-sm break-words whitespace-pre-wrap"
+                        class="break-words whitespace-pre-wrap text-foreground/80"
+                        data-test="issue-message"
                     >
                         {{ message }}
                     </p>
-                    <p
-                        class="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-muted-foreground"
-                    >
-                        <span>{{ issue.projectName }}</span>
-                        <span aria-hidden="true">·</span>
-                        <span>{{
-                            issue.services.join(', ') || issue.service
-                        }}</span>
-                        <template v-if="issue.origin">
-                            <span aria-hidden="true">·</span>
-                            <span
-                                class="truncate font-mono"
-                                :title="issue.origin"
-                                >{{ displayLocation(issue.origin) }}</span
-                            >
+                    <p data-test="issue-summary">
+                        <span class="font-medium text-foreground"
+                            >{{ formatCount(issue.events) }}
+                            {{ issue.events === 1 ? 'event' : 'events' }}</span
+                        >
+                        <template v-if="issue.users > 0">
+                            · {{ formatCount(issue.users) }}
+                            {{ issue.users === 1 ? 'user' : 'users' }}
                         </template>
+                        · first seen {{ firstSeen
+                        }}<template v-if="issue.firstRelease">
+                            in
+                            <span class="font-mono">{{
+                                issue.firstRelease
+                            }}</span></template
+                        >
+                        · last seen {{ lastSeen
+                        }}<template v-if="issue.lastRelease">
+                            in
+                            <span class="font-mono">{{
+                                issue.lastRelease
+                            }}</span></template
+                        >
+                    </p>
+                    <p
+                        v-if="issue.status === 'regressed' && issue.resolvedAt"
+                        data-test="issue-regressed-note"
+                    >
+                        Resolved {{ formatRelativeTime(issue.resolvedAt)
+                        }}<template v-if="issue.statusChangedBy">
+                            by {{ issue.statusChangedBy }}</template
+                        >, and
+                        <span class="font-medium text-severity-error"
+                            >seen again {{ lastSeen }}</span
+                        >.
+                    </p>
+                    <p
+                        v-else-if="
+                            issue.statusChangedBy &&
+                            issue.statusChangedAt &&
+                            issue.status !== 'unresolved'
+                        "
+                    >
+                        Marked {{ issue.status }} by
+                        {{ issue.statusChangedBy }}
+                        {{ formatRelativeTime(issue.statusChangedAt) }}.
                     </p>
                 </div>
 
-                <div class="flex flex-wrap items-center gap-2">
+                <template #actions>
                     <template v-if="isOpen(issue.status)">
                         <Button
                             type="button"
-                            size="sm"
                             :disabled="deciding !== null"
                             data-test="issue-resolve"
                             @click="decide('resolved')"
@@ -281,7 +348,6 @@ const firstSeen = computed(() =>
                         </Button>
                         <Button
                             type="button"
-                            size="sm"
                             variant="outline"
                             :disabled="deciding !== null"
                             data-test="issue-ignore"
@@ -293,7 +359,6 @@ const firstSeen = computed(() =>
                     <Button
                         v-else
                         type="button"
-                        size="sm"
                         variant="outline"
                         :disabled="deciding !== null"
                         data-test="issue-reopen"
@@ -312,7 +377,6 @@ const firstSeen = computed(() =>
                         >
                             <Button
                                 type="button"
-                                size="sm"
                                 variant="outline"
                                 data-test="issue-autofix"
                             >
@@ -328,7 +392,6 @@ const firstSeen = computed(() =>
                         >
                             <Button
                                 type="button"
-                                size="sm"
                                 variant="outline"
                                 data-test="issue-autofix-upsell"
                             >
@@ -336,98 +399,69 @@ const firstSeen = computed(() =>
                             </Button>
                         </AutofixUpsellModal>
                     </template>
-                </div>
-            </div>
+                </template>
+            </PageHeader>
 
-            <p
-                v-if="issue.status === 'regressed' && issue.resolvedAt"
-                class="text-xs text-severity-error"
-                data-test="issue-regressed-note"
-            >
-                Resolved {{ formatRelativeTime(issue.resolvedAt)
-                }}<template v-if="issue.statusChangedBy">
-                    by {{ issue.statusChangedBy }}</template
-                >, and seen again {{ lastSeen }}.
-            </p>
-            <p
-                v-else-if="
-                    issue.statusChangedBy &&
-                    issue.statusChangedAt &&
-                    issue.status !== 'unresolved'
-                "
-                class="text-xs text-muted-foreground"
-            >
-                Marked {{ issue.status }} by {{ issue.statusChangedBy }}
-                {{ formatRelativeTime(issue.statusChangedAt) }}.
-            </p>
-
+            <!-- Where it lives: one hairline-bounded strip of facts. -->
             <dl
-                class="grid grid-cols-2 gap-x-6 gap-y-3 border-t pt-4 sm:grid-cols-3 lg:grid-cols-5"
+                class="grid grid-cols-2 gap-x-8 gap-y-4 border-y px-4 py-4 sm:grid-cols-3 md:px-10 lg:grid-cols-5"
+                data-test="issue-facts"
             >
+                <TraceFact label="Project" :value="issue.projectName" />
                 <TraceFact
-                    label="Events"
-                    :value="formatCount(issue.events)"
-                    :detail="
-                        issue.events >= 1_000
-                            ? issue.events.toLocaleString()
-                            : undefined
-                    "
+                    label="Service"
+                    :value="issue.services.join(', ') || issue.service || '—'"
                     mono
                 />
                 <TraceFact
-                    label="Users"
-                    :value="formatCount(issue.users)"
+                    label="Origin"
+                    :value="issue.origin ? displayLocation(issue.origin) : '—'"
                     mono
                 />
                 <TraceFact
-                    label="First seen"
-                    :value="firstSeen"
-                    :detail="
-                        issue.firstRelease
-                            ? `in ${issue.firstRelease}`
-                            : undefined
-                    "
-                />
-                <TraceFact
-                    label="Last seen"
-                    :value="lastSeen"
-                    :detail="
-                        issue.lastRelease
-                            ? `in ${issue.lastRelease}`
-                            : undefined
-                    "
+                    label="Environments"
+                    :value="issue.environments.join(', ') || '—'"
+                    mono
                 />
                 <TraceFact
                     label="Fingerprint"
                     :value="issue.fingerprint.slice(0, 12)"
-                    :detail="issue.environments.join(', ') || undefined"
                     mono
                     copyable
                 />
             </dl>
-        </section>
+        </div>
 
-        <div class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
-            <div class="flex min-w-0 flex-col gap-4">
+        <!-- How often: the issue's own volume, by the hour or the day. -->
+        <div class="px-4 py-5 md:px-10">
+            <IssueHistogram :histogram="histogram" />
+        </div>
+
+        <div
+            class="grid flex-1 grid-cols-1 border-t xl:grid-cols-[minmax(0,1fr)_22rem]"
+        >
+            <div class="flex min-w-0 flex-col pb-10">
                 <!-- Which occurrence this is, and how to step through the others. -->
-                <section
-                    class="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3"
+                <div
+                    class="flex flex-wrap items-center justify-between gap-3 border-b bg-muted/40 px-4 py-2.5 md:px-10"
                     data-test="issue-event-nav"
                 >
-                    <div class="flex min-w-0 flex-col text-xs">
-                        <span class="text-muted-foreground">Event</span>
-                        <span v-if="row" class="font-mono">
-                            {{ formatTimestamp(row.timestamp) }}
-                            <span
-                                v-if="row.logAttributes['event.id']"
-                                class="text-muted-foreground"
-                            >
+                    <p class="min-w-0 truncate text-xs text-muted-foreground">
+                        <span class="font-medium text-foreground">Event</span>
+                        <template v-if="row">
+                            ·
+                            <span class="font-mono text-foreground/80">{{
+                                formatTimestamp(row.timestamp)
+                            }}</span>
+                            <template v-if="row.logAttributes['event.id']">
                                 ·
-                                {{ row.logAttributes['event.id'].slice(0, 12) }}
-                            </span>
-                        </span>
-                        <span v-else class="text-muted-foreground">—</span>
-                    </div>
+                                <span class="font-mono">{{
+                                    row.logAttributes['event.id'].slice(0, 12)
+                                }}</span>
+                            </template>
+                        </template>
+                        <template v-else> · —</template>
+                    </p>
 
                     <div class="flex flex-wrap items-center gap-1">
                         <Button
@@ -435,6 +469,7 @@ const firstSeen = computed(() =>
                             as-child
                             size="sm"
                             variant="ghost"
+                            class="text-muted-foreground"
                         >
                             <Link :href="logsHref" data-test="issue-event-logs">
                                 <ScrollText class="size-3.5" /> Logs around it
@@ -445,6 +480,7 @@ const firstSeen = computed(() =>
                             as-child
                             size="sm"
                             variant="ghost"
+                            class="text-muted-foreground"
                         >
                             <Link
                                 :href="traceLink"
@@ -455,7 +491,7 @@ const firstSeen = computed(() =>
                         </Button>
 
                         <div
-                            class="ml-1 inline-flex items-center rounded-md border"
+                            class="ml-1 inline-flex h-8 items-center gap-0.5 rounded-md bg-muted p-[3px]"
                         >
                             <component
                                 :is="event.hasOlder ? Link : 'span'"
@@ -484,12 +520,7 @@ const firstSeen = computed(() =>
                                         : {}
                                 "
                                 :class="
-                                    cn(
-                                        'inline-flex size-8 items-center justify-center',
-                                        step.enabled
-                                            ? 'text-foreground hover:bg-accent'
-                                            : 'text-muted-foreground/40',
-                                    )
+                                    cn(STEP, step.enabled ? STEP_ON : STEP_OFF)
                                 "
                                 :aria-label="step.label"
                                 :title="step.label"
@@ -525,10 +556,8 @@ const firstSeen = computed(() =>
                                 "
                                 :class="
                                     cn(
-                                        'inline-flex size-8 items-center justify-center',
-                                        event.hasNewer
-                                            ? 'text-foreground hover:bg-accent'
-                                            : 'text-muted-foreground/40',
+                                        STEP,
+                                        event.hasNewer ? STEP_ON : STEP_OFF,
                                     )
                                 "
                                 :aria-label="step.label"
@@ -539,47 +568,60 @@ const firstSeen = computed(() =>
                             </component>
                         </div>
                     </div>
-                </section>
+                </div>
 
                 <p
                     v-if="event.unavailable"
-                    class="rounded-lg border bg-card p-4 text-sm text-muted-foreground"
+                    class="px-4 py-8 text-sm text-muted-foreground md:px-10"
                 >
                     Event storage is busy and could not answer in time — retry
                     in a moment.
                 </p>
-                <p
+                <div
                     v-else-if="event.expired"
-                    class="rounded-lg border bg-card p-4 text-sm text-muted-foreground"
+                    class="flex flex-col gap-2 px-4 py-8 md:px-10"
                     data-test="issue-events-expired"
                 >
-                    This issue's events are older than the 30 days events are
-                    kept, so there is no stack trace or context to show. Its
-                    summary above — type, message, origin, counts and releases —
-                    is kept for as long as the issue exists.
-                </p>
+                    <p class="text-sm font-medium text-foreground">
+                        These events have expired
+                    </p>
+                    <p class="max-w-prose text-sm text-muted-foreground">
+                        This issue's events are older than the 30 days events
+                        are kept, so there is no stack trace or context to show.
+                        Its summary above — type, message, origin, counts and
+                        releases — is kept for as long as the issue exists.
+                    </p>
+                </div>
 
                 <template v-if="row">
                     <section
-                        class="flex flex-col gap-3 rounded-lg border bg-card p-4"
+                        class="flex flex-col px-4 pt-8 md:px-10"
                         data-test="issue-exception"
                     >
-                        <h2 class="text-sm font-semibold">Stack trace</h2>
-                        <StackTrace :frames="frames" :raw="stacktrace" />
+                        <header :class="SECTION_HEADER">
+                            <h2 :class="SECTION_TITLE">Stack trace</h2>
+                            <span class="text-xs text-muted-foreground"
+                                >most recent call first</span
+                            >
+                        </header>
+                        <div class="pt-3">
+                            <StackTrace :frames="frames" :raw="stacktrace" />
+                        </div>
 
                         <div
                             v-for="(cause, index) in causes"
                             :key="index"
-                            class="flex flex-col gap-2 border-t pt-3"
+                            class="mt-6 flex flex-col gap-1.5 border-t pt-4"
                             data-test="issue-cause"
                         >
-                            <p class="text-xs text-muted-foreground">
-                                Caused by
-                            </p>
-                            <p class="font-mono text-sm font-medium">
+                            <p :class="LABEL">Caused by</p>
+                            <p class="font-mono text-sm font-semibold">
                                 {{ cause.type || 'Exception' }}
                             </p>
-                            <p v-if="cause.message" class="text-sm break-words">
+                            <p
+                                v-if="cause.message"
+                                class="text-sm break-words text-foreground/80"
+                            >
                                 {{ cause.message }}
                             </p>
                             <p
@@ -590,89 +632,118 @@ const firstSeen = computed(() =>
                             </p>
                             <pre
                                 v-if="cause.stacktrace"
-                                class="max-h-48 overflow-auto rounded-lg border bg-muted/40 p-3 font-mono text-xs whitespace-pre"
+                                class="mt-1.5 max-h-48 overflow-auto rounded-lg border bg-muted/40 p-3 font-mono text-xs whitespace-pre"
                                 >{{ cause.stacktrace }}</pre>
                         </div>
                     </section>
 
-                    <section
-                        class="flex flex-col gap-3 rounded-lg border bg-card p-4"
-                    >
-                        <h2 class="text-sm font-semibold">Breadcrumbs</h2>
+                    <section class="flex flex-col px-4 pt-10 md:px-10">
+                        <header :class="SECTION_HEADER">
+                            <h2 :class="SECTION_TITLE">Breadcrumbs</h2>
+                            <span
+                                v-if="breadcrumbs.length > 0"
+                                class="text-xs text-muted-foreground"
+                                >{{ breadcrumbs.length }} · most recent
+                                first</span
+                            >
+                        </header>
                         <BreadcrumbList :breadcrumbs="breadcrumbs" />
                     </section>
 
                     <section
                         v-if="sections.length > 0 || tagsOnEvent.length > 0"
-                        class="grid grid-cols-1 gap-x-6 gap-y-4 rounded-lg border bg-card p-4 md:grid-cols-2"
+                        class="flex flex-col px-4 pt-10 md:px-10"
                         data-test="issue-context"
                     >
+                        <header :class="SECTION_HEADER">
+                            <h2 :class="SECTION_TITLE">Context</h2>
+                            <span class="text-xs text-muted-foreground"
+                                >this event</span
+                            >
+                        </header>
                         <div
-                            v-for="section in sections"
-                            :key="section.title"
-                            class="min-w-0"
+                            class="grid grid-cols-1 gap-x-10 gap-y-6 pt-5 md:grid-cols-2"
                         >
-                            <h2 class="mb-2 text-sm font-semibold">
-                                {{ section.title }}
-                            </h2>
-                            <dl class="flex flex-col gap-1 text-xs">
-                                <div
-                                    v-for="[key, value] in section.values"
-                                    :key="key"
-                                    class="grid grid-cols-[9rem_minmax(0,1fr)] gap-2"
-                                >
-                                    <dt
-                                        class="truncate text-muted-foreground"
-                                        :title="key"
+                            <div
+                                v-for="section in sections"
+                                :key="section.title"
+                                class="min-w-0"
+                            >
+                                <h3 :class="cn(LABEL, 'pb-1')">
+                                    {{ section.title }}
+                                </h3>
+                                <dl class="flex flex-col text-xs">
+                                    <div
+                                        v-for="[key, value] in section.values"
+                                        :key="key"
+                                        class="grid grid-cols-[9rem_minmax(0,1fr)] gap-3 border-b border-border/60 py-2"
                                     >
-                                        {{ key }}
-                                    </dt>
-                                    <dd class="font-mono break-all">
-                                        {{ value }}
-                                    </dd>
+                                        <dt
+                                            class="truncate text-muted-foreground"
+                                            :title="key"
+                                        >
+                                            {{ key }}
+                                        </dt>
+                                        <dd
+                                            class="font-mono break-all text-foreground/80"
+                                        >
+                                            {{ value }}
+                                        </dd>
+                                    </div>
+                                </dl>
+                            </div>
+                            <div v-if="tagsOnEvent.length > 0" class="min-w-0">
+                                <h3 :class="cn(LABEL, 'pb-2')">Tags</h3>
+                                <div class="flex flex-wrap gap-1.5">
+                                    <span
+                                        v-for="[key, value] in tagsOnEvent"
+                                        :key="key"
+                                        class="inline-flex h-6 max-w-full items-center overflow-hidden rounded-md text-xs ring-1 ring-border ring-inset"
+                                    >
+                                        <span
+                                            class="flex h-full items-center bg-muted px-2 text-muted-foreground"
+                                            >{{ key }}</span
+                                        >
+                                        <span
+                                            class="truncate px-2 font-mono text-foreground/80"
+                                            >{{ value }}</span
+                                        >
+                                    </span>
                                 </div>
-                            </dl>
-                        </div>
-                        <div v-if="tagsOnEvent.length > 0" class="min-w-0">
-                            <h2 class="mb-2 text-sm font-semibold">Tags</h2>
-                            <div class="flex flex-wrap gap-1.5">
-                                <span
-                                    v-for="[key, value] in tagsOnEvent"
-                                    :key="key"
-                                    class="inline-flex max-w-full items-center overflow-hidden rounded-md border text-xs"
-                                >
-                                    <span
-                                        class="bg-muted px-1.5 py-0.5 text-muted-foreground"
-                                        >{{ key }}</span
-                                    >
-                                    <span
-                                        class="truncate px-1.5 py-0.5 font-mono"
-                                        >{{ value }}</span
-                                    >
-                                </span>
                             </div>
                         </div>
                     </section>
 
                     <section
                         v-if="attributes.length > 0"
-                        class="rounded-lg border bg-card p-4"
+                        class="flex flex-col px-4 pt-10 md:px-10"
                     >
-                        <details>
+                        <details class="group">
                             <summary
-                                class="cursor-pointer text-sm font-semibold"
+                                :class="
+                                    cn(
+                                        SECTION_HEADER,
+                                        'cursor-pointer list-none [&::-webkit-details-marker]:hidden',
+                                    )
+                                "
                             >
-                                All attributes
+                                <h2 :class="SECTION_TITLE">All attributes</h2>
                                 <span
-                                    class="font-normal text-muted-foreground"
-                                    >{{ attributes.length }}</span
+                                    class="inline-flex items-center gap-1 text-xs text-muted-foreground"
                                 >
+                                    <span class="font-mono tabular-nums">{{
+                                        attributes.length
+                                    }}</span>
+                                    <ChevronRight
+                                        class="size-3.5 transition-transform group-open:rotate-90"
+                                    />
+                                </span>
                             </summary>
-                            <dl class="mt-3 flex flex-col gap-1 text-xs">
+                            <dl class="flex flex-col text-xs">
                                 <div
                                     v-for="[key, value] in attributes"
                                     :key="key"
-                                    class="grid grid-cols-[12rem_minmax(0,1fr)] gap-2"
+                                    class="grid grid-cols-[12rem_minmax(0,1fr)] gap-3 border-b border-border/60 py-2"
                                 >
                                     <dt
                                         class="truncate text-muted-foreground"
@@ -681,7 +752,7 @@ const firstSeen = computed(() =>
                                         {{ key }}
                                     </dt>
                                     <dd
-                                        class="font-mono break-all whitespace-pre-wrap"
+                                        class="font-mono break-all whitespace-pre-wrap text-foreground/80"
                                     >
                                         {{ value }}
                                     </dd>
@@ -693,13 +764,23 @@ const firstSeen = computed(() =>
 
                 <!-- The most recent occurrences, each one a link to itself. -->
                 <section
-                    class="flex flex-col rounded-lg border bg-card"
+                    class="flex flex-col pt-10"
                     data-test="issue-recent-events"
                 >
-                    <h2 class="border-b px-4 py-3 text-sm font-semibold">
-                        Recent events
-                    </h2>
-                    <div v-if="!recentEvents" class="flex flex-col gap-2 p-4">
+                    <header
+                        class="flex items-baseline justify-between gap-3 px-4 pb-2.5 md:px-10"
+                    >
+                        <h2 :class="SECTION_TITLE">Recent events</h2>
+                        <span
+                            v-if="recentEvents && recentEvents.rows.length > 0"
+                            class="text-xs text-muted-foreground"
+                            >newest {{ recentEvents.rows.length }}</span
+                        >
+                    </header>
+                    <div
+                        v-if="!recentEvents"
+                        class="flex flex-col gap-2 border-t px-4 py-4 md:px-10"
+                    >
                         <Skeleton
                             v-for="index in 4"
                             :key="index"
@@ -708,32 +789,42 @@ const firstSeen = computed(() =>
                     </div>
                     <p
                         v-else-if="recentEvents.unavailable"
-                        class="p-4 text-xs text-muted-foreground"
+                        class="border-t px-4 py-8 text-sm text-muted-foreground md:px-10"
                     >
                         Events are busy — retry in a moment.
                     </p>
                     <p
                         v-else-if="recentEvents.rows.length === 0"
-                        class="p-4 text-xs text-muted-foreground"
+                        class="border-t px-4 py-8 text-sm text-muted-foreground md:px-10"
                     >
                         No events within the last 30 days.
                     </p>
                     <div v-else class="overflow-x-auto">
                         <table class="w-full text-xs">
-                            <thead class="text-left text-muted-foreground">
-                                <tr class="border-b">
-                                    <th class="px-4 py-2 font-normal">Time</th>
-                                    <th class="px-2 py-2 font-normal">
+                            <thead
+                                class="text-left text-label tracking-label text-muted-foreground uppercase"
+                            >
+                                <tr class="border-y bg-muted/40">
+                                    <th
+                                        class="py-2.5 pr-3 pl-4 font-medium md:pl-10"
+                                    >
+                                        Time
+                                    </th>
+                                    <th class="px-3 py-2.5 font-medium">
                                         Service
                                     </th>
-                                    <th class="px-2 py-2 font-normal">
+                                    <th class="px-3 py-2.5 font-medium">
                                         Release
                                     </th>
-                                    <th class="px-2 py-2 font-normal">
+                                    <th class="px-3 py-2.5 font-medium">
                                         Environment
                                     </th>
-                                    <th class="px-2 py-2 font-normal">User</th>
-                                    <th class="px-4 py-2 font-normal">
+                                    <th class="px-3 py-2.5 font-medium">
+                                        User
+                                    </th>
+                                    <th
+                                        class="py-2.5 pr-4 pl-3 font-medium md:pr-10"
+                                    >
                                         Message
                                     </th>
                                 </tr>
@@ -744,17 +835,17 @@ const firstSeen = computed(() =>
                                     :key="`${summary.timestamp}:${summary.eventKey}`"
                                     :class="
                                         cn(
-                                            'border-b last:border-b-0',
+                                            'h-11 border-b border-border/60 transition-colors hover:bg-muted/50',
                                             summary.timestamp ===
                                                 row?.timestamp &&
                                                 summary.eventKey ===
                                                     event.eventKey &&
-                                                'bg-accent/60',
+                                                'bg-muted/70',
                                         )
                                     "
                                 >
                                     <td
-                                        class="px-4 py-1.5 font-mono whitespace-nowrap"
+                                        class="pr-3 pl-4 font-mono whitespace-nowrap md:pl-10"
                                     >
                                         <Link
                                             :href="
@@ -766,7 +857,7 @@ const firstSeen = computed(() =>
                                             "
                                             :only="EVENT_PROPS"
                                             preserve-scroll
-                                            class="underline-offset-4 hover:underline"
+                                            class="font-medium text-foreground underline-offset-4 hover:underline"
                                         >
                                             {{
                                                 formatTimestamp(
@@ -775,25 +866,29 @@ const firstSeen = computed(() =>
                                             }}
                                         </Link>
                                     </td>
-                                    <td class="px-2 py-1.5 whitespace-nowrap">
+                                    <td
+                                        class="px-3 font-mono whitespace-nowrap text-foreground/80"
+                                    >
                                         {{ summary.serviceName || '—' }}
                                     </td>
                                     <td
-                                        class="px-2 py-1.5 font-mono whitespace-nowrap"
+                                        class="px-3 font-mono whitespace-nowrap text-foreground/80"
                                     >
                                         {{ summary.release || '—' }}
                                     </td>
-                                    <td class="px-2 py-1.5 whitespace-nowrap">
+                                    <td
+                                        class="px-3 whitespace-nowrap text-foreground/80"
+                                    >
                                         {{ summary.environment || '—' }}
                                     </td>
                                     <td
-                                        class="max-w-40 truncate px-2 py-1.5 font-mono"
+                                        class="max-w-40 truncate px-3 font-mono text-foreground/80"
                                         :title="summary.user"
                                     >
                                         {{ summary.user || '—' }}
                                     </td>
                                     <td
-                                        class="max-w-80 truncate px-4 py-1.5"
+                                        class="max-w-80 truncate pr-4 pl-3 text-muted-foreground md:pr-10"
                                         :title="summary.message"
                                     >
                                         {{ summary.message }}
@@ -805,15 +900,19 @@ const firstSeen = computed(() =>
                 </section>
             </div>
 
-            <aside class="flex min-w-0 flex-col gap-4">
-                <IssueHistogram :histogram="histogram" />
-
-                <section
-                    class="flex flex-col gap-3 rounded-lg border bg-card p-4"
-                >
-                    <h2 class="text-sm font-semibold">Tags</h2>
+            <!-- Who and where it happens to, across the newest events. -->
+            <aside
+                class="flex min-w-0 flex-col border-t px-4 pt-8 pb-10 md:px-10 xl:border-t-0 xl:border-l xl:pl-8"
+            >
+                <header :class="SECTION_HEADER">
+                    <h2 :class="SECTION_TITLE">Tags</h2>
+                    <span class="text-xs text-muted-foreground"
+                        >share of events</span
+                    >
+                </header>
+                <div class="pt-4">
                     <IssueTagBars :tags="tags" />
-                </section>
+                </div>
             </aside>
         </div>
     </div>

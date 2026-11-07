@@ -19,7 +19,7 @@ use Illuminate\Database\Eloquent\Collection;
  * @phpstan-import-type IssueSummary from IssueQuery
  *
  * @phpstan-type IssueListItem array{fingerprint: string, projectId: string, projectSlug: string, projectName: string, type: string, message: string, origin: string, service: string, services: list<string>, environments: list<string>, firstSeen: int, lastSeen: int, events: int, users: int, windowEvents: int, windowUsers: int, series: list<int>, status: string, isNew: bool, firstRelease: string, lastRelease: string}
- * @phpstan-type IssueListResult array{issues: list<IssueListItem>, total: int, page: int, perPage: int, truncated: bool, unavailable: bool, services: list<string>, environments: list<string>}
+ * @phpstan-type IssueListResult array{issues: list<IssueListItem>, total: int, page: int, perPage: int, truncated: bool, unavailable: bool, regressed: int, services: list<string>, environments: list<string>}
  */
 class IssueList
 {
@@ -40,6 +40,7 @@ class IssueList
             'perPage' => IssueFilters::PER_PAGE,
             'truncated' => false,
             'unavailable' => false,
+            'regressed' => 0,
             'services' => [],
             'environments' => [],
         ];
@@ -107,6 +108,7 @@ class IssueList
             'perPage' => IssueFilters::PER_PAGE,
             'truncated' => count($candidates) >= IssueQuery::CANDIDATE_LIMIT,
             'unavailable' => false,
+            'regressed' => count(array_filter($items, fn (array $item): bool => $item['status'] === IssueState::REGRESSED)),
             'services' => $services,
             'environments' => $environments,
         ];

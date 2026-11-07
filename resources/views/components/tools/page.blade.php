@@ -34,7 +34,7 @@
     <script type="application/ld+json"
             nonce="{{ $cspNonce ?? '' }}">{!! json_encode($structuredData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) !!}</script>
 
-    <section class="mx-auto max-w-5xl px-6 pt-16 pb-10 sm:pt-20">
+    <section class="mx-auto max-w-content px-6 pt-16 pb-10 sm:pt-20">
         <nav aria-label="Breadcrumb"
              class="text-xs font-medium tracking-wide text-muted-foreground uppercase">
             <a href="{{ route('tools.index') }}"
@@ -47,13 +47,13 @@
     </section>
 
     <section class="border-y border-border bg-card">
-        <div class="mx-auto max-w-5xl px-6 py-10 sm:py-12">
+        <div class="mx-auto max-w-content px-6 py-10 sm:py-12">
             {{ $slot }}
         </div>
     </section>
 
     @isset($explainer)
-        <section class="mx-auto max-w-5xl px-6 pt-6 pb-16 sm:pb-20">
+        <section class="mx-auto max-w-content px-6 pt-6 pb-16 sm:pb-20">
             <div class="docs-prose max-w-3xl">
                 {{ $explainer }}
             </div>
@@ -61,7 +61,7 @@
     @endisset
 
     <section class="border-t border-border">
-        <div class="mx-auto max-w-5xl px-6 py-16">
+        <div class="mx-auto max-w-content px-6 py-16">
             <h2 class="text-xl font-semibold tracking-tight">More free tools</h2>
 
             <ul class="mt-6 grid gap-4 sm:grid-cols-3">

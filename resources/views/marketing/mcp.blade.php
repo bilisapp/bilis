@@ -9,7 +9,7 @@
          alternating card bands — because it is the same site making the same
          kind of claim. The one command is the hero: everything else on the
          page exists to make copying it feel safe. --}}
-    <section class="mx-auto max-w-5xl px-6 pt-16 pb-12 sm:pt-20">
+    <section class="mx-auto max-w-content px-6 pt-16 pb-12 sm:pt-20">
         <p class="text-xs font-medium tracking-wide text-muted-foreground uppercase">MCP</p>
 
         <h1 class="mt-4 max-w-3xl text-3xl leading-tight font-semibold tracking-tight sm:text-4xl">
@@ -59,7 +59,7 @@ claude mcp add --transport http bilis <span class="text-severity-debug">https://
     {{-- 01 — what it changes --}}
     <section id="conversation"
              class="border-t border-border bg-card">
-        <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+        <div class="mx-auto max-w-content px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '01', 'label' => 'What changes'])
 
             <h2 class="mt-4 max-w-3xl text-2xl leading-tight font-semibold tracking-tight sm:text-3xl">
@@ -112,7 +112,7 @@ claude mcp add --transport http bilis <span class="text-severity-debug">https://
     {{-- 02 — the boundary --}}
     <section id="boundary"
              class="border-t border-border">
-        <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+        <div class="mx-auto max-w-content px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '02', 'label' => 'Where the line is'])
 
             <h2 class="mt-4 max-w-3xl text-2xl leading-tight font-semibold tracking-tight sm:text-3xl">
@@ -165,7 +165,7 @@ claude mcp add --transport http bilis <span class="text-severity-debug">https://
     {{-- 03 — the toolbox --}}
     <section id="tools"
              class="border-t border-border bg-card">
-        <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+        <div class="mx-auto max-w-content px-6 py-16 sm:py-20">
             @include('marketing.partials.section-label', ['number' => '03', 'label' => 'The toolbox'])
 
             <h2 class="mt-4 max-w-3xl text-2xl leading-tight font-semibold tracking-tight sm:text-3xl">
@@ -202,7 +202,7 @@ claude mcp add --transport http bilis <span class="text-severity-debug">https://
 
     {{-- Close --}}
     <section class="border-t border-border">
-        <div class="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-16 sm:flex-row sm:items-center sm:justify-between sm:py-20">
+        <div class="mx-auto flex max-w-content flex-col gap-6 px-6 py-16 sm:flex-row sm:items-center sm:justify-between sm:py-20">
             <div>
                 <h2 class="text-2xl leading-tight font-semibold tracking-tight">
                     Connect it and ask it something.

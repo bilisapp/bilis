@@ -219,7 +219,7 @@ function submit() {
 
                 <DialogFooter class="gap-2">
                     <DialogClose as-child>
-                        <Button type="button" variant="secondary">
+                        <Button type="button" variant="outline">
                             Cancel
                         </Button>
                     </DialogClose>

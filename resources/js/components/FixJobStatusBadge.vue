@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { FixJobStatus } from '@/types';
 
 /**
  * Where one autofix attempt has got to.
  *
- * The badge itself stays achromatic — an outline on the neutral ladder, like
- * every other piece of chrome. The only hue is the dot, and it is borrowed
+ * The badge itself stays achromatic — a hairline pill on the neutral ladder,
+ * like every other piece of chrome — except for an attempt that failed or
+ * timed out, which takes the error wash the way a regressed issue does. The
+ * only other hue is the dot, and it is borrowed
  * from the severity ramp rather than invented: teal for an outcome that
  * landed, crimson for one that did not, nothing at all while the job is still
  * deciding. A status is not severity, but it is *data about an error*, which
@@ -39,12 +40,23 @@ const PULSING: FixJobStatus[] = ['running', 'validating'];
 
 const dotClass = computed(() => DOT_CLASSES[props.status]);
 const pulses = computed(() => PULSING.includes(props.status));
+
+const ALARMING: FixJobStatus[] = ['failed', 'timeout'];
+
+const alarming = computed(() => ALARMING.includes(props.status));
 </script>
 
 <template>
-    <Badge
-        variant="outline"
-        :class="cn('gap-1.5 font-medium', props.class)"
+    <span
+        :class="
+            cn(
+                'inline-flex h-5 shrink-0 items-center gap-1.5 rounded-full px-2 text-[11px] font-medium whitespace-nowrap',
+                alarming
+                    ? 'bg-severity-error/10 text-severity-error'
+                    : 'text-foreground/80 ring-1 ring-border ring-inset',
+                props.class,
+            )
+        "
         :data-status="status"
         data-test="fix-job-status"
     >
@@ -65,5 +77,5 @@ const pulses = computed(() => PULSING.includes(props.status));
             />
         </span>
         {{ label }}
-    </Badge>
+    </span>
 </template>

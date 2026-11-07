@@ -6,6 +6,7 @@ use App\Models\Issue;
 use App\Models\Project;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\Issues\IssueBadge;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
@@ -351,4 +352,37 @@ test('resolving, ignoring and reopening record who did it and when', function ()
         ->and(Issue::count())->toBe(1);
 
     $this->actingAs($user)->patch($url, ['status' => 'regressed'])->assertSessionHasErrors('status');
+});
+
+test('the rail counts unresolved issues, regressed included, and caches the answer', function () {
+    [$user, $team, $project] = issuesTeam();
+    fakeIssuesClickHouse((string) $project->id);
+    Issue::query()->create([
+        'project_id' => $project->id,
+        'fingerprint' => ISSUE_FP_PAYMENT,
+        'status' => IssueStatus::Resolved,
+        'resolved_at' => Carbon::parse('2026-11-06 12:00:00'),
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('issues.index', ['current_team' => $team->slug]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->missing('issueBadge')
+            ->loadDeferredProps('nav', fn (Assert $reload) => $reload
+                ->where('issueBadge.unresolved', 2)
+                ->where('issueBadge.regressed', 1)
+            )
+        );
+
+    Http::fake(fn () => Http::response('', 503));
+
+    expect(app(IssueBadge::class)->forTeam($team))->toBe(['unresolved' => 2, 'regressed' => 1]);
+});
+
+test('the rail shows no count when issue storage cannot answer', function () {
+    [, $team] = issuesTeam();
+    Http::fake(fn () => Http::response('', 503));
+
+    expect(app(IssueBadge::class)->forTeam($team))->toBeNull();
 });

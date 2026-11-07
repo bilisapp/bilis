@@ -34,6 +34,8 @@ const props = defineProps<{
      * keeps its place so the bars around it do not move while the reader types.
      */
     dimmed?: boolean;
+    /** Padded to the page gutter; must match the waterfall's own `gutter`. */
+    gutter?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -119,11 +121,12 @@ const labelAfterBar = computed(
     <div
         :class="
             cn(
-                'group relative grid items-center gap-3 border-b border-border/50 px-3 text-xs transition-[background-color,opacity]',
+                'group relative grid items-center gap-3 border-b border-border/50 text-xs transition-[background-color,opacity]',
+                gutter ? 'pr-4 pl-4 md:pl-10' : 'px-3',
                 compact
                     ? 'grid-cols-[minmax(0,10.5rem)_1fr]'
                     : 'grid-cols-[minmax(0,20rem)_8rem_1fr]',
-                selected ? 'bg-accent' : 'hover:bg-accent/40',
+                selected ? 'bg-muted' : 'hover:bg-muted/50',
                 dimmed && 'opacity-35',
             )
         "
@@ -153,7 +156,7 @@ const labelAfterBar = computed(
             <button
                 v-if="span.childCount > 0"
                 type="button"
-                class="inline-flex size-4 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                class="inline-flex size-4 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                 :aria-label="collapsed ? 'Expand span' : 'Collapse span'"
                 :aria-expanded="!collapsed"
                 :data-test="`span-toggle-${span.spanId}`"
@@ -188,7 +191,7 @@ const labelAfterBar = computed(
             -->
             <span
                 v-if="collapsed && span.childCount > 0"
-                class="shrink-0 rounded-full bg-muted px-1.5 text-muted-foreground tabular-nums"
+                class="shrink-0 rounded-full bg-muted px-1.5 font-mono text-[11px] text-muted-foreground tabular-nums"
                 :title="`${span.childCount} child span(s) hidden`"
             >
                 {{ span.childCount }}
@@ -196,7 +199,7 @@ const labelAfterBar = computed(
 
             <span
                 v-if="orphan"
-                class="shrink-0 rounded border px-1 text-muted-foreground"
+                class="inline-flex h-4 shrink-0 items-center rounded-full px-1.5 text-[11px] font-medium text-muted-foreground ring-1 ring-border ring-inset"
                 title="This span's parent is not in this result — it may have aged out, still be in flight, or fall past the row cap."
             >
                 orphan
@@ -210,7 +213,7 @@ const labelAfterBar = computed(
             -->
             <span
                 v-else-if="externalParent"
-                class="shrink-0 rounded border px-1 text-muted-foreground"
+                class="inline-flex h-4 shrink-0 items-center rounded-full px-1.5 text-[11px] font-medium text-muted-foreground ring-1 ring-border ring-inset"
                 data-test="span-external-parent"
                 title="This span's parent is in another trace, named by a span link. Open the span for its target."
             >

@@ -110,6 +110,84 @@
     --color-mark-crimson: #d8394a;
     --color-mark-navy: #1f3a5f;
     --color-mark-cream: #f3f0e7;
+
+    /*
+      The type ramp, named. One scale for the app and the public site — the
+      Paper "Design system — Bilis" board is its picture. `text-title` is the
+      app's page title and a public section's small title; `headline` and
+      `display` exist only on public pages (display once per page, the hero).
+      Tailwind's own sizes still work, but a new surface should reach for these.
+    */
+    --text-label: 0.6875rem;
+    --text-label--line-height: 1rem;
+    --text-caption: 0.75rem;
+    --text-caption--line-height: 1rem;
+    --text-body: 0.875rem;
+    --text-body--line-height: 1.25rem;
+    --text-lead: 1rem;
+    --text-lead--line-height: 1.625rem;
+    --text-title: 1.875rem;
+    --text-title--line-height: 2.25rem;
+    --text-title--letter-spacing: -0.025em;
+    --text-headline: 3rem;
+    --text-headline--line-height: 1.0833;
+    --text-headline--letter-spacing: -0.04em;
+    --text-display: 4.5rem;
+    --text-display--line-height: 1;
+    --text-display--letter-spacing: -0.04em;
+
+    /* Uppercase labels (eyebrows, column headers) open up; large type closes. */
+    --tracking-label: 0.08em;
+    --tracking-display: -0.04em;
+
+    /*
+      The one left edge every band of a page shares (`px-gutter`), and the
+      breath between public sections (`py-section`). Mobile halves both.
+    */
+    --spacing-gutter: 2.5rem;
+    --spacing-section: 6rem;
+
+    /* The public page column. */
+    --container-content: 70rem;
+}
+
+/*
+  Named pieces of the vocabulary, so a class list says what a thing is rather
+  than re-deriving it: the small uppercase line above a title, the uppercase
+  header row of a list, and a keyboard key. Vue components and Blade views use
+  the same three — see DESIGN.md "Layout".
+*/
+@utility eyebrow {
+    font-size: var(--text-label);
+    line-height: var(--text-label--line-height);
+    font-weight: 500;
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--color-muted-foreground);
+}
+
+@utility column-header {
+    font-size: var(--text-label);
+    line-height: var(--text-label--line-height);
+    font-weight: 500;
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--color-muted-foreground);
+    background-color: color-mix(in oklab, var(--color-muted) 40%, transparent);
+}
+
+@utility kbd {
+    display: inline-flex;
+    height: 18px;
+    min-width: 18px;
+    align-items: center;
+    justify-content: center;
+    padding-inline: 4px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+    font-family: var(--font-mono);
+    font-size: var(--text-label);
+    line-height: 1;
 }
 
 /*

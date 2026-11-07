@@ -45,6 +45,10 @@ const total = computed(() =>
     buckets.value.reduce((sum, bucket) => sum + bucket.events, 0),
 );
 
+const peak = computed(() =>
+    Math.max(0, ...buckets.value.map((bucket) => bucket.events)),
+);
+
 const option = computed<BilisChartOption>(() => ({
     animationDuration: 320,
     animationEasing: 'cubicOut',
@@ -108,54 +112,69 @@ const option = computed<BilisChartOption>(() => ({
 </script>
 
 <template>
-    <section
-        class="flex flex-col gap-2 rounded-lg border bg-card p-4"
-        data-test="issue-histogram"
-    >
-        <header class="flex items-center justify-between gap-2">
-            <h2 class="text-sm font-semibold">
-                Events
-                <span
-                    v-if="histogram"
-                    class="ml-1 font-mono font-normal text-muted-foreground tabular-nums"
+    <!--
+      A band on the surface, not a card: a caption line that says what the
+      bars count, the range toggle at its right, and the chart under it.
+    -->
+    <section class="flex flex-col gap-2" data-test="issue-histogram">
+        <div
+            class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-muted-foreground"
+        >
+            <p>
+                <span class="font-medium text-foreground"
+                    >Events per {{ daily ? 'day' : 'hour' }}</span
                 >
-                    {{ formatCount(total) }}
-                </span>
-            </h2>
-            <div
-                class="inline-flex rounded-md border p-0.5 text-xs"
-                role="tablist"
-                aria-label="Chart range"
-            >
-                <button
-                    v-for="option in [
-                        { value: 'day', label: '24h' },
-                        { value: 'month', label: '30d' },
-                    ] as const"
-                    :key="option.value"
-                    type="button"
-                    role="tab"
-                    :aria-selected="range === option.value"
-                    :data-test="`issue-histogram-${option.value}`"
-                    :class="
-                        cn(
-                            'rounded-[5px] px-2 py-0.5 transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
-                            range === option.value
-                                ? 'bg-accent font-medium text-foreground'
-                                : 'text-muted-foreground hover:text-foreground',
-                        )
-                    "
-                    @click="range = option.value"
+                · {{ range === 'day' ? 'last 24 hours' : 'last 30 days' }}
+                <template v-if="histogram && !series?.unavailable">
+                    ·
+                    <span class="font-mono tabular-nums">{{
+                        formatCount(total)
+                    }}</span>
+                    total
+                </template>
+            </p>
+            <div class="flex items-center gap-3">
+                <p
+                    v-if="histogram && !series?.unavailable"
+                    class="font-mono tabular-nums"
                 >
-                    {{ option.label }}
-                </button>
+                    peak {{ formatCount(peak) }}
+                </p>
+                <div
+                    class="inline-flex h-7 items-center gap-0.5 rounded-md bg-muted p-[3px]"
+                    role="tablist"
+                    aria-label="Chart range"
+                >
+                    <button
+                        v-for="option in [
+                            { value: 'day', label: '24h' },
+                            { value: 'month', label: '30d' },
+                        ] as const"
+                        :key="option.value"
+                        type="button"
+                        role="tab"
+                        :aria-selected="range === option.value"
+                        :data-test="`issue-histogram-${option.value}`"
+                        :class="
+                            cn(
+                                'inline-flex h-full items-center rounded-[5px] px-2 font-medium transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
+                                range === option.value
+                                    ? 'bg-card text-foreground ring-1 ring-border'
+                                    : 'text-muted-foreground hover:text-foreground',
+                            )
+                        "
+                        @click="range = option.value"
+                    >
+                        {{ option.label }}
+                    </button>
+                </div>
             </div>
-        </header>
+        </div>
 
         <Skeleton v-if="!histogram" class="h-24 w-full" />
         <p
             v-else-if="series?.unavailable"
-            class="py-8 text-center text-xs text-muted-foreground"
+            class="flex h-24 items-center text-sm text-muted-foreground"
         >
             Event counts are busy — retry in a moment.
         </p>

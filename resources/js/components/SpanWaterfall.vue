@@ -39,6 +39,12 @@ const props = defineProps<{
      * ancestors are expanded so a hit inside a collapsed subtree is visible.
      */
     matches?: Set<string> | null;
+    /**
+     * Sitting directly on a page surface: the rows' left edge moves to the
+     * page gutter so the span names line up with the header above. Padding
+     * only — the column template and the bar geometry are unchanged.
+     */
+    gutter?: boolean;
 }>();
 
 const emit = defineEmits<{ (event: 'select', spanId: string): void }>();
@@ -64,6 +70,9 @@ const columns = computed(() =>
         ? 'grid-cols-[minmax(0,10.5rem)_1fr]'
         : 'grid-cols-[minmax(0,20rem)_8rem_1fr]',
 );
+
+/** Horizontal padding, shared by the legend, the axis, the gridlines and every row. */
+const inset = computed(() => (props.gutter ? 'pr-4 pl-4 md:pl-10' : 'px-3'));
 
 const extentMs = computed(() => traceExtentMs(props.spans));
 const ticks = computed(() => axisTicks(extentMs.value, props.compact ? 3 : 6));
@@ -187,7 +196,12 @@ watch(
           something rather than just look like something.
         -->
         <div
-            class="flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-3 py-2"
+            :class="
+                cn(
+                    'flex flex-wrap items-center gap-x-4 gap-y-2 border-b py-2',
+                    inset,
+                )
+            "
         >
             <ul class="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <li
@@ -208,7 +222,7 @@ watch(
 
                 <button
                     type="button"
-                    class="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                    class="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                     :title="anyExpanded ? 'Collapse all' : 'Already collapsed'"
                     aria-label="Collapse all"
                     data-test="waterfall-collapse-all"
@@ -218,7 +232,7 @@ watch(
                 </button>
                 <button
                     type="button"
-                    class="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                    class="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                     title="Expand all"
                     aria-label="Expand all"
                     data-test="waterfall-expand-all"
@@ -249,13 +263,21 @@ watch(
                 <div
                     :class="
                         cn(
-                            'sticky top-0 z-10 grid items-end gap-3 border-b bg-card px-3 py-1.5 text-xs text-muted-foreground',
+                            'sticky top-0 z-10 grid items-end gap-3 border-b bg-card py-2 text-muted-foreground',
+                            inset,
                             columns,
                         )
                     "
                 >
-                    <span class="font-medium">Span</span>
-                    <span v-if="!compact" class="font-medium">Detail</span>
+                    <span
+                        class="text-label font-medium tracking-label uppercase"
+                        >Span</span
+                    >
+                    <span
+                        v-if="!compact"
+                        class="text-label font-medium tracking-label uppercase"
+                        >Detail</span
+                    >
 
                     <div class="relative h-4">
                         <!--
@@ -268,7 +290,7 @@ watch(
                             :key="tick.percent"
                             :class="
                                 cn(
-                                    'absolute bottom-0 whitespace-nowrap tabular-nums',
+                                    'absolute bottom-0 font-mono text-[11px] whitespace-nowrap tabular-nums',
                                     tick.percent > 92
                                         ? '-translate-x-full'
                                         : tick.percent < 4
@@ -292,7 +314,8 @@ watch(
                     <div
                         :class="
                             cn(
-                                'pointer-events-none absolute inset-0 grid gap-3 px-3',
+                                'pointer-events-none absolute inset-0 grid gap-3',
+                                inset,
                                 columns,
                             )
                         "
@@ -336,6 +359,7 @@ watch(
                                 colours.get(span.serviceName || 'unknown') ?? ''
                             "
                             :compact="compact"
+                            :gutter="gutter"
                             :collapsed="collapsed.has(span.spanId)"
                             :orphan="
                                 span.parentSpanId !== '' &&

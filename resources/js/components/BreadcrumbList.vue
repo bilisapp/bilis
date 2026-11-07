@@ -37,16 +37,16 @@ const isError = (crumb: Breadcrumb) =>
     <div data-test="breadcrumbs">
         <p
             v-if="breadcrumbs.length === 0"
-            class="text-xs text-muted-foreground"
+            class="py-3 text-sm text-muted-foreground"
         >
             No breadcrumbs were sent with this event.
         </p>
 
-        <ol v-else class="overflow-hidden rounded-lg border">
+        <ol v-else>
             <li
                 v-for="(crumb, index) in visible"
                 :key="index"
-                class="grid grid-cols-[6rem_minmax(0,1fr)] gap-x-3 border-b px-3 py-1.5 text-xs last:border-b-0 sm:grid-cols-[6rem_minmax(0,1fr)_9rem]"
+                class="grid min-h-11 grid-cols-[6rem_minmax(0,1fr)] items-center gap-x-4 border-b border-border/60 py-2 text-xs sm:grid-cols-[6rem_minmax(0,1fr)_11rem]"
             >
                 <span
                     :class="
@@ -62,7 +62,7 @@ const isError = (crumb: Breadcrumb) =>
                 </span>
                 <span class="min-w-0">
                     <span
-                        class="block truncate font-mono"
+                        class="block truncate font-mono text-foreground/80"
                         :title="crumb.message"
                         >{{ crumb.message || '—' }}</span
                     >
@@ -87,7 +87,7 @@ const isError = (crumb: Breadcrumb) =>
         <button
             v-if="breadcrumbs.length > initial"
             type="button"
-            class="mt-2 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            class="mt-3 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
             data-test="breadcrumbs-toggle"
             @click="expanded = !expanded"
         >

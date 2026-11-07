@@ -47,142 +47,145 @@ function hostLabel(host: HostRow): string {
 }
 
 const isSelected = (host: HostRow) => host.name === props.selected;
+
+/**
+ * One grid for the column header and every row, so the lanes line up: host,
+ * three meters, then the right-aligned figures.
+ */
+const LANES =
+    'grid grid-cols-[minmax(8rem,1fr)_6.5rem_6.5rem_8.5rem_3.5rem_5.5rem_5.5rem] items-center gap-x-5 px-4 md:px-10';
 </script>
 
 <template>
     <section
-        class="flex flex-col rounded-lg border bg-card"
+        class="flex flex-col border-t"
         aria-label="Hosts"
         data-test="hosts-table"
     >
-        <div v-if="!hosts" class="flex flex-col gap-2 p-4">
-            <Skeleton class="h-10 w-full animate-pulse" />
-            <Skeleton class="h-10 w-full animate-pulse" />
-        </div>
+        <div class="overflow-x-auto">
+            <div class="min-w-[56.5rem]">
+                <header :class="cn(LANES, 'border-b column-header py-2.5')">
+                    <span>Host</span>
+                    <span>CPU</span>
+                    <span>Memory</span>
+                    <span>Disk</span>
+                    <span class="text-right">Load</span>
+                    <span class="text-right">Containers</span>
+                    <span class="text-right">Last seen</span>
+                </header>
 
-        <p
-            v-else-if="hosts.unavailable"
-            class="p-4 text-sm text-muted-foreground"
-            data-test="hosts-unavailable"
-        >
-            Metric storage is busy and could not answer in time. Nothing is lost
-            — retry in a moment.
-        </p>
+                <div
+                    v-if="!hosts"
+                    class="flex flex-col gap-3 px-4 py-4 md:px-10"
+                >
+                    <Skeleton class="h-9 w-full animate-pulse" />
+                    <Skeleton class="h-9 w-full animate-pulse" />
+                </div>
 
-        <p
-            v-else-if="hosts.hosts.length === 0"
-            class="p-4 text-sm text-muted-foreground"
-            data-test="hosts-empty-window"
-        >
-            No host reported in this window. Widen it, or check the project
-            filter.
-        </p>
+                <p
+                    v-else-if="hosts.unavailable"
+                    class="px-4 py-8 text-sm text-muted-foreground md:px-10"
+                    data-test="hosts-unavailable"
+                >
+                    Metric storage is busy and could not answer in time. Nothing
+                    is lost — retry in a moment.
+                </p>
 
-        <div v-else class="overflow-x-auto">
-            <table class="w-full min-w-[44rem] text-sm">
-                <thead>
-                    <tr
-                        class="border-b text-left text-xs text-muted-foreground"
-                    >
-                        <th class="px-4 py-2 font-medium">Host</th>
-                        <th class="px-3 py-2 font-medium">CPU</th>
-                        <th class="px-3 py-2 font-medium">Memory</th>
-                        <th class="px-3 py-2 font-medium">Disk</th>
-                        <th class="px-3 py-2 text-right font-medium">Load</th>
-                        <th class="px-3 py-2 text-right font-medium">
-                            Containers
-                        </th>
-                        <th class="px-4 py-2 text-right font-medium">
-                            Last seen
-                        </th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr
+                <p
+                    v-else-if="hosts.hosts.length === 0"
+                    class="px-4 py-8 text-sm text-muted-foreground md:px-10"
+                    data-test="hosts-empty-window"
+                >
+                    No host reported in this window. Widen it, or check the
+                    project filter.
+                </p>
+
+                <template v-else>
+                    <div
                         v-for="host in hosts.hosts"
                         :key="host.name"
                         :class="
                             cn(
-                                'cursor-pointer border-b transition-colors last:border-0 hover:bg-accent/50',
-                                isSelected(host) && 'bg-accent',
+                                LANES,
+                                'cursor-pointer border-b border-border/70 py-3.5 text-sm transition-colors hover:bg-muted/50',
+                                isSelected(host) &&
+                                    'bg-muted/70 hover:bg-muted/70',
                             )
                         "
                         :aria-selected="isSelected(host)"
                         :data-test="`hosts-row-${host.name}`"
                         @click="emit('select', host.name)"
                     >
-                        <td class="px-4 py-2.5">
-                            <button
-                                type="button"
-                                class="truncate rounded-sm font-mono text-sm font-medium focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-                                :aria-pressed="isSelected(host)"
-                                @click.stop="emit('select', host.name)"
-                            >
-                                {{ hostLabel(host) }}
-                            </button>
-                        </td>
-                        <td
+                        <button
+                            type="button"
+                            class="min-w-0 justify-self-start truncate rounded-sm text-left font-mono text-sm font-medium text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                            :aria-pressed="isSelected(host)"
+                            @click.stop="emit('select', host.name)"
+                        >
+                            {{ hostLabel(host) }}
+                        </button>
+
+                        <div
                             v-for="meter in meters(host)"
                             :key="meter.id"
-                            class="px-3 py-2.5"
+                            class="flex min-w-0 flex-col gap-1.5"
                             :data-test="`hosts-${meter.id}`"
                         >
-                            <div class="flex w-32 flex-col gap-1">
-                                <div
-                                    class="flex items-baseline justify-between gap-2"
+                            <div
+                                class="flex items-baseline justify-between gap-2"
+                            >
+                                <span class="font-mono text-sm tabular-nums">
+                                    {{ formatRatio(meter.value) }}
+                                </span>
+                                <span
+                                    v-if="meter.note"
+                                    class="truncate font-mono text-xs text-muted-foreground"
+                                    :title="meter.note"
                                 >
-                                    <span class="tabular-nums">
-                                        {{ formatRatio(meter.value) }}
-                                    </span>
-                                    <span
-                                        v-if="meter.note"
-                                        class="truncate font-mono text-xs text-muted-foreground"
-                                        :title="meter.note"
-                                    >
-                                        {{ meter.note }}
-                                    </span>
-                                </div>
-                                <div
-                                    class="h-1 w-full overflow-hidden rounded-full bg-muted"
-                                    role="meter"
-                                    :aria-label="`${meter.label} ${formatRatio(meter.value)}`"
-                                    aria-valuemin="0"
-                                    aria-valuemax="100"
-                                    :aria-valuenow="
-                                        meter.value === null
-                                            ? undefined
-                                            : Math.round(meter.value * 100)
-                                    "
-                                >
-                                    <div
-                                        v-if="meter.value !== null"
-                                        :class="
-                                            cn(
-                                                'h-full rounded-full',
-                                                MAGNITUDE_BG_CLASS[
-                                                    ratioMagnitude(meter.value)
-                                                ],
-                                            )
-                                        "
-                                        :style="{
-                                            width: `${Math.max(2, meter.value * 100)}%`,
-                                        }"
-                                    />
-                                </div>
+                                    {{ meter.note }}
+                                </span>
                             </div>
-                        </td>
-                        <td class="px-3 py-2.5 text-right tabular-nums">
+                            <div
+                                class="h-1 w-full overflow-hidden rounded-full bg-muted"
+                                role="meter"
+                                :aria-label="`${meter.label} ${formatRatio(meter.value)}`"
+                                aria-valuemin="0"
+                                aria-valuemax="100"
+                                :aria-valuenow="
+                                    meter.value === null
+                                        ? undefined
+                                        : Math.round(meter.value * 100)
+                                "
+                            >
+                                <div
+                                    v-if="meter.value !== null"
+                                    :class="
+                                        cn(
+                                            'h-full rounded-full',
+                                            MAGNITUDE_BG_CLASS[
+                                                ratioMagnitude(meter.value)
+                                            ],
+                                        )
+                                    "
+                                    :style="{
+                                        width: `${Math.max(2, meter.value * 100)}%`,
+                                    }"
+                                />
+                            </div>
+                        </div>
+
+                        <span class="text-right font-mono tabular-nums">
                             {{
                                 host.load === null ? '—' : host.load.toFixed(2)
                             }}
-                        </td>
-                        <td class="px-3 py-2.5 text-right tabular-nums">
+                        </span>
+                        <span class="text-right font-mono tabular-nums">
                             {{ host.containers > 0 ? host.containers : '—' }}
-                        </td>
-                        <td
+                        </span>
+                        <span
                             :class="
                                 cn(
-                                    'px-4 py-2.5 text-right text-xs tabular-nums',
+                                    'text-right font-mono text-xs tabular-nums',
                                     isQuiet(host)
                                         ? 'font-medium text-foreground'
                                         : 'text-muted-foreground',
@@ -192,10 +195,10 @@ const isSelected = (host: HostRow) => host.name === props.selected;
                             data-test="hosts-last-seen"
                         >
                             {{ formatRelativeTime(host.lastSeen) }}
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+                        </span>
+                    </div>
+                </template>
+            </div>
         </div>
     </section>
 </template>

@@ -220,7 +220,11 @@ function submit() {
 
                 <DialogFooter class="gap-2 sm:justify-between">
                     <AskAiMenu :entry="entry" align="start">
-                        <Button type="button" variant="ghost" size="sm">
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            class="text-muted-foreground"
+                        >
                             Ask an assistant instead
                         </Button>
                     </AskAiMenu>

@@ -1,4 +1,5 @@
 import type { Auth } from '@/types/auth';
+import type { IssueBadgeCounts } from '@/types/issues';
 import type { NewProjectApiKey } from '@/types/projects';
 import type { Team } from '@/types/teams';
 import type { FlashToast } from '@/types/ui';
@@ -29,6 +30,8 @@ declare module '@inertiajs/core' {
             currentTeam: Team | null;
             teams: Team[];
             autofix: { enabled: boolean };
+            /** Deferred and kept once per minute; null when storage is busy. */
+            issueBadge?: IssueBadgeCounts | null;
             [key: string]: unknown;
         };
     }

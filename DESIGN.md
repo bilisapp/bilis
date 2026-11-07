@@ -266,35 +266,48 @@ Both are self-hosted through the Vite font plugin (`bunny()` in `vite.config.ts`
 
 ### Hierarchy
 
-- **Display** (600, `1.875rem`/`2.25rem`, `-0.025em`): page-level titles. One per page at most.
-- **Headline** (600, `1.25rem`/`1.75rem`, `-0.025em`): section headings and page headers.
-- **Title** (600, `1.125rem`/`1.75rem`, `-0.025em`): subsection headings.
-- **Body** (400, `0.875rem`/`1.25rem`): all interface prose. The default; descriptions cap around 65–75 characters.
-- **Label** (500, `0.75rem`/`1rem`): form labels, toolbar labels, chip text, row counts.
-- **Group label** (600, `0.6875rem`/`1rem`, `0.12em`, uppercase): sidebar section headings only.
-- **Data** (400, `0.75rem`/`1rem`, Geist Mono, `tabular-nums` on timestamps): log rows, attribute pairs, trace and span ids.
+The ramp is named in `app.css` (`@theme`), so Vue and Blade say the same thing — `text-display`, not `text-7xl tracking-[-0.04em]`. The Paper "Design system — Bilis" board draws it.
+
+- **`text-display`** (600, `4.5rem`/`1`, `-0.04em`): the public hero. One per site page; never in the app.
+- **`text-headline`** (600, `3rem`/`1.08`, `-0.04em`): a public section's headline.
+- **`text-title`** (600, `1.875rem`/`2.25rem`, `-0.025em`): the app's page title (`PageHeader`), a KPI figure, a public figure.
+- **`text-lead`** (`1rem`/`1.625rem`): section headings in the app (semibold, `tracking-tight`); lead copy on public pages.
+- **`text-body`** (400, `0.875rem`/`1.25rem`): all interface prose. The default; descriptions cap around 65–75 characters.
+- **`text-caption`** (`0.75rem`/`1rem`): support copy, and Geist Mono data — log rows, attribute pairs, ids, with `tabular-nums` on timestamps.
+- **`text-label`** (500, `0.6875rem`/`1rem`): badges, keys, and — with `tracking-label` (`0.08em`) and uppercase — eyebrows and column headers.
+
+Three pieces have a utility of their own, because they recur everywhere: **`eyebrow`** (the uppercase line above a title), **`column-header`** (a list's uppercase header row on a faint muted fill) and **`kbd`** (a keyboard key). Spacing has two named steps: **`gutter`** (`2.5rem`, the one left edge every band shares) and **`section`** (`6rem`, between public sections); **`max-w-content`** (`70rem`) is the public column.
 
 ### Named Rules
 
 **The Monospace Boundary Rule.** Monospace marks machine-authored text. Log bodies, timestamps, ids and attribute pairs are Geist Mono; every label *about* them ("Log attributes", "Showing 1–50 of 12,481 rows") drops back to Geist. The typeface change is how a reader tells the record from the annotation.
 
-**The 14/12 Rule.** Interface copy is 14px and support copy is 12px. There is no 16px body and no 13px anything.
+**The 14/12 Rule.** In the app, interface copy is 14px and support copy is 12px; 16px is a heading, never a body. Public pages may set lead copy at 16px. There is no 13px anything.
 
 **The Tabular Timestamp Rule.** Any column of digits a reader scans vertically is `tabular-nums`. Digits that shift width break the scan.
 
 ## Layout
 
-A fixed navigation rail plus a content panel; the log viewer is the archetype. The shell is viewport-height (`h-svh` on the sidebar provider) and the *page* scrolls inside the content column, never the document — which is what keeps the breadcrumb bar and the log stream's own header fixed while a reader scrolls thousands of rows.
+A fixed navigation rail plus one white work surface (`bg-card`, a hairline ring, inset from the rail); the log viewer is the archetype. The shell is viewport-height (`h-svh` on the sidebar provider) and the *page* scrolls inside the surface, never the document — which is what keeps the log stream's own header fixed while a reader scrolls thousands of rows.
 
-Content sits in a `px-4 py-6` field, sections separated by `48px`, card interiors at `24px`. Panels are `rounded-lg` (8px) with a hairline and `bg-card`.
+Pages sit **directly on the surface**, not in cards. Every page reads top to bottom as the same bands, all sharing one left edge — the gutter `px-4 md:px-10`:
+
+1. **Page header** (`PageHeader.vue`): a small uppercase eyebrow (the breadcrumb trail, or the scope — `All projects / All services`), one `text-3xl` title, one summary sentence of numbers in which only the figure that matters takes a colour, and the actions on the right (the primary action in ink, tabs as `SegmentedControl`).
+2. **Toolbar**: one row — search with a `/` hint, then filters as chips (`FilterSelect.vue`: "Service  All ⌄"), then sort and reset.
+3. **Volume band** (optional): a caption line (`Events per hour · context`, `peak N` right) and a bar chart; a legend that also filters sits at the right of the caption.
+4. **List**: a hairline, an uppercase `11px` column header on `bg-muted/40`, rows ruled by hairlines with fixed-width numeric lanes, and a footer with counts on the left and keyboard hints on the right.
+
+Sections inside a page are headed by a `text-base` semibold title over a hairline, not wrapped in a card. A card is kept only for a genuinely separate object — a code snippet, a dialog, a callout.
 
 Spacing runs on a 4px base, but really uses six steps: `6px` label-to-field, `8px` tight inline, `12px` row padding and control gaps, `16px` panel padding, `24px` card interiors, `48px` between sections.
 
 The log stream is the one place density overrides rhythm: rows are `6px 12px` with fixed-width columns — timestamp, a 64px severity column, a 160px truncated service — and the message takes the rest.
 
+**Public pages speak the same language.** The landing page, features, pricing and docs are Blade, but they are assembled from `resources/views/components/ui` — `x-ui.eyebrow`, `x-ui.section-header`, `x-ui.button`, `x-ui.badge`, `x-ui.figure`, `x-ui.panel` — cut from the same tokens as the app's Vue components. A public section opens with a numbered eyebrow, a headline and a lead over a hairline; the product is *shown* in the app's own components (an issue list, a waterfall, a live tail) rather than in screenshots; figures sit on hairlines like the dashboard's KPI strip; a card is used only for a piece of product or the closing call to action.
+
 ### Named Rules
 
-**The Surface Declaration Rule.** A `rounded-lg border` alone sits at page level and disappears. Anything that should read as a surface must declare `bg-card`.
+**The Surface Declaration Rule.** A `rounded-lg border` alone sits at page level and disappears. Anything that should read as a surface must declare `bg-card`. In the app the work surface already is one, so a page's own sections declare nothing and separate by hairline.
 
 **The Fixed Column Rule.** In the log stream every column left of the message has a fixed width. Nothing shifts between rows.
 
@@ -336,21 +349,22 @@ Borders are always `1px`. The severity dot — an `8px` circle at full opacity w
 
 ### Navigation
 
-- **Rail:** one tone below the page, holding the monochrome Bilis mark and wordmark at the top, grouped nav in the middle, and the team switcher plus account at the foot. Team and account sit together because both answer "who am I acting as".
-- **Active item:** takes the *work surface* as its fill (`bg-sidebar-primary`) with full-strength ink and `font-semibold`, so the current page is legible from the rail's silhouette before a word is read. Hover stays a quiet accent lift, which keeps the two states distinct.
-- **Group labels:** `11px`, `600`, uppercase, `0.12em` tracking, at 45% of the rail foreground.
+- **Rail:** one tone below the page, holding the Bilis mark and the rail's collapse toggle at the top, then Dashboard on its own and three named groups — **Explore** (Logs, Traces, Metrics), **Triage** (Issues, Autofix), **Setup** (Projects, Docs ↗) — and one account card at the foot (team tile, team name, your address; one menu for switching team, settings and log out). Team and account share it because both answer "who am I acting as". Sections with two views (Traces, Metrics) keep them as tabs on the page, not as a sub-menu.
+- **Active item:** takes the *work surface* as its fill (`bg-sidebar-primary`) with a hairline ring and ink, so the current page is legible from the rail's silhouette before a word is read — no shadow. Hover stays a quiet accent lift, which keeps the two states distinct.
+- **Counts:** an item may carry a neutral mono count (Issues: unresolved in the last 7 days). Its one dot of `--severity-error` appears only when something regressed.
+- **Group labels:** `11px`, `600`, uppercase, `0.12em` tracking, at 70% of the rail foreground.
 
-### Severity Chips
+### Severity Filter
 
-The signature control — the six-level filter row.
+The six-level filter is the log volume chart's legend (`LogsSeverityFilter.vue`): the key to the bar colours and the control that narrows them are one thing.
 
-- Fully round, `4px 10px`, `12px` capitalised text, each carrying its severity dot.
-- **Active:** secondary fill, `font-semibold`, dot at full opacity. **Inactive:** page fill, muted text, dot at 40%.
+- `12px` capitalised labels, each with a `8px` square swatch in its severity colour.
+- **No level picked** means every level, every swatch at full strength. **Picked:** muted fill and `font-medium`; the unpicked fade to 30%.
 - `aria-pressed` carries the state; opacity plus weight mean the toggle never depends on colour alone.
 
 ### Cards / Containers
 
-`8px` radius, `bg-card`, a single hairline, flat at rest, `24px` interiors (the log toolbar runs tighter at `12px` because it is a control surface, not a reading surface).
+`8px` radius, `bg-card`, a single hairline, flat at rest, `24px` interiors — and rare. In the app the page itself is the surface; a card is for a genuinely separate object (a snippet block, a callout), never a wrapper around a page's own section.
 
 ### Inputs / Fields
 
@@ -360,9 +374,9 @@ The signature control — the six-level filter row.
 
 The signature component; everything else frames it.
 
-- Full-width button row (`6px 12px`, Geist Mono, `12px`) plus an expandable detail panel. Fixed columns: chevron, `tabular-nums` timestamp, `64px` severity (dot + uppercase label in the severity colour), `160px` truncated service, then the message.
-- Every row carries a **1px severity hairline on its left edge**, so a stack of rows reads as a temperature ribbon before a single line is read.
-- **warn, error and fatal** add a resting tint; quieter levels stay clean, so the loud ones carry all the weight.
+- Full-width button row (Geist Mono, `12px`) on the page gutter, plus an expandable detail panel aligned to the service column. Fixed columns: the time of day (`HH:MM:SS.mmm`, `tabular-nums`, UTC on hover), a `44px` uppercase level in the severity colour, a `128px` truncated service, then the message — an exception class at its head (`TypeError:`) set in semibold. The date is said once per day, as a divider in the stream, not on every row.
+- Every row carries a **2px severity stripe on its left edge**, so a stack of rows reads as a temperature ribbon before a single line is read. The open or cursored row widens it to 3px.
+- **No resting wash.** The stripe and the level's name carry severity; the row itself stays on the surface, so the stream reads as text rather than as a field of pink.
 - Separator is a bottom hairline. Rows are ruled lines, not stacked cards.
 - Rows arriving from a live-tail poll animate in once, `motion-reduce` guarded.
 

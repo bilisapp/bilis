@@ -25,7 +25,7 @@ test('the pre-paint ground matches the background token', function () {
         ->assertSee('background-color: hsl(225 14% 8%)', false);
 });
 
-test('the hero and the live tail share one shader band', function () {
+test('the hero and the product frame share one shader band', function () {
     $page = $this->get(route('home'))->assertOk()->getContent();
 
     $band = substr($page, strpos($page, 'data-fold-gradient'));
@@ -34,6 +34,17 @@ test('the hero and the live tail share one shader band', function () {
     expect($band)->toContain('Observability your')
         ->toContain('coding agent can read.')
         ->toContain(route('features.mcp'))
+        ->toContain('data-product-frame')
+        ->not->toContain('data-live-tail-list');
+});
+
+test('the live tail answers from the investigation section, below the waterfall', function () {
+    $page = $this->get(route('home'))->assertOk()->getContent();
+
+    $section = substr($page, strpos($page, 'id="product"'));
+    $section = substr($section, 0, strpos($section, '</section>'));
+
+    expect($section)->toContain('POST /checkout')
         ->toContain('data-live-tail-list');
 });
 

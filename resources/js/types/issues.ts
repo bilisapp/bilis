@@ -69,8 +69,16 @@ export type IssueListResult = {
     /** The window held more issues than one list reads. */
     truncated: boolean;
     unavailable: boolean;
+    /** How many of the matching issues regressed (resolved, then seen again). */
+    regressed: number;
     services: string[];
     environments: string[];
+};
+
+/** The rail's count beside "Issues": the list's default view, cached a minute. */
+export type IssueBadgeCounts = {
+    unresolved: number;
+    regressed: number;
 };
 
 export type IssueDetail = IssueSummary & {

@@ -1,58 +1,63 @@
 {{-- The one public footer, shared by every surface a logged-out visitor can
-     reach. The styleguide lives here rather than in the header: it is a
-     resource for people building on Bilis, not a sales surface. --}}
+     reach: the mark and one line of what Bilis is, three short columns of
+     links, and the operator's legal identity. The styleguide lives here
+     rather than in the header: it is a resource for people building on
+     Bilis, not a sales surface. --}}
 @props(['wide' => false])
+
+@php
+    $columns = [
+        'Product' => [
+            ['label' => 'Features', 'href' => route('features')],
+            ['label' => 'MCP', 'href' => route('features.mcp')],
+            ['label' => 'Pricing', 'href' => route('pricing')],
+            ['label' => 'vs Datadog', 'href' => route('compare.datadog')],
+        ],
+        'Learn' => [
+            ['label' => 'Docs', 'href' => route('docs.index')],
+            ['label' => 'Blog', 'href' => route('blog.index')],
+            ['label' => 'Free tools', 'href' => route('tools.index')],
+            ['label' => 'Styleguide', 'href' => route('styleguide')],
+        ],
+        'Company' => [
+            ['label' => 'Contact', 'href' => route('contact.show')],
+            ['label' => 'Source on GitHub', 'href' => config('bilis.github_url'), 'external' => true],
+            ['label' => 'Terms', 'href' => route('terms')],
+            ['label' => 'Privacy', 'href' => route('privacy')],
+            ['label' => 'Security', 'href' => config('bilis.github_url').'/blob/main/SECURITY.md', 'external' => true],
+        ],
+    ];
+@endphp
 
 <footer {{ $attributes->merge(['class' => 'border-t border-border']) }}>
     <div @class([
-        'mx-auto flex flex-col gap-4 px-4 py-8 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6',
+        'mx-auto flex flex-col gap-10 px-4 py-12 sm:flex-row sm:justify-between sm:px-6',
         'max-w-7xl' => $wide,
-        'max-w-5xl' => ! $wide,
+        'max-w-content' => ! $wide,
     ])>
-        <div class="flex items-center gap-2.5">
+        <div class="flex max-w-xs flex-col gap-3">
             <img src="/logo-mark.svg"
                  alt=""
-                 class="h-5 w-auto"
+                 class="h-5 w-auto self-start"
                  width="20790"
                  height="4080">
-            <span>{{ config('app.name', 'Bilis') }} — self-hosted logs, traces and metrics.</span>
+            <p class="text-xs leading-relaxed text-muted-foreground">
+                {{ config('app.name', 'Bilis') }} — self-hosted logs, traces and metrics your coding agent can read.
+            </p>
         </div>
 
-        <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <a href="{{ config('bilis.github_url') }}"
-               class="flex items-center gap-1.5 transition-colors hover:text-foreground"
-               target="_blank"
-               rel="noopener noreferrer">
-                <x-icons.github class="size-4" />
-                Source on GitHub
-            </a>
-            <a href="{{ route('features') }}"
-               class="transition-colors hover:text-foreground">Features</a>
-            <a href="{{ route('features.mcp') }}"
-               class="transition-colors hover:text-foreground">MCP</a>
-            <a href="{{ route('pricing') }}"
-               class="transition-colors hover:text-foreground">Pricing</a>
-            <a href="{{ route('docs.index') }}"
-               class="transition-colors hover:text-foreground">Docs</a>
-            <a href="{{ route('blog.index') }}"
-               class="transition-colors hover:text-foreground">Blog</a>
-            <a href="{{ route('tools.index') }}"
-               class="transition-colors hover:text-foreground">Free tools</a>
-            <a href="{{ route('compare.datadog') }}"
-               class="transition-colors hover:text-foreground">vs Datadog</a>
-            <a href="{{ route('styleguide') }}"
-               class="transition-colors hover:text-foreground">Styleguide</a>
-            <a href="{{ route('contact.show') }}"
-               class="transition-colors hover:text-foreground">Contact</a>
-            <a href="{{ route('terms') }}"
-               class="transition-colors hover:text-foreground">Terms</a>
-            <a href="{{ route('privacy') }}"
-               class="transition-colors hover:text-foreground">Privacy</a>
-            <a href="{{ config('bilis.github_url') }}/blob/main/SECURITY.md"
-               class="transition-colors hover:text-foreground"
-               target="_blank"
-               rel="noopener noreferrer">Security</a>
-        </div>
+        <nav class="grid grid-cols-2 gap-x-12 gap-y-8 sm:grid-cols-3" aria-label="Footer">
+            @foreach ($columns as $heading => $links)
+                <div class="flex flex-col gap-2">
+                    <p class="eyebrow text-foreground">{{ $heading }}</p>
+                    @foreach ($links as $link)
+                        <a href="{{ $link['href'] }}"
+                           @if ($link['external'] ?? false) target="_blank" rel="noopener noreferrer" @endif
+                           class="text-sm text-muted-foreground transition-colors hover:text-foreground">{{ $link['label'] }}</a>
+                    @endforeach
+                </div>
+            @endforeach
+        </nav>
     </div>
 
     {{-- Operator identification, as Slovak and EU rules require on a business website. --}}
@@ -60,12 +65,13 @@
         <div @class([
             'mx-auto px-4 py-6 text-xs leading-relaxed text-muted-foreground sm:px-6',
             'max-w-7xl' => $wide,
-            'max-w-5xl' => ! $wide,
+            'max-w-content' => ! $wide,
         ])>
             <p>
                 {{ config('app.name', 'Bilis') }} is operated by
                 <span class="text-foreground">{{ config('legal.operator.name') }}</span>,
                 {{ config('legal.operator.address') }}, {{ config('legal.operator.country') }}.
+                Source-available under FSL-1.1-ALv2.
             </p>
             <p class="mt-1">
                 IČO {{ config('legal.operator.company_id') }} ·

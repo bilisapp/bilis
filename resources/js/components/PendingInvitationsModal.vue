@@ -68,7 +68,7 @@ const declineInvitation = (invitation: DashboardInvitation) => {
 
                     <div class="mt-4 flex justify-end gap-2">
                         <Button
-                            variant="secondary"
+                            variant="outline"
                             data-test="pending-invitation-decline"
                             :disabled="processingCode === invitation.code"
                             @click="declineInvitation(invitation)"

@@ -25,6 +25,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Http/Middleware/SecurityHeaders.php | .ai/rules/middleware.md |
 | app/Models/ProjectApiKey.php | .ai/rules/models.md |
 | resources/js/pages/metrics/** | .ai/rules/pages-metrics.md |
+| resources/js/pages/** | .ai/rules/pages.md |
 | config/plans.php, app/Services/Plans/** | .ai/rules/plans.md |
 | app/Http/Controllers/Project*.php, app/Http/Requests/Projects/** | .ai/rules/projects.md |
 | resources/views/components/public/head.blade.php | .ai/rules/public.md |
