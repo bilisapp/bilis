@@ -6,6 +6,10 @@
  * the same request is made as the visitor types, and only the result region
  * of the answer is swapped in — the server stays the one place the
  * arithmetic lives. The address bar follows, so a result is still a link.
+ *
+ * `data-tool-form="submit"` opts a form out of answering as the visitor
+ * types: its result costs a request to someone else's server, so it is only
+ * made when the button is pressed, and the button stays.
  */
 const DEBOUNCE = 250;
 
@@ -73,6 +77,16 @@ const wire = (form: HTMLFormElement): void => {
             .finally(() => result.removeAttribute('aria-busy'));
     };
 
+    form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        window.clearTimeout(timer);
+        run(event.submitter);
+    });
+
+    if (form.dataset.toolForm === 'submit') {
+        return;
+    }
+
     // The plain submit button is only for readers without JavaScript.
     form.querySelectorAll<HTMLElement>('[data-tool-submit]').forEach(
         (button) => {
@@ -90,12 +104,6 @@ const wire = (form: HTMLFormElement): void => {
             window.clearTimeout(timer);
             run(null);
         }
-    });
-
-    form.addEventListener('submit', (event) => {
-        event.preventDefault();
-        window.clearTimeout(timer);
-        run(event.submitter);
     });
 };
 

@@ -36,6 +36,11 @@ final class ToolCatalog
                 'name' => 'Timestamp converter',
                 'summary' => 'Unix seconds, milliseconds, microseconds and nanoseconds to dates and back — OTLP and ClickHouse formats included.',
             ],
+            [
+                'route' => 'tools.crawler-view',
+                'name' => 'See a page without JavaScript',
+                'summary' => 'Fetch any page the way a crawler does and read what arrives before a script runs: text, headings, links and meta tags.',
+            ],
         ];
     }
 

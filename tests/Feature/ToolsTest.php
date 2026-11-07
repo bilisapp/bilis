@@ -8,7 +8,8 @@ it('lists every tool on the index', function () {
         ->assertSee(route('tools.log-cost'), false)
         ->assertSee(route('tools.log-levels'), false)
         ->assertSee(route('tools.traceparent'), false)
-        ->assertSee(route('tools.timestamp'), false);
+        ->assertSee(route('tools.timestamp'), false)
+        ->assertSee(route('tools.crawler-view'), false);
 });
 
 it('renders every tool without inertia and with structured data', function (string $route) {
@@ -21,7 +22,7 @@ it('renders every tool without inertia and with structured data', function (stri
         ->toContain('data-tool-form')
         ->toContain('data-tool-result')
         ->toContain('<link rel="canonical" href="'.route($route).'">');
-})->with(['tools.log-cost', 'tools.log-levels', 'tools.traceparent', 'tools.timestamp']);
+})->with(['tools.log-cost', 'tools.log-levels', 'tools.traceparent', 'tools.timestamp', 'tools.crawler-view']);
 
 it('computes the cost estimate on the server from the query string', function () {
     get(route('tools.log-cost', ['eps' => 1000, 'size' => 500, 'ingest' => 0.10, 'index' => 1.70, 'retention' => 15, 'ratio' => 10]))

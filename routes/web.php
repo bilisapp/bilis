@@ -7,6 +7,7 @@ use App\Http\Controllers\Autofix\FixJobStreamTokenController;
 use App\Http\Controllers\Autofix\LogFixJobController;
 use App\Http\Controllers\AutofixController;
 use App\Http\Controllers\BlogController;
+use App\Http\Controllers\CompareController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocsApiKeyController;
@@ -87,7 +88,14 @@ Route::prefix('tools')->name('tools.')->controller(ToolsController::class)->grou
     Route::get('log-levels', 'logLevels')->name('log-levels');
     Route::get('traceparent', 'traceparent')->name('traceparent');
     Route::get('timestamp-converter', 'timestamp')->name('timestamp');
+    Route::get('crawler-view', 'crawlerView')->name('crawler-view');
 });
+
+/*
+ * Head-to-head comparisons, one named product per page. `compare` is a
+ * reserved team name through the route prefix.
+ */
+Route::get('compare/datadog', [CompareController::class, 'datadog'])->name('compare.datadog');
 
 Route::get('sitemap.xml', [SitemapController::class, 'sitemap'])->name('sitemap');
 Route::get('robots.txt', [SitemapController::class, 'robots'])->name('robots');

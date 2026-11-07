@@ -146,6 +146,7 @@ WHERE table = 'otel_logs'</code></pre>
             the rate and in steps you buy once. That difference is the reason
             <a href="{{ route('home') }}">Bilis</a> exists: OpenTelemetry logs, traces and metrics on your own box,
             with no per-gigabyte line on any bill.
+            <a href="{{ route('compare.datadog') }}">How Bilis compares to Datadog</a>, limits included.
         </p>
     </x-slot:explainer>
 </x-tools.page>

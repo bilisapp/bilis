@@ -38,6 +38,8 @@
                class="transition-colors hover:text-foreground">Blog</a>
             <a href="{{ route('tools.index') }}"
                class="transition-colors hover:text-foreground">Free tools</a>
+            <a href="{{ route('compare.datadog') }}"
+               class="transition-colors hover:text-foreground">vs Datadog</a>
             <a href="{{ route('styleguide') }}"
                class="transition-colors hover:text-foreground">Styleguide</a>
             <a href="{{ route('contact.show') }}"

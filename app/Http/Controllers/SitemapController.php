@@ -25,6 +25,7 @@ class SitemapController extends Controller
             route('features.mcp'),
             route('pricing'),
             route('contact.show'),
+            route('compare.datadog'),
             route('tools.index'),
             ...array_map(fn (array $tool): string => route($tool['route']), ToolCatalog::all()),
             route('blog.index'),
