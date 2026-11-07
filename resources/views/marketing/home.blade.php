@@ -42,8 +42,8 @@
 
             <div class="mt-10 grid gap-8 border-t border-foreground/15 pt-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start dark:border-foreground/20">
                 <p class="max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-                    When something breaks, the answer is already in your telemetry. Bilis keeps your logs,
-                    traces and metrics on hardware you own, with no per-gigabyte bill, and gets you from
+                    Bilis keeps your logs, traces and metrics on hardware you own, with no per-gigabyte
+                    bill, and gets you from
                     “something is wrong” to the exact line or span that explains it in seconds. Your
                     coding agent gets the same view: connect Claude Code, Cursor or any MCP client in one
                     line, and it can search production while it works in the code that produced it.
@@ -74,11 +74,6 @@
 
         {{-- The stream itself, tailing. Not a picture of one. --}}
         <figure class="relative mx-auto max-w-5xl px-6 pb-16 sm:pb-24">
-            <figcaption class="mb-3 flex items-center justify-between gap-4 border-t border-foreground/15 pt-3 font-mono text-[11px] tracking-[0.14em] text-muted-foreground uppercase dark:border-foreground/20">
-                <span>Live proof, not a mockup</span>
-                <span class="hidden text-right sm:block">Illustrative data · running in the page</span>
-            </figcaption>
-
             @include('marketing.partials.live-tail')
         </figure>
     </section>
@@ -154,9 +149,9 @@
                         Works with the stack you already run.
                     </h2>
                     <p class="mt-5 text-sm leading-relaxed text-muted-foreground">
-                        If your tooling speaks OpenTelemetry — and most already does — sending logs and
-                        traces to Bilis is a configuration change, not a project. No agents to deploy, no
-                        SDK to adopt, nothing to rewrite.
+                        If your services already export OpenTelemetry, sending logs, traces and metrics
+                        to Bilis means pointing the exporter at a new endpoint and adding a key. The code
+                        stays as it is.
                     </p>
                     <p class="mt-4 text-sm leading-relaxed text-muted-foreground">
                         Plain JSON covers everything else. Existing Sentry SDKs can report straight to
@@ -203,8 +198,8 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs</pre>
             </div>
 
             <p class="mt-5 border-t border-border pt-4 text-xs leading-relaxed text-muted-foreground lg:ml-[41.666667%]">
-                Ingest never blames the client: malformed records are skipped with a count rather than
-                failing the batch. Writes are queued asynchronously, so a success means accepted, not yet durable.
+                A malformed record is skipped and counted, and the rest of the batch is still accepted.
+                Writes are queued, so a 202 means accepted, not yet on disk.
             </p>
 
             <div class="mt-16 grid gap-10 border-t border-border pt-12 lg:grid-cols-12">
@@ -213,7 +208,7 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs</pre>
                     <p class="mt-3 text-sm leading-relaxed text-muted-foreground">
                         Claude Code speaks OpenTelemetry out of the box. A few lines of configuration put
                         every prompt, tool call, token and dollar it spends beside the application it is
-                        editing — no plugin, nothing in between.
+                        editing. No plugin, no proxy.
                     </p>
                     <a href="{{ route('docs.show', ['section' => 'ingestion', 'page' => 'claude-code']) }}"
                        class="mt-4 inline-block text-sm font-medium underline underline-offset-4 hover:text-foreground">
@@ -227,7 +222,7 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs</pre>
                             <h3 class="text-lg font-semibold tracking-tight">One key, one project</h3>
                             <p class="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
                                 Revocable in a click, and useless for anything but writing telemetry to
-                                that project. Access stays under your thumb.
+                                that project.
                             </p>
                         </div>
                     </div>
@@ -268,19 +263,19 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs</pre>
                     <dt class="text-base font-semibold tracking-tight">Your data never leaves the building</dt>
                     <dd class="mt-2 text-sm leading-relaxed text-muted-foreground">
                         You own the box, so you own the logs — all of them, for as long as your disk
-                        allows. Retention costs storage you already pay for, not a metered bill that
-                        punishes a noisy deploy.
+                        allows. Retention costs the disk you already pay for, and a noisy deploy never
+                        shows up on an invoice.
                     </dd>
                 </div>
                 <div class="py-6">
                     <dt class="text-base font-semibold tracking-tight">Small enough to run yourself</dt>
                     <dd class="mt-2 text-sm leading-relaxed text-muted-foreground">
-                        One app and one database is the entire deployment — a stack you can hold in
-                        your head, deploy in an afternoon, and keep healthy without a platform team.
+                        The whole deployment is one app and one database. You can set it up in an
+                        afternoon and keep it healthy without a platform team.
                     </dd>
                 </div>
                 <div class="py-6 last:pb-0 lg:last:pb-6">
-                    <dt class="text-base font-semibold tracking-tight">Open, so you're never stuck</dt>
+                    <dt class="text-base font-semibold tracking-tight">Nothing to migrate away from</dt>
                     <dd class="mt-2 text-sm leading-relaxed text-muted-foreground">
                         Standard OpenTelemetry in, standard tables underneath. Your scripts, queries
                         and AI tools work on the data today, and walking away is a SELECT, not a migration.
@@ -298,13 +293,13 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs</pre>
         <div class="mx-auto max-w-5xl px-6 py-20 sm:py-28">
             <div class="grid gap-8 sm:grid-cols-12 sm:items-end">
                 <h2 class="text-3xl leading-tight font-semibold tracking-[-0.035em] text-balance sm:col-span-7 sm:text-5xl">
-                    Logs. Traces. Metrics.<br>
-                    Then software that acts.
+                    Logs, traces and metrics today.<br>
+                    Alerting next.
                 </h2>
                 <p class="text-sm leading-relaxed text-muted-foreground sm:col-span-4 sm:col-start-9">
-                    Bilis keeps logs, traces and metrics on your box today, with logs and traces linked
-                    so each explains the other. The direction is alerting and AI that helps fix what the
-                    signals reveal. Self-hosting stays first-class through all of it.
+                    Logs and traces link in both directions, your coding agent reads all three over MCP,
+                    and Autofix hands an error to an agent with the failing trace attached. Alerting is
+                    the next piece. Self-hosting stays first-class through all of it.
                 </p>
             </div>
 
@@ -318,8 +313,10 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs</pre>
                             'Distributed traces drawn as a span waterfall',
                             'Logs and traces linked in both directions',
                             'OTLP metrics, charted as rates, levels and percentiles',
+                            'An MCP server, so coding agents can search all of it',
+                            'Autofix: an agent drafts the fix, with the failing trace attached',
                             'Live tail, teams, projects, and revocable keys',
-                            'Open, portable telemetry tables',
+                            'Standard OpenTelemetry tables you can query directly',
                         ] as $item)
                             <li class="py-3 text-sm">{{ $item }}</li>
                         @endforeach
@@ -331,14 +328,13 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs</pre>
                     <ul class="mt-4 divide-y divide-border border-y border-border text-muted-foreground">
                         @foreach ([
                             'Alerting, so the stack tells you when to look',
-                            'Dashboards and saved searches',
-                            'AI that spots, explains, and helps fix errors',
                         ] as $item)
                             <li class="py-3 text-sm">{{ $item }}</li>
                         @endforeach
                     </ul>
                     <p class="mt-4 text-xs leading-relaxed text-muted-foreground">
-                        eBPF collection, S3 tiering, and replication stay a bigger platform's job.
+                        eBPF collection, S3 tiering, replication and OTLP over gRPC stay a bigger
+                        platform's job.
                     </p>
                 </div>
             </div>
@@ -356,14 +352,14 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://bilis.app/api/v1/logs</pre>
             <div class="lg:col-span-4 lg:col-start-9">
                 <p class="text-sm leading-relaxed text-muted-foreground">
                     Run it on your own box today, or sign up on bilis.app — the Free plan has
-                    published limits and no card. Self-hosting stays the first-class way to use
-                    Bilis. <a href="{{ route('pricing') }}"
+                    published limits and no card. Self-hosting is free, has no plan, and stays the
+                    first-class way to use Bilis. <a href="{{ route('pricing') }}"
                        class="underline underline-offset-2 transition-colors hover:text-foreground">See
                         pricing</a>.
                 </p>
                 <p class="mt-4 text-sm leading-relaxed text-muted-foreground">
-                    The whole thing is open on GitHub, so you can read exactly what it does with your
-                    telemetry before you point anything at it.
+                    The source is on GitHub, so you can read exactly what it does with your telemetry
+                    before you point anything at it.
                 </p>
 
                 <div class="mt-8 flex flex-wrap items-center gap-3">
