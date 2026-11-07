@@ -549,8 +549,9 @@ const firstSeen = computed(() =>
                     data-test="issue-events-expired"
                 >
                     This issue's events are older than the 30 days events are
-                    kept, so there is no stack to show. Its counts are kept for
-                    90 days.
+                    kept, so there is no stack trace or context to show. Its
+                    summary above — type, message, origin, counts and releases —
+                    is kept for as long as the issue exists.
                 </p>
 
                 <template v-if="row">
