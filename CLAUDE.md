@@ -4,7 +4,7 @@ Self-hostable log, trace **and metric** storage and search. **v1 is feature-comp
 
 ## Stack
 
-- Laravel 13 (PHP 8.4) + Inertia v3 + Vue 3 + Tailwind v4 (shadcn-vue), Pest, SQLite app DB.
+- Laravel 13 (PHP 8.4) + Inertia v3 + Vue 3 + Tailwind v4 (shadcn-vue), Pest. App DB is **PostgreSQL** in production (everything except logs, traces and metrics); tests run on in-memory SQLite (`phpunit.xml`) and `.env.example`/`docker-compose.yml` still default to SQLite, so keep app-DB code portable across both.
 - **ClickHouse** stores the logs, traces and metrics — accessed over its HTTP interface via `App\Services\ClickHouse\ClickHouseClient` (Laravel `Http` facade, **no ClickHouse composer package — keep it that way**). Config: `config/clickhouse.php` / `CLICKHOUSE_*` env vars.
 - Deploy target: Traefik via Coolify on one OVH dedicated box, Octane/FrankenPHP.
 

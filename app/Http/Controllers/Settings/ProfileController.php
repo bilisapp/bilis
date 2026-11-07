@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class ProfileController extends Controller
 {
@@ -46,7 +47,7 @@ class ProfileController extends Controller
     /**
      * Delete the user's profile.
      */
-    public function destroy(ProfileDeleteRequest $request): RedirectResponse
+    public function destroy(ProfileDeleteRequest $request): SymfonyResponse
     {
         $user = $request->user();
 
@@ -57,6 +58,6 @@ class ProfileController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect('/');
+        return Inertia::location(route('home'));
     }
 }
