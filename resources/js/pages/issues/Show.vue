@@ -23,6 +23,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
     contextSections,
     DECISION_LABEL,
+    displayLocation,
     eventBreadcrumbs,
     eventCauses,
     eventFrames,
@@ -261,7 +262,7 @@ const firstSeen = computed(() =>
                             <span
                                 class="truncate font-mono"
                                 :title="issue.origin"
-                                >{{ issue.origin }}</span
+                                >{{ displayLocation(issue.origin) }}</span
                             >
                         </template>
                     </p>
@@ -366,7 +367,11 @@ const firstSeen = computed(() =>
                 <TraceFact
                     label="Events"
                     :value="formatCount(issue.events)"
-                    :detail="issue.events.toLocaleString()"
+                    :detail="
+                        issue.events >= 1_000
+                            ? issue.events.toLocaleString()
+                            : undefined
+                    "
                     mono
                 />
                 <TraceFact
@@ -770,13 +775,15 @@ const firstSeen = computed(() =>
                                             }}
                                         </Link>
                                     </td>
-                                    <td class="px-2 py-1.5">
+                                    <td class="px-2 py-1.5 whitespace-nowrap">
                                         {{ summary.serviceName || '—' }}
                                     </td>
-                                    <td class="px-2 py-1.5 font-mono">
+                                    <td
+                                        class="px-2 py-1.5 font-mono whitespace-nowrap"
+                                    >
                                         {{ summary.release || '—' }}
                                     </td>
-                                    <td class="px-2 py-1.5">
+                                    <td class="px-2 py-1.5 whitespace-nowrap">
                                         {{ summary.environment || '—' }}
                                     </td>
                                     <td

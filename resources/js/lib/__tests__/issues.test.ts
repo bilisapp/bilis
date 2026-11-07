@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     contextSections,
+    displayLocation,
     eventBreadcrumbs,
     eventCauses,
     eventFrames,
@@ -485,5 +486,36 @@ describe('chained exceptions printed cause-first', () => {
             type: 'java.io.IOException',
             origin: 'B.java:2',
         });
+    });
+});
+
+describe('custom contexts', () => {
+    it('gives each custom context a panel of its own', () => {
+        const event = entry({
+            'context.order.id': 'ord_1',
+            'context.order.total': '129.9',
+            'user.id': '42',
+        });
+
+        expect(contextSections(event)).toEqual([
+            { title: 'User', values: [['user.id', '42']] },
+            {
+                title: 'Order',
+                values: [
+                    ['id', 'ord_1'],
+                    ['total', '129.9'],
+                ],
+            },
+        ]);
+        expect(remainingAttributes(event)).toEqual([]);
+    });
+
+    it('drops the scheme and host from a browser frame for display', () => {
+        expect(
+            displayLocation('http://127.0.0.1:8777/js/cart.js:8 cartSummary()'),
+        ).toBe('/js/cart.js:8 cartSummary()');
+        expect(displayLocation('app/Payments/Charge.php:41')).toBe(
+            'app/Payments/Charge.php:41',
+        );
     });
 });

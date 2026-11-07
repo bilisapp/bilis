@@ -573,6 +573,15 @@ export function frameLocation(stackFrame: StackFrame): string {
     return parts.join(':');
 }
 
+/**
+ * A location as it reads best on screen: a browser frame's file is a full
+ * URL, and its scheme and host repeat on every line, so they are dropped.
+ * The full value stays available (titles, copy, raw view).
+ */
+export function displayLocation(location: string): string {
+    return location.replace(/\b[a-z][a-z0-9+.-]*:\/\/[^/\s]+(?=\/)/gi, '');
+}
+
 /** A frame has source to show when the SDK sent its context lines. */
 export function hasContext(stackFrame: StackFrame): boolean {
     return stackFrame.contextLine !== null;
@@ -759,12 +768,39 @@ export function contextSections(
 ): { title: string; values: [string, string][] }[] {
     const attributes = mergedAttributes(entry);
 
-    return CONTEXT_SECTIONS.map((section) => ({
+    const fixed = CONTEXT_SECTIONS.map((section) => ({
         title: section.title,
         values: section.keys
             .filter((key) => (attributes[key] ?? '') !== '')
             .map((key): [string, string] => [key, attributes[key]]),
-    })).filter((section) => section.values.length > 0);
+    }));
+
+    /*
+     * The application's own contexts (`setContext('order', …)` arrives as
+     * `context.order.*`), one panel each, titled by the name it was set under.
+     */
+    const custom = new Map<string, [string, string][]>();
+
+    for (const [key, value] of Object.entries(attributes).sort(([a], [b]) =>
+        a.localeCompare(b),
+    )) {
+        const match = /^context\.([^.]+)\.(.+)$/.exec(key);
+
+        if (match && value !== '') {
+            custom.set(match[1], [
+                ...(custom.get(match[1]) ?? []),
+                [match[2], value],
+            ]);
+        }
+    }
+
+    return [
+        ...fixed,
+        ...[...custom.entries()].map(([name, values]) => ({
+            title: name.charAt(0).toUpperCase() + name.slice(1),
+            values,
+        })),
+    ].filter((section) => section.values.length > 0);
 }
 
 /**
@@ -790,7 +826,8 @@ export function remainingAttributes(
             ([key]) =>
                 !RENDERED_ELSEWHERE.has(key) &&
                 !shown.has(key) &&
-                !key.startsWith('tag.'),
+                !key.startsWith('tag.') &&
+                !key.startsWith('context.'),
         )
         .sort(([a], [b]) => a.localeCompare(b));
 }

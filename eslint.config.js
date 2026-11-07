@@ -77,6 +77,9 @@ export default defineConfigWithVueTs(
             'vendor',
             // A separate Remotion project with its own toolchain and tsconfig.
             'video/**',
+            // A static demo page for the envelope ingest; plain browser scripts
+            // using the SDK's CDN global, outside the app's toolchain.
+            'examples/**',
             'node_modules',
             'public',
             'bootstrap/ssr',

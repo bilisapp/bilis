@@ -10,6 +10,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | config/legal.php, config/opentelemetry.php | .ai/rules/config.md |
 | resources/css/app.css | .ai/rules/css.md |
 | app/Services/Ingest/Envelope/** | .ai/rules/envelope-ingest.md |
+| examples/** | .ai/rules/examples.md |
 | docker-entrypoint.sh, docker-healthcheck.sh | .ai/rules/general.md |
 | app/Services/Ingest/**, app/Services/Ingest/OtlpResponse.php | .ai/rules/ingest.md |
 | resources/install/**, app/Http/Controllers/InstallScriptController.php | .ai/rules/install.md |

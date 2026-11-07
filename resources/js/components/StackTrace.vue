@@ -3,7 +3,12 @@ import { ChevronRight, Copy, Check } from '@lucide/vue';
 import { useClipboard } from '@vueuse/core';
 import { computed, ref, watch } from 'vue';
 import CodeCanvas from '@/components/CodeCanvas.vue';
-import { frameLocation, groupFrames, hasContext } from '@/lib/issues';
+import {
+    displayLocation,
+    frameLocation,
+    groupFrames,
+    hasContext,
+} from '@/lib/issues';
 import { cn } from '@/lib/utils';
 import type { StackFrame } from '@/types';
 
@@ -250,7 +255,7 @@ const { copy, copied } = useClipboard({ copiedDuring: 1_500, legacy: true });
                                 "
                                 :title="frameLocation(item.frame)"
                             >
-                                {{ frameLocation(item.frame) }}
+                                {{ displayLocation(frameLocation(item.frame)) }}
                             </span>
                             <span
                                 v-if="item.frame.function"

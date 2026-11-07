@@ -110,3 +110,20 @@ test('a frame the sdk did not classify keeps its source and leaves the call to t
     expect($frame)->not->toHaveKey('in_app')
         ->and($frame['context_line'])->toBe('  return cart.total.amount;');
 });
+
+test('custom contexts are kept under context.<name>, and mapped ones are not repeated', function () {
+    $event = sdkEvent(['contexts' => [
+        'order' => ['id' => 'ord_1', 'total' => 129.9, 'paid' => false, 'items' => ['TEE-01']],
+        'trace' => ['trace_id' => '5b8efff798038103d269b633813fc60c'],
+    ]]);
+
+    $attributes = (new ErrorEventMapper)->map([$event], '1')->rows[0]['LogAttributes'];
+
+    expect($attributes)->toMatchArray([
+        'context.order.id' => 'ord_1',
+        'context.order.total' => '129.9',
+        'context.order.paid' => 'false',
+        'context.order.items' => '["TEE-01"]',
+        'os.name' => 'macOS',
+    ])->and(array_filter(array_keys($attributes), fn (string $key): bool => str_starts_with($key, 'context.trace.') || str_starts_with($key, 'context.os.')))->toBe([]);
+});

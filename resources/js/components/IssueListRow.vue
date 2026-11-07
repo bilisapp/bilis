@@ -3,7 +3,12 @@ import { Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import DitherSparkline from '@/components/DitherSparkline.vue';
 import IssueStatusBadge from '@/components/IssueStatusBadge.vue';
-import { formatCount, isoFromMs, issueHref } from '@/lib/issues';
+import {
+    displayLocation,
+    formatCount,
+    isoFromMs,
+    issueHref,
+} from '@/lib/issues';
 import { formatRelativeTime } from '@/lib/logs';
 import { cn } from '@/lib/utils';
 import type { IssueListItem } from '@/types';
@@ -105,7 +110,7 @@ const firstSeen = computed(() =>
                 <template v-if="issue.origin">
                     <span aria-hidden="true">·</span>
                     <span class="truncate font-mono" :title="issue.origin">
-                        {{ issue.origin }}
+                        {{ displayLocation(issue.origin) }}
                     </span>
                 </template>
                 <template v-if="issue.lastRelease">

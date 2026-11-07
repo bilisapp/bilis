@@ -51,6 +51,21 @@ class ErrorEventMapper
     private const MAX_CHAIN = 5;
 
     /**
+     * Contexts the mapper already reads under OpenTelemetry names, or that are
+     * not context at all (the trace ids are columns).
+     *
+     * @var list<string>
+     */
+    private const MAPPED_CONTEXTS = ['trace', 'runtime', 'os', 'browser', 'device'];
+
+    /**
+     * The most custom contexts, and values per context, an event keeps.
+     */
+    private const MAX_CONTEXTS = 10;
+
+    private const MAX_CONTEXT_VALUES = 20;
+
+    /**
      * Map a batch of decoded error events for the given project.
      *
      * The project id is the one the public key authenticated to, never the one
@@ -290,6 +305,28 @@ class ErrorEventMapper
 
             foreach ($fields as $field => $key) {
                 $this->put($attributes, $key, $this->scalar($values[$field] ?? null));
+            }
+        }
+
+        /*
+         * Custom contexts (`setContext('order', {...})`) are the application's
+         * own description of the failure, so they are kept — scalar values
+         * under `context.<name>.<key>`, a nested value as its JSON, both
+         * capped. The ones above are already mapped to OTel names.
+         */
+        $contexts = 0;
+
+        foreach ($this->object($event['contexts'] ?? null) as $name => $values) {
+            if (in_array($name, self::MAPPED_CONTEXTS, true) || ! is_array($values) || array_is_list($values)) {
+                continue;
+            }
+
+            if (++$contexts > self::MAX_CONTEXTS) {
+                break;
+            }
+
+            foreach (array_slice($values, 0, self::MAX_CONTEXT_VALUES, true) as $key => $value) {
+                $this->put($attributes, "context.{$name}.{$key}", $this->line($this->scalar($value), 500));
             }
         }
 
