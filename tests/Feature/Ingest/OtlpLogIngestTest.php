@@ -92,7 +92,11 @@ test('a valid otlp export inserts correctly shaped rows', function () {
                 'SeverityNumber', 'ServiceName', 'Body', 'ResourceSchemaUrl',
                 'ResourceAttributes', 'ScopeSchemaUrl', 'ScopeName', 'ScopeVersion',
                 'ScopeAttributes', 'LogAttributes', 'EventName', 'ProjectId',
+                // Written by LogWriter, not the mapper: "Payment failed" names
+                // no exception and carries no stack, so it is not an issue.
+                'IssueFingerprint',
             ])
+            ->and($rows[0]['IssueFingerprint'])->toBe('')
             ->and($rows[0]['ScopeAttributes'])->toBe(['library.mode' => 'auto'])
             ->and($rows[0]['ResourceAttributes'])->toBe([
                 'service.name' => 'checkout',

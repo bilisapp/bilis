@@ -29,6 +29,15 @@ const props = withDefaults(
         maxHeight?: string;
         /** Hide the per-file header strip. */
         hideHeader?: boolean;
+        /**
+         * The real line number of the first line of `code`, for an excerpt.
+         *
+         * A stack frame's context is five lines either side of line 41, and
+         * numbering them 1–11 would point a reader at the wrong place.
+         */
+        startLine?: number | null;
+        /** One line of `code` to select, by its real number. */
+        highlightLine?: number | null;
     }>(),
     {
         patch: null,
@@ -37,6 +46,8 @@ const props = withDefaults(
         diffStyle: 'unified',
         maxHeight: '32rem',
         hideHeader: false,
+        startLine: null,
+        highlightLine: null,
     },
 );
 
@@ -78,6 +89,8 @@ const renderKey = computed(() =>
         props.code ?? '',
         props.filename,
         props.diffStyle,
+        props.startLine ?? '',
+        props.highlightLine ?? '',
         appearance.value,
     ].join('\u0000'),
 );
@@ -111,6 +124,55 @@ function renderPatch(
             // plain element with no shadow root, so none of the library's
             // layout CSS applies and the gutter stacks above the code.
             instance.render({ fileDiff, containerWrapper: target });
+            created.push(instance);
+        }
+    }
+
+    instances.value = created;
+}
+
+/**
+ * An excerpt numbered from `startLine`: rendered as a hunk of context lines.
+ *
+ * The file view always numbers from one, while a hunk header carries its own
+ * starting line — and a hunk of nothing but context renders as plain code
+ * with no add/remove tint. The highlighted line is a line selection, the
+ * library's own affordance for pointing at one line.
+ */
+function renderExcerpt(
+    diffs: DiffsModule,
+    target: HTMLElement,
+    options: CodeOptions,
+) {
+    const start = props.startLine ?? 1;
+    const lines = (props.code ?? '').split('\n');
+    const patch = [
+        `--- a/${props.filename}`,
+        `+++ b/${props.filename}`,
+        `@@ -${start},${lines.length} +${start},${lines.length} @@`,
+        ...lines.map((line) => ` ${line}`),
+        '',
+    ].join('\n');
+
+    const created: DisposableCode[] = [];
+
+    for (const parsed of diffs.parsePatchFiles(patch)) {
+        for (const fileDiff of parsed.files) {
+            const instance = new diffs.FileDiff({
+                ...options,
+                diffStyle: 'unified',
+            });
+
+            instance.render({ fileDiff, containerWrapper: target });
+
+            if (props.highlightLine !== null) {
+                instance.setSelectedLines({
+                    start: props.highlightLine,
+                    end: props.highlightLine,
+                    side: 'additions',
+                });
+            }
+
             created.push(instance);
         }
     }
@@ -164,6 +226,8 @@ async function render() {
 
         if (props.patch) {
             renderPatch(diffs, target, options);
+        } else if (typeof props.code === 'string' && props.startLine !== null) {
+            renderExcerpt(diffs, target, options);
         } else if (typeof props.code === 'string') {
             renderFile(diffs, target, options);
         }

@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import ChartCanvas from '@/components/ChartCanvas.vue';
 import DitherSparkline from '@/components/DitherSparkline.vue';
+import IssueHistogram from '@/components/IssueHistogram.vue';
 import { useChartTokens } from '@/composables/useChartTokens';
 import type { BilisChartOption } from '@/lib/echarts';
 import { SEVERITY_LEVELS } from '@/lib/logs';
@@ -11,6 +12,7 @@ import {
     CHART_SWATCHES,
     CHART_VOLUME_BY_SEVERITY,
     CHART_VOLUME_DAYS,
+    demoIssueHistograms,
     SPARKLINE_ERRORS_24H,
     SPARKLINE_HOUR_LABELS,
     SPARKLINE_UTC_HOUR_LABELS,
@@ -133,6 +135,8 @@ const SPARKLINE_SERVICES = [
         quiet: true,
     },
 ];
+
+const issueHistograms = demoIssueHistograms();
 </script>
 
 <template>
@@ -246,6 +250,15 @@ const SPARKLINE_SERVICES = [
                         </span>
                     </li>
                 </ul>
+            </div>
+        </DemoBlock>
+
+        <DemoBlock
+            title="IssueHistogram"
+            description="How often one issue has happened, by the hour over a day or by the day over thirty. Every event of an issue is an exception, so the bars are error data and wear --severity-error, the same family the log viewer's error bars use. The tooltip carries users as well as events: a thousand events from one user and a thousand from a thousand are different incidents."
+        >
+            <div class="max-w-sm">
+                <IssueHistogram :histogram="issueHistograms" />
             </div>
         </DemoBlock>
 

@@ -1,5 +1,6 @@
 export * from './auth';
 export * from './autofix';
+export * from './issues';
 export * from './logs';
 export * from './metrics';
 export * from './navigation';

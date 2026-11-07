@@ -26,6 +26,12 @@ use Illuminate\Support\Carbon;
  * @phpstan-type ErrorSampleResult array{rows: list<LogRow>, unavailable: bool}
  * @phpstan-type HistogramBucket array{bucket: string, counts: array<string, int>, total: int}
  * @phpstan-type HistogramResult array{buckets: list<HistogramBucket>, intervalSeconds: int, total: int, unavailable: bool}
+ * @phpstan-type IssueEventResult array{row: LogRow|null, hasOlder: bool, hasNewer: bool, unavailable: bool}
+ * @phpstan-type IssueEventSummary array{timestamp: string, eventId: string, serviceName: string, traceId: string, release: string, environment: string, user: string, message: string}
+ * @phpstan-type IssueEventListResult array{rows: list<IssueEventSummary>, unavailable: bool}
+ * @phpstan-type IssueTagValue array{value: string, count: int}
+ * @phpstan-type IssueTag array{key: string, total: int, values: list<IssueTagValue>}
+ * @phpstan-type IssueTagResult array{tags: list<IssueTag>, unavailable: bool}
  */
 class LogQuery
 {
@@ -87,6 +93,41 @@ class LogQuery
      * shows up a minute late, which is the right trade for a list of names.
      */
     private const SERVICE_CACHE_SECONDS = 60;
+
+    /**
+     * The tags the issue page breaks an issue's events down by.
+     *
+     * `service.name` and `user` are derived (the column, and the first
+     * non-empty identity); the rest are attribute keys, read from the log
+     * record first and the resource second.
+     *
+     * @var list<string>
+     */
+    public const ISSUE_TAG_KEYS = [
+        'deployment.environment',
+        'service.version',
+        'service.name',
+        'host.name',
+        'user',
+        'http.request.method',
+        'browser.name',
+        'os.name',
+        'process.runtime.name',
+        'telemetry.sdk.name',
+    ];
+
+    /**
+     * How many values each tag lists.
+     */
+    private const ISSUE_TAG_VALUES = 5;
+
+    /**
+     * Who an event happened to: the first non-empty identity attribute.
+     *
+     * Matches the expression issue_summary_mv and issue_hourly_mv count users
+     * with, so "312 users" in the header and the user tag agree.
+     */
+    private const ISSUE_USER_EXPRESSION = "multiIf(LogAttributes['user.id'] != '', LogAttributes['user.id'], LogAttributes['enduser.id'] != '', LogAttributes['enduser.id'], LogAttributes['user.email'] != '', LogAttributes['user.email'], LogAttributes['user.ip'])";
 
     public function __construct(
         private readonly ClickHouseClient $client,
@@ -471,6 +512,251 @@ class LogQuery
     }
 
     /**
+     * Fetch one event of an issue, and whether it has older and newer siblings.
+     *
+     * The events of an issue are ordinary log rows carrying its
+     * IssueFingerprint, so this is the R4 read with one more predicate: the
+     * base comes from `conditions()` (ProjectId plus a plain Timestamp range),
+     * and the fingerprint narrows it through `idx_issue_fingerprint`. The
+     * window is the issue's own first/last seen, so the read never scans past
+     * the days the issue actually occurred on.
+     *
+     * `$position` picks the event: `latest`, `oldest`, `at` (exactly
+     * `$anchor`), `older` (the newest before `$anchor`) or `newer` (the oldest
+     * after it). A position that finds nothing falls back to the latest event
+     * rather than an empty page.
+     *
+     * @return IssueEventResult
+     */
+    public function issueEvent(
+        string $projectId,
+        string $fingerprint,
+        Carbon $from,
+        Carbon $to,
+        string $position = 'latest',
+        ?string $anchor = null,
+    ): array {
+        $empty = ['row' => null, 'hasOlder' => false, 'hasNewer' => false, 'unavailable' => false];
+
+        if ($projectId === '' || $fingerprint === '') {
+            return $empty;
+        }
+
+        [$conditions, $params] = $this->conditions([$projectId], new LogFilters(from: $from, to: $to), withUserFilters: false);
+        $conditions[] = 'IssueFingerprint = {fingerprint:String}';
+        $params['fingerprint'] = $fingerprint;
+        $params['rowLimit'] = 1;
+
+        $ascending = false;
+
+        if ($anchor !== null && in_array($position, ['at', 'older', 'newer'], true)) {
+            $conditions[] = match ($position) {
+                'at' => 'Timestamp = {anchor:DateTime64(9)}',
+                'older' => 'Timestamp < {anchor:DateTime64(9)}',
+                default => 'Timestamp > {anchor:DateTime64(9)}',
+            };
+            $params['anchor'] = $anchor;
+            $ascending = $position === 'newer';
+        } elseif ($position === 'oldest') {
+            $ascending = true;
+        }
+
+        $rows = $this->run($conditions, $params, $ascending);
+
+        if ($rows === null) {
+            return [...$empty, 'unavailable' => true];
+        }
+
+        if ($rows === [] && $anchor !== null) {
+            return $this->issueEvent($projectId, $fingerprint, $from, $to);
+        }
+
+        $row = $rows[0] ?? null;
+
+        if ($row === null) {
+            return $empty;
+        }
+
+        [$siblingConditions, $siblingParams] = $this->conditions([$projectId], new LogFilters(from: $from, to: $to), withUserFilters: false);
+        $siblingConditions[] = 'IssueFingerprint = {fingerprint:String}';
+        $siblingParams['fingerprint'] = $fingerprint;
+        $siblingParams['current'] = $row['timestamp'];
+
+        try {
+            $siblings = $this->client->select(sprintf(
+                'SELECT countIf(Timestamp < {current:DateTime64(9)}) > 0 AS HasOlder, countIf(Timestamp > {current:DateTime64(9)}) > 0 AS HasNewer FROM otel_logs WHERE %s',
+                implode(' AND ', $siblingConditions),
+            ), $siblingParams);
+        } catch (ClickHouseException $exception) {
+            if (! $exception->isOverload()) {
+                throw $exception;
+            }
+
+            report($exception);
+            $siblings = [];
+        }
+
+        return [
+            'row' => $row,
+            'hasOlder' => (bool) ($siblings[0]['HasOlder'] ?? false),
+            'hasNewer' => (bool) ($siblings[0]['HasNewer'] ?? false),
+            'unavailable' => false,
+        ];
+    }
+
+    /**
+     * The most recent events of an issue, as thin rows for the events table.
+     *
+     * Only the handful of attributes the table shows are projected: an
+     * envelope event's attribute map carries its structured frames, and fifty
+     * of those would be megabytes nobody reads.
+     *
+     * @return IssueEventListResult
+     */
+    public function issueEvents(string $projectId, string $fingerprint, Carbon $from, Carbon $to, int $limit = 50): array
+    {
+        if ($projectId === '' || $fingerprint === '') {
+            return ['rows' => [], 'unavailable' => false];
+        }
+
+        [$conditions, $params] = $this->conditions([$projectId], new LogFilters(from: $from, to: $to), withUserFilters: false);
+        $conditions[] = 'IssueFingerprint = {fingerprint:String}';
+        $params['fingerprint'] = $fingerprint;
+        $params['rowLimit'] = max(1, min($limit, 200));
+
+        $sql = sprintf(
+            <<<'SQL'
+            SELECT
+                Timestamp,
+                ServiceName,
+                TraceId,
+                LogAttributes['event.id'] AS EventId,
+                if(LogAttributes['service.version'] != '', LogAttributes['service.version'], ResourceAttributes['service.version']) AS EventRelease,
+                multiIf(LogAttributes['deployment.environment'] != '', LogAttributes['deployment.environment'],
+                        LogAttributes['deployment.environment.name'] != '', LogAttributes['deployment.environment.name'],
+                        ResourceAttributes['deployment.environment'] != '', ResourceAttributes['deployment.environment'],
+                        ResourceAttributes['deployment.environment.name']) AS EventEnvironment,
+                %s AS EventUser,
+                leftUTF8(if(LogAttributes['exception.message'] != '', LogAttributes['exception.message'], splitByChar('\n', Body)[1]), 300) AS EventMessage
+            FROM otel_logs
+            WHERE %s
+            ORDER BY Timestamp DESC
+            LIMIT {rowLimit:UInt32}
+            SQL,
+            self::ISSUE_USER_EXPRESSION,
+            implode(' AND ', $conditions),
+        );
+
+        try {
+            $rows = $this->client->select($sql, $params);
+        } catch (ClickHouseException $exception) {
+            if (! $exception->isOverload()) {
+                throw $exception;
+            }
+
+            report($exception);
+
+            return ['rows' => [], 'unavailable' => true];
+        }
+
+        return [
+            'rows' => array_values(array_map(fn (array $row): array => [
+                'timestamp' => (string) ($row['Timestamp'] ?? ''),
+                'eventId' => (string) ($row['EventId'] ?? ''),
+                'serviceName' => (string) ($row['ServiceName'] ?? ''),
+                'traceId' => (string) ($row['TraceId'] ?? ''),
+                'release' => (string) ($row['EventRelease'] ?? ''),
+                'environment' => (string) ($row['EventEnvironment'] ?? ''),
+                'user' => (string) ($row['EventUser'] ?? ''),
+                'message' => (string) ($row['EventMessage'] ?? ''),
+            ], $rows)),
+            'unavailable' => false,
+        ];
+    }
+
+    /**
+     * The most common values of a fixed set of tags across an issue's events.
+     *
+     * One pass: the key list is ARRAY JOINed against each row, the value read
+     * from the log attributes first and the resource attributes second, with
+     * `service.name` and `user` as two derived keys. Empty values are not a
+     * tag value; `total` is how many events had the key at all, so the bars
+     * read as shares of the events that said something.
+     *
+     * @return IssueTagResult
+     */
+    public function issueTags(string $projectId, string $fingerprint, Carbon $from, Carbon $to): array
+    {
+        if ($projectId === '' || $fingerprint === '') {
+            return ['tags' => [], 'unavailable' => false];
+        }
+
+        [$conditions, $params] = $this->conditions([$projectId], new LogFilters(from: $from, to: $to), withUserFilters: false);
+        $conditions[] = 'IssueFingerprint = {fingerprint:String}';
+        $params['fingerprint'] = $fingerprint;
+        $params['tagKeys'] = $this->stringArrayParameter(self::ISSUE_TAG_KEYS);
+        $params['valuesPerTag'] = self::ISSUE_TAG_VALUES;
+
+        $sql = sprintf(
+            <<<'SQL'
+            SELECT TagKey, TagValue, TagCount, sum(TagCount) OVER (PARTITION BY TagKey) AS TagTotal
+            FROM
+            (
+                SELECT TagKey, TagValue, count() AS TagCount
+                FROM
+                (
+                    SELECT
+                        TagKey,
+                        multiIf(TagKey = 'service.name', toString(ServiceName),
+                                TagKey = 'user', %s,
+                                LogAttributes[TagKey] != '', LogAttributes[TagKey],
+                                ResourceAttributes[TagKey]) AS TagValue
+                    FROM otel_logs
+                    ARRAY JOIN {tagKeys:Array(String)} AS TagKey
+                    WHERE %s
+                )
+                WHERE TagValue != ''
+                GROUP BY TagKey, TagValue
+            )
+            ORDER BY TagKey, TagCount DESC, TagValue
+            LIMIT {valuesPerTag:UInt32} BY TagKey
+            SQL,
+            self::ISSUE_USER_EXPRESSION,
+            implode(' AND ', $conditions),
+        );
+
+        try {
+            $rows = $this->client->select($sql, $params);
+        } catch (ClickHouseException $exception) {
+            if (! $exception->isOverload()) {
+                throw $exception;
+            }
+
+            report($exception);
+
+            return ['tags' => [], 'unavailable' => true];
+        }
+
+        $tags = [];
+
+        foreach ($rows as $row) {
+            $key = (string) ($row['TagKey'] ?? '');
+            $tags[$key] ??= ['key' => $key, 'total' => (int) ($row['TagTotal'] ?? 0), 'values' => []];
+            $tags[$key]['values'][] = ['value' => (string) ($row['TagValue'] ?? ''), 'count' => (int) ($row['TagCount'] ?? 0)];
+        }
+
+        $ordered = [];
+
+        foreach (self::ISSUE_TAG_KEYS as $key) {
+            if (isset($tags[$key])) {
+                $ordered[] = $tags[$key];
+            }
+        }
+
+        return ['tags' => $ordered, 'unavailable' => false];
+    }
+
+    /**
      * Count logs per time bucket and severity across the selected window.
      *
      * The bucket width is derived from the window on the server, so the chart
@@ -611,12 +897,13 @@ class LogQuery
      * @param  array<string, scalar|null>  $params
      * @return list<LogRow>|null
      */
-    private function run(array $conditions, array $params): ?array
+    private function run(array $conditions, array $params, bool $ascending = false): ?array
     {
         $sql = sprintf(
-            'SELECT %s FROM otel_logs WHERE %s ORDER BY Timestamp DESC LIMIT {rowLimit:UInt32}',
+            'SELECT %s FROM otel_logs WHERE %s ORDER BY Timestamp %s LIMIT {rowLimit:UInt32}',
             self::COLUMNS,
             implode(' AND ', $conditions),
+            $ascending ? 'ASC' : 'DESC',
         );
 
         try {

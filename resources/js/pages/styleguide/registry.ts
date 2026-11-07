@@ -5,6 +5,7 @@ import AutofixSection from './partials/AutofixSection.vue';
 import ChartsSection from './partials/ChartsSection.vue';
 import ComponentsBasics from './partials/ComponentsBasics.vue';
 import ComponentsOverlays from './partials/ComponentsOverlays.vue';
+import IssuesSection from './partials/IssuesSection.vue';
 import MagnitudeSection from './partials/MagnitudeSection.vue';
 import MetricsSection from './partials/MetricsSection.vue';
 import PaletteSection from './partials/PaletteSection.vue';
@@ -135,6 +136,13 @@ export const STYLEGUIDE_CATEGORIES: StyleguideCategory[] = [
                 description:
                     'The Bilis-specific pieces that sit on top of the primitives. Everything below is the real component with demo data, so these blocks double as a regression check when the log UI changes.',
                 component: AppComponentsSection,
+            },
+            {
+                id: 'issues',
+                name: 'Issues',
+                description:
+                    'Exceptions grouped by their fingerprint — the service, the exception class and the top of the stack, normalised so a line number or a release path cannot split one bug in two. The list reads counts from ClickHouse and status from the app database; the issue page reads one event at a time and lays out what an error-reporting SDK sends — frames with source, causes, breadcrumbs, request, user and tags — falling back to parsing a printed stack when that is all a log carried. Colour follows the product rule: every event is an exception, so trends and the regressed state take the severity-error token, tag shares take the magnitude ladder, and the chrome stays achromatic.',
+                component: IssuesSection,
             },
             {
                 id: 'traces',

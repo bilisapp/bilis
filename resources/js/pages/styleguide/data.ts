@@ -1,8 +1,12 @@
 import type {
+    Breadcrumb,
     FixJobEvent,
     FixJobStatus,
     HostList,
     IngestRateUsage,
+    IssueHistograms,
+    IssueListItem,
+    IssueTagResult,
     LogEntry,
     LogHistogram,
     MetricAttributes,
@@ -14,6 +18,7 @@ import type {
     ServiceLatencyResult,
     SeverityLevel,
     Span,
+    StackFrame,
     TeamLlmCredential,
     TraceHistogram,
     TracePanelResult,
@@ -1556,3 +1561,278 @@ export const DEMO_HOST_CPU: MetricSeriesResult = demoMetricResult({
         points: demoWave(base, swing, index * 3, 1),
     })),
 });
+
+/*
+|--------------------------------------------------------------------------
+| Issues
+|--------------------------------------------------------------------------
+*/
+
+const ISSUE_NOW = Date.UTC(2026, 10, 7, 12, 0, 0);
+
+const issueSeries = (peak: number, at: number) =>
+    Array.from({ length: 24 }, (_, index) =>
+        Math.max(0, Math.round(peak - Math.abs(at - index) * (peak / 6))),
+    );
+
+export const DEMO_ISSUES: IssueListItem[] = [
+    {
+        projectId: '1',
+        projectSlug: 'checkout',
+        projectName: 'Checkout',
+        fingerprint:
+            'a3f1c9e0b7d24c58a3f1c9e0b7d24c58a3f1c9e0b7d24c58a3f1c9e0b7d24c58',
+        type: 'App\\Exceptions\\PaymentDeclined',
+        message:
+            'Card ending 4242 was declined by the issuer (insufficient_funds)',
+        origin: 'app/Payments/ChargeCard.php:41 handle()',
+        service: 'checkout-api',
+        services: ['checkout-api'],
+        environments: ['production'],
+        firstSeen: ISSUE_NOW - 21 * 86_400_000,
+        lastSeen: ISSUE_NOW - 4 * 60_000,
+        events: 18_240,
+        users: 1_312,
+        windowEvents: 2_418,
+        windowUsers: 377,
+        series: issueSeries(320, 20),
+        status: 'unresolved',
+        isNew: false,
+        firstRelease: '2026.10.14',
+        lastRelease: '2026.11.06',
+    },
+    {
+        projectId: '1',
+        projectSlug: 'checkout',
+        projectName: 'Checkout',
+        fingerprint:
+            'b8e2d4f6a1c34e79b8e2d4f6a1c34e79b8e2d4f6a1c34e79b8e2d4f6a1c34e79',
+        type: 'TypeError',
+        message: "Cannot read properties of undefined (reading 'lineItems')",
+        origin: 'src/cart/summary.ts:88:17',
+        service: 'storefront',
+        services: ['storefront'],
+        environments: ['production', 'staging'],
+        firstSeen: ISSUE_NOW - 3 * 3_600_000,
+        lastSeen: ISSUE_NOW - 2 * 60_000,
+        events: 96,
+        users: 41,
+        windowEvents: 96,
+        windowUsers: 41,
+        series: issueSeries(40, 23),
+        status: 'unresolved',
+        isNew: true,
+        firstRelease: 'web@4.12.0',
+        lastRelease: 'web@4.12.0',
+    },
+    {
+        projectId: '2',
+        projectSlug: 'billing',
+        projectName: 'Billing',
+        fingerprint:
+            'c4d9a2b7e1f05c36c4d9a2b7e1f05c36c4d9a2b7e1f05c36c4d9a2b7e1f05c36',
+        type: 'Illuminate\\Database\\QueryException',
+        message:
+            'SQLSTATE[40001]: Serialization failure: 1213 Deadlock found when trying to get lock',
+        origin: 'app/Ledger/PostEntries.php(112): App\\Ledger\\PostEntries->commit()',
+        service: 'billing-worker',
+        services: ['billing-worker'],
+        environments: ['production'],
+        firstSeen: ISSUE_NOW - 12 * 86_400_000,
+        lastSeen: ISSUE_NOW - 50 * 60_000,
+        events: 412,
+        users: 0,
+        windowEvents: 37,
+        windowUsers: 0,
+        series: issueSeries(9, 14),
+        status: 'regressed',
+        isNew: false,
+        firstRelease: '2026.10.25',
+        lastRelease: '2026.11.06',
+    },
+];
+
+/** An SDK event's structured frames: in-app context, library frames folded. */
+export const DEMO_ISSUE_FRAMES: StackFrame[] = [
+    {
+        filename: 'app/Payments/ChargeCard.php',
+        function: 'App\\Payments\\ChargeCard::handle',
+        module: '',
+        lineno: 41,
+        colno: null,
+        inApp: true,
+        preContext: [
+            '        $intent = $this->gateway->charge($order->total, $card);',
+            '',
+            "        if ($intent->status === 'declined') {",
+            '            $order->markFailed($intent->reason);',
+        ],
+        contextLine:
+            '            throw new PaymentDeclined($card->last4, $intent->reason);',
+        postContext: ['        }', '', '        return $intent;', '    }'],
+        raw: '',
+    },
+    ...[
+        'vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php',
+        'vendor/laravel/framework/src/Illuminate/Routing/Router.php',
+        'vendor/laravel/framework/src/Illuminate/Foundation/Http/Kernel.php',
+    ].map((filename, index) => ({
+        filename,
+        function: ['Pipeline::then', 'Router::runRoute', 'Kernel::handle'][
+            index
+        ],
+        module: '',
+        lineno: [180, 803, 145][index],
+        colno: null,
+        inApp: false,
+        preContext: [],
+        contextLine: null,
+        postContext: [],
+        raw: '',
+    })),
+    {
+        filename: 'app/Http/Controllers/CheckoutController.php',
+        function: 'App\\Http\\Controllers\\CheckoutController::store',
+        module: '',
+        lineno: 88,
+        colno: null,
+        inApp: true,
+        preContext: [],
+        contextLine: null,
+        postContext: [],
+        raw: '',
+    },
+];
+
+/** A printed V8 stack, the way an OTel log carries it. */
+export const DEMO_ISSUE_TEXT_STACK = [
+    "TypeError: Cannot read properties of undefined (reading 'lineItems')",
+    '    at cartSummary (/srv/storefront/src/cart/summary.ts:88:17)',
+    '    at renderCart (/srv/storefront/src/cart/render.ts:21:9)',
+    '    at Layer.handle (/srv/storefront/node_modules/express/lib/router/layer.js:95:5)',
+    '    at next (/srv/storefront/node_modules/express/lib/router/route.js:149:13)',
+    '    at /srv/storefront/src/server.ts:44:3',
+].join('\n');
+
+export const DEMO_ISSUE_BREADCRUMBS: Breadcrumb[] = [
+    {
+        timestamp: '2026-11-07 11:56:02.910000000',
+        type: 'http',
+        category: 'http',
+        level: 'info',
+        message: 'POST https://api.stripe.test/v1/payment_intents',
+        data: '{"status_code":402}',
+    },
+    {
+        timestamp: '2026-11-07 11:56:02.412000000',
+        type: 'query',
+        category: 'query',
+        level: 'info',
+        message: 'update orders set status = ? where id = ?',
+        data: '',
+    },
+    {
+        timestamp: '2026-11-07 11:56:02.300000000',
+        type: 'default',
+        category: 'log',
+        level: 'warning',
+        message: 'Retrying charge with 3-D Secure',
+        data: '',
+    },
+    {
+        timestamp: '2026-11-07 11:56:01.980000000',
+        type: 'navigation',
+        category: 'navigation',
+        level: 'info',
+        message: '/cart → /checkout/pay',
+        data: '',
+    },
+    {
+        timestamp: '2026-11-07 11:56:01.450000000',
+        type: 'default',
+        category: 'auth',
+        level: 'error',
+        message: 'Session token near expiry',
+        data: '',
+    },
+];
+
+export const DEMO_ISSUE_TAGS: IssueTagResult = {
+    unavailable: false,
+    tags: [
+        {
+            key: 'deployment.environment',
+            total: 2418,
+            values: [{ value: 'production', count: 2418 }],
+        },
+        {
+            key: 'service.version',
+            total: 2418,
+            values: [
+                { value: '2026.11.06', count: 1990 },
+                { value: '2026.11.04', count: 401 },
+                { value: '2026.10.29', count: 27 },
+            ],
+        },
+        {
+            key: 'browser.name',
+            total: 1802,
+            values: [
+                { value: 'Chrome', count: 1104 },
+                { value: 'Safari', count: 560 },
+                { value: 'Firefox', count: 138 },
+            ],
+        },
+        {
+            key: 'user',
+            total: 2210,
+            values: [
+                { value: 'cus_9fK2', count: 48 },
+                { value: 'cus_1aQ7', count: 31 },
+                { value: 'cus_7pL0', count: 12 },
+            ],
+        },
+    ],
+};
+
+export function demoIssueHistograms(): IssueHistograms {
+    const hour = 3_600;
+    const dayStart = Math.floor(ISSUE_NOW / 1000 / hour) * hour - 23 * hour;
+    const monthStart =
+        Math.floor(ISSUE_NOW / 1000 / 86_400) * 86_400 - 29 * 86_400;
+
+    return {
+        day: {
+            intervalSeconds: hour,
+            unavailable: false,
+            buckets: Array.from({ length: 24 }, (_, index) => {
+                const events =
+                    40 +
+                    ((index * 13) % 30) +
+                    (index >= 18 ? 160 - (23 - index) * 18 : 0);
+
+                return {
+                    bucket: dayStart + index * hour,
+                    events,
+                    users: Math.round(events / 6),
+                };
+            }),
+        },
+        month: {
+            intervalSeconds: 86_400,
+            unavailable: false,
+            buckets: Array.from({ length: 30 }, (_, index) => {
+                const events =
+                    index < 9
+                        ? 0
+                        : 300 + ((index * 97) % 400) + (index > 25 ? 1200 : 0);
+
+                return {
+                    bucket: monthStart + index * 86_400,
+                    events,
+                    users: Math.round(events / 7),
+                };
+            }),
+        },
+    };
+}

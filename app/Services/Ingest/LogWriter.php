@@ -3,6 +3,7 @@
 namespace App\Services\Ingest;
 
 use App\Services\ClickHouse\ClickHouseClient;
+use App\Services\Issues\ErrorFingerprinter;
 
 /**
  * Writes mapped log rows into ClickHouse.
@@ -34,7 +35,10 @@ class LogWriter
         'LogAttributes',
     ];
 
-    public function __construct(private readonly ClickHouseClient $client) {}
+    public function __construct(
+        private readonly ClickHouseClient $client,
+        private readonly ErrorFingerprinter $fingerprinter,
+    ) {}
 
     /**
      * Queue the given rows for insertion.
@@ -43,7 +47,30 @@ class LogWriter
      */
     public function write(array $rows): void
     {
-        $this->client->insert(self::TABLE, self::normalise($rows));
+        $this->client->insert(self::TABLE, self::normalise($this->stampIssueFingerprints($rows)));
+    }
+
+    /**
+     * Set the IssueFingerprint column on every row.
+     *
+     * This is the one place it is written: the OTLP, simple and envelope paths
+     * all insert through here, so a mapper never computes it and a payload can
+     * never supply it. Rows that are not exceptions get '' explicitly, which
+     * keeps them out of the issue materialized views. The value is the same
+     * function Autofix runs over queried rows, so an issue and its fix jobs
+     * share one identity.
+     *
+     * @param  array<int, array<string, mixed>>  $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function stampIssueFingerprints(array $rows): array
+    {
+        foreach ($rows as &$row) {
+            $row['IssueFingerprint'] = $this->fingerprinter->issueFingerprint($row);
+        }
+        unset($row);
+
+        return $rows;
     }
 
     /**

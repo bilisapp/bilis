@@ -6,12 +6,14 @@ Before planning or editing, find the row whose globs match the file's path and r
 | --- | --- |
 | app/Services/Autofix/** | .ai/rules/autofix.md |
 | app/Services/ClickHouse/** | .ai/rules/click-house.md |
+| database/clickhouse/*.sql | .ai/rules/clickhouse.md |
 | config/legal.php, config/opentelemetry.php | .ai/rules/config.md |
 | resources/css/app.css | .ai/rules/css.md |
 | app/Services/Ingest/Envelope/** | .ai/rules/envelope-ingest.md |
 | docker-entrypoint.sh, docker-healthcheck.sh | .ai/rules/general.md |
 | app/Services/Ingest/**, app/Services/Ingest/OtlpResponse.php | .ai/rules/ingest.md |
 | resources/install/**, app/Http/Controllers/InstallScriptController.php | .ai/rules/install.md |
+| app/Services/Issues/** | .ai/rules/issues.md |
 | resources/js/** | .ai/rules/js.md |
 | resources/js/lib/traces.ts, resources/js/lib/attributes.ts | .ai/rules/lib.md |
 | app/Logging/** | .ai/rules/logging.md |

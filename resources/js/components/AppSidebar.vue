@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
 import {
+    Bug,
     ChartLine,
     FolderKanban,
     LayoutGrid,
@@ -24,6 +25,7 @@ import {
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
 import { index as autofixIndex } from '@/routes/autofix';
+import { index as issuesIndex } from '@/routes/issues';
 import { index as logsIndex } from '@/routes/logs';
 import { index as metricsIndex } from '@/routes/metrics';
 import { index as projectsIndex } from '@/routes/projects';
@@ -41,6 +43,10 @@ const dashboardUrl = computed(() =>
 
 const logsUrl = computed(() =>
     page.props.currentTeam ? logsIndex(page.props.currentTeam.slug).url : '/',
+);
+
+const issuesUrl = computed(() =>
+    page.props.currentTeam ? issuesIndex(page.props.currentTeam.slug).url : '/',
 );
 
 const autofixUrl = computed(() =>
@@ -89,6 +95,11 @@ const mainNavItems = computed<NavItem[]>(() => [
         title: 'Logs',
         href: logsUrl.value,
         icon: ScrollText,
+    },
+    {
+        title: 'Issues',
+        href: issuesUrl.value,
+        icon: Bug,
     },
     {
         title: 'Traces',

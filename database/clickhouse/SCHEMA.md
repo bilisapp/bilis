@@ -68,6 +68,12 @@ CREATE TABLE otel_logs
     -- DEFAULT '' only keeps stock-exporter INSERTs valid; it does NOT populate them.
     ProjectId          LowCardinality(String) DEFAULT ''   CODEC(ZSTD(1)),
 
+    -- Bilis addition, added by 0015 (not in 0001: applied schema files are
+    -- append-only). Written by LogWriter: the ErrorFingerprinter identity of an
+    -- exception row, '' for every other row.
+    IssueFingerprint   String DEFAULT ''                   CODEC(ZSTD(1)),
+
+    INDEX idx_issue_fingerprint IssueFingerprint             TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_trace_id         TraceId                       TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_res_attr_key     mapKeys(ResourceAttributes)   TYPE bloom_filter(0.01)  GRANULARITY 1,
     INDEX idx_res_attr_value   mapValues(ResourceAttributes) TYPE bloom_filter(0.01)  GRANULARITY 1,
@@ -228,6 +234,36 @@ Shipped DDL: `0010`–`0014_create_otel_metrics_*_table.sql`. Governed by R14–
 
 
 ---
+
+### 2.6 The issue tables
+
+An *issue* is every occurrence of one exception. `LogWriter` — the single insert path for
+the OTLP, simple and envelope endpoints — writes `otel_logs.IssueFingerprint` on every row:
+`ErrorFingerprinter::issueFingerprint()` (service + exception class + the top five
+normalised frames, sha256) when the row is ERROR or worse and names an exception class or
+carries a stack, `''` otherwise. A payload can never set it. It is the same function
+Autofix runs over queried rows, so an issue and its fix jobs share one identity.
+
+Two materialized views fold the non-empty fingerprints into:
+
+- **`issue_summary`** — `AggregatingMergeTree ORDER BY (ProjectId, IssueFingerprint)`,
+  `TTL toDateTime(LastSeen) + 90 days`. All-time `FirstSeen`/`LastSeen`/`Events`, users
+  (`uniq` state over the first non-empty of `user.id`, `enduser.id`, `user.email`,
+  `user.ip`), services and environments (`groupUniqArrayArray`), and the headline
+  (type, message, origin, service, last release) as `argMax` states keyed on the event
+  time — never `any`/`anyLast`, which pick whichever partial row a merge reads first.
+  `FirstRelease` is `argMin`. Releases use `-If` so an event without one does not blank it.
+- **`issue_hourly`** — `AggregatingMergeTree PARTITION BY toDate(Hour)
+  ORDER BY (ProjectId, Hour, IssueFingerprint)`, `Events` and a `Users` state per hour,
+  30-day partition-drop TTL.
+
+Both views derive their values in an inner `SELECT` under `e`-prefixed names, for the
+reason R11 records: an outer alias equal to a column it aggregates is
+`ILLEGAL_AGGREGATION`. Pre-existing rows have `IssueFingerprint = ''`; issues start at
+the deploy that added the column, and there is no backfill (it would mean a mutation over
+30 days of `otel_logs`).
+
+Whether an issue is resolved or ignored lives in the app database (`issues`), never here.
 
 ## 3. Rules
 
@@ -618,6 +654,28 @@ explorer therefore caps what one chart reads — at most 500 series before group
 groups after, ranked by volume, with the remainder reported rather than silently dropped —
 and bounds the window at the 30-day retention. Raise the caps with a measured query
 profile, not by hope.
+
+### R17 — Every issue table read re-aggregates by its key
+
+`issue_summary` and `issue_hourly` are AggregatingMergeTrees fed per insert block, so an
+issue with events in several blocks has several partial rows until a merge that may never
+come. A headline read is `GROUP BY ProjectId, IssueFingerprint` with `min`/`max`/`sum`,
+`uniqMerge`, `argMaxMerge`/`argMinMerge` and `groupUniqArrayArray`; projected names are
+never a column of the table (`IssueEvents`, not `Events`). Bucketed counts (`sum(Events)`,
+`uniqMerge(Users)` grouped by bucket) are indifferent to how rows were split and need no
+key re-aggregation. An issue's events are read from `otel_logs` with the R4 predicate plus
+`IssueFingerprint = {…}` (bloom index), bounded by the issue's own first/last seen.
+
+### R18 — The issue list nominates from `issue_hourly`, then looks up `issue_summary`
+
+`issue_summary`'s key makes one issue a point lookup and "issues that occurred in the last
+week" a full scan of the project's 90 days. The list asks `issue_hourly` (key-pruned by the
+hour) for the window's fingerprints with their window counts and hourly series — capped at
+1,000 by window events, the cap reported to the page — then reads exactly those headlines
+from `issue_summary`. Status, environment and text filters are applied in PHP over that
+bounded set, because "unresolved" includes a resolved issue that has occurred since, which
+needs the app database and ClickHouse together. Window counts are hourly: the window's
+first hour is counted whole.
 
 ---
 

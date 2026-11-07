@@ -14,6 +14,7 @@ use App\Http\Controllers\DocsApiKeyController;
 use App\Http\Controllers\DocsController;
 use App\Http\Controllers\FeaturesController;
 use App\Http\Controllers\InstallScriptController;
+use App\Http\Controllers\IssuesController;
 use App\Http\Controllers\LogsController;
 use App\Http\Controllers\MetricsController;
 use App\Http\Controllers\PricingController;
@@ -181,6 +182,20 @@ Route::prefix('{current_team}')
         Route::get('traces/{trace}', [TracesController::class, 'show'])
             ->where('trace', '[0-9a-fA-F]{32}')
             ->name('traces.show');
+
+        /*
+         * Issues. `{fingerprint}` is the sha256 ErrorFingerprinter writes,
+         * pinned so a malformed one is a 404 rather than a query; the project
+         * is the team-scoped binding, because a fingerprint is only unique
+         * within one.
+         */
+        Route::get('issues', [IssuesController::class, 'index'])->name('issues.index');
+        Route::get('issues/{project}/{fingerprint}', [IssuesController::class, 'show'])
+            ->where('fingerprint', '[0-9a-f]{64}')
+            ->name('issues.show');
+        Route::patch('issues/{project}/{fingerprint}', [IssuesController::class, 'update'])
+            ->where('fingerprint', '[0-9a-f]{64}')
+            ->name('issues.update');
 
         Route::get('metrics', [MetricsController::class, 'index'])->name('metrics.index');
         Route::get('metrics/hosts', [MetricsController::class, 'hosts'])->name('metrics.hosts');

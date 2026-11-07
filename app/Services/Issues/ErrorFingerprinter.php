@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Autofix;
+namespace App\Services\Issues;
 
 /**
  * Turns one error log row into a stable identity for the error behind it.
@@ -99,6 +99,45 @@ class ErrorFingerprinter
      * a container mount point or a developer's home directory drops off.
      */
     private const PATH_SEGMENTS = 3;
+
+    /**
+     * The OTel severity number from which a record can become an issue.
+     *
+     * 17 is ERROR; everything above it (ERROR2-4, FATAL1-4) is worse.
+     */
+    public const ISSUE_SEVERITY_NUMBER = 17;
+
+    /**
+     * Decide whether a record is an exception worth grouping into an issue.
+     *
+     * Severity alone is not enough: `Log::error('payment declined')` is an
+     * error line, not a crash, and grouping it would bury the real exceptions
+     * under every message an application logs at ERROR. A record qualifies
+     * when it names an exception class or carries a stack trace. The severity
+     * check runs first because it is free and rules out almost every row.
+     *
+     * @param  ErrorRecord  $logRecord
+     */
+    public function isIssue(array $logRecord): bool
+    {
+        $severity = $logRecord['SeverityNumber'] ?? $logRecord['severityNumber'] ?? 0;
+
+        if (! is_numeric($severity) || (int) $severity < self::ISSUE_SEVERITY_NUMBER) {
+            return false;
+        }
+
+        return $this->exceptionClass($logRecord) !== '' || $this->stackFrames($logRecord) !== [];
+    }
+
+    /**
+     * The fingerprint a record is grouped under, or '' when it is not an issue.
+     *
+     * @param  ErrorRecord  $logRecord
+     */
+    public function issueFingerprint(array $logRecord): string
+    {
+        return $this->isIssue($logRecord) ? $this->fingerprint($logRecord) : '';
+    }
 
     /**
      * Compute the stable fingerprint for one error record.

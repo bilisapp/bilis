@@ -32,6 +32,25 @@ class ErrorEventMapper
     private const MAX_BREADCRUMBS = 25;
 
     /**
+     * The byte budget for the structured frames attribute.
+     *
+     * Source context makes frames heavy, and the attribute rides along with
+     * every event of a busy issue. Past the budget the context goes first,
+     * then frames from the bottom of the stack.
+     */
+    private const MAX_FRAMES_JSON_BYTES = 32_768;
+
+    /**
+     * The most source lines kept on either side of a frame's line.
+     */
+    private const MAX_CONTEXT_LINES = 5;
+
+    /**
+     * The most causes kept in the exception chain.
+     */
+    private const MAX_CHAIN = 5;
+
+    /**
      * Map a batch of decoded error events for the given project.
      *
      * The project id is the one the public key authenticated to, never the one
@@ -231,6 +250,8 @@ class ErrorEventMapper
             $this->put($attributes, 'exception.module', $this->string($exception['module'] ?? null));
             $this->put($attributes, 'exception.stacktrace', $this->stacktrace($frames));
             $this->put($attributes, 'exception.origin', $this->origin($frames));
+            $this->put($attributes, 'exception.frames', $this->framesJson($frames));
+            $this->put($attributes, 'exception.chain', $this->chainJson($event));
 
             $mechanism = $this->object($exception['mechanism'] ?? null);
             $this->put($attributes, 'exception.mechanism', $this->string($mechanism['type'] ?? null));
@@ -257,6 +278,20 @@ class ErrorEventMapper
         $request = $this->object($event['request'] ?? null);
         $this->put($attributes, 'http.url', $this->string($request['url'] ?? null));
         $this->put($attributes, 'http.request.method', $this->string($request['method'] ?? null));
+        $this->put($attributes, 'url.query', $this->scalar($request['query_string'] ?? null));
+        $this->put($attributes, 'user_agent.original', $this->header($request, 'user-agent'));
+
+        foreach ([
+            'os' => ['name' => 'os.name', 'version' => 'os.version'],
+            'browser' => ['name' => 'browser.name', 'version' => 'browser.version'],
+            'device' => ['model' => 'device.model', 'family' => 'device.family'],
+        ] as $context => $fields) {
+            $values = $this->context($event, $context);
+
+            foreach ($fields as $field => $key) {
+                $this->put($attributes, $key, $this->scalar($values[$field] ?? null));
+            }
+        }
 
         /*
          * Which client reported this is the client's own name for itself, and
@@ -272,6 +307,7 @@ class ErrorEventMapper
         $this->put($attributes, 'process.runtime.version', $this->string($runtime['version'] ?? null));
 
         $this->put($attributes, 'breadcrumbs', $this->breadcrumbs($event));
+        $this->put($attributes, 'breadcrumbs.json', $this->breadcrumbsJson($event));
 
         return $attributes;
     }
@@ -382,6 +418,216 @@ class ErrorEventMapper
         }
 
         return implode("\n", array_filter($lines, fn (string $line): bool => $line !== ''));
+    }
+
+    /**
+     * The frames as structured JSON, for the issue page's stack trace.
+     *
+     * The text attribute stays what search and the fingerprint read; this one
+     * keeps what text cannot: which frames are the application's own and the
+     * source lines around each call. Context is kept for in-app frames only,
+     * and the whole value is held under {@see MAX_FRAMES_JSON_BYTES}.
+     *
+     * @param  array<int, array<string, mixed>>  $frames
+     */
+    private function framesJson(array $frames): string
+    {
+        if ($frames === []) {
+            return '';
+        }
+
+        $structured = [];
+
+        foreach (array_slice($frames, 0, self::MAX_FRAMES) as $frame) {
+            $inApp = ($frame['in_app'] ?? null) === true;
+            $line = $frame['lineno'] ?? null;
+            $column = $frame['colno'] ?? null;
+
+            $entry = array_filter([
+                'filename' => $this->string($frame['filename'] ?? null),
+                'abs_path' => $this->string($frame['abs_path'] ?? null),
+                'function' => $this->string($frame['function'] ?? null),
+                'module' => $this->string($frame['module'] ?? null),
+                'lineno' => is_int($line) ? $line : null,
+                'colno' => is_int($column) ? $column : null,
+            ], fn (mixed $value): bool => $value !== null && $value !== '');
+
+            $entry['in_app'] = $inApp;
+
+            if ($inApp && is_string($frame['context_line'] ?? null)) {
+                $entry['pre_context'] = $this->contextLines($frame['pre_context'] ?? null, fromEnd: true);
+                $entry['context_line'] = $this->line($frame['context_line']);
+                $entry['post_context'] = $this->contextLines($frame['post_context'] ?? null, fromEnd: false);
+            }
+
+            $structured[] = $entry;
+        }
+
+        $json = $this->json($structured);
+
+        if (strlen($json) > self::MAX_FRAMES_JSON_BYTES) {
+            $structured = array_map(
+                fn (array $entry): array => array_diff_key($entry, array_flip(['pre_context', 'context_line', 'post_context'])),
+                $structured,
+            );
+            $json = $this->json($structured);
+        }
+
+        while (strlen($json) > self::MAX_FRAMES_JSON_BYTES && $structured !== []) {
+            array_pop($structured);
+            $json = $this->json($structured);
+        }
+
+        return $structured === [] ? '' : $json;
+    }
+
+    /**
+     * The causes behind the thrown exception, nearest cause first, as JSON.
+     *
+     * The chain arrives oldest cause first with the thrown exception last; the
+     * thrown one is already the body and the exception.* attributes.
+     *
+     * @param  array<string, mixed>  $event
+     */
+    private function chainJson(array $event): string
+    {
+        $values = $this->object($event['exception'] ?? null)['values'] ?? null;
+
+        if (! is_array($values) || count($values) < 2) {
+            return '';
+        }
+
+        $causes = [];
+
+        foreach (array_reverse(array_slice(array_values($values), 0, -1)) as $cause) {
+            if (! is_array($cause)) {
+                continue;
+            }
+
+            $frames = $this->frames($cause);
+
+            $causes[] = array_filter([
+                'type' => $this->string($cause['type'] ?? null),
+                'message' => $this->line($cause['value'] ?? null, 1000),
+                'origin' => $this->origin($frames),
+                'stacktrace' => $this->stacktrace(array_slice($frames, 0, 10)),
+            ], fn (string $value): bool => $value !== '');
+
+            if (count($causes) === self::MAX_CHAIN) {
+                break;
+            }
+        }
+
+        $causes = array_values(array_filter($causes));
+
+        return $causes === [] ? '' : $this->json($causes);
+    }
+
+    /**
+     * The breadcrumbs as structured JSON, most recent first.
+     *
+     * @param  array<string, mixed>  $event
+     */
+    private function breadcrumbsJson(array $event): string
+    {
+        $crumbs = $event['breadcrumbs'] ?? null;
+        $crumbs = is_array($crumbs) ? ($crumbs['values'] ?? $crumbs) : null;
+
+        if (! is_array($crumbs) || $crumbs === []) {
+            return '';
+        }
+
+        $structured = [];
+
+        foreach (array_slice(array_reverse(array_values($crumbs)), 0, self::MAX_BREADCRUMBS) as $crumb) {
+            if (! is_array($crumb)) {
+                continue;
+            }
+
+            $timestamp = LogTimestamp::parse($crumb['timestamp'] ?? null);
+            $data = $this->object($crumb['data'] ?? null);
+
+            $entry = array_filter([
+                'timestamp' => $timestamp ?? '',
+                'type' => $this->string($crumb['type'] ?? null),
+                'category' => $this->string($crumb['category'] ?? null),
+                'level' => $this->string($crumb['level'] ?? null),
+                'message' => $this->line($crumb['message'] ?? null, 500),
+                'data' => $data === [] ? '' : $this->line($this->json($data), 500),
+            ], fn (string $value): bool => $value !== '');
+
+            if ($entry !== []) {
+                $structured[] = $entry;
+            }
+        }
+
+        return $structured === [] ? '' : $this->json($structured);
+    }
+
+    /**
+     * Up to {@see MAX_CONTEXT_LINES} source lines, nearest the call kept.
+     *
+     * @return list<string>
+     */
+    private function contextLines(mixed $lines, bool $fromEnd): array
+    {
+        if (! is_array($lines)) {
+            return [];
+        }
+
+        $lines = array_values(array_map(fn (mixed $line): string => $this->line($line), $lines));
+
+        return $fromEnd
+            ? array_slice($lines, -self::MAX_CONTEXT_LINES)
+            : array_slice($lines, 0, self::MAX_CONTEXT_LINES);
+    }
+
+    /**
+     * One line of text, capped, with its indentation kept.
+     */
+    private function line(mixed $value, int $limit = 300): string
+    {
+        if (! is_string($value)) {
+            return '';
+        }
+
+        $value = rtrim($value);
+
+        return mb_strlen($value) > $limit ? mb_substr($value, 0, $limit).'…' : $value;
+    }
+
+    /**
+     * Read one request header case-insensitively; it may be a map or a list of pairs.
+     *
+     * @param  array<string, mixed>  $request
+     */
+    private function header(array $request, string $name): string
+    {
+        $headers = $request['headers'] ?? null;
+
+        if (! is_array($headers)) {
+            return '';
+        }
+
+        foreach ($headers as $key => $value) {
+            if (is_array($value) && array_is_list($value) && count($value) === 2) {
+                [$key, $value] = $value;
+            }
+
+            if (is_string($key) && strcasecmp($key, $name) === 0) {
+                return $this->line($value, 500);
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * Encode a value the way every JSON attribute is encoded.
+     */
+    private function json(mixed $value): string
+    {
+        return (string) json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     /**

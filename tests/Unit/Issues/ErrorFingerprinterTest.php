@@ -1,6 +1,6 @@
 <?php
 
-use App\Services\Autofix\ErrorFingerprinter;
+use App\Services\Issues\ErrorFingerprinter;
 
 /**
  * Build a log row the way LogQuery hands them out.
@@ -157,4 +157,40 @@ test('only the top frames take part in the identity', function () {
 
     expect($this->fingerprinter->fingerprint(errorRow($deep)))
         ->toBe($this->fingerprinter->fingerprint(errorRow(phpStack('/var/www', 118, 'req-1'))));
+});
+
+test('only an exception logged at ERROR or worse is an issue', function () {
+    $row = fn (int $severity, string $body, array $attributes = []): array => [
+        'SeverityNumber' => $severity,
+        'ServiceName' => 'checkout',
+        'Body' => $body,
+        'LogAttributes' => $attributes,
+    ];
+
+    // A stack, or a named exception class, at ERROR: an issue.
+    expect($this->fingerprinter->isIssue($row(17, phpStack('/srv/app', 41, 'r1'))))->toBeTrue()
+        ->and($this->fingerprinter->isIssue($row(21, 'boom', ['exception.type' => 'App\\Exceptions\\PaymentFailed'])))->toBeTrue()
+        // An error message with no exception behind it is not.
+        ->and($this->fingerprinter->isIssue($row(17, 'Payment declined for order 4821')))->toBeFalse()
+        // Nor is an exception logged below ERROR.
+        ->and($this->fingerprinter->isIssue($row(13, phpStack('/srv/app', 41, 'r1'))))->toBeFalse();
+
+    expect($this->fingerprinter->issueFingerprint($row(9, phpStack('/srv/app', 41, 'r1'))))->toBe('');
+});
+
+test('a mapped row and the same row read back fingerprint identically', function () {
+    /*
+     * LogWriter fingerprints the mapped row (PascalCase, as inserted); Autofix
+     * fingerprints the row LogQuery returns (camelCase). They must agree, or an
+     * issue and its fix jobs would carry two different identities.
+     */
+    $stack = phpStack('/srv/app', 41, 'r1');
+    $attributes = ['exception.type' => 'App\\Exceptions\\PaymentFailed', 'exception.stacktrace' => $stack];
+
+    $inserted = ['SeverityNumber' => 17, 'ServiceName' => 'checkout', 'Body' => 'Charge declined', 'LogAttributes' => $attributes, 'ResourceAttributes' => []];
+    $queried = ['severityNumber' => 17, 'serviceName' => 'checkout', 'body' => 'Charge declined', 'logAttributes' => $attributes, 'resourceAttributes' => []];
+
+    expect($this->fingerprinter->issueFingerprint($inserted))
+        ->toBe($this->fingerprinter->fingerprint($queried))
+        ->not->toBe('');
 });
