@@ -140,19 +140,19 @@ health endpoint that needs no credentials.
 
 ## Where it shows up in Bilis
 
-| Source         | `service.name`                                      | Where to look                                 |
-| -------------- | --------------------------------------------------- | --------------------------------------------- |
-| Host metrics   | `host`                                              | Metrics → Hosts                               |
-| Docker stats   | `docker`                                            | Metrics → Hosts, under the host's Containers  |
-| HTTP checks    | `uptime`                                            | Metrics explorer, by `http.url`               |
-| journald lines | the unit, e.g. `nginx`, `sshd`, `docker`, `systemd` | Logs, filtered by service or host             |
+| Source         | `service.name`                                      | Where to look                                |
+| -------------- | --------------------------------------------------- | -------------------------------------------- |
+| Host metrics   | `host`                                              | Metrics → Hosts                              |
+| Docker stats   | `docker`                                            | Metrics → Hosts, under the host's Containers |
+| HTTP checks    | `uptime`                                            | Metrics explorer, by `http.url`              |
+| journald lines | the unit, e.g. `nginx`, `sshd`, `docker`, `systemd` | Logs, filtered by service or host            |
 
 **Metrics → Hosts** lists every machine running the agent, one row each, with
 CPU, memory, the fullest filesystem and load over the window's last fifteen
 minutes, how many containers it runs, and when it was last heard from. Pick a
 row for its charts: CPU and memory by state, disk space by mount, disk and
-network throughput, and per-container CPU and memory. Each chart has an *Open
-in explorer* link with the same query, for filters and grouping of your own.
+network throughput, and per-container CPU and memory. Each chart has an _Open
+in explorer_ link with the same query, for filters and grouping of your own.
 
 Every signal carries a `host.name` resource attribute — the machine's hostname,
 or `--host-name` when you set one — and Docker stats carry `container.name`.
@@ -182,7 +182,7 @@ curl -fsSL https://your-bilis-host/install.sh \
 | `--interval <dur>`   | The scrape interval for host metrics and Docker stats, e.g. `30s`, `2m`. Default `60s`.                  |
 | `--no-docker`        | Never collect container stats, even when Docker is installed. The agent stays out of the `docker` group. |
 | `--no-logs`          | Metrics only; no journald pipeline.                                                                      |
-| `--check <url>`      | Request this `http(s)` URL every interval (repeatable). Replaces the URLs of a previous install.        |
+| `--check <url>`      | Request this `http(s)` URL every interval (repeatable). Replaces the URLs of a previous install.         |
 | `--no-checks`        | Drop the check URLs a previous install was given.                                                        |
 | `--dry-run`          | Print the config and every action it would take, and change nothing.                                     |
 | `--uninstall`        | Remove the agent — the same as `bilis-agent uninstall`.                                                  |

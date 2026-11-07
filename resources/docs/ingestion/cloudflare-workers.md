@@ -8,10 +8,10 @@ A Worker has no host to install an agent on and no long-lived process to run an
 OpenTelemetry SDK in, so the usual ways of shipping telemetry do not apply.
 Two do, and they complement each other:
 
-| Route                                         | What you get                                                    | Code change | Plan         |
-| --------------------------------------------- | --------------------------------------------------------------- | ----------- | ------------ |
-| [Cloudflare OTLP export](#cloudflare-otlp-export) | `console.*` output, the runtime's own logs, request spans   | none        | Workers Paid |
-| [Sentry SDK](#sentry-sdk)                     | Exceptions with stack traces, breadcrumbs and request context   | a wrapper   | any          |
+| Route                                             | What you get                                                  | Code change | Plan         |
+| ------------------------------------------------- | ------------------------------------------------------------- | ----------- | ------------ |
+| [Cloudflare OTLP export](#cloudflare-otlp-export) | `console.*` output, the runtime's own logs, request spans     | none        | Workers Paid |
+| [Sentry SDK](#sentry-sdk)                         | Exceptions with stack traces, breadcrumbs and request context | a wrapper   | any          |
 
 Use the export for the everyday picture and add the SDK when you want the
 stack trace behind an error. The snippets on **Projects → your project →
@@ -29,12 +29,12 @@ by Cloudflare yet.
 In the Cloudflare dashboard, open **Workers & Pages → Observability →
 Destinations** and add one destination per signal:
 
-| Field         | Traces                                  | Logs                                    |
-| ------------- | --------------------------------------- | --------------------------------------- |
-| Name          | `bilis-traces`                          | `bilis-logs`                            |
-| Type          | Traces                                  | Logs                                    |
-| OTLP endpoint | `https://bilis.example.com/api/v1/traces` | `https://bilis.example.com/api/v1/logs` |
-| Custom header | `Authorization` = `Bearer bilis_YOUR_API_KEY` | same                              |
+| Field         | Traces                                        | Logs                                    |
+| ------------- | --------------------------------------------- | --------------------------------------- |
+| Name          | `bilis-traces`                                | `bilis-logs`                            |
+| Type          | Traces                                        | Logs                                    |
+| OTLP endpoint | `https://bilis.example.com/api/v1/traces`     | `https://bilis.example.com/api/v1/logs` |
+| Custom header | `Authorization` = `Bearer bilis_YOUR_API_KEY` | same                                    |
 
 The endpoint is the full URL, path included. The header carries a
 [secret API key](/docs/ingestion/api-keys) — not the DSN's public half.
@@ -44,10 +44,18 @@ The endpoint is the full URL, path included. The header carries a
 ```jsonc
 // wrangler.jsonc
 {
-  "observability": {
-    "traces": { "enabled": true, "destinations": ["bilis-traces"], "persist": false },
-    "logs": { "enabled": true, "destinations": ["bilis-logs"], "persist": false }
-  }
+    "observability": {
+        "traces": {
+            "enabled": true,
+            "destinations": ["bilis-traces"],
+            "persist": false,
+        },
+        "logs": {
+            "enabled": true,
+            "destinations": ["bilis-logs"],
+            "persist": false,
+        },
+    },
 }
 ```
 
@@ -95,8 +103,10 @@ npm install @sentry/cloudflare
 ```jsonc
 // wrangler.jsonc
 {
-  "compatibility_flags": ["nodejs_compat"],
-  "vars": { "SENTRY_DSN": "https://bilis_pk_YOUR_PUBLIC_KEY@bilis.example.com/1" }
+    "compatibility_flags": ["nodejs_compat"],
+    "vars": {
+        "SENTRY_DSN": "https://bilis_pk_YOUR_PUBLIC_KEY@bilis.example.com/1",
+    },
 }
 ```
 
@@ -105,16 +115,16 @@ npm install @sentry/cloudflare
 import * as Sentry from '@sentry/cloudflare';
 
 export default Sentry.withSentry(
-  (env: Env) => ({
-    dsn: env.SENTRY_DSN,
-    tracesSampleRate: 0,
-    initialScope: { tags: { service: 'checkout-edge' } },
-  }),
-  {
-    async fetch(request, env, ctx) {
-      return new Response('Hello from the edge');
-    },
-  } satisfies ExportedHandler<Env>,
+    (env: Env) => ({
+        dsn: env.SENTRY_DSN,
+        tracesSampleRate: 0,
+        initialScope: { tags: { service: 'checkout-edge' } },
+    }),
+    {
+        async fetch(request, env, ctx) {
+            return new Response('Hello from the edge');
+        },
+    } satisfies ExportedHandler<Env>,
 );
 ```
 
@@ -142,7 +152,7 @@ To check the setup, throw from a route and look for an `ERROR` line in
 
 ```ts
 if (new URL(request.url).pathname === '/debug-bilis') {
-  throw new Error('Bilis test error');
+    throw new Error('Bilis test error');
 }
 ```
 

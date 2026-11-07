@@ -108,6 +108,18 @@ it('documents span retention and the statements that change it', function () {
         ->toContain('toDateTime(Start) + toIntervalDay(90)');
 });
 
+it('tells self-hosters to cap ClickHouse system log tables', function () {
+    $markdown = get(route('docs.markdown', ['section' => 'reference', 'page' => 'limits-and-behavior']))
+        ->assertOk()
+        ->getContent();
+
+    expect($markdown)->toContain("Cap ClickHouse's own logs")
+        ->toContain('/etc/clickhouse-server/config.d/system-logs.xml')
+        ->toContain('<text_log>')
+        ->toContain('<trace_log><ttl>event_date + INTERVAL 3 DAY DELETE</ttl></trace_log>')
+        ->toContain("match(name, '_log_[0-9]+$')");
+});
+
 it('renders the Claude Code guide with the three defaults that send nothing', function () {
     get(route('docs.show', ['section' => 'ingestion', 'page' => 'claude-code']))
         ->assertOk()

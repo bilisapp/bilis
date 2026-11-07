@@ -77,7 +77,7 @@ class SpanWriter
         foreach ($rows as &$row) {
             foreach (self::MAP_COLUMNS as $column) {
                 if (is_array($row[$column] ?? null)) {
-                    $row[$column] = (object)$row[$column];
+                    $row[$column] = (object) $row[$column];
                 }
             }
 
@@ -90,7 +90,7 @@ class SpanWriter
                 $maps = $row[$column];
 
                 $row[$column] = array_map(
-                    fn(mixed $map): mixed => is_array($map) ? (object)$map : $map,
+                    fn (mixed $map): mixed => is_array($map) ? (object) $map : $map,
                     $maps,
                 );
             }

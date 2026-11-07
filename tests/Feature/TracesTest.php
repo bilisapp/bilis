@@ -240,7 +240,7 @@ test('the waterfall bounds its span query to the window the summary reports', fu
         $body = $request->body();
 
         // The waterfall query, not the root-resource lookup beside it.
-        if (!str_contains($body, 'SpanAttributes')) {
+        if (! str_contains($body, 'SpanAttributes')) {
             return false;
         }
 
@@ -291,14 +291,14 @@ test('a trace longer than the timestamp bracket is read whole', function () {
             'ts' => '2026-08-30T09:32:00Z',
         ]))
         ->assertOk()
-        ->assertInertia(fn(Assert $page) => $page
+        ->assertInertia(fn (Assert $page) => $page
             ->has('spans', 1)
             ->where('truncated', false)
             ->etc()
         );
 
     Http::assertSent(function (Request $request) {
-        if (!str_contains($request->body(), 'SpanAttributes')) {
+        if (! str_contains($request->body(), 'SpanAttributes')) {
             return false;
         }
 
@@ -329,7 +329,7 @@ test('a trace longer than the window cap is cut at the cap and says so', functio
             'trace' => str_repeat('a', 32),
         ]))
         ->assertOk()
-        ->assertInertia(fn(Assert $page) => $page
+        ->assertInertia(fn (Assert $page) => $page
             ->has('spans', 1)
             // The window was cut, so the tree is incomplete and the page must
             // say so the same way it does for a span-count cut.
@@ -338,7 +338,7 @@ test('a trace longer than the window cap is cut at the cap and says so', functio
         );
 
     Http::assertSent(function (Request $request) {
-        if (!str_contains($request->body(), 'SpanAttributes')) {
+        if (! str_contains($request->body(), 'SpanAttributes')) {
             return false;
         }
 
@@ -374,10 +374,10 @@ test('without a summary the timestamp bracket bounds the span query', function (
             'ts' => '2026-08-30T09:14:02Z',
         ]))
         ->assertOk()
-        ->assertInertia(fn(Assert $page) => $page->has('spans', 1)->etc());
+        ->assertInertia(fn (Assert $page) => $page->has('spans', 1)->etc());
 
     Http::assertSent(function (Request $request) {
-        if (!str_contains($request->body(), 'SpanAttributes')) {
+        if (! str_contains($request->body(), 'SpanAttributes')) {
             return false;
         }
 
@@ -1035,9 +1035,9 @@ test('the trace histogram is deferred, bucketed over the window and read the R13
     Http::fake(function (Request $request) {
         if (str_contains($request->body(), 'FailedTraces')) {
             return Http::response(collect([
-                    ['Bucket' => '2026-08-30 09:00:00.000000000', 'Traces' => 12, 'FailedTraces' => 2],
-                    ['Bucket' => '2026-08-30 09:30:00.000000000', 'Traces' => 5, 'FailedTraces' => 0],
-                ])->map(fn(array $row): string => (string)json_encode($row))->implode("\n") . "\n");
+                ['Bucket' => '2026-08-30 09:00:00.000000000', 'Traces' => 12, 'FailedTraces' => 2],
+                ['Bucket' => '2026-08-30 09:30:00.000000000', 'Traces' => 5, 'FailedTraces' => 0],
+            ])->map(fn (array $row): string => (string) json_encode($row))->implode("\n")."\n");
         }
 
         return Http::response(traceSummaryResponse());
@@ -1050,10 +1050,10 @@ test('the trace histogram is deferred, bucketed over the window and read the R13
             'to' => '2026-08-30T10:00:00Z',
         ]))
         ->assertOk()
-        ->assertInertia(fn(Assert $page) => $page
+        ->assertInertia(fn (Assert $page) => $page
             ->component('traces/Index')
             ->missing('histogram')
-            ->loadDeferredProps(fn(Assert $reload) => $reload
+            ->loadDeferredProps(fn (Assert $reload) => $reload
                 ->where('histogram.unavailable', false)
                 // A one hour window lands on 300 second buckets: 12 plus the
                 // closing edge, every one present even where nothing happened.
@@ -1073,7 +1073,7 @@ test('the trace histogram is deferred, bucketed over the window and read the R13
     Http::assertSent(function (Request $request) use ($project) {
         $body = $request->body();
 
-        if (!str_contains($body, 'FailedTraces')) {
+        if (! str_contains($body, 'FailedTraces')) {
             return false;
         }
 
@@ -1088,7 +1088,7 @@ test('the trace histogram is deferred, bucketed over the window and read the R13
             ->toContain('HAVING min(Start) >= {from:DateTime64(9)} AND min(Start) <= {to:DateTime64(9)}')
             ->not->toContain('WHERE Start >=')
             ->and($query['param_bucketSeconds'] ?? '')->toBe('300')
-            ->and($query['param_projectIds'] ?? '')->toBe("['" . $project->id . "']");
+            ->and($query['param_projectIds'] ?? '')->toBe("['".$project->id."']");
 
         return true;
     });
@@ -1107,14 +1107,14 @@ test('the trace histogram keeps the list filters and stays off the latency page'
             'min_duration' => 250,
         ]))
         ->assertOk()
-        ->assertInertia(fn(Assert $page) => $page->loadDeferredProps(
-            fn(Assert $reload) => $reload->has('histogram.buckets'),
+        ->assertInertia(fn (Assert $page) => $page->loadDeferredProps(
+            fn (Assert $reload) => $reload->has('histogram.buckets'),
         ));
 
     Http::assertSent(function (Request $request) {
         $body = $request->body();
 
-        if (!str_contains($body, 'FailedTraces')) {
+        if (! str_contains($body, 'FailedTraces')) {
             return false;
         }
 
@@ -1129,7 +1129,7 @@ test('the trace histogram keeps the list filters and stays off the latency page'
     $this->actingAs($user)
         ->get(route('traces.latency', ['current_team' => $team->slug]))
         ->assertOk()
-        ->assertInertia(fn(Assert $page) => $page->missing('histogram')->etc());
+        ->assertInertia(fn (Assert $page) => $page->missing('histogram')->etc());
 });
 
 test('an overloaded clickhouse leaves the histogram unavailable with every bucket present', function () {
@@ -1144,8 +1144,8 @@ test('an overloaded clickhouse leaves the histogram unavailable with every bucke
             'to' => '2026-08-30T10:00:00Z',
         ]))
         ->assertOk()
-        ->assertInertia(fn(Assert $page) => $page->loadDeferredProps(
-            fn(Assert $reload) => $reload
+        ->assertInertia(fn (Assert $page) => $page->loadDeferredProps(
+            fn (Assert $reload) => $reload
                 ->where('histogram.unavailable', true)
                 ->has('histogram.buckets', 13)
                 ->where('histogram.total', 0)
@@ -1173,9 +1173,9 @@ test('the toolbar service list is deferred, shared by both tabs and read through
     $this->actingAs($user)
         ->get(route('traces.index', ['current_team' => $team->slug]))
         ->assertOk()
-        ->assertInertia(fn(Assert $page) => $page
+        ->assertInertia(fn (Assert $page) => $page
             ->missing('services')
-            ->loadDeferredProps(fn(Assert $reload) => $reload
+            ->loadDeferredProps(fn (Assert $reload) => $reload
                 ->where('services', ['checkout', 'ledger'])
                 ->etc()
             )
@@ -1184,7 +1184,7 @@ test('the toolbar service list is deferred, shared by both tabs and read through
     Http::assertSent(function (Request $request) use ($project) {
         $body = $request->body();
 
-        if (!str_contains($body, 'SELECT DISTINCT RootService')) {
+        if (! str_contains($body, 'SELECT DISTINCT RootService')) {
             return false;
         }
 
@@ -1194,7 +1194,7 @@ test('the toolbar service list is deferred, shared by both tabs and read through
             ->toContain("RootService != ''")
             ->toContain('FROM trace_index')
             ->toContain('Hour >= toStartOfHour({from:DateTime64(9)})')
-            ->and($query['param_projectIds'] ?? '')->toBe("['" . $project->id . "']")
+            ->and($query['param_projectIds'] ?? '')->toBe("['".$project->id."']")
             ->and($query['param_rowLimit'] ?? '')->toBe('200');
 
         return true;
@@ -1203,9 +1203,9 @@ test('the toolbar service list is deferred, shared by both tabs and read through
     $this->actingAs($user)
         ->get(route('traces.latency', ['current_team' => $team->slug]))
         ->assertOk()
-        ->assertInertia(fn(Assert $page) => $page
+        ->assertInertia(fn (Assert $page) => $page
             ->component('traces/Latency')
-            ->loadDeferredProps(fn(Assert $reload) => $reload
+            ->loadDeferredProps(fn (Assert $reload) => $reload
                 ->where('services', ['checkout', 'ledger'])
                 ->etc()
             )
@@ -1226,8 +1226,8 @@ test('a trace older than the span retention is flagged as expired', function () 
     Http::fake(function (Request $request) use ($old, $fresh) {
         if (str_contains($request->body(), 'sum(SpanCount)')) {
             return Http::response(
-                traceSummaryResponse(['TraceId' => str_repeat('a', 32), 'Started' => $old, 'Ended' => $old]) . "\n"
-                . traceSummaryResponse(['TraceId' => str_repeat('b', 32), 'Started' => $fresh, 'Ended' => $fresh]) . "\n",
+                traceSummaryResponse(['TraceId' => str_repeat('a', 32), 'Started' => $old, 'Ended' => $old])."\n"
+                .traceSummaryResponse(['TraceId' => str_repeat('b', 32), 'Started' => $fresh, 'Ended' => $fresh])."\n",
             );
         }
 
@@ -1268,7 +1268,7 @@ test('the trace page counts the logs the trace wrote inside its own window', fun
             'trace' => str_repeat('a', 32),
         ]))
         ->assertOk()
-        ->assertInertia(fn(Assert $page) => $page
+        ->assertInertia(fn (Assert $page) => $page
             ->where('logs.count', 7)
             // 09:14:02.184 – 09:14:02.436, a minute either side.
             ->where('logs.from', '2026-08-30T09:13:02+00:00')
@@ -1279,7 +1279,7 @@ test('the trace page counts the logs the trace wrote inside its own window', fun
     Http::assertSent(function (Request $request) use ($project) {
         $body = $request->body();
 
-        if (!str_contains($body, 'FROM otel_logs')) {
+        if (! str_contains($body, 'FROM otel_logs')) {
             return false;
         }
 
@@ -1290,7 +1290,7 @@ test('the trace page counts the logs the trace wrote inside its own window', fun
             ->toContain('Timestamp >= {from:DateTime64(9)}')
             ->toContain('Timestamp <= {to:DateTime64(9)}')
             ->toContain('TraceId = {traceId:String}')
-            ->and($query['param_projectIds'] ?? '')->toBe("['" . $project->id . "']")
+            ->and($query['param_projectIds'] ?? '')->toBe("['".$project->id."']")
             ->and($query['param_traceId'] ?? '')->toBe(str_repeat('a', 32))
             ->and($query['param_from'] ?? '')->toBe('2026-08-30 09:13:02.184000')
             ->and($query['param_to'] ?? '')->toBe('2026-08-30 09:15:02.436000');
@@ -1310,9 +1310,9 @@ test('a trace with no summary has no log count to offer', function () {
             'trace' => str_repeat('f', 32),
         ]))
         ->assertOk()
-        ->assertInertia(fn(Assert $page) => $page->where('logs', null)->etc());
+        ->assertInertia(fn (Assert $page) => $page->where('logs', null)->etc());
 
-    Http::assertNotSent(fn(Request $request) => str_contains($request->body(), 'FROM otel_logs'));
+    Http::assertNotSent(fn (Request $request) => str_contains($request->body(), 'FROM otel_logs'));
 });
 
 test('an overloaded log store withholds the count but keeps the window for the link', function () {
@@ -1336,7 +1336,7 @@ test('an overloaded log store withholds the count but keeps the window for the l
             'trace' => str_repeat('a', 32),
         ]))
         ->assertOk()
-        ->assertInertia(fn(Assert $page) => $page
+        ->assertInertia(fn (Assert $page) => $page
             // Null, not zero: "could not count" must not read as "wrote nothing".
             ->where('logs.count', null)
             ->where('logs.from', '2026-08-30T09:13:02+00:00')

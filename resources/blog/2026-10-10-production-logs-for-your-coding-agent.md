@@ -47,7 +47,7 @@ Ten tools, every one of them a read:
   repetition, while an agent handed six groups can reason about which one lines
   up with the symptom.
 - **`search-logs`** reads lines over a window, filtered by service, severity, a
-  term, or a trace id — so the agent can read what happened *before* the
+  term, or a trace id — so the agent can read what happened _before_ the
   failure, which is usually where the cause is.
 - **`get-trace`** returns one request as a text waterfall: every span, its
   service, duration and status, and the attributes that locate a bug. A cause

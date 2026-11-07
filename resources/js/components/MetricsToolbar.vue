@@ -471,7 +471,7 @@ function removeFilter(key: string) {
             </div>
 
             <MetricsLiveToggle
-                :live="live"
+                :live="live ?? false"
                 :available="liveAvailable"
                 :refreshing="refreshing"
                 class="ml-auto"

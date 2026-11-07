@@ -46,7 +46,7 @@ function traceContextTeam(): array
  */
 function traceContextSummaryRow(): string
 {
-    return (string)json_encode([
+    return (string) json_encode([
         'TraceId' => TRACE_CONTEXT_TRACE_ID,
         'TraceRootName' => 'POST /checkout',
         'TraceRootService' => 'checkout',
@@ -83,10 +83,10 @@ function traceContextSpanRows(): string
     ];
 
     return implode("\n", [
-            json_encode([...$base, 'SpanId' => 'aaaaaaaaaaaaaaaa', 'SpanName' => 'POST /checkout', 'SpanKind' => 'Server', 'Duration' => 252_000_000, 'SpanAttributes' => ['http.method' => 'POST', 'http.route' => '/checkout', 'http.status_code' => '500']]),
-            json_encode([...$base, 'SpanId' => 'bbbbbbbbbbbbbbbb', 'ParentSpanId' => 'aaaaaaaaaaaaaaaa', 'SpanName' => 'stripe.charge', 'SpanKind' => 'Client', 'ServiceName' => 'payments', 'StatusCode' => 'Error', 'StatusMessage' => 'card declined']),
-            json_encode([...$base, 'SpanId' => TRACE_CONTEXT_SPAN_ID, 'ParentSpanId' => 'aaaaaaaaaaaaaaaa', 'SpanName' => 'Charger::run', 'Events.Timestamp' => ['2026-08-26 10:00:00.200000000'], 'Events.Name' => ['exception'], 'Events.Attributes' => [['exception.type' => 'App\\Exceptions\\PaymentFailed', 'exception.message' => 'card declined']]]),
-        ]) . "\n";
+        json_encode([...$base, 'SpanId' => 'aaaaaaaaaaaaaaaa', 'SpanName' => 'POST /checkout', 'SpanKind' => 'Server', 'Duration' => 252_000_000, 'SpanAttributes' => ['http.method' => 'POST', 'http.route' => '/checkout', 'http.status_code' => '500']]),
+        json_encode([...$base, 'SpanId' => 'bbbbbbbbbbbbbbbb', 'ParentSpanId' => 'aaaaaaaaaaaaaaaa', 'SpanName' => 'stripe.charge', 'SpanKind' => 'Client', 'ServiceName' => 'payments', 'StatusCode' => 'Error', 'StatusMessage' => 'card declined']),
+        json_encode([...$base, 'SpanId' => TRACE_CONTEXT_SPAN_ID, 'ParentSpanId' => 'aaaaaaaaaaaaaaaa', 'SpanName' => 'Charger::run', 'Events.Timestamp' => ['2026-08-26 10:00:00.200000000'], 'Events.Name' => ['exception'], 'Events.Attributes' => [['exception.type' => 'App\\Exceptions\\PaymentFailed', 'exception.message' => 'card declined']]]),
+    ])."\n";
 }
 
 /**
@@ -119,7 +119,7 @@ function fakeTraceStorage(mixed $summary, mixed $spans): void
 function traceContextRow(Project $project, array $overrides = []): array
 {
     return [
-        'project' => (string)$project->getKey(),
+        'project' => (string) $project->getKey(),
         'timestamp' => '2026-08-26 10:00:00.000000000',
         'severityText' => 'ERROR',
         'severityNumber' => 17,
@@ -182,7 +182,7 @@ test('the span read is bounded by the start and end the summary reports', functi
     app(TraceContextBuilder::class)->build(['7'], TRACE_CONTEXT_TRACE_ID, TRACE_CONTEXT_SPAN_ID);
 
     Http::assertSent(function (Request $request): bool {
-        if (!str_contains($request->body(), 'FROM otel_traces')) {
+        if (! str_contains($request->body(), 'FROM otel_traces')) {
             return false;
         }
 
@@ -213,11 +213,11 @@ test('a trace id nothing is stored for is recorded as missing, and the spans are
     expect($context['state'])->toBe(TraceContextBuilder::STATE_MISSING)
         ->and($context['waterfall'])->toBeNull();
 
-    Http::assertNotSent(fn(Request $request): bool => str_contains($request->body(), 'FROM otel_traces'));
+    Http::assertNotSent(fn (Request $request): bool => str_contains($request->body(), 'FROM otel_traces'));
 });
 
 test('an overloaded ClickHouse is recorded as unavailable rather than thrown', function () {
-    fakeTraceStorage(fn() => Http::response('Code: 202. DB::Exception: Too many simultaneous queries.', 503), '');
+    fakeTraceStorage(fn () => Http::response('Code: 202. DB::Exception: Too many simultaneous queries.', 503), '');
 
     $context = app(TraceContextBuilder::class)->build(['7'], TRACE_CONTEXT_TRACE_ID, TRACE_CONTEXT_SPAN_ID);
 
@@ -225,7 +225,7 @@ test('an overloaded ClickHouse is recorded as unavailable rather than thrown', f
 });
 
 test('a ClickHouse error that is not an overload is still swallowed, because the trace is only an enrichment', function () {
-    fakeTraceStorage(fn() => Http::response('Code: 60. DB::Exception: Unknown table.', 404), '');
+    fakeTraceStorage(fn () => Http::response('Code: 60. DB::Exception: Unknown table.', 404), '');
 
     $context = app(TraceContextBuilder::class)->build(['7'], TRACE_CONTEXT_TRACE_ID, TRACE_CONTEXT_SPAN_ID);
 
@@ -251,7 +251,7 @@ test('a fix job raised from a traced log line carries the waterfall and the task
     expect($task['instructions'])->toContain('trace waterfall')
         ->and($task['context'])
         ->toContain("\nTrace:\n")
-        ->toContain('Trace ' . TRACE_CONTEXT_TRACE_ID . ' (checkout POST /checkout): 3 spans, 1 with Error status, 252ms total.')
+        ->toContain('Trace '.TRACE_CONTEXT_TRACE_ID.' (checkout POST /checkout): 3 spans, 1 with Error status, 252ms total.')
         ->toContain('>>     checkout Charger::run')
         ->toEndWith(TaskRenderer::CONTEXT_END);
 
@@ -304,11 +304,11 @@ test('the task explains an expired, missing or unavailable trace in one line', f
 
     $task = app(TaskRenderer::class)->render($job->fresh());
 
-    expect($task['context'])->toContain("\nTrace:\n" . $expected);
+    expect($task['context'])->toContain("\nTrace:\n".$expected);
 })->with([
-    'expired' => ['expired', 'Trace ' . TRACE_CONTEXT_TRACE_ID . ' was referenced by the log line but its spans have expired; only its summary remains (3 spans, 1 with Error status).'],
-    'missing' => ['missing', 'Trace ' . TRACE_CONTEXT_TRACE_ID . ' was referenced by the log line but no trace with that id is stored.'],
-    'unavailable' => ['unavailable', 'Trace ' . TRACE_CONTEXT_TRACE_ID . ' was referenced by the log line but trace storage could not be read when this job was raised.'],
+    'expired' => ['expired', 'Trace '.TRACE_CONTEXT_TRACE_ID.' was referenced by the log line but its spans have expired; only its summary remains (3 spans, 1 with Error status).'],
+    'missing' => ['missing', 'Trace '.TRACE_CONTEXT_TRACE_ID.' was referenced by the log line but no trace with that id is stored.'],
+    'unavailable' => ['unavailable', 'Trace '.TRACE_CONTEXT_TRACE_ID.' was referenced by the log line but trace storage could not be read when this job was raised.'],
 ]);
 
 test('the job page ships the trace context alongside the stack', function () {
@@ -324,7 +324,7 @@ test('the job page ships the trace context alongside the stack', function () {
     $this->actingAs($user)
         ->get(route('autofix.show', ['current_team' => $team->slug, 'fixJob' => $job->uuid]))
         ->assertOk()
-        ->assertInertia(fn(Assert $page) => $page
+        ->assertInertia(fn (Assert $page) => $page
             ->component('autofix/Show')
             ->where('job.errorContext.trace.state', 'rendered')
             ->where('job.errorContext.trace.trace_id', TRACE_CONTEXT_TRACE_ID)

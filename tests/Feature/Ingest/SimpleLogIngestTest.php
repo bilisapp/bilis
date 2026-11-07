@@ -161,7 +161,7 @@ test('numeric context keys still reach ClickHouse as JSON objects', function () 
         ->postJson('/api/v1/ingest', ['message' => 'hello', 'context' => ['0' => 'x', 'order' => '42']])
         ->assertStatus(202);
 
-    Http::assertSent(fn(Request $request) => str_contains($request->body(), '"LogAttributes":{"0":"x","order":"42"}'));
+    Http::assertSent(fn (Request $request) => str_contains($request->body(), '"LogAttributes":{"0":"x","order":"42"}'));
 });
 
 test('trace and span ids are normalised like the trace mapper, and kept raw when unreadable', function () {

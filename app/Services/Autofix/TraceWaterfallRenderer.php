@@ -113,7 +113,7 @@ class TraceWaterfallRenderer
      * The spans are in whatever order storage returned them; the tree order
      * comes from {@see SpanTree::flatten()}, which never drops a span.
      *
-     * @param list<Span> $spans
+     * @param  list<Span>  $spans
      * @return RenderedWaterfall
      */
     public function render(array $spans, string $triggerSpanId = ''): array
@@ -134,7 +134,7 @@ class TraceWaterfallRenderer
         foreach ($ordered as $span) {
             $spanId = $this->string($span, 'spanId');
 
-            if (!isset($kept[$spanId])) {
+            if (! isset($kept[$spanId])) {
                 continue;
             }
 
@@ -177,7 +177,7 @@ class TraceWaterfallRenderer
      * finally the slowest of the rest. The result is a set keyed by span id;
      * ordering is the caller's.
      *
-     * @param list<Span> $ordered
+     * @param  list<Span>  $ordered
      * @return array<string, true>
      */
     private function select(array $ordered, string $triggerSpanId): array
@@ -217,7 +217,7 @@ class TraceWaterfallRenderer
             $seen = [];
             $current = $triggerSpanId;
 
-            while ($current !== '' && isset($byId[$current]) && !isset($seen[$current])) {
+            while ($current !== '' && isset($byId[$current]) && ! isset($seen[$current])) {
                 $seen[$current] = true;
                 $keep($current);
                 $current = $this->string($byId[$current], 'parentSpanId');
@@ -242,7 +242,7 @@ class TraceWaterfallRenderer
 
         $slowest = $ordered;
 
-        usort($slowest, fn(array $a, array $b): int => $this->duration($b) <=> $this->duration($a));
+        usort($slowest, fn (array $a, array $b): int => $this->duration($b) <=> $this->duration($a));
 
         foreach ($slowest as $span) {
             if (count($kept) >= self::MAX_SPANS) {
@@ -263,25 +263,25 @@ class TraceWaterfallRenderer
         $parts = [];
 
         if ($hasTrigger) {
-            $parts[] = self::TRIGGER_MARK . ' = the span that emitted the triggering log line';
+            $parts[] = self::TRIGGER_MARK.' = the span that emitted the triggering log line';
         }
 
-        $parts[] = self::ERROR_MARK . ' = a span whose status is Error';
+        $parts[] = self::ERROR_MARK.' = a span whose status is Error';
 
-        return 'Legend: ' . implode('; ', $parts);
+        return 'Legend: '.implode('; ', $parts);
     }
 
     /**
      * One span as one line: marks, indent, identity, timing, outcome, facts.
      *
-     * @param Span $span
+     * @param  Span  $span
      */
     private function line(array $span, bool $isTrigger): string
     {
         $isError = $this->isError($span);
-        $depth = max(0, (int)($span['depth'] ?? 0));
+        $depth = max(0, (int) ($span['depth'] ?? 0));
 
-        $marks = ($isTrigger ? self::TRIGGER_MARK : '  ') . ($isError ? self::ERROR_MARK : '  ');
+        $marks = ($isTrigger ? self::TRIGGER_MARK : '  ').($isError ? self::ERROR_MARK : '  ');
 
         $head = sprintf(
             '%s %s%s %s [%s] %s',
@@ -297,18 +297,18 @@ class TraceWaterfallRenderer
 
         if ($status !== '' && $status !== 'Unset') {
             $message = $this->string($span, 'statusMessage');
-            $head .= ' ' . $status . ($message !== '' ? ': ' . $this->truncate($message, self::VALUE_LIMIT) : '');
+            $head .= ' '.$status.($message !== '' ? ': '.$this->truncate($message, self::VALUE_LIMIT) : '');
         }
 
         $facts = $this->facts($span);
 
-        return $facts === [] ? $head : $head . ' | ' . implode(' ', $facts);
+        return $facts === [] ? $head : $head.' | '.implode(' ', $facts);
     }
 
     /**
      * The curated attributes and exception events of one span.
      *
-     * @param Span $span
+     * @param  Span  $span
      * @return list<string>
      */
     private function facts(array $span): array
@@ -324,12 +324,12 @@ class TraceWaterfallRenderer
             foreach ($aliases as $key) {
                 $value = $attributes[$key] ?? null;
 
-                if (!is_scalar($value) || (string)$value === '') {
+                if (! is_scalar($value) || (string) $value === '') {
                     continue;
                 }
 
                 $limit = in_array($key, self::STATEMENT_KEYS, true) ? self::STATEMENT_LIMIT : self::VALUE_LIMIT;
-                $facts[] = $key . '=' . $this->truncate($this->squish((string)$value), $limit);
+                $facts[] = $key.'='.$this->truncate($this->squish((string) $value), $limit);
 
                 break;
             }
@@ -350,7 +350,7 @@ class TraceWaterfallRenderer
      * place a span carries the same class name the log line's fingerprint was
      * cut from.
      *
-     * @param Span $span
+     * @param  Span  $span
      * @return list<string>
      */
     private function exceptions(array $span): array
@@ -359,7 +359,7 @@ class TraceWaterfallRenderer
         $lines = [];
 
         foreach ($events as $event) {
-            if (!is_array($event) || ($event['name'] ?? null) !== 'exception') {
+            if (! is_array($event) || ($event['name'] ?? null) !== 'exception') {
                 continue;
             }
 
@@ -373,17 +373,17 @@ class TraceWaterfallRenderer
                 continue;
             }
 
-            $lines[] = 'exception=' . $this->truncate(
-                    $this->squish(trim($type . ($type !== '' && $message !== '' ? ': ' : '') . $message)),
-                    self::STATEMENT_LIMIT,
-                );
+            $lines[] = 'exception='.$this->truncate(
+                $this->squish(trim($type.($type !== '' && $message !== '' ? ': ' : '').$message)),
+                self::STATEMENT_LIMIT,
+            );
         }
 
         return $lines;
     }
 
     /**
-     * @param Span $span
+     * @param  Span  $span
      */
     private function isError(array $span): bool
     {
@@ -391,13 +391,13 @@ class TraceWaterfallRenderer
     }
 
     /**
-     * @param Span $span
+     * @param  Span  $span
      */
     private function duration(array $span): float
     {
         $value = $span['durationMs'] ?? 0;
 
-        return is_numeric($value) ? (float)$value : 0.0;
+        return is_numeric($value) ? (float) $value : 0.0;
     }
 
     /**
@@ -406,26 +406,26 @@ class TraceWaterfallRenderer
     private function formatDuration(float $ms): string
     {
         if ($ms >= 1000) {
-            return rtrim(rtrim(number_format($ms / 1000, 2, '.', ''), '0'), '.') . 's';
+            return rtrim(rtrim(number_format($ms / 1000, 2, '.', ''), '0'), '.').'s';
         }
 
         if ($ms >= 10) {
-            return sprintf('%dms', (int)round($ms));
+            return sprintf('%dms', (int) round($ms));
         }
 
-        return rtrim(rtrim(number_format($ms, 2, '.', ''), '0'), '.') . 'ms';
+        return rtrim(rtrim(number_format($ms, 2, '.', ''), '0'), '.').'ms';
     }
 
     /**
      * Read a string off an array, whatever it actually holds.
      *
-     * @param array<string, mixed> $values
+     * @param  array<string, mixed>  $values
      */
     private function string(array $values, string $key): string
     {
         $value = $values[$key] ?? null;
 
-        return is_scalar($value) ? trim((string)$value) : '';
+        return is_scalar($value) ? trim((string) $value) : '';
     }
 
     /**
@@ -433,7 +433,7 @@ class TraceWaterfallRenderer
      */
     private function squish(string $value): string
     {
-        return trim((string)preg_replace('/\s+/', ' ', $value));
+        return trim((string) preg_replace('/\s+/', ' ', $value));
     }
 
     /**
@@ -441,6 +441,6 @@ class TraceWaterfallRenderer
      */
     private function truncate(string $value, int $limit): string
     {
-        return mb_strlen($value) <= $limit ? $value : mb_substr($value, 0, $limit) . '…';
+        return mb_strlen($value) <= $limit ? $value : mb_substr($value, 0, $limit).'…';
     }
 }

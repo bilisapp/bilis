@@ -393,7 +393,7 @@ class FixTriggerService
 
         if ($traceId !== '') {
             $context['trace'] = $this->traceContext->build(
-                [(string)$repository->project_id],
+                [(string) $repository->project_id],
                 $traceId,
                 trim($row['spanId']),
             );

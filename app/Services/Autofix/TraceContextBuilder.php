@@ -44,15 +44,14 @@ class TraceContextBuilder
     public const STATE_UNAVAILABLE = 'unavailable';
 
     public function __construct(
-        private readonly TraceQuery             $traces,
+        private readonly TraceQuery $traces,
         private readonly TraceWaterfallRenderer $renderer,
-    ) {
-    }
+    ) {}
 
     /**
      * Resolve one trace reference into the context stored on the job.
      *
-     * @param list<string> $projectIds
+     * @param  list<string>  $projectIds
      * @return TraceContext
      */
     public function build(array $projectIds, string $traceId, string $spanId = ''): array
@@ -70,7 +69,7 @@ class TraceContextBuilder
     }
 
     /**
-     * @param list<string> $projectIds
+     * @param  list<string>  $projectIds
      * @return TraceContext
      */
     private function resolve(array $projectIds, string $traceId, string $spanId): array
@@ -87,8 +86,8 @@ class TraceContextBuilder
             return $this->context($traceId, $spanId, self::STATE_MISSING);
         }
 
-        $startedAt = (string)($trace['startedAt'] ?? '');
-        $endedAt = (string)($trace['endedAt'] ?? '');
+        $startedAt = (string) ($trace['startedAt'] ?? '');
+        $endedAt = (string) ($trace['endedAt'] ?? '');
 
         /*
          * The summary already knows when the trace started and ended, so the
@@ -124,9 +123,9 @@ class TraceContextBuilder
     /**
      * Assemble the stored shape, whatever was or was not found.
      *
-     * @param 'rendered'|'expired'|'missing'|'unavailable' $state
-     * @param array<string, mixed>|null $trace
-     * @param array{text: string, rendered: int, omitted: int}|null $rendered
+     * @param  'rendered'|'expired'|'missing'|'unavailable'  $state
+     * @param  array<string, mixed>|null  $trace
+     * @param  array{text: string, rendered: int, omitted: int}|null  $rendered
      * @return TraceContext
      */
     private function context(string $traceId, string $spanId, string $state, ?array $trace = null, ?array $rendered = null, bool $truncated = false): array
@@ -135,12 +134,12 @@ class TraceContextBuilder
             'trace_id' => $traceId,
             'span_id' => $spanId,
             'state' => $state,
-            'root_name' => (string)($trace['rootName'] ?? ''),
-            'root_service' => (string)($trace['rootService'] ?? ''),
-            'started_at' => (string)($trace['startedAt'] ?? ''),
-            'duration_ms' => (float)($trace['durationMs'] ?? 0),
-            'span_count' => (int)($trace['spanCount'] ?? 0),
-            'error_count' => (int)($trace['errorCount'] ?? 0),
+            'root_name' => (string) ($trace['rootName'] ?? ''),
+            'root_service' => (string) ($trace['rootService'] ?? ''),
+            'started_at' => (string) ($trace['startedAt'] ?? ''),
+            'duration_ms' => (float) ($trace['durationMs'] ?? 0),
+            'span_count' => (int) ($trace['spanCount'] ?? 0),
+            'error_count' => (int) ($trace['errorCount'] ?? 0),
             'rendered_spans' => $rendered['rendered'] ?? 0,
             'omitted_spans' => $rendered['omitted'] ?? 0,
             'truncated' => $truncated,

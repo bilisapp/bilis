@@ -63,7 +63,7 @@ final class TraceIds
      */
     private static function decode(mixed $value, int $bytes): ?string
     {
-        if (!is_string($value)) {
+        if (! is_string($value)) {
             return null;
         }
 
@@ -97,7 +97,7 @@ final class TraceIds
      */
     private static function base64Length(int $bytes): int
     {
-        return (int)(ceil($bytes / 3) * 4);
+        return (int) (ceil($bytes / 3) * 4);
     }
 
     /**

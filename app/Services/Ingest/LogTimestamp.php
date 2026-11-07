@@ -63,7 +63,7 @@ class LogTimestamp
 
         // Compared as strings first: a digit string too long for an int would
         // saturate under a cast, and a saturated value compares as in range.
-        if (strlen($seconds) > strlen((string)self::MAX_SECONDS_EXCLUSIVE) || !self::inRange((int)$seconds)) {
+        if (strlen($seconds) > strlen((string) self::MAX_SECONDS_EXCLUSIVE) || ! self::inRange((int) $seconds)) {
             return null;
         }
 

@@ -54,7 +54,7 @@ class LogWriter
      * {@see SpanWriter::normalise()} is: it is the only implementation of a
      * rule whose failure mode is a silent drop.
      *
-     * @param array<int, array<string, mixed>> $rows
+     * @param  array<int, array<string, mixed>>  $rows
      * @return array<int, array<string, mixed>>
      */
     public static function normalise(array $rows): array
@@ -62,7 +62,7 @@ class LogWriter
         foreach ($rows as &$row) {
             foreach (self::MAP_COLUMNS as $column) {
                 if (is_array($row[$column] ?? null)) {
-                    $row[$column] = (object)$row[$column];
+                    $row[$column] = (object) $row[$column];
                 }
             }
         }

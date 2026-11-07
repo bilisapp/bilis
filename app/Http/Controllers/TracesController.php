@@ -31,7 +31,7 @@ class TracesController extends Controller
             ...$this->shared($projects, $filters, $traces, $projectIds),
             'traces' => Inertia::defer(fn (): array => $traces->list($projectIds, $filters)),
             'histogram' => Inertia::defer(
-                fn(): array => $traces->histogram($projectIds, $filters),
+                fn (): array => $traces->histogram($projectIds, $filters),
                 'histogram',
             ),
         ]);
@@ -156,8 +156,8 @@ class TracesController extends Controller
      * overloaded ClickHouse yields a null count with the window intact, so the
      * link still works while the number is withheld.
      *
-     * @param list<string> $projectIds
-     * @param array<string, mixed>|null $summary
+     * @param  list<string>  $projectIds
+     * @param  array<string, mixed>|null  $summary
      * @return array{count: int|null, from: string, to: string}|null
      */
     private function traceLogs(LogQuery $logs, array $projectIds, string $traceId, ?array $summary): ?array
@@ -166,8 +166,8 @@ class TracesController extends Controller
             return null;
         }
 
-        $started = Carbon::parse((string)$summary['startedAt'], 'UTC');
-        $ended = $summary['endedAt'] === '' ? $started->clone() : Carbon::parse((string)$summary['endedAt'], 'UTC');
+        $started = Carbon::parse((string) $summary['startedAt'], 'UTC');
+        $ended = $summary['endedAt'] === '' ? $started->clone() : Carbon::parse((string) $summary['endedAt'], 'UTC');
 
         $from = $started->clone()->subMinute();
         $to = $ended->clone()->addMinute();
@@ -321,7 +321,7 @@ class TracesController extends Controller
      * rather than twice with a chance to drift.
      *
      * @param  Collection<int, Project>  $projects
-     * @param list<string> $projectIds the projects the query may read, already narrowed by the filter
+     * @param  list<string>  $projectIds  the projects the query may read, already narrowed by the filter
      * @return array<string, mixed>
      */
     private function shared(Collection $projects, TraceFilters $filters, TraceQuery $traces, array $projectIds): array
@@ -340,7 +340,7 @@ class TracesController extends Controller
              * "traces are not set up".
              */
             'hasTraces' => $traces->hasAnyTraces($this->projectIds($projects, null)),
-            'services' => Inertia::defer(fn(): array => $traces->services($projectIds, $filters)),
+            'services' => Inertia::defer(fn (): array => $traces->services($projectIds, $filters)),
         ];
     }
 

@@ -42,7 +42,7 @@ it('refuses parsed dates outside the window too', function (mixed $value) {
     'a pre-2000 iso date' => ['1999-12-31T23:59:59Z'],
     'an over-long numeric string' => [str_repeat('9', 30)],
     'a pre-2000 unix second' => [5],
-    'a date object before 2000' => [fn() => Carbon::parse('1970-01-02', 'UTC')],
+    'a date object before 2000' => [fn () => Carbon::parse('1970-01-02', 'UTC')],
 ]);
 
 it('still guesses units for a numeric timestamp inside the window', function () {

@@ -259,6 +259,65 @@ It applies `database/clickhouse/*.sql` in filename order. That directory, and
 types of the first two are the upstream OpenTelemetry exporter's, which is what
 keeps the storage readable by tools other than Bilis.
 
+### Cap ClickHouse's own logs
+
+Out of the box, ClickHouse keeps its own diagnostics — the server log, profiler
+samples, every query and part event, a metric snapshot every second — in
+`system.*_log` tables **with no TTL**. They grow for as long as the server runs,
+and they grow faster than your data: one Bilis install held about 1.5 GB of
+logs, spans and metrics and 41 GB of `system.text_log`, `system.trace_log` and
+friends after ten weeks. The disk fills, ClickHouse turns read-only, and ingest
+starts answering `503`.
+
+Give them a retention with a config file in
+`/etc/clickhouse-server/config.d/` — with Docker, mount it there; on Coolify,
+add it as a file mount on the ClickHouse database:
+
+```xml
+<!-- /etc/clickhouse-server/config.d/system-logs.xml -->
+<clickhouse>
+    <text_log>
+        <level>warning</level>
+        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
+    </text_log>
+    <trace_log><ttl>event_date + INTERVAL 3 DAY DELETE</ttl></trace_log>
+    <part_log><ttl>event_date + INTERVAL 3 DAY DELETE</ttl></part_log>
+    <query_log><ttl>event_date + INTERVAL 7 DAY DELETE</ttl></query_log>
+    <query_views_log><ttl>event_date + INTERVAL 3 DAY DELETE</ttl></query_views_log>
+    <metric_log><ttl>event_date + INTERVAL 3 DAY DELETE</ttl></metric_log>
+    <asynchronous_metric_log><ttl>event_date + INTERVAL 3 DAY DELETE</ttl></asynchronous_metric_log>
+    <processors_profile_log><ttl>event_date + INTERVAL 3 DAY DELETE</ttl></processors_profile_log>
+    <asynchronous_insert_log><ttl>event_date + INTERVAL 3 DAY DELETE</ttl></asynchronous_insert_log>
+</clickhouse>
+```
+
+`query_log` keeps a week because it is the one you will want when a Bilis query
+is slow. Restart ClickHouse after adding the file.
+
+On a server that has already been running, the restart does not shrink anything
+by itself: ClickHouse sees the changed definition, renames each old table to
+`*_log_0`, `*_log_1` and so on, and starts a fresh one. Check what is left over,
+then drop it — it is diagnostic history only, never Bilis data:
+
+```bash
+clickhouse-client -q "SELECT name, formatReadableSize(total_bytes) FROM system.tables
+  WHERE database = 'system' AND match(name, '_log_[0-9]+$') ORDER BY total_bytes DESC"
+
+clickhouse-client -q "SELECT 'DROP TABLE system.' || name || ' SYNC;' FROM system.tables
+  WHERE database = 'system' AND match(name, '_log_[0-9]+$') FORMAT TSVRaw" | clickhouse-client -n
+```
+
+To see what is actually using the disk at any point:
+
+```sql
+SELECT database, table, formatReadableSize(sum(bytes_on_disk)) AS disk
+FROM system.parts
+WHERE active
+GROUP BY database, table
+ORDER BY sum(bytes_on_disk) DESC
+LIMIT 10;
+```
+
 ### Upgrading an install that predates the text body index
 
 If you have been running Bilis since before the ClickHouse 26.2 floor, your

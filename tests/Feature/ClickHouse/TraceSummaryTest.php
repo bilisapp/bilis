@@ -319,12 +319,12 @@ it('aggregates every block of a trace whose blocks straddle the window boundary'
     $summaryRows = $this->client->select('SELECT count() AS c FROM trace_summary WHERE ProjectId = {p:String}', ['p' => $this->projectId]);
     $indexRows = $this->client->select('SELECT count() AS c FROM trace_index WHERE ProjectId = {p:String}', ['p' => $this->projectId]);
 
-    expect((int)$summaryRows[0]['c'])->toBeGreaterThan(1)
-        ->and((int)$indexRows[0]['c'])->toBeGreaterThanOrEqual(1);
+    expect((int) $summaryRows[0]['c'])->toBeGreaterThan(1)
+        ->and((int) $indexRows[0]['c'])->toBeGreaterThanOrEqual(1);
 
     $query = app(TraceQuery::class);
 
-    $whole = fn(array $trace) => expect($trace['traceId'])->toBe($this->traceId)
+    $whole = fn (array $trace) => expect($trace['traceId'])->toBe($this->traceId)
         ->and($trace['rootName'])->toBe('POST /pay')
         ->and($trace['rootService'])->toBe('checkout')
         ->and($trace['startedAt'])->toStartWith('2026-08-30 12:00:00')
@@ -381,13 +381,13 @@ it('indexes a trace written through SpanWriter and lists it by the hour', functi
         spanRow($this->projectId, $this->traceId, str_repeat('a', 16), '', 'POST /pay', 'checkout', 'Unset', '2026-08-30 12:00:00.000000000'),
     ]);
 
-    $indexed = awaitRows(fn() => $this->client->select(
+    $indexed = awaitRows(fn () => $this->client->select(
         'SELECT Hour FROM trace_index WHERE ProjectId = {p:String}',
         ['p' => $this->projectId],
     ), 1);
 
     expect($indexed)->toHaveCount(1)
-        ->and((string)$indexed[0]['Hour'])->toBe('2026-08-30 12:00:00');
+        ->and((string) $indexed[0]['Hour'])->toBe('2026-08-30 12:00:00');
 
     $result = app(TraceQuery::class)->list([$this->projectId], new TraceFilters(
         from: Carbon::parse('2026-08-30 11:00:00', 'UTC'),
@@ -408,7 +408,7 @@ it('reads a long trace whole between its summary bounds and cuts it at the cap',
         spanRow($this->projectId, $this->traceId, str_repeat('b', 16), str_repeat('a', 16), 'llm_request', 'agent', 'Unset', '2026-08-30 12:20:00.000000000'),
     ]);
 
-    awaitRows(fn() => $this->client->select(
+    awaitRows(fn () => $this->client->select(
         'SELECT SpanId FROM otel_traces WHERE ProjectId = {p:String}',
         ['p' => $this->projectId],
     ), 2);

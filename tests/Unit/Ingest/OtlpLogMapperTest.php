@@ -5,7 +5,7 @@ use App\Services\Ingest\OtlpLogMapper;
 /**
  * A one-record export request.
  *
- * @param array<string, mixed> $record
+ * @param  array<string, mixed>  $record
  * @return array<string, mixed>
  */
 function logRequest(array $record): array

@@ -5,7 +5,7 @@ use App\Services\Autofix\TraceWaterfallRenderer;
 /**
  * A span in the shape TraceQuery::spans() returns.
  *
- * @param array<string, mixed> $overrides
+ * @param  array<string, mixed>  $overrides
  * @return array<string, mixed>
  */
 function waterfallSpan(string $spanId, string $parentSpanId = '', array $overrides = []): array
@@ -15,7 +15,7 @@ function waterfallSpan(string $spanId, string $parentSpanId = '', array $overrid
         'traceId' => str_repeat('a', 32),
         'spanId' => $spanId,
         'parentSpanId' => $parentSpanId,
-        'name' => 'span ' . $spanId,
+        'name' => 'span '.$spanId,
         'kind' => 'Internal',
         'serviceName' => 'checkout',
         'durationMs' => 10.0,
@@ -37,7 +37,7 @@ function waterfallLines(string $text): array
 {
     return array_values(array_filter(
         explode("\n", $text),
-        fn(string $line): bool => !str_starts_with($line, 'Legend:') && !str_starts_with($line, '('),
+        fn (string $line): bool => ! str_starts_with($line, 'Legend:') && ! str_starts_with($line, '('),
     ));
 }
 
@@ -90,7 +90,7 @@ test('only the curated attributes travel, statements are truncated, and exceptio
                 'http.route' => '/checkout',
                 'http.status_code' => '500',
                 'db.system' => 'postgresql',
-                'db.statement' => 'SELECT ' . str_repeat('col, ', 60) . 'FROM orders WHERE id = $1',
+                'db.statement' => 'SELECT '.str_repeat('col, ', 60).'FROM orders WHERE id = $1',
                 'code.function' => 'charge',
                 'code.filepath' => 'app/Billing/Charger.php',
                 'code.lineno' => '118',
@@ -164,12 +164,12 @@ test('a trace over the span cap keeps the triggering path, its siblings, the fai
     $spans[] = waterfallSpan('failed', 'root', ['statusCode' => 'Error', 'durationMs' => 1.0]);
 
     for ($i = 0; $i < 200; $i++) {
-        $spans[] = waterfallSpan('noise' . $i, 'root', ['durationMs' => 2.0]);
+        $spans[] = waterfallSpan('noise'.$i, 'root', ['durationMs' => 2.0]);
     }
 
     // A handful of slow spans that should outrank the noise.
     for ($i = 0; $i < 5; $i++) {
-        $spans[] = waterfallSpan('slow' . $i, 'root', ['durationMs' => 900.0 + $i]);
+        $spans[] = waterfallSpan('slow'.$i, 'root', ['durationMs' => 900.0 + $i]);
     }
 
     $rendered = (new TraceWaterfallRenderer)->render($spans, 'trigger');
@@ -179,7 +179,7 @@ test('a trace over the span cap keeps the triggering path, its siblings, the fai
         ->and($rendered['omitted'])->toBe(count($spans) - $rendered['rendered'])
         ->and($text)->toContain(sprintf('(%d more spans omitted)', $rendered['omitted']))
         // Marks are a fixed four-character column; the trigger sits at depth 3.
-        ->and($text)->toContain('>>   ' . str_repeat('  ', 3) . 'checkout span trigger')
+        ->and($text)->toContain('>>   '.str_repeat('  ', 3).'checkout span trigger')
         ->and($text)->toContain('checkout span sibling')
         ->and($text)->toContain('checkout span a ')
         ->and($text)->toContain('checkout span b ')
@@ -196,7 +196,7 @@ test('the character cap cuts whole lines and reports what it dropped', function 
     $spans = [];
 
     for ($i = 0; $i < 50; $i++) {
-        $spans[] = waterfallSpan('s' . $i, '', [
+        $spans[] = waterfallSpan('s'.$i, '', [
             'name' => str_repeat('n', 80),
             'attributes' => ['http.route' => str_repeat('r', 90)],
         ]);
