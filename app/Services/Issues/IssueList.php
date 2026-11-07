@@ -23,11 +23,6 @@ use Illuminate\Database\Eloquent\Collection;
  */
 class IssueList
 {
-    /**
-     * How many points each row's sparkline is resampled to.
-     */
-    public const SPARKLINE_POINTS = 24;
-
     public function __construct(private readonly IssueQuery $query) {}
 
     /**
@@ -118,22 +113,38 @@ class IssueList
     }
 
     /**
-     * Resample an hourly series onto a fixed number of points.
+     * Lay an hourly series out as one point per step across the window.
+     *
+     * Every point covers exactly `$step` seconds counted from the window's
+     * start, so no point ever holds two buckets and draws a spike that is not
+     * there; only the last point is short, as the window ends now. The step is
+     * an hour for windows up to two days and a day beyond.
      *
      * @param  array<int, int>  $series  Unix hour => events
      * @return list<int>
      */
-    public static function sparkline(array $series, int $fromSeconds, int $toSeconds, int $points = self::SPARKLINE_POINTS): array
+    public static function sparkline(array $series, int $fromSeconds, int $toSeconds, int $step): array
     {
+        $points = max(1, (int) ceil(max(1, $toSeconds - $fromSeconds) / $step));
         $values = array_fill(0, $points, 0);
-        $span = max(1, $toSeconds - $fromSeconds);
 
         foreach ($series as $hour => $events) {
-            $index = (int) floor((($hour - $fromSeconds) / $span) * $points);
-            $values[max(0, min($points - 1, $index))] += $events;
+            $index = intdiv(max(0, $hour - $fromSeconds), $step);
+
+            if ($index < $points) {
+                $values[$index] += $events;
+            }
         }
 
         return array_values($values);
+    }
+
+    /**
+     * The sparkline step for a window: hourly up to two days, daily beyond.
+     */
+    public static function sparklineStep(IssueFilters $filters): int
+    {
+        return IssueFilters::PERIODS[$filters->period] <= 48 ? 3600 : 86400;
     }
 
     /**
@@ -185,8 +196,8 @@ class IssueList
             'users' => $summary['users'],
             'windowEvents' => $candidate['windowEvents'],
             'windowUsers' => $candidate['windowUsers'],
-            'series' => self::sparkline($candidate['series'], intdiv($fromMs, 1000), $filters->to->getTimestamp()),
-            'status' => IssueState::of($state, $summary['lastSeen']),
+            'series' => self::sparkline($candidate['series'], intdiv($fromMs, 1000), $filters->to->getTimestamp(), self::sparklineStep($filters)),
+            'status' => IssueState::of($state, $summary['lastIngested']),
             'isNew' => $summary['firstSeen'] >= $fromMs,
             'firstRelease' => $summary['firstRelease'],
             'lastRelease' => $summary['lastRelease'],

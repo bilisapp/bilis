@@ -133,6 +133,8 @@ function decide(status: IssueDecision) {
         { status },
         {
             preserveScroll: true,
+            // Only the status changed: the charts, tags and events stay.
+            only: ['issue'],
             onFinish: () => {
                 deciding.value = null;
             },
@@ -144,10 +146,18 @@ const target = computed(() =>
     row.value ? autofixTargetFor(row.value, props.autofix) : null,
 );
 
-/* Event navigation: every step is a link, so an event is shareable. */
+/*
+ * Event navigation: every step is a link, so an event is shareable. Stepping
+ * only changes the event, so only the event is reloaded — the histogram, the
+ * tag breakdown and the recent events describe the issue, not this event,
+ * and re-reading them on every step is what made stepping expensive.
+ */
+const EVENT_PROPS = ['event', 'exception'];
+
 const eventLink = (
     position: 'latest' | 'oldest' | 'older' | 'newer' | 'at',
     event?: string,
+    eventKey?: string,
 ) =>
     issueHref(
         teamSlug.value,
@@ -156,6 +166,8 @@ const eventLink = (
         {
             position,
             event: event ?? row.value?.timestamp ?? null,
+            eventKey:
+                event === undefined ? props.event.eventKey : (eventKey ?? null),
         },
     );
 
@@ -462,6 +474,7 @@ const firstSeen = computed(() =>
                                         ? {
                                               href: eventLink(step.position),
                                               preserveScroll: true,
+                                              only: EVENT_PROPS,
                                           }
                                         : {}
                                 "
@@ -501,6 +514,7 @@ const firstSeen = computed(() =>
                                         ? {
                                               href: step.href,
                                               preserveScroll: true,
+                                              only: EVENT_PROPS,
                                           }
                                         : {}
                                 "
@@ -721,12 +735,14 @@ const firstSeen = computed(() =>
                             <tbody>
                                 <tr
                                     v-for="summary in recentEvents.rows"
-                                    :key="summary.timestamp"
+                                    :key="`${summary.timestamp}:${summary.eventKey}`"
                                     :class="
                                         cn(
                                             'border-b last:border-b-0',
                                             summary.timestamp ===
                                                 row?.timestamp &&
+                                                summary.eventKey ===
+                                                    event.eventKey &&
                                                 'bg-accent/60',
                                         )
                                     "
@@ -739,8 +755,10 @@ const firstSeen = computed(() =>
                                                 eventLink(
                                                     'at',
                                                     summary.timestamp,
+                                                    summary.eventKey,
                                                 )
                                             "
+                                            :only="EVENT_PROPS"
                                             preserve-scroll
                                             class="underline-offset-4 hover:underline"
                                         >

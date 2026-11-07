@@ -54,8 +54,9 @@ export function isOpen(status: IssueStatus): boolean {
 /**
  * The one builder for links to an issue page.
  *
- * `event` is a ClickHouse timestamp and `position` says what to do with it,
- * so stepping through events is a link like any other.
+ * `event` is a ClickHouse timestamp, `eventKey` tells it from other events
+ * on the same timestamp, and `position` says what to do with them — so
+ * stepping through events is a link like any other.
  */
 export function issueHref(
     teamSlug: string,
@@ -64,6 +65,8 @@ export function issueHref(
     options: {
         position?: 'latest' | 'oldest' | 'older' | 'newer' | 'at';
         event?: string | null;
+        /** The event's tie-breaker within its timestamp. */
+        eventKey?: string | null;
     } = {},
 ): string {
     const query: Record<string, string> = {};
@@ -74,6 +77,10 @@ export function issueHref(
 
     if (options.event) {
         query.event = options.event;
+
+        if (options.eventKey) {
+            query.key = options.eventKey;
+        }
     }
 
     return issueShow(
@@ -185,9 +192,66 @@ function lineNumber(value: string | undefined): number | null {
     return Number.isFinite(parsed) ? parsed : null;
 }
 
-/** The lines that start a cause in a printed stack: Java, PHP, Python. */
-const CAUSE_LINE =
-    /^\s*(Caused by:|Next |The above exception was the direct cause|During handling of the above exception)/;
+/**
+ * A cause marker that comes AFTER the thrown exception's frames (Java, and
+ * Bilis's own PHP shipper): the thrown exception is printed first.
+ */
+const CAUSE_AFTER = /^\s*Caused by:/;
+
+/**
+ * Markers of the other convention, where the innermost cause is printed first
+ * and the thrown exception last: PHP's `(string) $exception` (`Next …`) and
+ * Python's chained tracebacks. The Python sentences only separate sections;
+ * `Next …` is the header of the section it starts.
+ */
+const CAUSE_BEFORE =
+    /^(Next |The above exception was the direct cause|During handling of the above exception)/;
+
+const PYTHON_SEPARATOR =
+    /^(The above exception was the direct cause|During handling of the above exception)/;
+
+/**
+ * Split a printed chain into the thrown exception and its causes.
+ *
+ * `causes` is nearest first whichever way round the runtime printed them.
+ */
+export function splitStackSections(text: string): {
+    thrown: string;
+    causes: string[];
+} {
+    const sections: string[][] = [[]];
+    let causeFirst = false;
+
+    for (const line of text.split(/\r\n|\r|\n/)) {
+        if (CAUSE_BEFORE.test(line)) {
+            causeFirst = true;
+            sections.push(PYTHON_SEPARATOR.test(line) ? [] : [line]);
+            continue;
+        }
+
+        if (CAUSE_AFTER.test(line)) {
+            sections.push([line]);
+            continue;
+        }
+
+        sections[sections.length - 1].push(line);
+    }
+
+    const texts = sections
+        .map((section) => section.join('\n').trim())
+        .filter((section) => section !== '');
+
+    if (texts.length === 0) {
+        return { thrown: '', causes: [] };
+    }
+
+    return causeFirst
+        ? {
+              thrown: texts[texts.length - 1],
+              causes: texts.slice(0, -1).reverse(),
+          }
+        : { thrown: texts[0], causes: texts.slice(1) };
+}
 
 /**
  * Parse a printed stack trace into frames, most recent call first.
@@ -196,20 +260,22 @@ const CAUSE_LINE =
  * the envelope mapper's own (`#0 file:12 fn()`), V8 (`at fn (file:12:3)`),
  * Java (`at a.b.C.m(C.java:12)`), Python (`File "x", line 12, in fn`, oldest
  * first, so reversed), Ruby (`file:12:in 'fn'`) and Go (function line, then a
- * tab-indented `file:line`). Stops at the first cause marker — causes are
- * {@link parseCausesFromText}'s. Lines it does not recognise are skipped.
+ * tab-indented `file:line`). Only the thrown exception's frames are returned —
+ * in a chain printed cause-first (PHP `Next`, Python) that is the LAST
+ * section; causes are {@link parseCausesFromText}'s. Lines it does not
+ * recognise are skipped.
  */
 export function parseStackTrace(text: string): StackFrame[] {
+    return parseFrames(splitStackSections(text).thrown);
+}
+
+function parseFrames(text: string): StackFrame[] {
     const lines = text.split(/\r\n|\r|\n/);
     const frames: StackFrame[] = [];
     let pythonOrder = false;
 
     for (let index = 0; index < lines.length; index++) {
         const line = lines[index];
-
-        if (CAUSE_LINE.test(line)) {
-            break;
-        }
 
         if (/^Traceback \(most recent call last\)/.test(line.trim())) {
             pythonOrder = true;
@@ -387,28 +453,35 @@ export function parseStackTrace(text: string): StackFrame[] {
 }
 
 /**
- * The causes printed after the frames of a text stack, nearest first.
+ * The causes behind a printed exception, nearest first.
+ *
+ * A section's headline is its `Caused by:` / `Next ` line, or for Python the
+ * `Type: message` line that closes the traceback.
  */
 export function parseCausesFromText(text: string): ExceptionCause[] {
-    const causes: ExceptionCause[] = [];
-    const parts = text.split(/\r?\n(?=\s*(?:Caused by:|Next ))/);
-
-    for (const part of parts.slice(1)) {
-        const [header, ...rest] = part.trim().split(/\r?\n/);
-        const headline = header.replace(/^(Caused by:|Next )\s*/, '');
+    return splitStackSections(text).causes.map((section) => {
+        const lines = section.split(/\r?\n/);
+        const python = lines.some((line) =>
+            /^Traceback \(most recent call last\)/.test(line.trim()),
+        );
+        const header = python
+            ? ([...lines]
+                  .reverse()
+                  .find((line) => line.trim() !== '' && !/^\s/.test(line)) ??
+              '')
+            : lines[0];
+        const headline = header.replace(/^\s*(Caused by:|Next )\s*/, '').trim();
         const match = /^([\w$.\\]+)(?::\s*(.*))?$/.exec(headline);
-        const stacktrace = rest.join('\n');
-        const frames = parseStackTrace(stacktrace);
+        const stacktrace = python ? section : lines.slice(1).join('\n');
+        const frames = parseFrames(stacktrace);
 
-        causes.push({
+        return {
             type: match?.[1] ?? '',
             message: match?.[2] ?? headline,
             origin: frames[0] ? frameLocation(frames[0]) : '',
             stacktrace,
-        });
-    }
-
-    return causes;
+        };
+    });
 }
 
 /**

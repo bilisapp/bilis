@@ -12,9 +12,20 @@
 -- Releases use the -If combinator (same state type) so an event without a
 -- release does not blank the last known one.
 --
--- TTL is on LastSeen: an issue quiet for 90 days ages out, one that keeps
--- recurring stays. Its events expire after 30 (otel_logs), so the UI must
--- handle an issue whose events are gone, as the trace list does.
+-- No TTL, on purpose. TTL is evaluated per stored row, and an issue's rows are
+-- partial until merges fold them — which may never happen for a large old
+-- part. A TTL on LastSeen would delete the oldest partial row of an issue
+-- that is still recurring, taking its true FirstSeen, FirstRelease and part
+-- of its event count with it. One row per (project, fingerprint) is small;
+-- dead issues simply stop appearing in any window (the list reads
+-- issue_hourly, which does expire). Events expire after 30 days in otel_logs,
+-- so the UI must handle an issue whose events are gone.
+--
+-- LastIngested is when ClickHouse last received an event of the issue (the
+-- view's now(), evaluated as the block is written), not when the client says
+-- it happened. "Regressed" compares it with the resolution time, so a client
+-- with a fast clock cannot regress an issue at once, and a buffered SDK that
+-- flushes old events after the resolution still does.
 CREATE TABLE IF NOT EXISTS issue_summary
 (
     ProjectId        LowCardinality(String),
@@ -22,6 +33,7 @@ CREATE TABLE IF NOT EXISTS issue_summary
     FirstSeen        SimpleAggregateFunction(min, DateTime64(9, 'UTC')),
     LastSeen         SimpleAggregateFunction(max, DateTime64(9, 'UTC')),
     Events           SimpleAggregateFunction(sum, UInt64),
+    LastIngested     SimpleAggregateFunction(max, DateTime('UTC')),
     Users            AggregateFunction(uniq, String),
     Services         SimpleAggregateFunction(groupUniqArrayArray, Array(String)),
     Environments     SimpleAggregateFunction(groupUniqArrayArray, Array(String)),
@@ -34,5 +46,4 @@ CREATE TABLE IF NOT EXISTS issue_summary
 )
 ENGINE = AggregatingMergeTree
 ORDER BY (ProjectId, IssueFingerprint)
-TTL toDateTime(LastSeen) + toIntervalDay(90)
 SETTINGS index_granularity = 8192

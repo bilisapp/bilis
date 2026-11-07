@@ -126,7 +126,66 @@ class ErrorFingerprinter
             return false;
         }
 
-        return $this->exceptionClass($logRecord) !== '' || $this->stackFrames($logRecord) !== [];
+        return $this->namesExceptionType($logRecord) || $this->hasRealFrames($logRecord);
+    }
+
+    /**
+     * The attribute keys that, by convention, only ever hold an exception type.
+     *
+     * Unlike `error.type` (which OTel also uses for "timeout" or "500") or a
+     * bare `error` attribute, a value under one of these is believed as sent.
+     *
+     * @var list<string>
+     */
+    private const TYPE_KEYS = ['exception.type', 'exception.class', 'exception_class'];
+
+    /**
+     * A line that is unmistakably a stack frame: it carries a location.
+     *
+     * PHP `#0 /path/file.php(12): fn()` and the envelope's `#0 file.php:12 fn()`,
+     * V8 `at fn (file.js:12:3)` / `at file.js:12:3`, Java `at a.B.c(B.java:12)`,
+     * Python `File "x.py", line 12`. A line that merely starts with "at " ("at
+     * 5pm we retry") or "#1" is not one.
+     */
+    private const REAL_FRAME_PATTERN = '/^[ \t]*(?:#\d+[ \t]+\S.*?(?:\(\d+\)|:\d+)|at[ \t]+\S.*?:\d+(?::\d+)?\)?[ \t]*$|at[ \t]+[\w$.<>]+\([\w$.-]+:\d+\)|File "[^"]+", line \d+)/m';
+
+    /**
+     * Whether the record names its exception type, strictly.
+     *
+     * The issue gate deliberately does not use {@see exceptionClass()}'s
+     * looser fallbacks: `Checkout: payment declined` reads as a `Class:
+     * message` headline and `error=timeout` as a bare class name, and both
+     * are error lines, not exceptions. A type is believed from a type key, or
+     * when it reads like one — an `...Exception|Error|Throwable|Fault` name —
+     * anywhere in the error attributes, the message or the body.
+     *
+     * @param  ErrorRecord  $logRecord
+     */
+    private function namesExceptionType(array $logRecord): bool
+    {
+        $typed = $this->attribute($logRecord, self::TYPE_KEYS);
+
+        if ($typed !== null && $this->looksLikeClassName($typed)) {
+            return true;
+        }
+
+        $haystack = implode("\n", [
+            $this->attribute($logRecord, self::CLASS_KEYS) ?? '',
+            $this->body($logRecord),
+            $this->attribute($logRecord, self::MESSAGE_KEYS) ?? '',
+        ]);
+
+        return preg_match(self::CLASS_PATTERN, $haystack) === 1;
+    }
+
+    /**
+     * Whether the record carries at least one frame with a location in it.
+     *
+     * @param  ErrorRecord  $logRecord
+     */
+    private function hasRealFrames(array $logRecord): bool
+    {
+        return preg_match(self::REAL_FRAME_PATTERN, $this->stackTrace($logRecord)) === 1;
     }
 
     /**

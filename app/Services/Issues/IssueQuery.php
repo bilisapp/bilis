@@ -4,6 +4,7 @@ namespace App\Services\Issues;
 
 use App\Services\ClickHouse\ClickHouseClient;
 use App\Services\ClickHouse\ClickHouseException;
+use App\Services\ClickHouse\ClickHouseParameters;
 use App\Services\Support\TimeBuckets;
 use Illuminate\Support\Carbon;
 
@@ -27,7 +28,7 @@ use Illuminate\Support\Carbon;
  * page can say so instead of failing.
  *
  * @phpstan-type IssueCandidate array{projectId: string, fingerprint: string, windowEvents: int, windowUsers: int, series: array<int, int>}
- * @phpstan-type IssueSummary array{projectId: string, fingerprint: string, type: string, message: string, origin: string, service: string, services: list<string>, environments: list<string>, firstSeen: int, lastSeen: int, events: int, users: int, firstRelease: string, lastRelease: string}
+ * @phpstan-type IssueSummary array{projectId: string, fingerprint: string, type: string, message: string, origin: string, service: string, services: list<string>, environments: list<string>, firstSeen: int, lastSeen: int, lastIngested: int, events: int, users: int, firstRelease: string, lastRelease: string}
  * @phpstan-type IssueHistogramBucket array{bucket: int, events: int, users: int}
  * @phpstan-type IssueHistogram array{buckets: list<IssueHistogramBucket>, intervalSeconds: int, unavailable: bool}
  */
@@ -92,7 +93,7 @@ class IssueQuery
             LIMIT {candidateLimit:UInt32}
             SQL,
             [
-                'projectIds' => $this->stringArray($projectIds),
+                'projectIds' => ClickHouseParameters::stringArray($projectIds),
                 'from' => $from->clone()->utc()->format('Y-m-d H:i:s'),
                 'to' => $to->clone()->utc()->format('Y-m-d H:i:s'),
                 'candidateLimit' => self::CANDIDATE_LIMIT,
@@ -151,6 +152,7 @@ class IssueQuery
                     IssueFingerprint,
                     toUnixTimestamp64Milli(min(FirstSeen)) AS IssueFirstSeen,
                     toUnixTimestamp64Milli(max(LastSeen))  AS IssueLastSeen,
+                    toUnixTimestamp(max(LastIngested))     AS IssueLastIngested,
                     sum(Events)                            AS IssueEvents,
                     uniqMerge(Users)                       AS IssueUsers,
                     groupUniqArrayArray(Services)          AS IssueServices,
@@ -167,8 +169,8 @@ class IssueQuery
                 GROUP BY ProjectId, IssueFingerprint
                 SQL,
                 [
-                    'projectIds' => $this->stringArray($projectIds),
-                    'fingerprints' => $this->stringArray($chunk),
+                    'projectIds' => ClickHouseParameters::stringArray($projectIds),
+                    'fingerprints' => ClickHouseParameters::stringArray($chunk),
                 ],
             );
 
@@ -278,7 +280,7 @@ class IssueQuery
 
         $rows = $this->select(
             'SELECT 1 AS Found FROM issue_summary WHERE ProjectId IN {projectIds:Array(String)} LIMIT 1',
-            ['projectIds' => $this->stringArray($projectIds)],
+            ['projectIds' => ClickHouseParameters::stringArray($projectIds)],
         );
 
         return $rows === null || $rows !== [];
@@ -322,6 +324,7 @@ class IssueQuery
             'environments' => $this->strings($row['IssueEnvironments'] ?? []),
             'firstSeen' => (int) ($row['IssueFirstSeen'] ?? 0),
             'lastSeen' => (int) ($row['IssueLastSeen'] ?? 0),
+            'lastIngested' => (int) ($row['IssueLastIngested'] ?? 0) * 1000,
             'events' => (int) ($row['IssueEvents'] ?? 0),
             'users' => (int) ($row['IssueUsers'] ?? 0),
             'firstRelease' => (string) ($row['IssueFirstRelease'] ?? ''),
@@ -342,18 +345,5 @@ class IssueQuery
         sort($strings);
 
         return $strings;
-    }
-
-    /**
-     * Render strings the way ClickHouse expects an Array(String) parameter.
-     *
-     * @param  list<string>  $values
-     */
-    private function stringArray(array $values): string
-    {
-        return '['.implode(',', array_map(
-            fn (string $value): string => "'".str_replace(['\\', "'"], ['\\\\', "\\'"], $value)."'",
-            $values,
-        )).']';
     }
 }

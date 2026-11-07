@@ -425,8 +425,9 @@ class ErrorEventMapper
      *
      * The text attribute stays what search and the fingerprint read; this one
      * keeps what text cannot: which frames are the application's own and the
-     * source lines around each call. Context is kept for in-app frames only,
-     * and the whole value is held under {@see MAX_FRAMES_JSON_BYTES}.
+     * source lines around each call. Context is kept for every frame not
+     * marked `in_app: false`, and the whole value is held under
+     * {@see MAX_FRAMES_JSON_BYTES} (context goes first, then bottom frames).
      *
      * @param  array<int, array<string, mixed>>  $frames
      */
@@ -439,7 +440,13 @@ class ErrorEventMapper
         $structured = [];
 
         foreach (array_slice($frames, 0, self::MAX_FRAMES) as $frame) {
-            $inApp = ($frame['in_app'] ?? null) === true;
+            /*
+             * The SDK's verdict when it gave one; absent, the flag is left
+             * out so the issue page can apply its own path heuristic, rather
+             * than every frame of such an SDK being written down as library
+             * code and losing its source.
+             */
+            $inApp = is_bool($frame['in_app'] ?? null) ? $frame['in_app'] : null;
             $line = $frame['lineno'] ?? null;
             $column = $frame['colno'] ?? null;
 
@@ -452,9 +459,12 @@ class ErrorEventMapper
                 'colno' => is_int($column) ? $column : null,
             ], fn (mixed $value): bool => $value !== null && $value !== '');
 
-            $entry['in_app'] = $inApp;
+            if ($inApp !== null) {
+                $entry['in_app'] = $inApp;
+            }
 
-            if ($inApp && is_string($frame['context_line'] ?? null)) {
+            // Source is kept unless the SDK said the frame is not the application's.
+            if ($inApp !== false && is_string($frame['context_line'] ?? null)) {
                 $entry['pre_context'] = $this->contextLines($frame['pre_context'] ?? null, fromEnd: true);
                 $entry['context_line'] = $this->line($frame['context_line']);
                 $entry['post_context'] = $this->contextLines($frame['post_context'] ?? null, fromEnd: false);

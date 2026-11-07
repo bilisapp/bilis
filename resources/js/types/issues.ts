@@ -38,8 +38,10 @@ export type IssueSummary = {
     environments: string[];
     /** Unix milliseconds. */
     firstSeen: number;
-    /** Unix milliseconds. */
+    /** Unix milliseconds, by the event's own (client) clock. */
     lastSeen: number;
+    /** Unix milliseconds: when ClickHouse last received an event of it. */
+    lastIngested: number;
     events: number;
     users: number;
     firstRelease: string;
@@ -82,6 +84,8 @@ export type IssueDetail = IssueSummary & {
 
 export type IssueEvent = {
     row: LogEntry | null;
+    /** Tells this event from others on the same timestamp (a UInt64, as digits). */
+    eventKey: string | null;
     hasOlder: boolean;
     hasNewer: boolean;
     unavailable: boolean;
@@ -121,11 +125,14 @@ export type IssueTag = {
 
 export type IssueTagResult = {
     tags: IssueTag[];
+    /** How many of the issue's newest events the counts were read from. */
+    sampled: number;
     unavailable: boolean;
 };
 
 export type IssueEventSummary = {
     timestamp: string;
+    eventKey: string;
     eventId: string;
     serviceName: string;
     traceId: string;

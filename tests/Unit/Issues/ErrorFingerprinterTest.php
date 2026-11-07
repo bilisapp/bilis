@@ -194,3 +194,34 @@ test('a mapped row and the same row read back fingerprint identically', function
         ->toBe($this->fingerprinter->fingerprint($queried))
         ->not->toBe('');
 });
+
+test('an error line that only looks like a headline is not an issue', function (string $body, array $attributes) {
+    expect($this->fingerprinter->isIssue([
+        'SeverityNumber' => 17,
+        'ServiceName' => 'checkout',
+        'Body' => $body,
+        'LogAttributes' => $attributes,
+    ]))->toBeFalse();
+})->with([
+    'a capitalised prefix' => ['Checkout: payment declined for order 42', []],
+    'error.type is an outcome, not a class' => ['request failed', ['error.type' => 'timeout']],
+    'a bare error attribute' => ['request failed', ['error' => 'timeout']],
+    'a sentence starting with "at"' => ["Retry scheduled\nat 5pm we try again", []],
+]);
+
+test('an exception is an issue however it names itself', function (string $body, array $attributes) {
+    expect($this->fingerprinter->isIssue([
+        'SeverityNumber' => 17,
+        'ServiceName' => 'checkout',
+        'Body' => $body,
+        'LogAttributes' => $attributes,
+    ]))->toBeTrue();
+})->with([
+    'an exception.type attribute' => ['Payment failed', ['exception.type' => 'App\\Exceptions\\PaymentFailed']],
+    'an exception.class attribute' => ['Payment failed', ['exception.class' => 'PaymentFailed']],
+    'a suffixed class in the body' => ['RuntimeException: ledger locked', []],
+    'error.type naming an exception' => ['request failed', ['error.type' => 'java.net.SocketTimeoutException']],
+    'a PHP stack without a recognisable class' => ["Ledger locked\n#0 /srv/app/Ledger.php(12): App\\Ledger->lock()", []],
+    'a V8 stack' => ["boom\n    at charge (/app/src/pay.ts:41:13)", []],
+    'a Python traceback' => ["Traceback (most recent call last):\n  File \"/app/pay.py\", line 41, in charge\nPaymentFailed: 42", []],
+]);

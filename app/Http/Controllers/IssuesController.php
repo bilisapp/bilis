@@ -90,6 +90,8 @@ class IssuesController extends Controller
         $navigation = $request->validate([
             'position' => ['nullable', 'string', 'in:latest,oldest,older,newer,at'],
             'event' => ['nullable', 'string', 'regex:/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d{1,9})?$/'],
+            // The event's tie-breaker within its timestamp: a UInt64, as digits.
+            'key' => ['nullable', 'string', 'regex:/^\d{1,20}$/'],
         ]);
 
         $summary = $this->summaryOrFail($issues, $project, $fingerprint);
@@ -104,6 +106,7 @@ class IssuesController extends Controller
             $to,
             $navigation['position'] ?? 'latest',
             $navigation['event'] ?? null,
+            $this->eventKey($navigation['key'] ?? null),
         );
 
         $row = $event['row'];
@@ -114,13 +117,14 @@ class IssuesController extends Controller
                 ...$summary,
                 'projectSlug' => $project->slug,
                 'projectName' => $project->name,
-                'status' => IssueState::of($state, $summary['lastSeen']),
+                'status' => IssueState::of($state, $summary['lastIngested']),
                 'resolvedAt' => $state?->resolved_at?->toIso8601String(),
                 'statusChangedBy' => $state?->statusChangedBy?->name,
                 'statusChangedAt' => $state?->updated_at?->toIso8601String(),
             ],
             'event' => [
                 'row' => $row,
+                'eventKey' => $event['eventKey'],
                 'hasOlder' => $event['hasOlder'],
                 'hasNewer' => $event['hasNewer'],
                 'unavailable' => $event['unavailable'],
@@ -170,7 +174,7 @@ class IssuesController extends Controller
     /**
      * The issue's headline, or a 404 when this project has no such issue.
      *
-     * @return array{projectId: string, fingerprint: string, type: string, message: string, origin: string, service: string, services: list<string>, environments: list<string>, firstSeen: int, lastSeen: int, events: int, users: int, firstRelease: string, lastRelease: string}
+     * @return array{projectId: string, fingerprint: string, type: string, message: string, origin: string, service: string, services: list<string>, environments: list<string>, firstSeen: int, lastSeen: int, lastIngested: int, events: int, users: int, firstRelease: string, lastRelease: string}
      */
     private function summaryOrFail(IssueQuery $issues, Project $project, string $fingerprint): array
     {
@@ -183,6 +187,24 @@ class IssuesController extends Controller
         abort_if($summary === null, 404);
 
         return $summary;
+    }
+
+    /**
+     * The event key from a link, or null when it cannot be a UInt64.
+     *
+     * Twenty digits can exceed UInt64's range, and a value ClickHouse cannot
+     * parse is a server error rather than a validation one, so an out-of-range
+     * key is dropped and the link falls back to its timestamp alone.
+     */
+    private function eventKey(?string $key): ?string
+    {
+        if ($key === null) {
+            return null;
+        }
+
+        $key = ltrim($key, '0') === '' ? '0' : ltrim($key, '0');
+
+        return strlen($key) < 20 || (strlen($key) === 20 && strcmp($key, '18446744073709551615') <= 0) ? $key : null;
     }
 
     private function state(Project $project, string $fingerprint): ?Issue

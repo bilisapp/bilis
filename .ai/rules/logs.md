@@ -41,3 +41,6 @@ The onboarding prop is eager, not deferred — pass it the team's *whole* projec
 
 ## Storage card never shows the shared table's size
 `otel_logs` holds every team's rows on a hosted install. `LogStorage` reports each project as its own uncompressed bytes × the table's compression ratio (`bytes_on_disk / data_uncompressed_bytes` from system.parts), and `totalBytes` is the sum of the team's projects. Never return or apportion `sum(bytes_on_disk)`: that showed every team the whole tenant total. The tail cursor keeps nine fractional digits (`LogsController::tailCursor`). Carbon's six made the newest row re-tail on every poll.
+
+## List reads drop the issue page's structured attributes
+`LogQuery::mapRow()` removes `RICH_ATTRIBUTE_KEYS` (`exception.frames`, `exception.chain`, `breadcrumbs.json`) from every row except `issueEvent()`'s. They can be tens of kilobytes per envelope row; a page of a hundred errors would ship megabytes of props. The text forms (`exception.stacktrace`, `breadcrumbs`) stay, so search and Autofix are unaffected.

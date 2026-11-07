@@ -247,7 +247,8 @@ Autofix runs over queried rows, so an issue and its fix jobs share one identity.
 Two materialized views fold the non-empty fingerprints into:
 
 - **`issue_summary`** — `AggregatingMergeTree ORDER BY (ProjectId, IssueFingerprint)`,
-  `TTL toDateTime(LastSeen) + 90 days`. All-time `FirstSeen`/`LastSeen`/`Events`, users
+  **no TTL** (see below). All-time `FirstSeen`/`LastSeen`/`Events`, `LastIngested`
+  (`max(now())` in the view — when ClickHouse last *received* an event), users
   (`uniq` state over the first non-empty of `user.id`, `enduser.id`, `user.email`,
   `user.ip`), services and environments (`groupUniqArrayArray`), and the headline
   (type, message, origin, service, last release) as `argMax` states keyed on the event
@@ -263,7 +264,23 @@ reason R11 records: an outer alias equal to a column it aggregates is
 the deploy that added the column, and there is no backfill (it would mean a mutation over
 30 days of `otel_logs`).
 
+The headline's type and message follow `ErrorFingerprinter::exceptionClass()` /
+`message()` step for step (class attributes, then a suffixed class name, then a
+`Class: message` headline; message attributes, then the body's first line), so the list
+and the issue page name an issue the same way. re2 has no lookaround, so the PHP pattern's
+guards are written as consuming non-capturing groups.
+
+`issue_summary` has no TTL on purpose. TTL is evaluated per stored row, and an issue's
+rows stay partial until merges fold them — which may never happen for a large old part —
+so a TTL on `LastSeen` would delete the oldest partial row of an issue that is still
+recurring, and its true `FirstSeen`, `FirstRelease` and part of its count with it. One row
+per (project, fingerprint) is small, and a dead issue drops out of every list on its own
+(the list reads `issue_hourly`, which does expire).
+
 Whether an issue is resolved or ignored lives in the app database (`issues`), never here.
+"Regressed" compares `LastIngested` with the resolution time — the event's own
+`Timestamp` is the client's clock, and a client running fast would otherwise regress an
+issue the moment it was resolved.
 
 ## 3. Rules
 
@@ -664,7 +681,12 @@ come. A headline read is `GROUP BY ProjectId, IssueFingerprint` with `min`/`max`
 never a column of the table (`IssueEvents`, not `Events`). Bucketed counts (`sum(Events)`,
 `uniqMerge(Users)` grouped by bucket) are indifferent to how rows were split and need no
 key re-aggregation. An issue's events are read from `otel_logs` with the R4 predicate plus
-`IssueFingerprint = {…}` (bloom index), bounded by the issue's own first/last seen.
+`IssueFingerprint = {…}` (bloom index), bounded by the issue's own first/last seen, and
+ordered by `(Timestamp, cityHash64(Body, SpanId, mapKeys(LogAttributes),
+mapValues(LogAttributes)))`: events on one timestamp (a client sending whole seconds) are
+told apart by that key, which links carry, and the plain Timestamp bound is always
+written beside the tuple comparison so the sort key still prunes. The tag breakdown reads
+only the newest 2,000 events of the issue — attribute maps of envelope events are large.
 
 ### R18 — The issue list nominates from `issue_hourly`, then looks up `issue_summary`
 

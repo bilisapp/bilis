@@ -13,9 +13,11 @@ use Illuminate\Support\Carbon;
  * precision the counts do not have. Thirty days is the ceiling because that is
  * how long the hourly rows and the events themselves live.
  *
- * Status, environment and the text search are applied in PHP over the bounded
- * candidate set (see {@see IssueQuery::CANDIDATE_LIMIT}); project and service
- * are pushed into SQL.
+ * Only the project narrows the SQL (it decides which project ids are asked
+ * for). Status, service, environment and the text search are applied in PHP
+ * over the bounded candidate set ({@see IssueQuery::CANDIDATE_LIMIT}): service
+ * and environment are properties of the issue's headline, not of
+ * `issue_hourly`'s key, and status needs the app database (SCHEMA.md R18).
  */
 class IssueFilters
 {

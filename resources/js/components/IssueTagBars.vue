@@ -5,7 +5,8 @@ import type { IssueTagResult } from '@/types';
 
 /**
  * Who and where an issue happens to: the top values of each tag across its
- * events, as shares of the events that carried the tag.
+ * newest events (the server reads a bounded sample and says how many), as
+ * shares of the events that carried the tag.
  *
  * The bars are magnitude, not category — "how much of it" — so they take the
  * magnitude ladder rather than a chart series colour, and the number is
@@ -79,5 +80,13 @@ const share = (count: number, total: number) =>
                 </dd>
             </div>
         </dl>
+
+        <p
+            v-if="tags && !tags.unavailable && tags.sampled > 0"
+            class="mt-3 text-xs text-muted-foreground"
+            data-test="issue-tags-sampled"
+        >
+            From the newest {{ tags.sampled.toLocaleString() }} events.
+        </p>
     </div>
 </template>

@@ -1591,6 +1591,7 @@ export const DEMO_ISSUES: IssueListItem[] = [
         environments: ['production'],
         firstSeen: ISSUE_NOW - 21 * 86_400_000,
         lastSeen: ISSUE_NOW - 4 * 60_000,
+        lastIngested: ISSUE_NOW - 4 * 60_000,
         events: 18_240,
         users: 1_312,
         windowEvents: 2_418,
@@ -1615,6 +1616,7 @@ export const DEMO_ISSUES: IssueListItem[] = [
         environments: ['production', 'staging'],
         firstSeen: ISSUE_NOW - 3 * 3_600_000,
         lastSeen: ISSUE_NOW - 2 * 60_000,
+        lastIngested: ISSUE_NOW - 2 * 60_000,
         events: 96,
         users: 41,
         windowEvents: 96,
@@ -1640,6 +1642,7 @@ export const DEMO_ISSUES: IssueListItem[] = [
         environments: ['production'],
         firstSeen: ISSUE_NOW - 12 * 86_400_000,
         lastSeen: ISSUE_NOW - 50 * 60_000,
+        lastIngested: ISSUE_NOW - 50 * 60_000,
         events: 412,
         users: 0,
         windowEvents: 37,
@@ -1759,6 +1762,7 @@ export const DEMO_ISSUE_BREADCRUMBS: Breadcrumb[] = [
 
 export const DEMO_ISSUE_TAGS: IssueTagResult = {
     unavailable: false,
+    sampled: 2000,
     tags: [
         {
             key: 'deployment.environment',

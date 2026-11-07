@@ -97,3 +97,16 @@ test('an event with a single exception has no chain', function () {
 
     expect($attributes)->not->toHaveKey('exception.chain');
 });
+
+test('a frame the sdk did not classify keeps its source and leaves the call to the reader', function () {
+    $event = sdkEvent();
+    $event['exception']['values'][0]['stacktrace']['frames'] = [[
+        'filename' => 'src/cart/summary.ts', 'lineno' => 88, 'function' => 'summarise',
+        'context_line' => '  return cart.total.amount;',
+    ]];
+
+    $frame = json_decode((new ErrorEventMapper)->map([$event], '1')->rows[0]['LogAttributes']['exception.frames'], true)[0];
+
+    expect($frame)->not->toHaveKey('in_app')
+        ->and($frame['context_line'])->toBe('  return cart.total.amount;');
+});

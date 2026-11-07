@@ -48,10 +48,24 @@ beforeEach(function () {
         liveIssueRow($this->projectId, $this->now->clone()->subMinutes(5), 'checkout', envelopeAttributes('alice', '1.1.0')),
     ]);
 
+    /*
+     * Four events of one more issue on one timestamp — a client sending whole
+     * seconds — told apart only by what they say. The type is named only by
+     * `exception.class`, which the list headline must read as the page does.
+     */
+    $tied = $this->now->clone()->subMinutes(15)->startOfSecond();
+    $writer->write(array_map(fn (string $order): array => liveIssueRow(
+        $this->projectId,
+        $tied,
+        'orders',
+        ['exception.class' => 'OrderRejected', 'exception.stacktrace' => '#0 /srv/app/Orders.php(7): App\\Orders->place()'],
+        body: "Order {$order} rejected",
+    ), ['A', 'B', 'C', 'D']));
+
     for ($attempt = 0; $attempt < 50; $attempt++) {
         $rows = $client->select('SELECT sum(Events) AS c FROM issue_summary WHERE ProjectId = {p:String}', ['p' => $this->projectId]);
 
-        if ((int) ($rows[0]['c'] ?? 0) >= 4) {
+        if ((int) ($rows[0]['c'] ?? 0) >= 8) {
             break;
         }
 
@@ -115,7 +129,7 @@ function liveIssueRow(string $projectId, Carbon $at, string $service, array $att
 test('the window nominates each issue once, with exact counts and users', function () {
     $candidates = app(IssueQuery::class)->candidates([$this->projectId], $this->now->clone()->subDay(), $this->now);
 
-    expect($candidates)->toHaveCount(2);
+    expect($candidates)->toHaveCount(3);
 
     $byEvents = collect($candidates)->keyBy('windowEvents');
 
@@ -142,6 +156,17 @@ test('a headline re-aggregates every block and keeps the newest values', functio
         ->and($payment['lastRelease'])->toBe('1.1.0')
         ->and($payment['environments'])->toBe(['production'])
         ->and($payment['lastSeen'])->toBeGreaterThan($payment['firstSeen']);
+
+    // Regression is judged on arrival, which the view stamps with the server's clock.
+    expect($payment['lastIngested'])->toBeGreaterThan(Carbon::now()->subMinute()->getTimestampMs())
+        ->and($payment['lastIngested'])->toBeLessThanOrEqual(Carbon::now()->addMinute()->getTimestampMs());
+
+    // A type named only by exception.class reads the same in the list as on the page.
+    $orders = collect($summaries)->firstWhere('service', 'orders');
+    // Its four events share a timestamp, so which message argMax keeps is a tie.
+    expect($orders['type'])->toBe('OrderRejected')
+        ->and($orders['message'])->toMatch('/^Order [A-D] rejected$/')
+        ->and($orders['events'])->toBe(4);
 
     // The body-only exception falls back to reading its type, message and first frame out of the text.
     expect($ledger)->not->toBeNull()
@@ -183,12 +208,50 @@ test('the histogram, events, navigation and tags read one issue', function () {
         ->and($events['rows'][0]['user'])->toBe('alice')
         ->and($events['rows'][0]['message'])->toBe('Card 4242 was declined');
 
-    $tags = collect($logs->issueTags($this->projectId, $fingerprint, $from, $this->now)['tags'])->keyBy('key');
+    $tagResult = $logs->issueTags($this->projectId, $fingerprint, $from, $this->now);
+    expect($tagResult['sampled'])->toBe(3);
+    $tags = collect($tagResult['tags'])->keyBy('key');
     expect($tags['service.version']['total'])->toBe(3)
         ->and($tags['service.version']['values'][0])->toBe(['value' => '1.0.0', 'count' => 2])
         ->and($tags['user']['values'][0])->toBe(['value' => 'alice', 'count' => 2])
         ->and($tags['service.name']['values'])->toBe([['value' => 'checkout', 'count' => 3]])
         ->and($tags->has('browser.name'))->toBeFalse();
+});
+
+test('stepping through events on one timestamp visits every one of them', function () {
+    $query = app(IssueQuery::class);
+    $logs = app(LogQuery::class);
+    $fingerprint = collect($query->summaries([$this->projectId], array_column($query->candidates([$this->projectId], $this->now->clone()->subDay(), $this->now), 'fingerprint')))
+        ->firstWhere('service', 'orders')['fingerprint'];
+    $from = $this->now->clone()->subDay();
+
+    $seen = [];
+    $event = $logs->issueEvent($this->projectId, $fingerprint, $from, $this->now);
+    expect($event['hasNewer'])->toBeFalse();
+
+    while ($event['row'] !== null) {
+        $seen[] = $event['row']['body'];
+
+        if (! $event['hasOlder']) {
+            break;
+        }
+
+        $event = $logs->issueEvent($this->projectId, $fingerprint, $from, $this->now, 'older', $event['row']['timestamp'], $event['eventKey']);
+    }
+
+    sort($seen);
+    expect($seen)->toBe(['Order A rejected', 'Order B rejected', 'Order C rejected', 'Order D rejected']);
+
+    // And back up again, then straight to one of them by its key.
+    $newer = $logs->issueEvent($this->projectId, $fingerprint, $from, $this->now, 'newer', $event['row']['timestamp'], $event['eventKey']);
+    expect($newer['row']['body'])->not->toBe($event['row']['body'])
+        ->and($newer['hasOlder'])->toBeTrue();
+
+    $at = $logs->issueEvent($this->projectId, $fingerprint, $from, $this->now, 'at', $newer['row']['timestamp'], $newer['eventKey']);
+    expect($at['row']['body'])->toBe($newer['row']['body']);
+
+    $list = $logs->issueEvents($this->projectId, $fingerprint, $from, $this->now);
+    expect(collect($list['rows'])->pluck('eventKey')->unique())->toHaveCount(4);
 });
 
 test('a project with issues says so and an unknown one does not', function () {

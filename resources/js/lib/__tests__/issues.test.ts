@@ -415,3 +415,75 @@ describe('issueFilterQuery', () => {
         ).toEqual({ period: '24h', status: 'all' });
     });
 });
+
+describe('chained exceptions printed cause-first', () => {
+    const phpChain = [
+        'PDOException: SQLSTATE[HY000]: server has gone away in /srv/app/vendor/laravel/framework/src/Connection.php:812',
+        'Stack trace:',
+        '#0 /srv/app/vendor/laravel/framework/src/Connection.php(812): PDO->prepare()',
+        '#1 {main}',
+        '',
+        'Next Illuminate\\Database\\QueryException: server has gone away (SQL: select 1) in /srv/app/vendor/laravel/framework/src/Connection.php:825',
+        'Stack trace:',
+        '#0 /srv/app/app/Http/Controllers/CartController.php(41): Illuminate\\Database\\Connection->select()',
+        '#1 {main}',
+    ].join('\n');
+
+    it('reads a PHP Next chain with the outermost exception as the thrown one', () => {
+        expect(parseStackTrace(phpChain)[0]).toMatchObject({
+            filename: '/srv/app/app/Http/Controllers/CartController.php',
+            lineno: 41,
+        });
+
+        const causes = parseCausesFromText(phpChain);
+
+        expect(causes).toHaveLength(1);
+        expect(causes[0].type).toBe('PDOException');
+        expect(causes[0].origin).toBe(
+            '/srv/app/vendor/laravel/framework/src/Connection.php:812',
+        );
+    });
+
+    it('reads a Python chain with the last traceback as the thrown one', () => {
+        const pythonChain = [
+            'Traceback (most recent call last):',
+            '  File "/app/db.py", line 9, in query',
+            '    return conn.execute(sql)',
+            'ConnectionError: gone away',
+            '',
+            'The above exception was the direct cause of the following exception:',
+            '',
+            'Traceback (most recent call last):',
+            '  File "/app/cart.py", line 41, in view',
+            '    rows = query("select 1")',
+            'CartUnavailable: cart service down',
+        ].join('\n');
+
+        expect(parseStackTrace(pythonChain)[0]).toMatchObject({
+            filename: '/app/cart.py',
+            lineno: 41,
+        });
+        expect(parseCausesFromText(pythonChain)).toMatchObject([
+            {
+                type: 'ConnectionError',
+                message: 'gone away',
+                origin: '/app/db.py:9',
+            },
+        ]);
+    });
+
+    it('keeps the Java convention: thrown first, causes after', () => {
+        const java = [
+            'java.lang.IllegalStateException: boom',
+            '\tat com.acme.A.a(A.java:1)',
+            'Caused by: java.io.IOException: closed',
+            '\tat com.acme.B.b(B.java:2)',
+        ].join('\n');
+
+        expect(parseStackTrace(java)[0].filename).toBe('A.java');
+        expect(parseCausesFromText(java)[0]).toMatchObject({
+            type: 'java.io.IOException',
+            origin: 'B.java:2',
+        });
+    });
+});
