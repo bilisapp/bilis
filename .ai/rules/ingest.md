@@ -36,8 +36,9 @@ ClickHouse JSONEachRow requires a `Map` to be a JSON object, and a PHP array is
 not reliably one. `[]` encodes as `[]`; worse, `['0' => 'x']` encodes as
 `["x"]`, because PHP stores the key `"0"` as the integer 0 and `json_encode`
 writes an array with sequential integer keys as a list. Either way the server
-refuses the row — and with `wait_for_async_insert=0` it does so *after* the
-insert was acked, discarding the whole block silently. Attribute keys like `0`
+refuses the row — with durable inserts that is a 503 the client retries forever
+(the same bad row every time), and with `CLICKHOUSE_DURABLE_INSERTS=false` it
+happens *after* the insert was acked, discarding the whole block silently. Attribute keys like `0`
 are not exotic: an SDK flattening an array attribute produces them.
 
 So the cast is **unconditional**: `LogWriter::normalise()` and

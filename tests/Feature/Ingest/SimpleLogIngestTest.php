@@ -146,7 +146,7 @@ test('empty attribute maps are serialized as JSON objects, not arrays', function
         $line = trim($request->body());
 
         // ClickHouse JSONEachRow rejects `[]` for Map columns and, with
-        // wait_for_async_insert=0, drops the row silently after the ack.
+        // durable inserts, fails the whole request on every retry.
         return str_contains($line, '"ResourceAttributes":{}')
             && str_contains($line, '"ScopeAttributes":{}')
             && str_contains($line, '"LogAttributes":{}')

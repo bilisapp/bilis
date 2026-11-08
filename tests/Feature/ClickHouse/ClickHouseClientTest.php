@@ -65,7 +65,7 @@ test('select rejects invalid parameter names', function () {
     app(ClickHouseClient::class)->select('SELECT 1', ['bad name' => 1]);
 })->throws(ClickHouseException::class, 'Invalid ClickHouse query parameter name');
 
-test('insert posts newline delimited json with asynchronous insert settings', function () {
+test('insert posts newline delimited json and waits for the flush', function () {
     Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
 
     app(ClickHouseClient::class)->insert('otel_logs', [
@@ -79,9 +79,26 @@ test('insert posts newline delimited json with asynchronous insert settings', fu
 
         return $query['query'] === 'INSERT INTO otel_logs FORMAT JSONEachRow'
             && $query['async_insert'] === '1'
-            && $query['wait_for_async_insert'] === '0'
+            && $query['wait_for_async_insert'] === '1'
+            && $query['wait_for_async_insert_timeout'] === '10'
             && $query['database'] === 'bilis'
             && $request->body() === '{"ProjectId":1,"Body":"first"}'."\n".'{"ProjectId":1,"Body":"second"}'."\n";
+    });
+});
+
+test('insert acknowledges on arrival when durable inserts are turned off', function () {
+    config(['clickhouse.durable_inserts' => false]);
+    Http::fake(['127.0.0.1:8123/*' => Http::response('')]);
+
+    app(ClickHouseClient::class)->insert('otel_logs', [['ProjectId' => 1, 'Body' => 'fast']]);
+
+    Http::assertSent(function (Request $request) {
+        $query = [];
+        parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+
+        return $query['async_insert'] === '1'
+            && $query['wait_for_async_insert'] === '0'
+            && ! array_key_exists('wait_for_async_insert_timeout', $query);
     });
 });
 

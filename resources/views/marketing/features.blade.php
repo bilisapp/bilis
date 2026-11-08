@@ -242,8 +242,8 @@ curl -X POST https://bilis.example.com/api/v1/ingest \
             <p class="mt-8 max-w-2xl text-sm leading-relaxed text-muted-foreground">
                 The project a line belongs to is decided by the API key that carried it and never by anything
                 in the payload — a resource attribute named <code class="font-mono text-xs">project.id</code>
-                is just an attribute. Writes are queued for throughput, which is why a success means
-                <em>accepted</em> rather than durable; that trade is stated plainly further down.
+                is just an attribute. A success is only sent once the batch is written; if the write
+                fails, the answer is a <code class="font-mono text-xs">503</code> your exporter retries.
             </p>
         </div>
     </section>
@@ -554,7 +554,7 @@ php artisan clickhouse:migrate</pre>
 
             <ul class="mt-8 divide-y divide-border border-t border-b border-border">
                 @foreach ([
-                    'An acknowledgement is not durability' => 'Rows are inserted with async_insert=1 and wait_for_async_insert=0, so a 200 or 202 means the batch reached the insert buffer. A crash in the window before the flush loses that buffer. The trade is throughput, because small frequent inserts are exactly what ClickHouse handles badly without it. If a line matters more than that, keep a local copy too.',
+                    'Written is not backed up' => 'A 200 or 202 is only sent once the batch is in the table, and a failed write is a 503 your exporter retries. What that cannot cover is the machine: one node, no replication, and the last few seconds of writes live in the page cache before the disk has them. A power cut can take those, and a lost disk takes everything. Back up the volume.',
                     'Retention is one table-wide TTL' => 'Thirty days by default, dropped a whole partition at a time. Spans and metric data points get the same 30; trace summaries — the rows behind the trace list — keep 90, so a trace outlives its own waterfall. It is a property of the ClickHouse tables, not a per-project setting.',
                     'Search is token-based' => 'Whole tokens, case-insensitively, over the log body. Not substrings and not regular expressions.',
                     'One node, and no replication' => 'Plain MergeTree on a single box. Replication needs Keeper, and a replicated table with unreachable Keeper goes read-only — a failure mode without redundancy on one machine. Replication would not be a backup anyway; back the table up to object storage from day one.',

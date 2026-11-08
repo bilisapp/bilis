@@ -25,7 +25,7 @@
         ['severity' => 'info', 'service' => 'auth', 'message' => 'User signed in (method: passkey)'],
         ['severity' => 'debug', 'service' => 'api', 'message' => 'Rate limit bucket for key bilis_7f2a: 118/300 remaining'],
         ['severity' => 'info', 'service' => 'api', 'message' => 'GET /v1/projects 200 in 19ms'],
-        ['severity' => 'warn', 'service' => 'ingest', 'message' => 'ClickHouse insert queued, wait_for_async_insert=0'],
+        ['severity' => 'warn', 'service' => 'ingest', 'message' => 'ClickHouse insert slow, flushed after 840 ms'],
         ['severity' => 'info', 'service' => 'billing', 'message' => 'Stripe webhook invoice.paid handled in 240ms'],
         ['severity' => 'error', 'service' => 'billing', 'message' => 'Stripe webhook timed out after 10s, will retry'],
     ];

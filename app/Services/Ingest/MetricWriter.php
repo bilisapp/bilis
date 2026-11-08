@@ -7,8 +7,8 @@ use App\Services\ClickHouse\ClickHouseClient;
 /**
  * Writes mapped metric rows into the five `otel_metrics_*` tables.
  *
- * One insert per table that has rows. Inserts are asynchronous on the
- * ClickHouse side, so a successful write means queued, not durable. A failure
+ * One insert per table that has rows, each waiting for its flush (see
+ * `ClickHouseClient::insert()`), so a successful write means written. A failure
  * part way through leaves the tables already written holding their rows, and
  * the 503 makes the exporter retry the whole export — those rows are then
  * stored twice. That is the same exposure every retried batch has until inserts

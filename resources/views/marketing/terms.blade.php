@@ -167,7 +167,7 @@
 
     <p>We aim to keep the service running continuously and to give advance notice of planned maintenance. <strong>We do not currently offer a contractual uptime commitment or service credits.</strong> If we introduce a service level agreement for a plan, its terms will be published and will take precedence over this section for that plan.</p>
 
-    <p>Ingest is designed to accept data best-effort: malformed records are skipped rather than rejected, and a successful response means your data has been queued, not that it has been durably written. Bilis is a log store, not a system of record. <strong>Do not use it as the only copy of anything you cannot lose.</strong></p>
+    <p>Ingest is designed to accept data best-effort: malformed records are skipped rather than rejected, and a successful response means your data has been written to a single server, not that it has been replicated or backed up. Bilis is a log store, not a system of record. <strong>Do not use it as the only copy of anything you cannot lose.</strong></p>
 
     <p>Support is by email at <a href="mailto:{{ config('legal.contact.general') }}">{{ config('legal.contact.general') }}</a> during business days.</p>
 

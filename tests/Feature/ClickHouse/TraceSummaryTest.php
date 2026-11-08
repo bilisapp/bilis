@@ -104,10 +104,10 @@ function insertBlock(ClickHouseClient $client, array $row): void
 }
 
 /**
- * Wait for the asynchronous insert to land, then run the caller's query.
+ * Wait for the rows to be readable, then run the caller's query.
  *
- * Inserts are queued (`wait_for_async_insert=0`), so "the row is not there yet"
- * and "the row is wrong" are different failures and only one of them is a bug.
+ * Polling keeps "the row is not there yet" apart from "the row is wrong":
+ * they are different failures and only one of them is a bug.
  *
  * @param  callable(): array<int, array<string, mixed>>  $query
  * @return array<int, array<string, mixed>>

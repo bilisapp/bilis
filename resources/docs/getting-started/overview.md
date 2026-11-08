@@ -61,7 +61,8 @@ Said plainly, so you can plan around it:
 2. The key resolves to a project. Bad records inside the batch are skipped and
    counted; the healthy ones still go through.
 3. Rows are written to `otel_logs` with `async_insert=1` and
-   `wait_for_async_insert=0` — the response means _queued_, not _durable_. See
+   `wait_for_async_insert=1` — the response comes back once they are written,
+   and a failed write is a retryable `503`. See
    [Limits and behavior](/docs/reference/limits-and-behavior).
 4. The viewer reads them back, filtered by project and time range.
 
