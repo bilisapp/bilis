@@ -118,8 +118,8 @@ test('spans are written to the traces table, not the logs table', function () {
 
 /*
  * Empty maps have to reach ClickHouse as JSON objects. An empty PHP array
- * encodes as `[]`, which JSONEachRow rejects for a Map — and with
- * wait_for_async_insert=0 the server acks first and drops the row in silence.
+ * encodes as `[]`, which JSONEachRow rejects for a Map — the server
+ * refuses the whole block, a 503 retried forever with the same row.
  * `Events.Attributes` is the sharper edge: the outer array is right, it is each
  * element that must be `{}`.
  */

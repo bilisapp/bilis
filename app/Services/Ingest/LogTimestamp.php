@@ -34,9 +34,9 @@ class LogTimestamp
      * The first unix second that is out of range: 2261-01-01T00:00:00Z.
      *
      * `DateTime64(9)` tops out in April 2262. A larger value does not clamp
-     * server-side: ClickHouse refuses the row, and with `wait_for_async_insert=0`
-     * it does so after the insert has already been acked — the whole block is
-     * lost silently. Bounded here so an over-long digit string that PHP's `(int)`
+     * server-side: ClickHouse refuses the row and with it the whole block — a 503
+     * the exporter would retry with the same row every time, or, with durable
+     * inserts off, a silent loss after the ack. Bounded here so an over-long digit string that PHP's `(int)`
      * cast saturates into the year 292277026596 never reaches the table.
      */
     public const MAX_SECONDS_EXCLUSIVE = 9_183_110_400;

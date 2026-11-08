@@ -224,3 +224,42 @@ it('stores every metric type from the kitchen sink and reads the arrays and maps
     expect($summary[0]['Quantiles'])->toBe([0, 0.5, 0.99, 1])
         ->and($summary[0]['Values'])->toBe([3, 41.5, 220, 512]);
 });
+
+/*
+ * Durable inserts: the call returns only after the async flush has written the
+ * part, so the row is there the moment insert() comes back — no polling.
+ */
+it('makes a written row readable as soon as the insert returns', function () {
+    $this->client->insert('otel_logs', [[
+        'ProjectId' => $this->projectId,
+        'Timestamp' => now('UTC')->format('Y-m-d H:i:s.u'),
+        'ServiceName' => 'durability',
+        'SeverityText' => 'INFO',
+        'SeverityNumber' => 9,
+        'Body' => 'on disk before the ack',
+        'ResourceAttributes' => (object) [],
+        'ScopeAttributes' => (object) [],
+        'LogAttributes' => (object) [],
+    ]]);
+
+    $rows = $this->client->select(
+        'SELECT count() AS c FROM otel_logs WHERE ProjectId = {p:String}',
+        ['p' => $this->projectId],
+    );
+
+    expect((int) $rows[0]['c'])->toBe(1);
+});
+
+/*
+ * And the other half: a row the server refuses at flush time used to be acked
+ * and dropped in silence. Now the refusal reaches the caller, which the ingest
+ * controllers turn into a retryable 503.
+ */
+it('surfaces a row the server refuses instead of acknowledging it', function () {
+    $this->client->insert('otel_logs', [[
+        'ProjectId' => $this->projectId,
+        'Timestamp' => now('UTC')->format('Y-m-d H:i:s.u'),
+        'Body' => 'a Map column sent as a list',
+        'LogAttributes' => ['x'],
+    ]]);
+})->throws(ClickHouseException::class);

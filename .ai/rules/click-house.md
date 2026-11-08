@@ -10,7 +10,7 @@ There is no ClickHouse PHP driver in this project by design — everything goes 
 
 Never interpolate user values into SQL. Use ClickHouse server-side query parameters: `{name:Type}` in the statement and pass values through the `$params` array of `select()`, which sends them as `param_<name>` query parameters.
 
-Inserts always use `FORMAT JSONEachRow` with `async_insert=1` / `wait_for_async_insert=0`, so a successful `insert()` means "queued", not "durable".
+Inserts always use `FORMAT JSONEachRow` with `async_insert=1` and, by default, `wait_for_async_insert=1` bounded by `wait_for_async_insert_timeout` = `clickhouse.timeout` — so a successful `insert()` means the part is written, and a refused row or failed flush throws (→ 503) instead of being acked and dropped. `clickhouse.durable_inserts=false` (`CLICKHOUSE_DURABLE_INSERTS`) restores fire-and-forget for operators who want it. Measured locally: ~70 ms per insert durable vs ~1 ms. Proven live in `LiveIngestRoundTripTest` (both durability tests fail with the setting off). Retried identical batches are deduplicated on 26.9 (`non_replicated_deduplication_window`).
 
 Failures throw `ClickHouseException`. Call `isOverload()` to decide whether to map to a 503 (connection failure, 429/502/503/504, or ClickHouse codes 159/202/203/209/210/241/252); a statement error such as code 62 returns false.
 

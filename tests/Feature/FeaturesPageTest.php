@@ -55,7 +55,7 @@ it('keeps the storage and limits claims that make the page honest', function () 
     get(route('features'))
         ->assertOk()
         ->assertSee('ORDER BY (ProjectId, Timestamp, ServiceName)')
-        ->assertSee('An acknowledgement is not durability')
+        ->assertSee('Written is not backed up')
         // The hosted Free tier exists now; what stays pinned is that nothing
         // is purchasable and that self-hosting is not the consolation prize.
         ->assertSee('Free plan whose limits are')

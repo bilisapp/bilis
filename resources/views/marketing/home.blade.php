@@ -191,7 +191,6 @@ curl -X POST https://bilis.app/api/v1/ingest \
 
         <p class="mt-5 text-xs leading-relaxed text-muted-foreground">
             A malformed record is skipped and counted, and the rest of the batch is still accepted.
-            Writes are queued, so a 202 means accepted, not yet on disk.
             <a href="{{ route('docs.show', ['section' => 'ingestion', 'page' => 'claude-code']) }}"
                class="font-medium text-foreground underline underline-offset-4">Point Claude Code's own telemetry at Bilis &rarr;</a>
         </p>

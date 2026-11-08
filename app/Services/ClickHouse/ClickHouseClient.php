@@ -49,6 +49,17 @@ class ClickHouseClient
     /**
      * Insert rows into the given table using asynchronous inserts.
      *
+     * ClickHouse still coalesces many small inserts into one part
+     * (`async_insert=1`), but by default this call waits until the part is
+     * written (`wait_for_async_insert=1`). A return therefore means the rows
+     * are on disk, and a failure to write them — a crash before the flush, a
+     * row the server refuses — throws here, so the ingest controllers answer
+     * 503 and the client retries, instead of an ack followed by silent loss.
+     * The wait is bounded by the same timeout PHP gives the request.
+     *
+     * `clickhouse.durable_inserts = false` restores fire-and-forget: the ack
+     * then only means the rows reached the server's insert buffer.
+     *
      * @param  array<int, array<string, mixed>>  $rows
      */
     public function insert(string $table, array $rows): void
@@ -64,8 +75,25 @@ class ClickHouseClient
         $this->send($this->encodeRows($rows), [
             'query' => $statement,
             'async_insert' => 1,
-            'wait_for_async_insert' => 0,
+            ...$this->insertWaitSettings(),
         ], $statement);
+    }
+
+    /**
+     * Whether an insert waits for its flush, and for how long.
+     *
+     * @return array<string, int>
+     */
+    private function insertWaitSettings(): array
+    {
+        if (! (bool) $this->config->get('clickhouse.durable_inserts', true)) {
+            return ['wait_for_async_insert' => 0];
+        }
+
+        return [
+            'wait_for_async_insert' => 1,
+            'wait_for_async_insert_timeout' => max(1, (int) $this->config->get('clickhouse.timeout', 10)),
+        ];
     }
 
     /**

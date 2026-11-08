@@ -45,4 +45,19 @@ return [
     // a boot-time migrate that timed out mid-backfill stopped the container.
     'statement_timeout' => (int) env('CLICKHOUSE_STATEMENT_TIMEOUT', 600),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Durable Inserts
+    |--------------------------------------------------------------------------
+    |
+    | Ingest acknowledges a batch only once ClickHouse has written it to disk
+    | (`wait_for_async_insert=1`); a write that fails becomes a retryable 503.
+    | Inserts are still asynchronous, so ClickHouse batches them either way.
+    | Turning this off acknowledges on arrival in the insert buffer instead:
+    | slightly faster, but a crash before the flush loses an acked batch.
+    |
+    */
+
+    'durable_inserts' => (bool) env('CLICKHOUSE_DURABLE_INSERTS', true),
+
 ];

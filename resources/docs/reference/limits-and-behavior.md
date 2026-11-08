@@ -6,27 +6,38 @@ order: 1
 
 The honest list of what Bilis promises and what it does not.
 
-## An acknowledgement is not durability
+## An acknowledgement means written
 
-Rows are inserted with ClickHouse's asynchronous insert path:
+Rows are inserted with ClickHouse's asynchronous insert path, and the request
+waits for the flush:
 
 ```text
 async_insert=1
-wait_for_async_insert=0
+wait_for_async_insert=1
 ```
 
-The server acknowledges as soon as the batch is in its insert buffer, and
-flushes to disk shortly after. So:
+ClickHouse still gathers many small inserts into one write — small frequent
+inserts are what a log pipeline produces, and they are exactly what ClickHouse
+handles badly one at a time — but the response is held until that write has
+happened. So:
 
-- **`202` / `200` means queued, not stored.** A ClickHouse crash in the window
-  between the acknowledgement and the flush loses that buffer.
-- The trade is throughput: small frequent inserts are what a log pipeline
-  produces, and they are exactly what ClickHouse handles badly without this.
+- **`202` / `200` means the batch is in the table.** If the write fails — the
+  server restarts before the flush, or refuses a row — the request answers
+  `503` with `Retry-After`, and your exporter retries instead of losing it.
+- The cost is latency: a request waits for the next flush, typically well under
+  a second.
 - Retries are safe. `non_replicated_deduplication_window = 1000` makes an
   identical re-sent batch idempotent, so a collector retrying after a timeout
   does not double your log lines.
 
-If a line matters more than that, keep a local copy too.
+What this does not cover is the machine itself. Bilis runs on one node with no
+replication, and a written row sits in the operating system's page cache for a
+few seconds before the disk has it, so a power cut can still take the last
+moments, and a lost disk takes everything. Back the volume up.
+
+A self-hosted install that would rather trade this for raw throughput can set
+`CLICKHOUSE_DURABLE_INSERTS=false`; a response then means the batch reached the
+insert buffer, and a crash before the flush loses it.
 
 ## Retention
 
@@ -242,6 +253,7 @@ CLICKHOUSE_USERNAME=default
 CLICKHOUSE_PASSWORD=
 CLICKHOUSE_TIMEOUT=10
 CLICKHOUSE_CONNECT_TIMEOUT=3
+CLICKHOUSE_DURABLE_INSERTS=true
 ```
 
 Timeouts are deliberately short so an overloaded cluster fails fast and ingest
