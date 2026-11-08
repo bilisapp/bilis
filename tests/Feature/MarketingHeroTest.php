@@ -85,6 +85,28 @@ test('the ingest snippet shows the round trip and can be copied', function () {
         ->assertSee('{"accepted":', false);
 });
 
+test('the connect section names the assistants and links each to its docs section', function () {
+    $page = $this->get(route('home'))->assertOk()->getContent();
+
+    $section = substr($page, strpos($page, 'id="ingest"'), strpos($page, 'id="why"') - strpos($page, 'id="ingest"'));
+
+    expect($section)->toContain('data-agent-clients');
+
+    foreach (['Claude', 'ChatGPT', 'Gemini CLI', 'Cursor', 'GitHub Copilot'] as $client) {
+        expect($section)->toContain($client);
+    }
+
+    $docs = $this->get(route('docs.show', ['section' => 'reference', 'page' => 'mcp']))->assertOk()->getContent();
+
+    preg_match_all('/docs\/reference\/mcp#([a-z0-9-]+)/', $section, $anchors);
+
+    expect($anchors[1])->not->toBeEmpty();
+
+    foreach (array_unique($anchors[1]) as $anchor) {
+        expect($docs)->toContain('id="'.$anchor.'"');
+    }
+});
+
 test('every section below the hero has a stable landmark', function () {
     $page = $this->get(route('home'))->assertOk()->getContent();
 

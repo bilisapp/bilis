@@ -1,6 +1,6 @@
 ---
 title: MCP server
-description: Connect Claude Code, Claude Desktop, Cursor or any MCP client to Bilis in one line, and let your agent read your logs, traces and metrics while it works.
+description: Connect Claude, ChatGPT, Gemini CLI, Cursor or any MCP client to Bilis in one line, and let your agent read your logs, traces and metrics while it works.
 order: 2
 ---
 
@@ -24,6 +24,23 @@ claude mcp add --transport http bilis https://bilis.example.com/mcp
 The next time you talk to Claude it walks you through signing in, and the Bilis
 tools are there.
 
+## Connect ChatGPT
+
+ChatGPT connects to remote MCP servers as a custom connector. Turn on developer
+mode in ChatGPT's settings, add a connector, paste
+`https://bilis.example.com/mcp` as its URL and choose OAuth as the
+authentication. ChatGPT registers itself and sends you to the consent screen.
+Claude on the web connects the same way, as a custom connector with that URL.
+
+## Connect Gemini CLI
+
+```bash
+gemini mcp add --transport http bilis https://bilis.example.com/mcp
+```
+
+Gemini CLI discovers the OAuth server on first use and opens your browser to
+sign in.
+
 ## Connect Claude Desktop, Cursor or anything else
 
 Add one entry to the client's `mcpServers` block:
@@ -32,6 +49,20 @@ Add one entry to the client's `mcpServers` block:
 {
     "mcpServers": {
         "bilis": {
+            "url": "https://bilis.example.com/mcp"
+        }
+    }
+}
+```
+
+GitHub Copilot in VS Code reads `.vscode/mcp.json`, which names the block
+`servers` rather than `mcpServers`:
+
+```json
+{
+    "servers": {
+        "bilis": {
+            "type": "http",
             "url": "https://bilis.example.com/mcp"
         }
     }

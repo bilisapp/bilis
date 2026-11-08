@@ -187,6 +187,8 @@ curl -X POST https://bilis.app/api/v1/ingest \
             </x-ui.panel>
         </div>
 
+        <x-marketing.agent-clients class="mt-6" />
+
         <p class="mt-5 text-xs leading-relaxed text-muted-foreground">
             A malformed record is skipped and counted, and the rest of the batch is still accepted.
             Writes are queued, so a 202 means accepted, not yet on disk.
