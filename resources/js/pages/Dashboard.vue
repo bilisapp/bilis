@@ -5,6 +5,7 @@ import { computed } from 'vue';
 import BarSparkline from '@/components/BarSparkline.vue';
 import GetStartedPanel from '@/components/GetStartedPanel.vue';
 import IngestRateCard from '@/components/IngestRateCard.vue';
+import NeedsAttentionCard from '@/components/NeedsAttentionCard.vue';
 import PageHeader from '@/components/PageHeader.vue';
 import PendingInvitationsModal from '@/components/PendingInvitationsModal.vue';
 import PlanUsageCard from '@/components/PlanUsageCard.vue';
@@ -33,6 +34,7 @@ import type {
     LogProject,
     LogStorageProject,
     LogStorageSummary,
+    NeedsAttentionList,
     PlanUsage,
     Team,
 } from '@/types';
@@ -45,6 +47,8 @@ const props = defineProps<{
     digest: LogDigest | null;
     ingestRate: IngestRateUsage | null;
     planUsage: PlanUsage;
+    /** Deferred: what is firing or pending, most severe first. */
+    needsAttention?: NeedsAttentionList;
 }>();
 
 defineOptions({
@@ -333,6 +337,22 @@ function storageBarWidth(project: LogStorageProject): number {
                 </Button>
             </template>
         </PageHeader>
+
+        <!--
+          First, before onboarding or the digest: anything firing outranks
+          everything else on the page. Gone entirely when nothing is.
+        -->
+        <div
+            v-if="
+                needsAttention === undefined || needsAttention.items.length > 0
+            "
+            class="px-4 pb-8 md:px-10"
+        >
+            <NeedsAttentionCard
+                :attention="needsAttention"
+                :team-slug="teamSlug"
+            />
+        </div>
 
         <!--
           Until logs flow, the dashboard IS onboarding: the same panel the

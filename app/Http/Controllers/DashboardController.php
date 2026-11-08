@@ -6,6 +6,7 @@ use App\Models\Project;
 use App\Models\ProjectApiKey;
 use App\Models\Team;
 use App\Models\TeamInvitation;
+use App\Services\Alerting\NeedsAttention;
 use App\Services\Ingest\IngestRateUsage;
 use App\Services\Logs\LogDigest;
 use App\Services\Logs\LogOnboarding;
@@ -18,7 +19,7 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function __invoke(Request $request, LogOnboarding $onboarding, LogStorage $storage, LogDigest $digest, IngestRateUsage $ingestRate, PlanUsage $planUsage): Response
+    public function __invoke(Request $request, LogOnboarding $onboarding, LogStorage $storage, LogDigest $digest, IngestRateUsage $ingestRate, PlanUsage $planUsage, NeedsAttention $needsAttention): Response
     {
         $email = strtolower($request->user()->email);
 
@@ -57,6 +58,12 @@ class DashboardController extends Controller
              * needs to read.
              */
             'planUsage' => $planUsage->forTeam($team, $projectIds),
+            /*
+             * What is firing or pending, most severe first — deferred so the
+             * page paints first, and shown whatever the team's channels are
+             * (specs/alerting-defaults.md §5).
+             */
+            'needsAttention' => Inertia::defer(fn (): array => $needsAttention->forTeam($team)),
             /*
              * The onboarding panel's project picker needs the same name/slug
              * list the logs page hands it; when the team is ready the panel

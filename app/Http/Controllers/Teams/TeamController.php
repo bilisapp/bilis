@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Teams\DeleteTeamRequest;
 use App\Http\Requests\Teams\SaveTeamRequest;
 use App\Models\Membership;
+use App\Models\NotificationChannel;
 use App\Models\Team;
 use App\Models\TeamLlmCredential;
 use App\Models\User;
@@ -82,6 +83,16 @@ class TeamController extends Controller
                 ],
                 LlmProvider::cases(),
             ),
+            /*
+             * Where alerts go. Summaries only: a Slack or webhook URL is a
+             * credential and leaves the server as its host, a signing secret
+             * not at all ({@see NotificationChannel::toSummary()}).
+             */
+            'notificationChannels' => $team->notificationChannels()
+                ->orderBy('name')
+                ->get()
+                ->map(fn (NotificationChannel $channel): array => $channel->toSummary())
+                ->values(),
             'members' => $team->members()->get()->map(function (User $member) {
                 /** @var Membership $membership */
                 $membership = $member->getRelation('pivot');

@@ -204,6 +204,78 @@ class IssueQuery
     }
 
     /**
+     * The issues that could raise an issue alert now: those first seen since
+     * `$firstSeenSince`, or whose last event *arrived* since `$ingestedSince`.
+     *
+     * R18 then R17: fingerprints are nominated from `issue_hourly` from
+     * `$hourFrom` on (no upper bound, so a client with a fast clock still
+     * lands in the set), and their headlines re-aggregated by key from
+     * `issue_summary`. The `HAVING` keeps the answer to what the scan acts
+     * on — new issues (judged on `FirstSeen`) and anything recent enough to
+     * be a regression (judged on `LastIngested`, the server's arrival clock,
+     * as {@see IssueState} does). Oldest first, so a cap drops the newest.
+     *
+     * @param  list<string>  $projectIds
+     * @return list<array{projectId: string, fingerprint: string, firstSeen: int, lastIngested: int, events: int, type: string, message: string, service: string}>|null
+     */
+    public function alertCandidates(array $projectIds, Carbon $hourFrom, Carbon $firstSeenSince, Carbon $ingestedSince, int $limit = self::CANDIDATE_LIMIT): ?array
+    {
+        if ($projectIds === []) {
+            return [];
+        }
+
+        $rows = $this->select(
+            <<<'SQL'
+            SELECT
+                ProjectId,
+                IssueFingerprint,
+                toUnixTimestamp64Milli(min(FirstSeen)) AS IssueFirstSeen,
+                toUnixTimestamp(max(LastIngested))     AS IssueLastIngested,
+                sum(Events)                            AS IssueEvents,
+                argMaxMerge(ExceptionType)             AS IssueType,
+                argMaxMerge(Message)                   AS IssueMessage,
+                argMaxMerge(LastService)               AS IssueService
+            FROM issue_summary
+            WHERE ProjectId IN {projectIds:Array(String)}
+              AND (ProjectId, IssueFingerprint) IN
+              (
+                  SELECT DISTINCT ProjectId, IssueFingerprint
+                  FROM issue_hourly
+                  WHERE ProjectId IN {projectIds:Array(String)}
+                    AND Hour >= {hourFrom:DateTime('UTC')}
+              )
+            GROUP BY ProjectId, IssueFingerprint
+            HAVING IssueFirstSeen >= {firstSeenSince:Int64}
+                OR IssueLastIngested >= {ingestedSince:UInt32}
+            ORDER BY IssueFirstSeen, ProjectId, IssueFingerprint
+            LIMIT {candidateLimit:UInt32}
+            SQL,
+            [
+                'projectIds' => ClickHouseParameters::stringArray($projectIds),
+                'hourFrom' => $hourFrom->clone()->utc()->startOfHour()->format('Y-m-d H:i:s'),
+                'firstSeenSince' => $firstSeenSince->getTimestampMs(),
+                'ingestedSince' => $ingestedSince->getTimestamp(),
+                'candidateLimit' => max(1, $limit),
+            ],
+        );
+
+        if ($rows === null) {
+            return null;
+        }
+
+        return array_map(fn (array $row): array => [
+            'projectId' => (string) ($row['ProjectId'] ?? ''),
+            'fingerprint' => (string) ($row['IssueFingerprint'] ?? ''),
+            'firstSeen' => (int) ($row['IssueFirstSeen'] ?? 0),
+            'lastIngested' => (int) ($row['IssueLastIngested'] ?? 0) * 1000,
+            'events' => (int) ($row['IssueEvents'] ?? 0),
+            'type' => (string) ($row['IssueType'] ?? ''),
+            'message' => (string) ($row['IssueMessage'] ?? ''),
+            'service' => (string) ($row['IssueService'] ?? ''),
+        ], $rows);
+    }
+
+    /**
      * Events and users per bucket for one issue across the window.
      *
      * Hourly rows are the floor, so a bucket is never narrower than an hour.

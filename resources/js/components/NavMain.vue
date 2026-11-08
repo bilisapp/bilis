@@ -151,7 +151,10 @@ const setOpen = (item: NavItem, open: boolean) => {
                         />
                         {{ item.badge.count > 99 ? '99+' : item.badge.count }}
                         <span v-if="item.badge.alert" class="sr-only"
-                            >, some regressed</span
+                            >,
+                            {{
+                                item.badge.alertLabel ?? 'some regressed'
+                            }}</span
                         >
                     </SidebarMenuBadge>
 

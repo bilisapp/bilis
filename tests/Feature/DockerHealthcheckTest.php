@@ -124,6 +124,26 @@ test('the scheduler role is checked by booting the framework, not by HTTP', func
 });
 
 /*
+ * A scheduler can be alive and running nothing. `alerts:heartbeat-check`
+ * fails when `alerts:evaluate` has not run for three minutes (and passes when
+ * alerting is disabled), so a stalled loop shows up as an unhealthy container.
+ */
+test('the scheduler role also fails on a stale alerting heartbeat', function (string $phpCode, int $expected) {
+    file_put_contents($this->sandbox.'/role', 'scheduler');
+
+    $result = runHealthcheck($this->sandbox, ['STUB_PHP_CODE' => $phpCode]);
+
+    expect($result['code'])->toBe($expected);
+
+    if ($expected === 0) {
+        expect($result['calls'])->toContain('artisan alerts:heartbeat-check');
+    }
+})->with([
+    'fresh' => ['0', 0],
+    'stale' => ['1', 1],
+]);
+
+/*
  * A one-off `docker run bilis artisan migrate` is not a service. The
  * entrypoint records an empty role for it, and a probe has nothing to report.
  */

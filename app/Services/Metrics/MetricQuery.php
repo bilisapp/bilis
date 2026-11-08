@@ -447,13 +447,18 @@ class MetricQuery
             return $this->builder->empty($filters);
         }
 
+        // A catalog that could not be read is not a metric without data.
+        if ($this->catalog($projectIds, $filters)['unavailable']) {
+            return $this->builder->empty($filters, unavailable: true);
+        }
+
         $entry = $this->entry($projectIds, $filters);
 
         if ($entry === null) {
             return $this->builder->empty($filters);
         }
 
-        $interval = max(self::MIN_INTERVAL_SECONDS, TimeBuckets::interval($filters->from, $filters->to, self::TARGET_BUCKETS));
+        $interval = max(self::MIN_INTERVAL_SECONDS, $filters->interval ?? TimeBuckets::interval($filters->from, $filters->to, self::TARGET_BUCKETS));
         $starts = TimeBuckets::starts($filters->from, $filters->to, $interval);
         $cumulative = $entry['temporality'] === 2;
         $level = $entry['type'] === 'gauge' || ($entry['type'] === 'sum' && $cumulative && ! $entry['monotonic']);
@@ -497,6 +502,7 @@ class MetricQuery
             'starts' => $starts,
             'readFrom' => $readFrom,
             'droppedSeries' => max(0, (int) ($totalRows[0]['Total'] ?? 0) - self::SERIES_LIMIT),
+            'maxGroups' => $filters->maxGroups ?? MetricSeriesBuilder::MAX_GROUPS,
         ];
 
         $lastPoint = fn (string $columns): string => "SELECT {$seriesKey} AS S, {$group} AS Grp, {$bucket} AS Bucket, {$columns},
@@ -637,7 +643,7 @@ class MetricQuery
         $conditions = [
             'ProjectId IN {projectIds:Array(String)}',
             "TimeUnix >= {from:DateTime('UTC')}",
-            "TimeUnix <= {to:DateTime('UTC')}",
+            $filters->exclusiveTo ? "TimeUnix < {to:DateTime('UTC')}" : "TimeUnix <= {to:DateTime('UTC')}",
             'MetricName = {metric:String}',
         ];
 

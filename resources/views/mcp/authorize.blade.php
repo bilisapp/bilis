@@ -34,7 +34,7 @@
                 <dt class="text-sm font-medium">It will be able to</dt>
                 <dd class="text-sm text-muted-foreground">
                     Read the logs, traces and metrics of every project in the teams you belong to,
-                    and list those teams, projects, services and metric names.
+                    and list those teams, projects, services, metric names and alerts.
                     @if (count($scopes) > 0)
                         <span class="mt-2 block font-mono text-xs text-muted-foreground/80">
                             @foreach ($scopes as $scope)
@@ -49,7 +49,7 @@
                 <dt class="text-sm font-medium">It will not be able to</dt>
                 <dd class="text-sm text-muted-foreground">
                     Send or delete anything, create a project, read or issue an API key,
-                    change a setting, or start an Autofix job. The connection is read-only.
+                    change a setting or an alert rule, or start an Autofix job. The connection is read-only.
                 </dd>
             </div>
 

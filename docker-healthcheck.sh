@@ -38,6 +38,11 @@ case "$role" in
         # is the only signal available, and it does catch a container that
         # starts but cannot read its config.
         php artisan schedule:list >/dev/null 2>&1 || exit 1
+        # The scheduler can also be alive and doing nothing (a wedged run, a
+        # lost overlap lock), and then alerts stop without a sound.
+        # `alerts:heartbeat-check` fails when `alerts:evaluate` has not run for
+        # three minutes, and passes when alerting is disabled.
+        php artisan alerts:heartbeat-check >/dev/null 2>&1 || exit 1
         ;;
     *)
         # A verbatim command (`docker run bilis artisan migrate`) is not a

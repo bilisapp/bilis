@@ -14,6 +14,18 @@ return [
     |
     */
 
+    /*
+     * Hosted Bilis sends through Mailgun's EU region, so the endpoint defaults
+     * to the EU API: a US-region key is refused there, and an EU domain is
+     * unknown to the US API.
+     */
+    'mailgun' => [
+        'domain' => env('MAILGUN_DOMAIN'),
+        'secret' => env('MAILGUN_SECRET'),
+        'endpoint' => env('MAILGUN_ENDPOINT', 'api.eu.mailgun.net'),
+        'scheme' => 'https',
+    ],
+
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],

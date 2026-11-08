@@ -260,3 +260,25 @@ test('a project with issues says so and an unknown one does not', function () {
     expect($query->hasAnyIssues([$this->projectId]))->toBeTrue()
         ->and($query->hasAnyIssues(['1'.random_int(100000, 999999)]))->toBeFalse();
 });
+
+test('alert candidates nominate from the recent hours and keep only what is new or just arrived', function () {
+    $query = app(IssueQuery::class);
+    $now = Carbon::now('UTC');
+
+    // Everything here arrived seconds ago, so the arrival bound keeps all three issues…
+    $recent = $query->alertCandidates([$this->projectId], $now->clone()->subHour(), $now->clone()->subMinutes(3), $now->clone()->subMinutes(3));
+    expect($recent)->toHaveCount(3);
+
+    $payment = collect($recent)->firstWhere('type', 'App\\Exceptions\\PaymentFailed');
+    // Re-aggregated across both insert blocks; first seen is the oldest event's time.
+    expect($payment['events'])->toBe(3)
+        ->and($payment['service'])->toBe('checkout')
+        ->and($payment['message'])->toBe('Card 4242 was declined')
+        ->and($payment['firstSeen'])->toBeLessThan($now->clone()->subHours(2)->getTimestampMs())
+        ->and($payment['lastIngested'])->toBeGreaterThan($now->clone()->subMinute()->getTimestampMs());
+
+    // …while a first-seen bound alone keeps only issues that began inside it.
+    $future = $now->clone()->addMinute();
+    $new = $query->alertCandidates([$this->projectId], $now->clone()->subHour(), $now->clone()->subMinutes(20), $future);
+    expect(collect($new)->pluck('service')->sort()->values()->all())->toBe(['orders']);
+});

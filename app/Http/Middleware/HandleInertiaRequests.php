@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\Alerting\AlertBadge;
 use App\Services\Issues\IssueBadge;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -65,6 +66,16 @@ class HandleInertiaRequests extends Middleware
                 'nav',
                 rescue: true,
             )->once(until: IssueBadge::CACHE_SECONDS),
+            /*
+             * The count beside "Alerts": series firing now. Same shape as the
+             * issue count — deferred in the `nav` group, kept a minute — though
+             * it reads only the app database.
+             */
+            'alertBadge' => Inertia::defer(
+                fn (): ?array => $user?->currentTeam ? app(AlertBadge::class)->forTeam($user->currentTeam) : null,
+                'nav',
+                rescue: true,
+            )->once(until: AlertBadge::CACHE_SECONDS),
         ];
     }
 }

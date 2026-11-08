@@ -16,7 +16,8 @@ it('renders the connect command and the read-only boundary', function () {
         ->toContain('get-trace')
         ->toContain('list-metrics')
         ->toContain('query-metric')
-        ->toContain('Ten tools, two prompts');
+        ->toContain('list-alerts')
+        ->toContain('Eleven tools, two prompts');
 });
 
 it('links to the MCP guide rather than restating it', function () {

@@ -9,6 +9,7 @@ import DeleteTeamModal from '@/components/DeleteTeamModal.vue';
 import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
 import InviteMemberModal from '@/components/InviteMemberModal.vue';
+import NotificationChannelsCard from '@/components/NotificationChannelsCard.vue';
 import PlanUsageCard from '@/components/PlanUsageCard.vue';
 import RemoveMemberModal from '@/components/RemoveMemberModal.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -44,6 +45,7 @@ import {
 import { update as updateMember } from '@/routes/teams/members';
 import type {
     LlmProviderOption,
+    NotificationChannelSummary,
     PlanUsage,
     RoleOption,
     Team,
@@ -63,6 +65,7 @@ type Props = {
     llmProviders: LlmProviderOption[];
     planUsage: PlanUsage;
     mcpUrl: string;
+    notificationChannels: NotificationChannelSummary[];
 };
 
 const props = defineProps<Props>();
@@ -372,6 +375,17 @@ const confirmCancelInvitation = (invitation: TeamInvitation) => {
       team owns, read-only.
     -->
     <ConnectAgentCard :url="mcpUrl" :docs-href="mcpDocsHref" />
+
+    <!--
+      Where alerts go. Team-wide, like the agent connection above; every
+      member sees the list (masked), owners and admins change it.
+    -->
+    <NotificationChannelsCard
+        id="notification-channels"
+        :team-slug="team.slug"
+        :channels="notificationChannels"
+        :can-manage="permissions.canUpdateTeam"
+    />
 
     <!-- Model API keys -->
     <div v-if="permissions.canUpdateTeam" class="flex flex-col gap-5">

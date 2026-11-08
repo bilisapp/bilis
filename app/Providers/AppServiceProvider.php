@@ -4,11 +4,14 @@ namespace App\Providers;
 
 use App\Http\Middleware\AuthenticateProjectApiKey;
 use App\Http\Middleware\AuthenticatePublicKey;
+use App\Models\AlertRule;
 use App\Models\FixJob;
+use App\Models\NotificationChannel;
 use App\Models\Passport\Client;
 use App\Models\Project;
 use App\Models\ProjectApiKey;
 use App\Models\ProjectRepository;
+use App\Models\Team;
 use App\Services\Autofix\LocalRunDriver;
 use App\Services\Autofix\RunDriver;
 use App\Services\Autofix\ScalewayRunDriver;
@@ -101,6 +104,34 @@ class AppServiceProvider extends ServiceProvider
             return FixJob::query()
                 ->where('uuid', $uuid)
                 ->whereHas('project.team', fn ($query) => $query->where('slug', is_string($teamSlug) ? $teamSlug : null))
+                ->firstOrFail();
+        });
+
+        /*
+         * Alert rules and notification channels are ids, resolved through the
+         * team in the route — `{current_team}` for the Alerts pages, `{team}`
+         * on team settings — so another team's id is a 404, never its rule.
+         */
+        Route::bind('alertRule', function (string $id, RouteElement $route): AlertRule {
+            $teamSlug = $route->parameter('current_team');
+
+            abort_unless(ctype_digit($id), 404);
+
+            return AlertRule::query()
+                ->whereKey((int) $id)
+                ->whereHas('team', fn ($query) => $query->where('slug', is_string($teamSlug) ? $teamSlug : null))
+                ->firstOrFail();
+        });
+
+        Route::bind('notificationChannel', function (string $id, RouteElement $route): NotificationChannel {
+            $team = $route->parameter('team');
+            $teamSlug = $team instanceof Team ? $team->slug : $team;
+
+            abort_unless(ctype_digit($id), 404);
+
+            return NotificationChannel::query()
+                ->whereKey((int) $id)
+                ->whereHas('team', fn ($query) => $query->where('slug', is_string($teamSlug) ? $teamSlug : null))
                 ->firstOrFail();
         });
 

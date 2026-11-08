@@ -57,6 +57,19 @@ const meters = computed<Meter[]>(() => {
             unavailable: false,
         },
         {
+            key: 'alert-rules',
+            label: 'Alert rules',
+            used: props.usage.alertRules.used,
+            limit: props.usage.alertRules.limit,
+            caption: 'enabled or not',
+            level: allowanceLevel(
+                props.usage.alertRules.used,
+                props.usage.alertRules.limit,
+                warnAt,
+            ),
+            unavailable: false,
+        },
+        {
             key: 'events',
             label: 'Events today',
             used: events.used,

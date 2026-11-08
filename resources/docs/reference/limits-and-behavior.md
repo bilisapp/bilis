@@ -215,12 +215,13 @@ yourself has no plan and no limits** — nothing in this section is read by it.
 | Members per team (owner included)                              | 5         |
 | Events per day (log records + spans, per team, from 00:00 UTC) | 100,000   |
 | Metric data points per day (per team, from 00:00 UTC)          | 1,000,000 |
+| Alert rules per team                                           | 10        |
 | Retention for logs, spans and metrics                          | 30 days   |
 | Ingest requests per minute, per API key                        | 1,200     |
 
 **Every one of them is soft except the last.** Going over the projects,
-members, events or metric data points allowance drops nothing, rejects nothing
-and blocks nothing: the dashboard's "Plan & usage" card shows where the team
+members, events, metric data points or alert rules allowance drops nothing,
+rejects nothing and blocks nothing: the dashboard's "Plan & usage" card shows where the team
 stands, starts saying so at 80%, and someone gets in touch. The per-minute request limit is the one real
 ceiling, and it is a retryable 429 with `Retry-After` rather than a rejection of
 the payload — the "ingest never returns 400" rule above still holds.

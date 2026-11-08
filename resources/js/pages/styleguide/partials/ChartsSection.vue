@@ -4,6 +4,7 @@ import BarSparkline from '@/components/BarSparkline.vue';
 import ChartCanvas from '@/components/ChartCanvas.vue';
 import DitherSparkline from '@/components/DitherSparkline.vue';
 import IssueHistogram from '@/components/IssueHistogram.vue';
+import ThresholdChart from '@/components/ThresholdChart.vue';
 import { useChartTokens } from '@/composables/useChartTokens';
 import type { BilisChartOption } from '@/lib/echarts';
 import { SEVERITY_LEVELS } from '@/lib/logs';
@@ -13,6 +14,8 @@ import {
     CHART_SWATCHES,
     CHART_VOLUME_BY_SEVERITY,
     CHART_VOLUME_DAYS,
+    DEMO_ALERT_COMPARE_PREVIEW,
+    DEMO_ALERT_PREVIEW,
     demoIssueHistograms,
     SPARKLINE_ERRORS_24H,
     SPARKLINE_HOUR_LABELS,
@@ -304,6 +307,72 @@ const issueHistograms = demoIssueHistograms();
         >
             <div class="max-w-sm">
                 <IssueHistogram :histogram="issueHistograms" />
+            </div>
+        </DemoBlock>
+
+        <DemoBlock
+            title="ThresholdChart"
+            description="The alert rule editor's 24-hour preview. Each series the rule would produce is a line in the chart palette; the threshold is a dashed markLine and every stretch where the condition holds in any series is shaded, both in --severity-error, because crossing the line is the one thing on this chart that means something broke. The caption says how wide a point is and, for a count, that it was scaled to the rule's window. Then a compared rule (compare prop): each point is a multiple of the same window last week, so the threshold reads '3× normal'. Below: the loaded state, a source that refuses the query, and storage that did not answer."
+        >
+            <ThresholdChart
+                :result="DEMO_ALERT_PREVIEW"
+                source="logs"
+                aggregation="count"
+                condition=">"
+                :threshold="25"
+            />
+            <!--
+              A compared rule ("> 3× last week"): every point is a multiple
+              of its baseline, so the axis and tooltip read "× normal".
+            -->
+            <ThresholdChart
+                :result="DEMO_ALERT_COMPARE_PREVIEW"
+                source="logs"
+                aggregation="count"
+                :compare="{ offset_seconds: 604800 }"
+                condition=">"
+                :threshold="3"
+                height="10rem"
+            />
+            <div class="grid gap-4 md:grid-cols-3">
+                <ThresholdChart
+                    :result="null"
+                    source="traces"
+                    aggregation="p95"
+                    condition=">"
+                    :threshold="500"
+                    height="6rem"
+                />
+                <ThresholdChart
+                    :result="{
+                        series: [],
+                        unavailable: true,
+                        reason: 'system.cpu.utilization is a gauge: a percentile needs a histogram.',
+                        stepSeconds: 900,
+                        windowSeconds: 300,
+                        scaled: false,
+                    }"
+                    source="metrics"
+                    aggregation="p95"
+                    condition=">"
+                    :threshold="0.9"
+                    height="6rem"
+                />
+                <ThresholdChart
+                    :result="{
+                        series: [],
+                        unavailable: true,
+                        reason: null,
+                        stepSeconds: 900,
+                        windowSeconds: 300,
+                        scaled: false,
+                    }"
+                    source="logs"
+                    aggregation="count"
+                    condition=">"
+                    :threshold="25"
+                    height="6rem"
+                />
             </div>
         </DemoBlock>
 

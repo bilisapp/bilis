@@ -12,13 +12,14 @@ it('renders the pricing page to a logged-out visitor', function () {
 });
 
 it('publishes the configured Free plan numbers rather than literals', function () {
-    // The page's whole job is being the published source of these seven
+    // The page's whole job is being the published source of these eight
     // numbers; if a config override does not move them, the page is lying.
     config([
         'plans.free.projects_per_team' => 7,
         'plans.free.members_per_team' => 11,
         'plans.free.events_per_day' => 2_500_000,
         'plans.free.metric_points_per_day' => 3_000_000,
+        'plans.free.alert_rules_per_team' => 25,
         'plans.warn_at_percent' => 65,
         'legal.log_retention_days' => 45,
         'security.ingest_rate_limit' => 900,
@@ -30,6 +31,7 @@ it('publishes the configured Free plan numbers rather than literals', function (
         ->assertSee('11 members')
         ->assertSee('2,500,000 events a day')
         ->assertSee('3,000,000 metric data points a day')
+        ->assertSee('25 alert rules')
         ->assertSee('45-day retention')
         ->assertSee('900 requests a minute')
         ->assertSee('65%');

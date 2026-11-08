@@ -10,6 +10,7 @@ it('publishes the configured Free allowances', function () {
         'plans.free.members_per_team' => 9,
         'plans.free.events_per_day' => 2_000_000,
         'plans.free.metric_points_per_day' => 5_000_000,
+        'plans.free.alert_rules_per_team' => 12,
         'plans.warn_at_percent' => 70,
     ]);
 
@@ -19,6 +20,7 @@ it('publishes the configured Free allowances', function () {
         ->and($limits->membersPerTeam())->toBe(9)
         ->and($limits->eventsPerDay())->toBe(2_000_000)
         ->and($limits->metricPointsPerDay())->toBe(5_000_000)
+        ->and($limits->alertRulesPerTeam())->toBe(12)
         ->and($limits->warnAtPercent())->toBe(70);
 });
 
@@ -46,6 +48,7 @@ it('serialises the whole plan for props and Blade', function () {
         'membersPerTeam' => (int) config('plans.free.members_per_team'),
         'eventsPerDay' => (int) config('plans.free.events_per_day'),
         'metricPointsPerDay' => (int) config('plans.free.metric_points_per_day'),
+        'alertRulesPerTeam' => (int) config('plans.free.alert_rules_per_team'),
         'retentionDays' => (int) config('legal.log_retention_days'),
         'requestsPerMinute' => (int) config('security.ingest_rate_limit'),
         'warnAtPercent' => (int) config('plans.warn_at_percent'),
@@ -54,4 +57,8 @@ it('serialises the whole plan for props and Blade', function () {
 
 it('publishes a million metric data points a day by default', function () {
     expect(config('plans.free.metric_points_per_day'))->toBe(1_000_000);
+});
+
+it('publishes ten alert rules per team by default', function () {
+    expect(config('plans.free.alert_rules_per_team'))->toBe(10);
 });

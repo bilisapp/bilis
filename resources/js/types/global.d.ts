@@ -1,3 +1,4 @@
+import type { AlertBadgeCounts, NewChannelSecret } from '@/types/alerts';
 import type { Auth } from '@/types/auth';
 import type { IssueBadgeCounts } from '@/types/issues';
 import type { NewProjectApiKey } from '@/types/projects';
@@ -22,6 +23,7 @@ declare module '@inertiajs/core' {
         flashDataType: {
             toast?: FlashToast;
             newApiKey?: NewProjectApiKey;
+            channelSecret?: NewChannelSecret;
         };
         sharedPageProps: {
             name: string;
@@ -32,6 +34,8 @@ declare module '@inertiajs/core' {
             autofix: { enabled: boolean };
             /** Deferred and kept once per minute; null when storage is busy. */
             issueBadge?: IssueBadgeCounts | null;
+            /** Deferred and kept once per minute: series firing now. */
+            alertBadge?: AlertBadgeCounts | null;
             [key: string]: unknown;
         };
     }

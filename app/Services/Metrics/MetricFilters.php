@@ -41,6 +41,12 @@ class MetricFilters
     public const AGGREGATIONS = ['avg', 'min', 'max', 'sum'];
 
     /**
+     * The last three are for alert rules, never read from a request:
+     * `$interval` fixes the bucket width (still at least
+     * {@see MetricQuery::MIN_INTERVAL_SECONDS}), `$maxGroups` raises the groups
+     * kept after reading (the 500-series read cap of R16 still applies), and
+     * `$exclusiveTo` reads `[from, to)` instead of `[from, to]`.
+     *
      * @param  array<string, string>  $where
      */
     public function __construct(
@@ -52,6 +58,9 @@ class MetricFilters
         public readonly string $aggregation = 'avg',
         public readonly Carbon $from = new Carbon,
         public readonly Carbon $to = new Carbon,
+        public readonly ?int $interval = null,
+        public readonly ?int $maxGroups = null,
+        public readonly bool $exclusiveTo = false,
     ) {}
 
     /**

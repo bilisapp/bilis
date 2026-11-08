@@ -169,7 +169,7 @@ claude mcp add --transport http bilis <span class="text-severity-debug">https://
             @include('marketing.partials.section-label', ['number' => '03', 'label' => 'The toolbox'])
 
             <h2 class="mt-4 max-w-3xl text-2xl leading-tight font-semibold tracking-tight sm:text-3xl">
-                Ten tools, two prompts, no surprises.
+                Eleven tools, two prompts, no surprises.
             </h2>
 
             <dl class="mt-8 divide-y divide-border border-t border-b border-border">
@@ -184,6 +184,7 @@ claude mcp add --transport http bilis <span class="text-severity-debug">https://
                     ['service-latency', 'p95 and p99 per service, slowest first.'],
                     ['list-metrics', 'The metrics a project reports, how each is read, and the attributes to split it by.'],
                     ['query-metric', 'One metric over a window — counters as a rate, histograms as percentiles.'],
+                    ['list-alerts', 'What is firing or pending now, and the day\'s alert history, new and regressed issues included.'],
                 ] as [$name, $what])
                     <div class="grid gap-1 py-3.5 sm:grid-cols-[minmax(0,12rem)_1fr] sm:gap-8">
                         <dt class="font-mono text-xs text-foreground">{{ $name }}</dt>

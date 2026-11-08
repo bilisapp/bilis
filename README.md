@@ -40,7 +40,7 @@ claude mcp add --transport http bilis https://your-bilis-host/mcp
 
 ## Why Bilis
 
-- **Built for agents as well as people.** A remote MCP server with ten read-only tools (`search-logs`, `error-summary`, `list-traces`, `get-trace`, `service-latency`, `list-metrics`, `query-metric`, …). It signs in with OAuth and a consent screen, so there is no key to copy into a config file. Works with Claude Code, Claude Desktop, Cursor and any other MCP client.
+- **Built for agents as well as people.** A remote MCP server with eleven read-only tools (`search-logs`, `error-summary`, `list-traces`, `get-trace`, `service-latency`, `list-metrics`, `query-metric`, …). It signs in with OAuth and a consent screen, so there is no key to copy into a config file. Works with Claude Code, Claude Desktop, Cursor and any other MCP client.
 - **OpenTelemetry in, no SDK of ours.** Point any OTLP/HTTP exporter at it (JSON or protobuf). There's also a Monolog channel for Laravel, a one-line Linux host agent, and a DSN endpoint for existing error-reporting SDKs ([docs](resources/docs/ingestion/sentry.md)).
 - **Yours.** One box, your data, ClickHouse underneath. Self-hosted, there is no per-GB bill and no per-seat price.
 - **Small on purpose.** Logs, traces and metrics, linked to each other. No alerting, user-defined dashboards or saved searches.

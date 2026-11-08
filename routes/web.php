@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\AlertingHealthController;
+use App\Http\Controllers\AlertsController;
 use App\Http\Controllers\Auth\GitHubLoginController;
 use App\Http\Controllers\Autofix\FixJobCancelController;
 use App\Http\Controllers\Autofix\FixJobStreamController;
@@ -42,6 +44,15 @@ use Illuminate\Support\Facades\Route;
 Route::post('webhooks/github', GitHubWebhookController::class)
     ->middleware('github.signature')
     ->name('webhooks.github');
+
+/*
+ * The alerting loop's heartbeat, for an external uptime check. Like `/up` it
+ * carries no session, cookies or CSRF: the `web` group is stripped, so a
+ * probe every few seconds writes nothing and exposes nothing.
+ */
+Route::get('health/alerting', AlertingHealthController::class)
+    ->withoutMiddleware('web')
+    ->name('health.alerting');
 
 Route::view('/', 'marketing.home')->name('home');
 Route::view('terms', 'marketing.terms')->name('terms');
@@ -196,6 +207,25 @@ Route::prefix('{current_team}')
         Route::patch('issues/{project}/{fingerprint}', [IssuesController::class, 'update'])
             ->where('fingerprint', '[0-9a-f]{64}')
             ->name('issues.update');
+
+        /*
+         * Alerts. `{alertRule}` is an id bound through the team in
+         * `AppServiceProvider`, so another team's rule is a 404. `preview` and
+         * `history` sit before it for readability only — the binding refuses
+         * anything that is not digits.
+         */
+        Route::get('alerts', [AlertsController::class, 'index'])->name('alerts.index');
+        Route::get('alerts/history', [AlertsController::class, 'history'])->name('alerts.history');
+        Route::get('alerts/create', [AlertsController::class, 'create'])->name('alerts.create');
+        Route::post('alerts', [AlertsController::class, 'store'])->name('alerts.store');
+        Route::post('alerts/preview', [AlertsController::class, 'preview'])
+            ->middleware('throttle:30,1')
+            ->name('alerts.preview');
+        Route::get('alerts/{alertRule}/edit', [AlertsController::class, 'edit'])->name('alerts.edit');
+        Route::put('alerts/{alertRule}', [AlertsController::class, 'update'])->name('alerts.update');
+        Route::delete('alerts/{alertRule}', [AlertsController::class, 'destroy'])->name('alerts.destroy');
+        Route::post('alerts/{alertRule}/mute', [AlertsController::class, 'mute'])->name('alerts.mute');
+        Route::post('alerts/{alertRule}/toggle', [AlertsController::class, 'toggle'])->name('alerts.toggle');
 
         Route::get('metrics', [MetricsController::class, 'index'])->name('metrics.index');
         Route::get('metrics/hosts', [MetricsController::class, 'hosts'])->name('metrics.hosts');

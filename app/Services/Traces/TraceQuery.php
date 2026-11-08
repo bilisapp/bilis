@@ -657,17 +657,7 @@ class TraceQuery
             return ['rows' => [], 'unavailable' => false];
         }
 
-        $conditions = [
-            'ProjectId IN {projectIds:Array(String)}',
-            'Timestamp >= {from:DateTime64(9)}',
-            'Timestamp <= {to:DateTime64(9)}',
-        ];
-
-        $params = [
-            'projectIds' => $this->stringArrayParameter($projectIds),
-            'from' => $this->formatTimestamp($filters->from),
-            'to' => $this->formatTimestamp($filters->to),
-        ];
+        [$conditions, $params] = $this->spanConditions($projectIds, $filters->from, $filters->to);
 
         if ($filters->service !== null) {
             $conditions[] = 'ServiceName = {service:String}';
@@ -713,6 +703,138 @@ class TraceQuery
                 ];
             }, $rows)),
             'unavailable' => false,
+        ];
+    }
+
+    /**
+     * One alert reading per series of span rows over the closed-open window `[from, to)`.
+     *
+     * `TraceAlertSource` is the caller. Spans, not traces: `otel_traces` with
+     * the predicate from `spanConditions()` (R4's shape), the filters appended.
+     * `error_ratio` counts `StatusCode = 'Error'`, the exporter's literal (R10);
+     * percentiles are of `Duration` and come back in milliseconds.
+     *
+     * Ungrouped and unbucketed, there is no GROUP BY and always one row: a
+     * window without a span counts 0, and its ratio and percentiles are NaN,
+     * which arrive as null. Grouped by service, the `$limit` highest readings
+     * are kept; bucketed for the preview, the `$limit` busiest services are.
+     * `events` is the span count under the WHERE, which a rule's `min_events`
+     * reads. A rule's baseline comparison is a second call with the window
+     * shifted back — same statement, same R4 range.
+     *
+     * @param  list<string>  $projectIds
+     * @param  list<string>  $services
+     * @param  'count'|'error_ratio'|'p50'|'p95'|'p99'  $aggregation
+     * @param  int|null  $bucketSeconds  bucket the reading for the editor's preview; null reads the window as one
+     * @return list<array{group: string, bucket: int|null, value: float|null, events: int}>|null null when ClickHouse is overloaded
+     */
+    public function alertValues(
+        array $projectIds,
+        Carbon $from,
+        Carbon $to,
+        array $services,
+        ?string $spanName,
+        ?string $kind,
+        string $aggregation,
+        bool $groupByService,
+        int $limit,
+        ?int $bucketSeconds = null,
+    ): ?array {
+        if ($projectIds === []) {
+            return [];
+        }
+
+        [$conditions, $params] = $this->spanConditions($projectIds, $from, $to, exclusiveTo: true);
+
+        if ($services !== []) {
+            $conditions[] = 'ServiceName IN {services:Array(String)}';
+            $params['services'] = $this->stringArrayParameter($services);
+        }
+
+        if ($spanName !== null) {
+            $conditions[] = 'SpanName = {spanName:String}';
+            $params['spanName'] = $spanName;
+        }
+
+        if ($kind !== null) {
+            $conditions[] = 'SpanKind = {spanKind:String}';
+            $params['spanKind'] = $kind;
+        }
+
+        $value = match ($aggregation) {
+            'error_ratio' => 'countIf(StatusCode = {errorStatus:String}) / count()',
+            'p50' => 'quantile(0.5)(Duration) / 1000000',
+            'p95' => 'quantile(0.95)(Duration) / 1000000',
+            'p99' => 'quantile(0.99)(Duration) / 1000000',
+            default => 'count()',
+        };
+
+        $params['errorStatus'] = self::STATUS_ERROR;
+        $params['groupLimit'] = $limit;
+
+        $where = implode(' AND ', $conditions);
+        $groupBy = [];
+
+        if ($groupByService) {
+            $groupBy[] = 'Grp';
+        }
+
+        if ($bucketSeconds !== null) {
+            $params['bucketSeconds'] = $bucketSeconds;
+            $groupBy[] = 'Bucket';
+
+            if ($groupByService) {
+                $where .= " AND ServiceName IN (SELECT ServiceName FROM otel_traces WHERE {$where} GROUP BY ServiceName ORDER BY count() DESC LIMIT {groupLimit:UInt32})";
+            }
+        }
+
+        $sql = sprintf(
+            'SELECT %s AS Grp, %s AS Bucket, %s AS Value, count() AS Events FROM otel_traces WHERE %s%s',
+            $groupByService ? 'ServiceName' : "''",
+            $bucketSeconds === null ? '0' : 'toUnixTimestamp(toStartOfInterval(Timestamp, toIntervalSecond({bucketSeconds:UInt32})))',
+            $value,
+            $where,
+            $groupBy === [] ? '' : ' GROUP BY '.implode(', ', $groupBy).($bucketSeconds === null ? ' ORDER BY Value DESC LIMIT {groupLimit:UInt32}' : ''),
+        );
+
+        $rows = $this->select($sql, $params);
+
+        if ($rows === null) {
+            return null;
+        }
+
+        return array_values(array_map(fn (array $row): array => [
+            'group' => (string) ($row['Grp'] ?? ''),
+            'bucket' => $bucketSeconds === null ? null : (int) ($row['Bucket'] ?? 0),
+            'value' => is_numeric($row['Value'] ?? null) ? (float) $row['Value'] : null,
+            'events' => (int) ($row['Events'] ?? 0),
+        ], $rows));
+    }
+
+    /**
+     * The base predicate of every read of span rows over a window.
+     *
+     * `otel_traces` is sorted `(ProjectId, Timestamp, ServiceName)`, so this is
+     * R4's shape: the projects, then a plain range on raw Timestamp. Filters
+     * append to what it returns and never replace the ProjectId predicate.
+     *
+     * @param  list<string>  $projectIds
+     * @param  bool  $exclusiveTo  read `[from, to)` rather than `[from, to]` — the alert window
+     * @return array{0: list<string>, 1: array<string, scalar|null>}
+     */
+    private function spanConditions(array $projectIds, Carbon $from, Carbon $to, bool $exclusiveTo = false): array
+    {
+        return [
+            [
+                'ProjectId IN {projectIds:Array(String)}',
+                'Timestamp >= {from:DateTime64(9)}',
+                $exclusiveTo ? 'Timestamp < {to:DateTime64(9)}' : 'Timestamp <= {to:DateTime64(9)}',
+            ],
+            [
+                'projectIds' => $this->stringArrayParameter($projectIds),
+                'from' => $this->formatTimestamp($from),
+                'to' => $this->formatTimestamp($to),
+            ],
         ];
     }
 

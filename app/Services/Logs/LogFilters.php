@@ -22,6 +22,7 @@ class LogFilters
 
     /**
      * @param  list<SeverityLevel>  $severities
+     * @param  list<string>  $services  any of these service names; the alert rules' multi-service filter
      */
     public function __construct(
         public readonly ?string $project = null,
@@ -34,6 +35,7 @@ class LogFilters
         public readonly Carbon $to = new Carbon,
         public readonly ?string $cursor = null,
         public readonly int $limit = self::LIMIT,
+        public readonly array $services = [],
     ) {}
 
     /**
