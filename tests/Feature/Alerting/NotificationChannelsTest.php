@@ -105,11 +105,22 @@ it('generates a webhook secret and shows it exactly once', function () {
 
     $channel = NotificationChannel::query()->sole();
 
-    expect($channel->config['secret'])->toStartWith('whsec_');
+    $secret = $channel->config['secret'];
+    expect($secret)->toStartWith('whsec_');
 
-    $this->actingAs($this->owner)
-        ->get(route('teams.edit', ['team' => 'acme']))
-        ->assertDontSee($channel->config['secret']);
+    // The page is JSON in an attribute, where a `/` in the base64 secret is
+    // written `\/`; look for both spellings or a secret with a slash slips by.
+    $spellings = [$secret, str_replace('/', '\/', $secret)];
+
+    // The first page after the POST is the one the flash is meant for.
+    $first = $this->actingAs($this->owner)->get(route('teams.edit', ['team' => 'acme']));
+    expect(collect($spellings)->contains(fn (string $s) => str_contains(html_entity_decode($first->getContent()), $s)))->toBeTrue();
+
+    // Every page after it must not carry the secret in either spelling.
+    $second = $this->actingAs($this->owner)->get(route('teams.edit', ['team' => 'acme']));
+    foreach ($spellings as $spelling) {
+        expect(html_entity_decode($second->getContent()))->not->toContain($spelling);
+    }
 });
 
 it('refuses a malformed signing secret', function () {

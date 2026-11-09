@@ -10,15 +10,97 @@ it crosses a line — and once more when it comes back. Rules live on the
 data Bilis already stores, so creating a rule never slows ingest down, and a
 service that goes completely silent can still be noticed.
 
+## Default alerts
+
+You do not have to build rules to get alerts. Bilis sets every team up
+automatically — new teams as soon as they are created, existing teams on the
+next check (every 15 minutes):
+
+- a **Team email** channel that sends to every member of the team, with
+  [issue events](#issue-events) switched on, so you hear about new and
+  regressed issues from day one;
+- the **recommended rules** below, each installed once your team sends the
+  kind of data it watches. Every rule covers all of the team's projects,
+  including ones you add later, and splits by service or host, so a new
+  service or server is covered the moment it reports.
+
+New recommended rules send to every enabled channel that has issue events on —
+the Team email channel, or wherever you moved your issue alerts.
+
+| Rule                       | Watches                                      | Fires when                                                                                            | Why                                                                              |
+| -------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| **Error spike**            | error and fatal log lines, per service       | more than **3× as many** as in the same 10 minutes last week, with at least 20 errors (warning)       | catches a bad deploy or a failing dependency, whatever your usual error level is |
+| **High error rate**        | server spans, per service                    | more than **5 %** of at least 50 requests in 10 minutes failed, for 5 minutes (critical)              | your users are seeing errors                                                     |
+| **Slower than last week**  | p95 duration of server spans, per service    | more than **2× last week's** p95 over 15 minutes, with at least 50 requests, for 10 minutes (warning) | a slow regression that no fixed threshold would catch                            |
+| **Disk almost full**       | `system.filesystem.utilization`, per host    | a filesystem is more than **90 %** full for 10 minutes (critical)                                     | a full disk stops databases, logs and deploys                                    |
+| **Memory pressure**        | `system.memory.utilization` (used), per host | more than **95 %** used on average for 10 minutes (warning)                                           | the kernel is about to start killing processes                                   |
+| **Host stopped reporting** | host metrics, per host                       | a host that was reporting has sent **nothing** for 10 minutes (critical)                              | the server, or the agent on it, is down                                          |
+
+**Error spike** needs logs, **High error rate** and **Slower than last week**
+need traces, and the last three need host metrics from the
+[server agent](/docs/ingestion/server-agent) or any OpenTelemetry Collector
+running the host metrics receiver. The thresholds are deliberately
+conservative: an alert that pages too often gets ignored.
+
+These rules carry a **Set up by Bilis** mark and a one-line reason on the
+Alerts page, and every notification they send ends with a link to tune or
+turn them off. In the webhook payload, `data.rule.template_key` names the
+default (`null` for a rule you built).
+
+- **Tune** a rule by editing it like any other. Once you change its name,
+  what it watches, its threshold, its timings or its severity, Bilis stops
+  updating it — your version is kept as is. Changing only its channels, muting it or switching it
+  off and on does not count as an edit.
+- **Turn off** a rule you do not want. A default rule is never deleted, only
+  turned off, and it **stays off**: Bilis does not set it up again. Switch it
+  back on from the Alerts page at any time.
+- Rules you have not edited are kept up to date: when Bilis improves a
+  default, they move to the new version automatically.
+
+On a self-hosted install, set `BILIS_ALERTING_PROVISIONING=false` to stop
+Bilis from creating the default channel and rules; teams keep anything already
+created.
+
+### Comparing with last week, and minimum events
+
+Two settings make the defaults work for any amount of traffic, and you can use
+them on your own log and trace rules too:
+
+- **Compare with** the same time yesterday or last week turns the reading into
+  a multiple of normal: `3` means three times what the same window read a day
+  or a week earlier. For a count or a rate, a window that was empty back then
+  counts as one event, so a service that is new this week can still fire. For
+  an error ratio or a percentile there is no sensible "normal" without traffic
+  back then, so the series has no data until there is traffic to compare
+  with. A log `ratio` and metric rules cannot be compared.
+- **Minimum events** ignores a series with fewer log lines or spans than that
+  in the window — it is treated as no data. It stops "1 error instead of 0"
+  from looking like an infinite spike.
+
+A series of **Host stopped reporting** fires on no data. A host that stays
+silent for more than a day is assumed to be gone for good: its alert is
+cleared quietly, without a resolved notification, so a decommissioned server
+does not keep firing.
+
+### Needs attention
+
+The dashboard's **Needs attention** card lists what is firing, then what is
+pending — most severe and most recent first, up to eight — with each value in
+words ("4.2× normal", "93 %") and a link to the data. It shows whether or not
+any channel would deliver the alert, and is hidden when nothing needs you.
+
 ## What a rule is
 
 A rule is a query, a condition and a few timings:
 
-- **Source** — logs, traces or metrics, in one or more of the team's projects.
+- **Source** — logs, traces or metrics, in one or more of the team's projects,
+  or in all of them, including projects added later.
 - **Filters and an aggregation** — what to count or measure (below).
 - **Group by** (optional) — split the result into one series per value, for
   example one per `service.name`. Each series is alerted on separately.
 - **Condition** — `>`, `>=`, `<` or `<=` a threshold.
+- **Compare with** and **minimum events** (optional, log and trace rules) —
+  see [Comparing with last week](#comparing-with-last-week-and-minimum-events).
 - **Window** — how far back each evaluation reads: 1 minute to 24 hours.
 - **Interval** — how often the rule is evaluated: every 1, 5 or 15 minutes.
 - **For**, **keep firing for** and **no data** — when a crossing becomes an
@@ -159,7 +241,8 @@ Each delivery is a JSON body following
         "rule": {
             "id": 17,
             "name": "Checkout error spike",
-            "severity": "warning"
+            "severity": "warning",
+            "template_key": null
         },
         "labels": { "service.name": "checkout" },
         "value": 87.0,

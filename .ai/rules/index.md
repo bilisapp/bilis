@@ -4,7 +4,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 
 | Applies to | Rule file |
 | --- | --- |
-| app/Services/Alerting/**, app/Jobs/EvaluateAlertRule.php, app/Jobs/ScanIssueAlerts.php, app/Notifications/**, app/Http/Controllers/Alerts*.php, resources/js/pages/alerts/** | .ai/rules/alerting.md |
+| app/Services/Alerting/**, app/Jobs/EvaluateAlertRule.php, app/Jobs/ScanIssueAlerts.php, app/Notifications/**, app/Http/Controllers/Alerts*.php, resources/js/pages/alerts/**, app/Services/Alerting/Templates/**, app/Jobs/ProvisionTeamAlerts.php, config/alerting_templates.php | .ai/rules/alerting.md |
 | app/Services/Autofix/** | .ai/rules/autofix.md |
 | app/Services/ClickHouse/** | .ai/rules/click-house.md |
 | database/clickhouse/*.sql | .ai/rules/clickhouse.md |

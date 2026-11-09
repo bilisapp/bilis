@@ -6,6 +6,9 @@ paths:
   - 'app/Notifications/**'
   - 'app/Http/Controllers/Alerts*.php'
   - 'resources/js/pages/alerts/**'
+  - 'app/Services/Alerting/Templates/**'
+  - app/Jobs/ProvisionTeamAlerts.php
+  - config/alerting_templates.php
 ---
 
 # Alerting
@@ -85,3 +88,21 @@ Channel props go through `NotificationChannel::toSummary()`: host only (`hooks.s
 - State colours are data: firing `--severity-error`, pending `--severity-warn`, inactive neutral.
 - Alert history (`AlertEvent`, `Prunable`) is dropped after `alerting.events_retention_days` by the daily `model:prune`.
 - The MCP `list-alerts` tool is read-only (firing/pending instances and recent events from the app DB) and scoped by `ResolvesScope`, like every other tool (mcp.md). The Free plan's `alert_rules_per_team` number (10) is soft like every plan number (plans.md): measured and shown, never a reason to refuse saving or evaluating a rule.
+
+## Defaults and provisioning
+Spec: `specs/alerting-defaults.md`. Every team, existing and new, gets a "Team email" channel and the catalogue's rules for the data it sends — no opt-in. `alerts:provision` (every 15 min, `withoutOverlapping`, `onOneServer`) and `CreateTeam` (`afterCommit`) dispatch `ProvisionTeamAlerts` (queue `alerts`, unique per team, `$tries = 1` — the next run is the retry) → `AlertProvisioner::provision()`.
+
+- **It is a reconciler, not an installer.** Idempotent and re-run forever. A missing template rule is created (when its data is detected); an existing rule that is `enabled`, has `customized_at` null and an older `template_version` is upgraded (only the template's own fields — never `enabled`, channels, mute or state); anything else is left alone. The rule row (`template_key`, `template_version`, `customized_at`, unique `(team_id, template_key)`) and `teams.alerting_provisioned_at` are all the state there is — do not add a table.
+- **The channel is created once.** Only while `alerting_provisioned_at` is null (claimed by a conditional update). A team that deletes "Team email" never gets it back.
+- **Deleting a template rule turns it off; never delete the row.** `AlertsController::destroy` sets `enabled = false` for `isTemplate()` rules. A missing row means "not installed yet" and the next run recreates it; a turned-off row is how the reconciler knows to stay away. The UI says "Turn off", not "Delete". Any new "remove" path (MCP, API, bulk action) must do the same.
+- **`customized_at` is stamped only when the definition really changes**: `AlertsController::DEFINITION_FIELDS` (name, source, project_ids, query, condition, threshold, timings, no_data_state, severity), compared canonically. Channels, mute and enable/disable say where or whether an alert goes, not what it is — they never customise. An unchanged save is not a customisation.
+- **Bumping a template's `version` is the only way to change installed rules.** Editing `rule`/`name` in `config/alerting_templates.php` without a bump changes new installs only. With a bump, uncustomized enabled rules move on the next run; customized or turned-off ones never do (a turned-off rule switched back on is upgraded then). There is no migration path for customized rules, by design.
+- **Template keys contain a dot** (`logs.error_spike`), so `config("alerting_templates.templates.{$key}")` finds nothing — Laravel splits on every dot. Read the catalogue whole (`config('alerting_templates.templates')[$key]`) through `AlertRule::template()` or `AlertProvisioner::templates()`.
+- **Channel linking.** A newly installed template rule is attached to **every enabled channel of the team with `issue_events = true`** — "Team email" is one, and a team that moved issue alerts to Slack gets its default alerts there too. With none, the rule is created unlinked (still evaluated, still on the Alerts page and dashboard). Upgrades never touch channels.
+- **Detection costs.** `hasAnyLogs` / `hasAnyTraces` / `hasHosts` run only for kinds that still have a template to install, at most once per kind per run, so a fully provisioned team costs no ClickHouse read. A thrown detection is reported and that kind is skipped (`ProvisionResult::$undetectable`), retried next run. Overload caveat: `hasAnyLogs`/`hasAnyTraces` answer **yes** under overload (so a busy ClickHouse may install log/trace rules for a team with no such data — harmless, they see no data), `hasHosts` answers **no** (host rules simply wait for a later run).
+- **`compare` semantics** (`ReadsAlertValues::comparedWithBaseline()`, logs and traces only; offsets a day or a week; a log `ratio` and every metric refuse it): `count`/`rate` are compared as event counts, `current / max(baseline, 1)` — a group absent last week divides by 1. `error_ratio` and percentiles are `current / baseline`, and with no baseline reading (no events, NaN, 0) the series has **no data** that evaluation: floored at 1 a share could never exceed 1× (a no-op rule), and a new service's 300 ms p95 would read "300× normal". The baseline is one more read through the same query-service method, restricted to the current groups.
+- **`min_events`** drops a series with fewer events (rows for logs, spans for traces) in the current window as no data — it stops "1 error vs 0" noise.
+- **`project_ids = null` means every project of the team, now and later**; `EvaluateAlertRule::projectIds()` resolves it on every evaluation. Templates always use it.
+- **Retirement.** Under `no_data_state = firing`, a series firing only on no data whose last data (or creation) is older than `alerting.retire_after` (24 h) is deleted silently — no resolved event. Otherwise `hosts.silent` would page forever for a decommissioned host.
+- **Self-hosters**: `BILIS_ALERTING_PROVISIONING=false` (`alerting.provisioning`) stops both the command and the job; teams keep whatever was already provisioned. `alerting.enabled = false` also stops it.
+- **Transparency is part of the deal**: `AlertMessage::TEMPLATE_FOOTER` ends every template rule's notification with a link to tune or turn it off, the webhook's `data.rule.template_key` is set, the Alerts page marks "Set up by Bilis" with the `why` line. `NeedsAttention` (dashboard card) ignores channels on purpose and excludes disabled rules, keeps muted ones; order firing → severity → most recent.

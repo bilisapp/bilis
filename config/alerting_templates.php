@@ -14,7 +14,7 @@
 | nobody has edited (`customized_at` null) and that are still on are then
 | updated on the next run. Edited or turned-off rules are never touched.
 |
-| Every `query` must pass its source's `rules()` — AlertTemplatesTest
+| Every `query` must pass its source's `rules()` — AlertProvisioningTest
 | proves it. Thresholds are conservative on purpose: a default that pages
 | too often gets turned off, and alerting with it.
 |

@@ -1,6 +1,6 @@
 # Alerting defaults — Specification
 
-Status: agreed 2026-11-08, building on `feature/alerting`. Builds on `specs/alerting.md`.
+Status: built 2026-11-08 on `feature/alerting`. Builds on `specs/alerting.md`.
 
 ## Problem
 
@@ -125,14 +125,41 @@ thresholds from feedback. Revisit after real data shows which defaults are noisy
 
 ## Build order
 
-1. Engine:
+- [x] 1. Engine:
    - migrations `alert_rules.template_key/template_version/customized_at` and
      `teams.alerting_provisioned_at`;
    - `project_ids = null`, `compare`, `min_events`, retired no-data series.
-2. Catalogue + `alerts:provision` + the `CreateTeam` hook.
-3. UI:
+- [x] 2. Catalogue + `alerts:provision` + the `CreateTeam` hook.
+- [x] 3. UI:
    - transparency on the Alerts page and in notifications;
    - the "Needs attention" card on the dashboard;
    - the styleguide.
-4. Docs: `CLAUDE.md`, `.ai/rules/alerting.md`, `resources/docs/reference/alerting.md`
+- [x] 4. Docs: `CLAUDE.md`, `.ai/rules/alerting.md`, `resources/docs/reference/alerting.md`
    ("Default alerts").
+
+## Deviations found in the built code
+
+- **Channel linking.** A new template rule is linked to **every enabled channel of the team with
+  `issue_events = true`**, not to "the default channel" — "Team email" is one, and a team that moved
+  issue alerts to Slack gets its defaults there too. With none, the rule is created unlinked (still
+  evaluated, still on the Alerts page and dashboard). Upgrades never touch channels.
+- **Upgrades skip turned-off rules.** Only an `enabled`, uncustomized rule with an older
+  `template_version` is upgraded; one switched back on is upgraded on the next run.
+- **What customises.** `customized_at` is stamped only when a rule-defining field really changes
+  (`AlertsController::DEFINITION_FIELDS`: name, source, projects, query, condition, threshold,
+  timings, no-data state, severity, compared canonically). Channels, mute and enable/disable do not.
+- **Turn-off wording.** The row action and confirm button read "Turn off"; the dialog says "Turned
+  off, it stops evaluating and Bilis will not set it up again. You can switch it back on from this
+  list at any time." The toast reads "Alert rule turned off."
+- **Dotted keys.** Template keys contain a dot (`logs.error_spike`), so a dotted `config()` path
+  cannot reach an entry. The catalogue is read whole, through `AlertRule::template()` /
+  `AlertProvisioner::templates()`.
+- **Compare offsets.** `compare.offset_seconds` is one day or one week (`ReadsAlertValues::COMPARE_OFFSETS`);
+  a log `ratio` and metric rules refuse `compare`.
+- **"Needs attention" ordering.** Firing before pending, then severity (critical → warning → info),
+  then most recent first. Disabled rules are excluded; muted ones stay in.
+- **Banner dismissal.** "Bilis set up N alerts" is dismissed in `localStorage`, keyed per user and
+  team, storing the count dismissed — a new template rule brings it back. With storage unavailable
+  it shows, and dismissing hides it for the visit.
+- **Detection overload.** `hasAnyLogs` / `hasAnyTraces` answer *yes* under ClickHouse overload,
+  `hasHosts` answers *no*; only a thrown detection counts as "skipped, retried next run".

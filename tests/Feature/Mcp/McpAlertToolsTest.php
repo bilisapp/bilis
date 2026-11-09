@@ -43,7 +43,7 @@ test('list-alerts returns firing and pending alerts and the day\'s history', fun
 
     AlertInstance::factory()->for($rule, 'rule')->pending()->withLabels(['service.name' => 'payments'])->create();
     AlertInstance::factory()->for($rule, 'rule')->firing()->withLabels(['service.name' => 'checkout'])->create();
-    AlertInstance::factory()->for($rule, 'rule')->create(); // inactive
+    AlertInstance::factory()->for($rule, 'rule')->withLabels(['service.name' => 'search'])->create(); // inactive
 
     AlertEvent::factory()->forRule($rule)->create(['occurred_at' => now()->subMinutes(10), 'dedupe_key' => 'firing']);
     AlertEvent::factory()->forRule($rule)->resolved()->create(['occurred_at' => now()->subDays(2), 'dedupe_key' => 'resolved']);
