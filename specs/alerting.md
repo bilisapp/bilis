@@ -152,8 +152,8 @@ There is exactly one scheduler container and `withoutOverlapping`, so no row loc
 ```php
 interface AlertSource
 {
-    /** @return list<array{labels: array<string,string>, value: float}> one entry per series with data */
-    public function evaluate(AlertRule $rule, array $projectIds, CarbonImmutable $from, CarbonImmutable $to): array;
+    /** One entry per series with data, at most max_instances, and whether more existed. */
+    public function evaluate(AlertRule $rule, array $projectIds, CarbonImmutable $from, CarbonImmutable $to): AlertReading;
 
     /** Bucketed series for the editor preview. */
     public function preview(AlertRule $rule, array $projectIds, CarbonImmutable $from, CarbonImmutable $to, int $stepSeconds): array;
@@ -164,7 +164,12 @@ interface AlertSource
 ```
 
 Registered in `config/alerting.php`. Adding an entity means adding a class. A source that cannot
-read throws `AlertSourceUnavailable` — never `[]`, which would read as no data. Every source builds SQL
+read throws `AlertSourceUnavailable` — never an empty reading, which would read as no data. A rule with
+more series than `max_instances` is cut **at the source, condition-aware** (logs/traces order the grouped
+SQL by value, `ASC` for `<`/`<=`, and read one row past the cap; metrics reduce every group the
+explorer read, then rank by value), and the `AlertReading` says `truncated`. The job then leaves every
+known instance missing from a truncated reading as it was — it may have data outside the cap — so a
+rule that keeps overflowing does not get no-data transitions for its absent series. Every source builds SQL
 through its entity's existing query service, so the ProjectId predicate comes from that service's
 base conditions, user filters append, and values are `{name:Type}` parameters.
 
@@ -193,11 +198,16 @@ Prometheus semantics, checked against Prometheus' `rules/alerting.go`:
 
 ## Issue events
 
-`alerts:evaluate` dispatches one queued `ScanIssueAlerts` per minute (queue `alerts`, unique per
-minute, one try), and only while some team has an enabled channel flagged `issue_events`. The job
-runs `IssueAlertScan` per subscribed team, nominating from `issue_hourly`'s current and previous
-hour (R18) with a 3-minute overlapping lookback and reading the headline from `issue_summary` (R17);
-the SQL is `IssueQuery::alertCandidates()`.
+`alerts:evaluate` dispatches one queued `ScanIssueAlerts` per minute **per team** with an enabled
+channel flagged `issue_events` (queue `alerts`, unique per team and minute, one try, 50 s budget
+each — a slow team never starves the next). The job runs `IssueAlertScan` for that team with a
+3-minute overlapping lookback; the SQL is in `IssueQuery`, two reads with separate caps:
+
+- `newIssueCandidates()` nominates from `issue_hourly`'s current and previous hour (R18) and reads
+  the headline from `issue_summary` (R17), keeping `FirstSeen` inside the lookback.
+- `regressionCandidates()` looks up the team's **resolved** issues (app DB) by key on
+  `issue_summary`, keeping `LastIngested` inside the lookback. Not nominated by hour: `issue_hourly`
+  is keyed by the client's timestamp, so an old event flushed late would never be nominated.
 
 - **Issue new:** `FirstSeen` within the lookback, unless the issue is already ignored. Dedupe key
   `issue:{project}:{fingerprint}:new`.

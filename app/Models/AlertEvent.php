@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Enums\AlertCondition;
 use App\Enums\AlertEventType;
+use App\Enums\AlertSeverity;
 use Database\Factories\AlertEventFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -30,6 +32,8 @@ use Illuminate\Support\Carbon;
  * @property array<string, string> $labels
  * @property float|null $value
  * @property float|null $threshold
+ * @property AlertCondition|null $condition the rule's comparison when recorded (null: issue event or an older row)
+ * @property AlertSeverity|null $severity the rule's severity when recorded (null: issue event or an older row)
  * @property Carbon $occurred_at
  * @property array<string, mixed>|null $context
  * @property string $dedupe_key
@@ -46,6 +50,8 @@ use Illuminate\Support\Carbon;
     'labels',
     'value',
     'threshold',
+    'condition',
+    'severity',
     'occurred_at',
     'context',
     'dedupe_key',
@@ -101,6 +107,23 @@ class AlertEvent extends Model
     }
 
     /**
+     * The comparison the event was judged by: the snapshot taken when it was
+     * recorded, or — for rows older than the snapshot — the rule's current one.
+     */
+    public function judgedCondition(): ?AlertCondition
+    {
+        return $this->condition ?? $this->rule?->condition;
+    }
+
+    /**
+     * The severity the event was raised with; see {@see judgedCondition()}.
+     */
+    public function judgedSeverity(): ?AlertSeverity
+    {
+        return $this->severity ?? $this->rule?->severity;
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -112,6 +135,8 @@ class AlertEvent extends Model
             'labels' => 'array',
             'value' => 'float',
             'threshold' => 'float',
+            'condition' => AlertCondition::class,
+            'severity' => AlertSeverity::class,
             'occurred_at' => 'datetime',
             'context' => 'array',
         ];

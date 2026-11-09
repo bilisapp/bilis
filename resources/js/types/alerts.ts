@@ -239,5 +239,8 @@ export type AlertAttentionItem = AlertInstanceSummary & {
 /** Deferred on the dashboard: at most eight items, `total` counts them all. */
 export type NeedsAttentionList = {
     items: AlertAttentionItem[];
+    /** Every firing and pending series, not only the items shown. */
     total: number;
+    /** Of `total`, how many are firing. */
+    firing: number;
 };

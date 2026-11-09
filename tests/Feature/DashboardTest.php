@@ -753,6 +753,7 @@ test('needs attention is deferred, and lists firing then pending series, most se
             ->missing('needsAttention')
             ->loadDeferredProps(fn (Assert $reload) => $reload
                 ->where('needsAttention.total', 5)
+                ->where('needsAttention.firing', 4)
                 ->where('needsAttention.items', fn ($items) => collect($items)->pluck('id')->all() === [
                     $firingCritical->id, $firingWarningNew->id, $firingWarningOld->id, $firingInfo->id, $pendingCritical->id,
                 ])
@@ -782,7 +783,8 @@ test('needs attention shows at most eight series and still counts them all', fun
         ->get(route('dashboard'))
         ->assertInertia(fn (Assert $page) => $page->loadDeferredProps(fn (Assert $reload) => $reload
             ->has('needsAttention.items', 8)
-            ->where('needsAttention.total', 10),
+            ->where('needsAttention.total', 10)
+            ->where('needsAttention.firing', 10),
         ));
 });
 
@@ -794,6 +796,6 @@ test('needs attention is empty for a team with nothing firing, even with no chan
     $this->actingAs($user)
         ->get(route('dashboard'))
         ->assertInertia(fn (Assert $page) => $page->loadDeferredProps(fn (Assert $reload) => $reload
-            ->where('needsAttention', ['items' => [], 'total' => 0]),
+            ->where('needsAttention', ['items' => [], 'total' => 0, 'firing' => 0]),
         ));
 });

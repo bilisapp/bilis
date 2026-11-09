@@ -16,8 +16,10 @@ use Illuminate\Validation\Rule;
  * compare?: {offset_seconds}, min_events?}`.
  * `count` is spans, `error_ratio` the share with `StatusCode = 'Error'` (R10),
  * `p50`/`p95`/`p99` the span `Duration` in milliseconds. `compare` divides any
- * of them by the same reading one day or one week earlier, floored at 1;
- * `min_events` drops a series with fewer spans as no data.
+ * of them by the same reading one day or one week earlier. Only a `count`
+ * baseline is floored at 1; an `error_ratio` or percentile with no baseline
+ * reading (no spans then, or 0) has no data that evaluation. `min_events`
+ * drops a series with fewer spans as no data.
  *
  * A span read is a scan of the window, so an evaluated window may be at most
  * {@see MAX_WINDOW_SECONDS}; a longer one is refused as unavailable rather
@@ -40,7 +42,7 @@ final class TraceAlertSource implements AlertSource
 
     public function __construct(private readonly TraceQuery $traces) {}
 
-    public function evaluate(AlertRule $rule, array $projectIds, CarbonImmutable $from, CarbonImmutable $to): array
+    public function evaluate(AlertRule $rule, array $projectIds, CarbonImmutable $from, CarbonImmutable $to): AlertReading
     {
         $query = $this->validatedQuery($rule);
 
@@ -50,7 +52,13 @@ final class TraceAlertSource implements AlertSource
 
         $labelKey = $this->labelKey($query);
 
-        return $this->instances($this->values($query, $projectIds, $from, $to, null), $labelKey, $this->minEvents($query));
+        // One row past the cap, ordered most extreme first, says whether the
+        // rule had more series than it keeps.
+        [$rows, $truncated] = $this->withinCap(
+            $this->values($query, $projectIds, $from, $to, null, $this->maxInstances() + 1, $this->lowestFirst($rule)),
+        );
+
+        return new AlertReading($this->instances($rows, $labelKey, $this->minEvents($query)), $truncated);
     }
 
     public function preview(AlertRule $rule, array $projectIds, CarbonImmutable $from, CarbonImmutable $to, int $stepSeconds): array
@@ -59,7 +67,7 @@ final class TraceAlertSource implements AlertSource
         $step = $this->previewStep($from, $to, $stepSeconds);
 
         return $this->previewLines(
-            $this->values($query, $projectIds, $from, $to, $step),
+            $this->values($query, $projectIds, $from, $to, $step, $this->maxInstances()),
             $this->labelKey($query),
             $from,
             $to,
@@ -85,7 +93,8 @@ final class TraceAlertSource implements AlertSource
 
     /**
      * The reading over `[$from, $to)`, divided by its baseline when the rule
-     * compares.
+     * compares. Grouped, at most `$limit` groups are read: the highest
+     * readings, or the lowest with `$lowestFirst`.
      *
      * @param  array<string, mixed>  $query
      * @param  list<string>  $projectIds
@@ -93,13 +102,13 @@ final class TraceAlertSource implements AlertSource
      *
      * @throws AlertSourceUnavailable
      */
-    private function values(array $query, array $projectIds, CarbonImmutable $from, CarbonImmutable $to, ?int $step): array
+    private function values(array $query, array $projectIds, CarbonImmutable $from, CarbonImmutable $to, ?int $step, int $limit, bool $lowestFirst = false): array
     {
         return $this->comparedWithBaseline(
             $query,
-            $this->window($query, $projectIds, $from, $to, $step, null),
+            $this->window($query, $projectIds, $from, $to, $step, null, $limit, $lowestFirst),
             $this->labelKey($query),
-            fn (int $offset, ?array $groups): array => $this->window($query, $projectIds, $from->subSeconds($offset), $to->subSeconds($offset), $step, $groups),
+            fn (int $offset, ?array $groups): array => $this->window($query, $projectIds, $from->subSeconds($offset), $to->subSeconds($offset), $step, $groups, $limit, $lowestFirst),
         );
     }
 
@@ -113,7 +122,7 @@ final class TraceAlertSource implements AlertSource
      *
      * @throws AlertSourceUnavailable
      */
-    private function window(array $query, array $projectIds, CarbonImmutable $from, CarbonImmutable $to, ?int $step, ?array $services): array
+    private function window(array $query, array $projectIds, CarbonImmutable $from, CarbonImmutable $to, ?int $step, ?array $services, int $limit, bool $lowestFirst): array
     {
         /** @var array{services?: list<string>, span_name?: string|null, kind?: string|null} $filters */
         $filters = $query['filters'] ?? [];
@@ -128,8 +137,9 @@ final class TraceAlertSource implements AlertSource
             $filters['kind'] ?? null,
             $this->aggregation($query),
             $this->labelKey($query) !== null,
-            $this->maxInstances(),
+            $limit,
             $step,
+            $lowestFirst,
         ));
     }
 

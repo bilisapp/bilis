@@ -96,7 +96,7 @@ class AlertsController extends Controller
 
         $instances = AlertInstance::query()
             ->with('rule')
-            ->whereIn('alert_rule_id', $rules->modelKeys())
+            ->whereIn('alert_rule_id', $rules->filter(fn (AlertRule $rule): bool => $rule->enabled)->modelKeys())
             ->whereIn('state', [AlertState::Firing, AlertState::Pending])
             ->get()
             ->sortBy(fn (AlertInstance $instance): array => [
@@ -624,7 +624,10 @@ class AlertsController extends Controller
 
     /**
      * A value reduced to what it means: enums to their value, numbers to
-     * floats, associative arrays key-sorted with empty members dropped.
+     * floats, associative arrays key-sorted with empty members dropped, and
+     * lists of scalars — project ids, services, severities, every one a set —
+     * sorted and de-duplicated, so picking the same set in another order is
+     * not a customisation.
      */
     private function canonical(mixed $value): mixed
     {
@@ -643,6 +646,11 @@ class AlertsController extends Controller
         $value = array_map($this->canonical(...), $value);
 
         if (array_is_list($value)) {
+            if ($value !== [] && array_filter($value, is_array(...)) === []) {
+                $value = array_values(array_unique($value, SORT_REGULAR));
+                sort($value, SORT_REGULAR);
+            }
+
             return $value;
         }
 
@@ -791,7 +799,7 @@ class AlertsController extends Controller
             'ruleName' => $event->rule?->name,
             'source' => $event->rule?->source,
             'query' => $event->rule === null ? null : (object) $event->rule->query,
-            'condition' => $event->rule?->condition->value,
+            'condition' => $event->judgedCondition()?->value,
             'labels' => (object) $event->labels,
             'value' => $event->value,
             'threshold' => $event->threshold,

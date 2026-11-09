@@ -83,7 +83,7 @@ final class AlertProvisioner
                 continue;
             }
 
-            $kind = $template['requires'];
+            $kind = $this->detectionKey($template);
 
             if (! array_key_exists($kind, $detected)) {
                 $projectIds ??= array_values($team->projects()->pluck('id')->map(fn (mixed $id): string => (string) $id)->all());
@@ -153,18 +153,40 @@ final class AlertProvisioner
     }
 
     /**
+     * What has to be detected before a template is installed: `logs` or
+     * `traces`, or — for a host template — `hosts:{metric}`, the very metric
+     * the rule reads. Host agents differ in which gauges they emit (the
+     * `*.utilization` ones are opt-in in the scraper), and a rule over a
+     * metric the team never sends would only ever read "no data".
+     *
+     * @param  array{version: int, requires: string, name: string, why: string, rule: array<string, mixed>}  $template
+     */
+    private function detectionKey(array $template): string
+    {
+        $metric = $template['rule']['query']['metric'] ?? null;
+
+        if ($template['requires'] === 'hosts' && is_string($metric) && $metric !== '') {
+            return 'hosts:'.$metric;
+        }
+
+        return $template['requires'];
+    }
+
+    /**
      * Whether the team's projects hold this kind of data; null when
-     * ClickHouse could not be asked.
+     * ClickHouse could not be asked. Overload is a failure here, never a
+     * guess: the query services' optimistic answers are for page chrome, and
+     * a "yes" acted on would install rules for data the team never sent.
      *
      * @param  list<string>  $projectIds
      */
     private function detect(string $kind, array $projectIds): ?bool
     {
         try {
-            return match ($kind) {
-                'logs' => $this->logs->hasAnyLogs($projectIds),
-                'traces' => $this->traces->hasAnyTraces($projectIds),
-                'hosts' => $this->metrics->hasHosts($projectIds),
+            return match (true) {
+                $kind === 'logs' => $this->logs->hasAnyLogs($projectIds, throwOnOverload: true),
+                $kind === 'traces' => $this->traces->hasAnyTraces($projectIds, throwOnOverload: true),
+                str_starts_with($kind, 'hosts:') => $this->metrics->hasMetric($projectIds, substr($kind, strlen('hosts:'))),
                 default => false,
             };
         } catch (Throwable $exception) {
@@ -223,13 +245,23 @@ final class AlertProvisioner
             return false;
         }
 
-        return AlertRule::query()
-            ->whereKey($rule->id)
-            ->whereNull('customized_at')
-            ->where('template_version', $rule->template_version)
-            ->first()
-            ?->fill($this->definition($template))
-            ->save() ?? false;
+        /*
+         * Re-read under a row lock and write in the same transaction: a user's
+         * save that lands between an unlocked check and the update would
+         * otherwise be overwritten with template values. Postgres blocks the
+         * concurrent writer on the lock; SQLite serialises write transactions.
+         */
+        return DB::transaction(function () use ($rule, $template): bool {
+            $current = AlertRule::query()
+                ->whereKey($rule->id)
+                ->whereNull('customized_at')
+                ->where('enabled', true)
+                ->where('template_version', $rule->template_version)
+                ->lockForUpdate()
+                ->first();
+
+            return $current?->fill($this->definition($template))->save() ?? false;
+        });
     }
 
     /**

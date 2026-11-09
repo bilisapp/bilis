@@ -408,18 +408,40 @@ export function sinceSeconds(
 }
 
 /**
+ * The top of a preview chart's value axis: room above the threshold when every
+ * value is below it, so the dashed line and its label stay on the chart. The
+ * padding is a tenth of the threshold's magnitude (of the span down to the
+ * lowest value when the threshold is 0), so a negative threshold is padded
+ * upwards too. `undefined` leaves the axis to ECharts.
+ */
+export function thresholdAxisMax(
+    threshold: number | null,
+    extent: { min: number; max: number },
+): number | undefined {
+    if (threshold === null || threshold <= extent.max) {
+        return undefined;
+    }
+
+    const padding =
+        Math.abs(threshold) * 0.1 || (threshold - extent.min) * 0.1 || 1;
+
+    return threshold + padding;
+}
+
+/**
  * The threshold's unit hint in the editor: what to type for this aggregation.
  */
 export function thresholdHint(
     source: string,
     aggregation: string,
     compare?: AlertCompare | null,
+    metric?: string | null,
 ): string {
     if (compare) {
         return `A multiple of the same window ${compareLabel(compare)} — 3 is 3× normal.`;
     }
 
-    if (isRatio(source, aggregation)) {
+    if (isRatio(source, aggregation) || isUtilization(source, metric)) {
         return 'A share from 0 to 1 — 0.05 is 5%.';
     }
 

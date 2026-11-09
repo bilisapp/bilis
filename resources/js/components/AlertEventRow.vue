@@ -55,6 +55,7 @@ const value = computed(() =>
               props.event.source,
               props.event.query.aggregation,
               props.event.query.compare,
+              props.event.query.metric,
           )
         : null,
 );

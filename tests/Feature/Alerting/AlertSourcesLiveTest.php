@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\AlertCondition;
 use App\Models\AlertRule;
 use App\Services\Alerting\Sources\AlertSourceUnavailable;
 use App\Services\Alerting\Sources\LogAlertSource;
@@ -67,7 +68,7 @@ function alertLiveEvaluate(object $test, string $source, array $query, CarbonImm
 {
     $rule = AlertRule::factory()->make(['source' => $source, 'query' => $query]);
 
-    return app(config("alerting.sources.{$source}"))->evaluate($rule, [$test->projectId], $from, $test->to);
+    return app(config("alerting.sources.{$source}"))->evaluate($rule, [$test->projectId], $from, $test->to)->series;
 }
 
 /**
@@ -188,6 +189,21 @@ describe('logs', function () {
             ->toBe([['labels' => ['service.name' => 'checkout'], 'value' => 3.0]]);
     });
 
+    it('keeps the lowest groups for a less-than rule and says the reading was truncated', function () {
+        config(['alerting.max_instances' => 1]);
+
+        $query = ['aggregation' => 'count', 'group_by' => 'service.name'];
+        $source = app(LogAlertSource::class);
+        $below = $source->evaluate(AlertRule::factory()->make(['source' => 'logs', 'query' => $query, 'condition' => AlertCondition::LessThan]), [$this->projectId], $this->from, $this->to);
+
+        expect($below->series)->toBe([['labels' => ['service.name' => 'api'], 'value' => 2.0]])
+            ->and($below->truncated)->toBeTrue();
+
+        config(['alerting.max_instances' => 2]);
+
+        expect($source->evaluate(AlertRule::factory()->make(['source' => 'logs', 'query' => $query]), [$this->projectId], $this->from, $this->to)->truncated)->toBeFalse();
+    });
+
     it('searches the body case-insensitively, by token and by substring', function () {
         $count = fn (string $search): float => alertLiveEvaluate($this, 'logs', ['aggregation' => 'count', 'filters' => ['search' => $search]], $this->from)[0]['value'];
 
@@ -202,7 +218,7 @@ describe('logs', function () {
         $source = app(LogAlertSource::class);
         $from = $this->from->subHour();
 
-        expect($source->evaluate($rule, [$this->projectId], $from, $from->addMinutes(5)))
+        expect($source->evaluate($rule, [$this->projectId], $from, $from->addMinutes(5))->series)
             ->toBe([['labels' => [], 'value' => 0.0]]);
     });
 
@@ -263,9 +279,9 @@ describe('traces', function () {
         $rule = fn (string $aggregation): AlertRule => AlertRule::factory()->make(['source' => 'traces', 'query' => ['aggregation' => $aggregation]]);
         $source = app(TraceAlertSource::class);
 
-        expect($source->evaluate($rule('p95'), [$this->projectId], $from, $to))->toBe([])
-            ->and($source->evaluate($rule('error_ratio'), [$this->projectId], $from, $to))->toBe([])
-            ->and($source->evaluate($rule('count'), [$this->projectId], $from, $to))->toBe([['labels' => [], 'value' => 0.0]]);
+        expect($source->evaluate($rule('p95'), [$this->projectId], $from, $to)->series)->toBe([])
+            ->and($source->evaluate($rule('error_ratio'), [$this->projectId], $from, $to)->series)->toBe([])
+            ->and($source->evaluate($rule('count'), [$this->projectId], $from, $to)->series)->toBe([['labels' => [], 'value' => 0.0]]);
     });
 });
 

@@ -45,8 +45,8 @@ const note = computed(() => {
         return undefined;
     }
 
-    const firing = list.items.filter((item) => item.state === 'firing').length;
-    const shown = `${firing} firing · ${list.items.length - firing} pending`;
+    // Counted over every series, so a cut list still says how many are pending.
+    const shown = `${list.firing} firing · ${list.total - list.firing} pending`;
 
     return list.total > list.items.length
         ? `${shown} · ${list.items.length} of ${list.total}`
@@ -147,7 +147,7 @@ function since(item: AlertAttentionItem): string | null {
                     >{{ since(item) ? `for ${since(item)}` : '' }}</span
                 >
 
-                <a
+                <Link
                     v-if="item.explorerHref"
                     :href="item.explorerHref"
                     class="col-start-3 inline-flex items-center justify-end gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground md:col-start-auto"
@@ -155,7 +155,7 @@ function since(item: AlertAttentionItem): string | null {
                 >
                     Explore
                     <ArrowUpRight class="size-3" aria-hidden="true" />
-                </a>
+                </Link>
                 <span v-else class="hidden md:block" />
             </li>
         </ul>

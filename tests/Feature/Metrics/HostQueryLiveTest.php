@@ -189,6 +189,12 @@ it('lists every host with how it is doing now', function () {
 
     expect($query->hasHosts($ids))->toBeTrue()
         ->and($query->hasHosts(['no-such-project']))->toBeFalse();
+
+    // Default-alert detection: one named metric, in whichever table holds it.
+    expect($query->hasMetric($ids, 'system.cpu.utilization'))->toBeTrue()
+        ->and($query->hasMetric($ids, 'system.memory.usage'))->toBeTrue()
+        ->and($query->hasMetric($ids, 'system.filesystem.utilization'))->toBeFalse()
+        ->and($query->hasMetric(['no-such-project'], 'system.cpu.utilization'))->toBeFalse();
 });
 
 it('charts one host through resource attributes, falling back per host', function () {

@@ -1,6 +1,7 @@
 <?php
 
 use App\Services\Alerting\Webhooks\DnsWebhookHostResolver;
+use App\Services\Alerting\Webhooks\ResolvedWebhookTarget;
 use App\Services\Alerting\Webhooks\SafeWebhookUrl;
 use App\Services\Alerting\Webhooks\UnsafeWebhookUrl;
 use App\Services\Alerting\Webhooks\WebhookHostResolver;
@@ -240,12 +241,20 @@ it('sends to the address it checked even if DNS rebinds afterwards', function ()
         ->and($sent)->toHaveCount(1)
         ->and($sent[0]['curl'][CURLOPT_RESOLVE])->toBe(['rebind.example:443:93.184.215.14'])
         ->and($sent[0]['allow_redirects'])->toBeFalse()
+        ->and($sent[0]['proxy'])->toBe('')
+        ->and($sent[0]['curl'][CURLOPT_PROXY])->toBe('')
+        ->and($sent[0]['curl'][CURLOPT_NOPROXY])->toBe('*')
         ->and($sent[0]['connect_timeout'])->toBe(5)
         ->and($sent[0]['timeout'])->toBe(5);
 
     // The next send resolves afresh and sees the rebound answer.
     expect(refusal(fn () => $guard->resolve('https://rebind.example/hook')))->not->toBeNull();
 });
+
+it('refuses to build a target pinned to anything but a public address', function (string $ip) {
+    expect(refusal(fn () => new ResolvedWebhookTarget('https://hooks.example.com/', 'hooks.example.com', 443, $ip)))
+        ->toBe('A webhook target must be pinned to a public address.');
+})->with(['', '127.0.0.1', '10.0.0.5', '169.254.169.254', '::1', 'not-an-ip']);
 
 it('does not follow a redirect', function () {
     Http::fake([

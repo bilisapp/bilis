@@ -518,14 +518,22 @@ const previewKey = computed(() =>
 async function loadPreview() {
     const sequence = ++previewSequence;
 
-    if (form.project_ids !== null && form.project_ids.length === 0) {
-        previewProblem.value = 'Pick a project to see a preview.';
+    /*
+     * A draft that cannot be previewed has no chart: the last one drew a
+     * query that no longer exists, so it is dropped rather than left beside
+     * the reason.
+     */
+    const unpreviewable =
+        form.project_ids !== null && form.project_ids.length === 0
+            ? 'Pick a project to see a preview.'
+            : form.source === 'metrics' && !form.query.metric
+              ? 'Pick a metric to see a preview.'
+              : null;
 
-        return;
-    }
-
-    if (form.source === 'metrics' && !form.query.metric) {
-        previewProblem.value = 'Pick a metric to see a preview.';
+    if (unpreviewable) {
+        previewHttp.cancel();
+        preview.value = null;
+        previewProblem.value = unpreviewable;
 
         return;
     }
@@ -1079,6 +1087,7 @@ const CHIP_OFF =
                             form.source,
                             form.query.aggregation,
                             form.query.compare,
+                            form.query.metric,
                         )
                     }}
                     <template v-if="form.source === 'traces'">
@@ -1156,10 +1165,12 @@ const CHIP_OFF =
                 </div>
 
                 <ThresholdChart
+                    v-if="preview || !previewProblem"
                     :result="preview"
                     :source="form.source"
                     :aggregation="form.query.aggregation"
                     :compare="form.query.compare"
+                    :metric="form.query.metric"
                     :condition="form.condition"
                     :threshold="thresholdNumber"
                     :loading="previewHttp.processing"

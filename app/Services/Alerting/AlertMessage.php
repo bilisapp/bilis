@@ -6,7 +6,6 @@ use App\Enums\AlertCondition;
 use App\Enums\AlertEventType;
 use App\Enums\AlertSeverity;
 use App\Models\AlertEvent;
-use App\Models\AlertRule;
 use App\Models\NotificationChannel;
 use App\Models\Team;
 use Carbon\CarbonImmutable;
@@ -69,6 +68,10 @@ final readonly class AlertMessage
         };
 
         $isIssue = self::isIssueEvent($event);
+        // Judged as recorded: the threshold, comparison and severity were
+        // frozen on the event, so a rule edited since never rewrites it.
+        $condition = $event->judgedCondition();
+        $severity = $event->judgedSeverity();
         $name = $rule !== null ? $rule->name : ($isIssue ? 'Issue' : 'Deleted rule');
 
         $explorer = $rule !== null && $from !== null && $to !== null
@@ -82,10 +85,10 @@ final readonly class AlertMessage
 
         $facts = $isIssue ? self::issueFacts($event, $context) : array_filter([
             'Value' => $event->value !== null ? self::number($event->value) : null,
-            'Threshold' => $rule !== null && $event->threshold !== null
-                ? $rule->condition->value.' '.self::number($event->threshold)
+            'Threshold' => $condition !== null && $event->threshold !== null
+                ? $condition->value.' '.self::number($event->threshold)
                 : null,
-            'Severity' => $rule?->severity->value,
+            'Severity' => $severity?->value,
             'Window' => $from !== null && $to !== null ? self::windowText($from, $to) : null,
             'Labels' => $labels !== [] ? self::labelText($labels) : null,
         ], fn (?string $value): bool => $value !== null);
@@ -95,11 +98,11 @@ final readonly class AlertMessage
             title: $isIssue
                 ? self::issueTitle($event, $context)
                 : '['.strtoupper(str_replace('_', ' ', $event->type->value)).'] '.$name.($labels !== [] ? ' — '.self::labelText($labels) : ''),
-            headline: self::headline($event, $rule, $context),
+            headline: self::headline($event, $condition, $context),
             facts: $facts,
             url: $explorer,
             state: $state,
-            severity: $rule?->severity,
+            severity: $severity,
             occurredAt: $occurredAt,
             payload: [
                 'event_id' => $event->id,
@@ -112,9 +115,9 @@ final readonly class AlertMessage
                 'labels' => (object) $labels,
                 'value' => $event->value,
                 'threshold' => $event->threshold,
-                'condition' => $rule?->condition->value,
+                'condition' => $condition?->value,
                 'state' => $state,
-                'severity' => $rule?->severity->value,
+                'severity' => $severity?->value,
                 'window' => $from !== null && $to !== null
                     ? ['from' => $from->toIso8601ZuluString(), 'to' => $to->toIso8601ZuluString()]
                     : null,
@@ -162,11 +165,18 @@ final readonly class AlertMessage
     }
 
     /**
-     * A number as a person reads it: no float noise, at most four decimals.
+     * A number as a person reads it: no float noise, at most four decimals —
+     * except below 0.0001, where four decimals would print a real value as
+     * `0`, so it keeps three significant digits (`0.0000312`).
      */
     public static function number(float $value): string
     {
-        $text = rtrim(rtrim(number_format($value, 4, '.', ''), '0'), '.');
+        $magnitude = abs($value);
+        $decimals = $magnitude > 0 && $magnitude < 0.0001
+            ? min(20, 2 - (int) floor(log10($magnitude)))
+            : 4;
+
+        $text = rtrim(rtrim(number_format($value, $decimals, '.', ''), '0'), '.');
 
         return $text === '-0' ? '0' : $text;
     }
@@ -188,11 +198,11 @@ final readonly class AlertMessage
     /**
      * @param  array<string, mixed>  $context
      */
-    private static function headline(AlertEvent $event, ?AlertRule $rule, array $context): string
+    private static function headline(AlertEvent $event, ?AlertCondition $condition, array $context): string
     {
         $noData = ($context['no_data'] ?? false) === true || $event->value === null;
-        $comparison = $rule !== null && $event->threshold !== null
-            ? self::comparison($rule->condition).' the threshold of '.self::number($event->threshold)
+        $comparison = $condition !== null && $event->threshold !== null
+            ? self::comparison($condition).' the threshold of '.self::number($event->threshold)
             : null;
 
         return match ($event->type) {

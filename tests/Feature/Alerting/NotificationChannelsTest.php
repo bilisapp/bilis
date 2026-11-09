@@ -172,6 +172,34 @@ it('switches a channel off and on, and removes it', function () {
     expect($channel->fresh())->toBeNull();
 });
 
+it('sets the state the card asks for, so a repeated toggle does not flip back', function () {
+    $channel = NotificationChannel::factory()->for($this->team)->create();
+    $toggle = route('teams.notification-channels.toggle', ['team' => 'acme', 'notificationChannel' => $channel->id]);
+
+    $this->actingAs($this->owner)->post($toggle, ['enabled' => false])->assertRedirect();
+    $this->actingAs($this->owner)->post($toggle, ['enabled' => false])->assertRedirect();
+    expect($channel->fresh()->enabled)->toBeFalse();
+
+    $this->actingAs($this->owner)->post($toggle, ['enabled' => 'sideways'])->assertSessionHasErrors('enabled');
+    expect($channel->fresh()->enabled)->toBeFalse();
+});
+
+it('fails validation instead of keeping the stored credential for a non-string URL or secret', function () {
+    $secret = 'whsec_'.base64_encode(str_repeat('s', 24));
+    $channel = NotificationChannel::factory()->for($this->team)->webhook()->create([
+        'config' => ['url' => 'https://ops.acme.dev/hooks/bilis', 'secret' => $secret],
+    ]);
+
+    $this->actingAs($this->owner)
+        ->patch(route('teams.notification-channels.update', ['team' => 'acme', 'notificationChannel' => $channel->id]), [
+            'name' => 'Bridge',
+            'config' => ['url' => ['https://evil.test'], 'secret' => 42],
+        ])
+        ->assertSessionHasErrors(['config.url', 'config.secret']);
+
+    expect($channel->fresh()->config)->toBe(['url' => 'https://ops.acme.dev/hooks/bilis', 'secret' => $secret]);
+});
+
 it('lets only owners and admins change channels', function () {
     $channel = NotificationChannel::factory()->for($this->team)->create();
 
@@ -196,6 +224,36 @@ it('lets only owners and admins change channels', function () {
         ->assertForbidden();
 
     expect(NotificationChannel::query()->count())->toBe(1);
+
+    // An admin may do all of it.
+    Notification::fake();
+    $admin = User::factory()->create();
+    $this->team->members()->attach($admin, ['role' => TeamRole::Admin->value]);
+
+    $this->actingAs($admin)
+        ->post(route('teams.notification-channels.store', ['team' => 'acme']), ['type' => 'email', 'name' => 'Admin inbox', 'config' => ['recipients' => 'members']])
+        ->assertRedirect();
+
+    $this->actingAs($admin)
+        ->patch(route('teams.notification-channels.update', ['team' => 'acme', 'notificationChannel' => $channel->id]), ['name' => 'Renamed', 'config' => ['recipients' => 'members']])
+        ->assertRedirect();
+
+    $this->actingAs($admin)
+        ->post(route('teams.notification-channels.toggle', ['team' => 'acme', 'notificationChannel' => $channel->id]))
+        ->assertRedirect();
+
+    $this->actingAs($admin)
+        ->postJson(route('teams.notification-channels.test', ['team' => 'acme', 'notificationChannel' => $channel->id]))
+        ->assertOk();
+
+    expect($channel->fresh())->name->toBe('Renamed')->enabled->toBeFalse()
+        ->and(NotificationChannel::query()->where('name', 'Admin inbox')->exists())->toBeTrue();
+
+    $this->actingAs($admin)
+        ->delete(route('teams.notification-channels.destroy', ['team' => 'acme', 'notificationChannel' => $channel->id]))
+        ->assertRedirect();
+
+    expect($channel->fresh())->toBeNull();
 });
 
 it('is a 404 for another team\'s channel', function () {

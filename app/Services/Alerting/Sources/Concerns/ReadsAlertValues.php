@@ -2,6 +2,7 @@
 
 namespace App\Services\Alerting\Sources\Concerns;
 
+use App\Enums\AlertCondition;
 use App\Models\AlertRule;
 use App\Services\Alerting\Sources\AlertSource;
 use App\Services\Alerting\Sources\AlertSourceUnavailable;
@@ -85,6 +86,32 @@ trait ReadsAlertValues
     protected function maxInstances(): int
     {
         return max(1, (int) config('alerting.max_instances', 100));
+    }
+
+    /**
+     * Whether the rule's most extreme series are its lowest (`<`, `<=`): the
+     * ones a capped read must keep.
+     */
+    protected function lowestFirst(AlertRule $rule): bool
+    {
+        return in_array($rule->condition, [AlertCondition::LessThan, AlertCondition::LessThanOrEqual], true);
+    }
+
+    /**
+     * A grouped read of one more row than {@see maxInstances()}, already
+     * ordered most extreme first, as at most `max_instances` rows and whether
+     * any were left out.
+     *
+     * @template T
+     *
+     * @param  list<T>  $rows
+     * @return array{0: list<T>, 1: bool}
+     */
+    protected function withinCap(array $rows): array
+    {
+        $limit = $this->maxInstances();
+
+        return [array_slice($rows, 0, $limit), count($rows) > $limit];
     }
 
     /**

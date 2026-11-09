@@ -28,6 +28,8 @@ use Illuminate\Support\Facades\Notification;
  */
 class AlertNotifier
 {
+    public const NO_RECIPIENTS = 'The channel has no email recipients.';
+
     /**
      * Queue the event for each of its channels.
      */
@@ -37,6 +39,8 @@ class AlertNotifier
             $notifiable = $this->notifiable($channel);
 
             if ($notifiable === null) {
+                $this->recordFailure($channel, self::NO_RECIPIENTS);
+
                 continue;
             }
 
@@ -54,11 +58,23 @@ class AlertNotifier
     public function sendTest(NotificationChannel $channel): void
     {
         $notifiable = $this->notifiable($channel)
-            ?? throw new DeliveryFailed('The channel has no email recipients.');
+            ?? throw new DeliveryFailed(self::NO_RECIPIENTS);
 
         $notifiable->notifyNow(AlertNotification::test($channel));
 
         ClearChannelFailure::clear($channel->id);
+    }
+
+    /**
+     * Nothing could be queued for the channel: say so on the settings page,
+     * the same way a failed delivery is recorded.
+     */
+    private function recordFailure(NotificationChannel $channel, string $reason): void
+    {
+        NotificationChannel::query()->whereKey($channel->id)->update([
+            'last_failed_at' => now(),
+            'last_error' => $reason,
+        ]);
     }
 
     /**

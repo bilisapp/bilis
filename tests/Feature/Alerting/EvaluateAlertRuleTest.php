@@ -88,6 +88,8 @@ it('fires once and records the event exactly once, even when the evaluation runs
         ->and($event->labels)->toBe(['service.name' => 'checkout'])
         ->and($event->value)->toBe(40.0)
         ->and($event->threshold)->toBe(25.0)
+        ->and($event->condition)->toBe($this->rule->condition)
+        ->and($event->severity)->toBe($this->rule->severity)
         ->and($event->occurred_at->getTimestamp())->toBe($this->at)
         ->and($event->dedupe_key)->toBe('rule:'.$this->rule->id.':'.$instance->labels_hash.':firing:'.$this->at)
         ->and($event->context['window'])->toBe(['from' => '2026-11-08T11:54:00Z', 'to' => '2026-11-08T11:59:00Z'])
@@ -172,6 +174,53 @@ it('treats a known series without data as its rule\'s no-data state says', funct
     'firing fires a silent series' => [NoDataState::Firing, AlertState::Inactive, AlertState::Firing, AlertEventType::Firing],
     'keep_last leaves it firing' => [NoDataState::KeepLast, AlertState::Firing, AlertState::Firing, null],
 ]);
+
+it('leaves a known series alone when the source says its reading was truncated', function () {
+    $this->rule->update(['no_data_state' => NoDataState::Inactive]);
+    $instance = AlertInstance::factory()->for($this->rule, 'rule')->firing()->withLabels(['service.name' => 'checkout'])->create();
+    $before = $instance->fresh()->toArray();
+
+    // checkout had data, but the source kept only the most extreme series.
+    $this->source->series = [['labels' => ['service.name' => 'api'], 'value' => 90.0]];
+    $this->source->truncated = true;
+
+    evaluate($this->rule, $this->at);
+
+    expect($instance->fresh()->toArray())->toBe($before)
+        ->and(AlertEvent::query()->pluck('type')->all())->toBe([AlertEventType::Firing]);
+});
+
+it('writes nothing when a newer evaluation finished while this one was reading', function () {
+    $this->source->series = [['labels' => [], 'value' => 40.0]];
+    $this->source->during = fn () => AlertRule::query()->whereKey($this->rule->id)
+        ->update(['last_evaluated_at' => CarbonImmutable::createFromTimestampUTC($this->at + 60)]);
+
+    evaluate($this->rule, $this->at);
+
+    expect(AlertInstance::query()->count())->toBe(0)
+        ->and(AlertEvent::query()->count())->toBe(0)
+        ->and($this->rule->fresh()->last_evaluated_at->getTimestamp())->toBe($this->at + 60);
+});
+
+it('records an error from a failed job only when no evaluation has recorded this tick or a later one', function () {
+    $job = new EvaluateAlertRule($this->rule->id, $this->at);
+
+    // A newer tick has already succeeded: the old job's timeout changes nothing.
+    $this->rule->update(['last_evaluated_at' => CarbonImmutable::createFromTimestampUTC($this->at + 60), 'health' => AlertRuleHealth::Ok]);
+    $job->failed(new RuntimeException('timed out'));
+
+    expect($this->rule->fresh()->health)->toBe(AlertRuleHealth::Ok)
+        ->and($this->rule->fresh()->last_evaluated_at->getTimestamp())->toBe($this->at + 60)
+        ->and(AlertEvent::query()->count())->toBe(0);
+
+    // Nothing newer: the rule goes err, once.
+    $this->rule->update(['last_evaluated_at' => CarbonImmutable::createFromTimestampUTC($this->at - 60)]);
+    $job->failed(new RuntimeException('timed out'));
+
+    expect($this->rule->fresh()->health)->toBe(AlertRuleHealth::Err)
+        ->and($this->rule->fresh()->last_error)->toContain('timed out')
+        ->and(AlertEvent::query()->sole()->type)->toBe(AlertEventType::RuleError);
+});
 
 it('keeps every state and records one rule_error when the source fails', function () {
     $instance = AlertInstance::factory()->for($this->rule, 'rule')->firing()->withLabels(['service.name' => 'checkout'])->create();

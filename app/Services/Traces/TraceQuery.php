@@ -716,7 +716,8 @@ class TraceQuery
      *
      * Ungrouped and unbucketed, there is no GROUP BY and always one row: a
      * window without a span counts 0, and its ratio and percentiles are NaN,
-     * which arrive as null. Grouped by service, the `$limit` highest readings
+     * which arrive as null. Grouped by service, the `$limit` highest readings (lowest with
+     * `$lowestFirst`, for a `<` rule)
      * are kept; bucketed for the preview, the `$limit` busiest services are.
      * `events` is the span count under the WHERE, which a rule's `min_events`
      * reads. A rule's baseline comparison is a second call with the window
@@ -726,6 +727,7 @@ class TraceQuery
      * @param  list<string>  $services
      * @param  'count'|'error_ratio'|'p50'|'p95'|'p99'  $aggregation
      * @param  int|null  $bucketSeconds  bucket the reading for the editor's preview; null reads the window as one
+     * @param  bool  $lowestFirst  keep the lowest grouped readings rather than the highest
      * @return list<array{group: string, bucket: int|null, value: float|null, events: int}>|null null when ClickHouse is overloaded
      */
     public function alertValues(
@@ -739,6 +741,7 @@ class TraceQuery
         bool $groupByService,
         int $limit,
         ?int $bucketSeconds = null,
+        bool $lowestFirst = false,
     ): ?array {
         if ($projectIds === []) {
             return [];
@@ -794,7 +797,7 @@ class TraceQuery
             $bucketSeconds === null ? '0' : 'toUnixTimestamp(toStartOfInterval(Timestamp, toIntervalSecond({bucketSeconds:UInt32})))',
             $value,
             $where,
-            $groupBy === [] ? '' : ' GROUP BY '.implode(', ', $groupBy).($bucketSeconds === null ? ' ORDER BY Value DESC LIMIT {groupLimit:UInt32}' : ''),
+            $groupBy === [] ? '' : ' GROUP BY '.implode(', ', $groupBy).($bucketSeconds === null ? ' ORDER BY Value '.($lowestFirst ? 'ASC' : 'DESC').' LIMIT {groupLimit:UInt32}' : ''),
         );
 
         $rows = $this->select($sql, $params);
@@ -844,19 +847,25 @@ class TraceQuery
      * Deliberately unconstrained in time and stopped at the first row, the same
      * shape as `LogQuery::hasAnyLogs()`: it answers "is this surface set up
      * yet?", which an empty filter window must not be able to answer wrongly.
+     * A caller that acts on the answer (default-alert provisioning) passes
+     * `$throwOnOverload` and gets the exception instead of the optimistic yes.
      *
      * @param  list<string>  $projectIds
      */
-    public function hasAnyTraces(array $projectIds): bool
+    public function hasAnyTraces(array $projectIds, bool $throwOnOverload = false): bool
     {
         if ($projectIds === []) {
             return false;
         }
 
-        $rows = $this->select(
-            'SELECT 1 FROM trace_summary WHERE ProjectId IN {projectIds:Array(String)} LIMIT 1',
-            ['projectIds' => $this->stringArrayParameter($projectIds)],
-        );
+        $sql = 'SELECT 1 FROM trace_summary WHERE ProjectId IN {projectIds:Array(String)} LIMIT 1';
+        $params = ['projectIds' => $this->stringArrayParameter($projectIds)];
+
+        if ($throwOnOverload) {
+            return $this->client->select($sql, $params) !== [];
+        }
+
+        $rows = $this->select($sql, $params);
 
         // An overloaded ClickHouse answers true: a hiccup must never make an
         // established team look brand new.

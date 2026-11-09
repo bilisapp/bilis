@@ -188,11 +188,23 @@ const configError = (key: string): string | undefined => {
     );
 };
 
+/** Channels whose on/off request is in flight, so a double click sends one. */
+const toggling = ref(new Set<number>());
+
 function toggle(channel: NotificationChannelSummary) {
+    if (toggling.value.has(channel.id)) {
+        return;
+    }
+
+    toggling.value.add(channel.id);
     router.post(
         toggleChannel([props.teamSlug, channel.id]).url,
-        {},
-        { preserveScroll: true },
+        // The state we want, not "flip": a repeat lands on the same state.
+        { enabled: !channel.enabled },
+        {
+            preserveScroll: true,
+            onFinish: () => toggling.value.delete(channel.id),
+        },
     );
 }
 
@@ -371,6 +383,7 @@ const lastFailure = (channel: NotificationChannelSummary) =>
                     <Button
                         variant="ghost"
                         size="sm"
+                        :disabled="toggling.has(channel.id)"
                         data-test="notification-channel-toggle"
                         @click="toggle(channel)"
                     >

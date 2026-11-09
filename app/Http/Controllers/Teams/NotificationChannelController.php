@@ -12,6 +12,7 @@ use App\Services\Alerting\AlertNotifier;
 use App\Services\Alerting\NotificationChannelConfig;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Throwable;
@@ -83,12 +84,20 @@ class NotificationChannelController extends Controller
     /**
      * Switch a channel on or off. A disabled channel records nothing and
      * sends nothing; rules keep pointing at it.
+     *
+     * The card sends the state it wants (`enabled`), so a double click or a
+     * repeated request lands on the same state instead of flipping back;
+     * without it the channel is flipped.
      */
-    public function toggle(Team $team, NotificationChannel $notificationChannel): RedirectResponse
+    public function toggle(Request $request, Team $team, NotificationChannel $notificationChannel): RedirectResponse
     {
         Gate::authorize('update', $team);
 
-        $notificationChannel->forceFill(['enabled' => ! $notificationChannel->enabled])->save();
+        $validated = $request->validate(['enabled' => ['sometimes', 'boolean']]);
+
+        $notificationChannel->forceFill([
+            'enabled' => array_key_exists('enabled', $validated) ? (bool) $validated['enabled'] : ! $notificationChannel->enabled,
+        ])->save();
 
         return back();
     }

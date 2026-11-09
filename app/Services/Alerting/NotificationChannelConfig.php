@@ -76,8 +76,12 @@ final class NotificationChannelConfig
     private static function safeUrl(?string $requiredHost): Closure
     {
         return function (string $attribute, mixed $value, Closure $fail) use ($requiredHost): void {
+            if (! is_string($value)) {
+                return; // the `string` rule reports it
+            }
+
             try {
-                SafeWebhookUrl::forEnvironment()->validate((string) $value, $requiredHost);
+                SafeWebhookUrl::forEnvironment()->validate($value, $requiredHost);
             } catch (UnsafeWebhookUrl $refused) {
                 $fail($refused->getMessage());
             }
@@ -90,14 +94,18 @@ final class NotificationChannelConfig
     private static function webhookSecret(): Closure
     {
         return function (string $attribute, mixed $value, Closure $fail): void {
-            if (! str_starts_with((string) $value, StandardWebhookSigner::PREFIX)) {
+            if (! is_string($value)) {
+                return; // the `string` rule reports it
+            }
+
+            if (! str_starts_with($value, StandardWebhookSigner::PREFIX)) {
                 $fail('The signing secret must start with whsec_.');
 
                 return;
             }
 
             try {
-                new StandardWebhookSigner((string) $value);
+                new StandardWebhookSigner($value);
             } catch (InvalidArgumentException $invalid) {
                 $fail($invalid->getMessage());
             }

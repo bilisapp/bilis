@@ -20,8 +20,8 @@ use Throwable;
  * {@see EvaluateAlertRule} per due rule and moves the rule's
  * `next_evaluation_at` to the next aligned slot strictly after now, so a
  * scheduler that was down for ten minutes evaluates each rule once, not ten
- * times. It also dispatches one {@see ScanIssueAlerts} per minute (new and
- * regressed issues) while any team has a channel flagged `issue_events`.
+ * times. It also dispatches one {@see ScanIssueAlerts} per minute for each
+ * team with an enabled channel flagged `issue_events` (new and regressed issues).
  * Then it writes the heartbeat `/health/alerting` reads.
  */
 class AlertsEvaluateCommand extends Command
@@ -90,14 +90,14 @@ class AlertsEvaluateCommand extends Command
     }
 
     /**
-     * Queue this minute's issue scan, only when someone would hear about it.
+     * Queue this minute's issue scan for each team that would hear about it.
      * Never fails the tick: rule evaluation and the heartbeat matter more.
      */
     private function dispatchIssueScan(IssueAlertScan $issueScan, int $now): void
     {
         try {
-            if ($issueScan->hasSubscribers()) {
-                ScanIssueAlerts::dispatch($now - ($now % 60));
+            foreach ($issueScan->subscribedTeamIds() as $teamId) {
+                ScanIssueAlerts::dispatch($teamId, $now - ($now % 60));
             }
         } catch (Throwable $exception) {
             report($exception);

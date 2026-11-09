@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\AlertState;
 use App\Enums\TeamRole;
 use App\Mcp\Servers\BilisServer;
 use App\Mcp\Tools\ListAlertsTool;
@@ -9,6 +10,7 @@ use App\Models\AlertRule;
 use App\Models\Project;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\Alerting\Labels;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Http;
 
@@ -59,11 +61,59 @@ test('list-alerts returns firing and pending alerts and the day\'s history', fun
         ->assertSee('"state":"pending"')
         ->assertSee('"from":"2026-11-07T12:00:00+00:00"')
         ->assertSee('"type":"firing"')
+        ->assertSee('"activeTruncated":false')
+        // Inactive series are not alerts.
+        ->assertDontSee('"service.name":"search"')
         // Two days old: outside the default window.
         ->assertDontSee('"type":"resolved"');
 
     // Nothing here reads ClickHouse.
     Http::assertNothingSent();
+});
+
+test('list-alerts leaves out the series of a disabled rule', function () {
+    [$user, $team] = mcpAlertsTeam();
+
+    $disabled = AlertRule::factory()->forTeam($team)->create(['name' => 'Turned off', 'enabled' => false]);
+    AlertInstance::factory()->for($disabled, 'rule')->firing()->withLabels(['service.name' => 'stale'])->create();
+
+    BilisServer::actingAs($user)
+        ->tool(ListAlertsTool::class)
+        ->assertOk()
+        ->assertDontSee('"service.name":"stale"');
+});
+
+test('list-alerts caps active alerts in the query, firing first, and says so', function () {
+    [$user, , $rule] = mcpAlertsTeam();
+
+    $rows = [];
+
+    foreach (range(1, 201) as $i) {
+        $labels = ['service.name' => "svc-{$i}"];
+        $rows[] = [
+            'alert_rule_id' => $rule->id,
+            'labels' => json_encode($labels),
+            'labels_hash' => Labels::hash($labels),
+            'state' => $i === 201 ? AlertState::Firing->value : AlertState::Pending->value,
+            'value' => 41.0,
+            'active_at' => now()->subMinutes(300 - $i),
+            'fired_at' => $i === 201 ? now()->subMinute() : null,
+            'last_seen_with_data_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ];
+    }
+
+    AlertInstance::query()->insert($rows);
+
+    BilisServer::actingAs($user)
+        ->tool(ListAlertsTool::class)
+        ->assertOk()
+        ->assertSee('"activeTruncated":true')
+        // The one firing series sorts ahead of 200 older pending ones.
+        ->assertSee('"service.name":"svc-201"')
+        ->assertSee('"service.name":"svc-1"')
+        ->assertDontSee('"service.name":"svc-200"');
 });
 
 test('list-alerts reports issue events with the issue they are about', function () {

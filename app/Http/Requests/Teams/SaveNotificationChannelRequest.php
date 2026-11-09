@@ -15,7 +15,8 @@ use Illuminate\Validation\Rule;
  *
  * `config` is validated by {@see NotificationChannelConfig::rules()} for the
  * channel's type. A channel's type is fixed once created. On an edit, a blank
- * URL or secret means "keep the stored one" — the browser never holds them
+ * (missing, null or whitespace-only) URL or secret means "keep the stored
+ * one" — any other non-string value fails validation — the browser never holds them
  * ({@see NotificationChannel::toSummary()}), so it cannot send them back.
  *
  * Owners and admins only: a channel's config is a credential, guarded like the
@@ -49,8 +50,9 @@ class SaveNotificationChannelRequest extends FormRequest
             if ($channel->type !== NotificationChannelType::Email) {
                 foreach (['url', 'secret'] as $key) {
                     $value = $config[$key] ?? null;
+                    $blank = $value === null || (is_string($value) && trim($value) === '');
 
-                    if ((! is_string($value) || trim($value) === '') && isset($channel->config[$key])) {
+                    if ($blank && isset($channel->config[$key])) {
                         $config[$key] = $channel->config[$key];
                     }
                 }

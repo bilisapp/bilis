@@ -16,12 +16,14 @@ use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Http\Client\Request;
 use Illuminate\Notifications\AnonymousNotifiable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
 
 /**
- * One `alertCandidates()` row as ClickHouse answers it (JSONEachRow).
+ * One `newIssueCandidates()` / `regressionCandidates()` row as ClickHouse
+ * answers it (JSONEachRow).
  *
  * @param  array<string, mixed>  $overrides
  * @return array<string, mixed>
@@ -111,10 +113,61 @@ describe('scan', function () {
             return $query['param_projectIds'] === "['{$this->project->id}']"
                 && $query['param_hourFrom'] === '2026-11-08 11:00:00'
                 && $query['param_firstSeenSince'] === (string) CarbonImmutable::parse('2026-11-08 11:57:10', 'UTC')->getTimestampMs()
-                && $query['param_ingestedSince'] === (string) CarbonImmutable::parse('2026-11-08 11:57:10', 'UTC')->getTimestamp()
                 && str_contains($request->body(), 'FROM issue_hourly')
                 && str_contains($request->body(), 'GROUP BY ProjectId, IssueFingerprint');
         });
+    });
+
+    it('looks a resolved issue up by key on its arrival time, never by event hour', function () {
+        $issue = Issue::factory()->resolved(now()->subMinutes(10))->create(['project_id' => $this->project->id]);
+        Issue::factory()->ignored()->create(['project_id' => $this->project->id]);
+
+        Http::fake(function (Request $request) use ($issue) {
+            parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+
+            // A buffered SDK's two-day-old event that arrived a minute ago: the hour nomination never sees it.
+            return str_contains($request->body(), 'FROM issue_hourly')
+                ? Http::response('')
+                : Http::response(json_encode(issueCandidateRow($this->project, $issue->fingerprint, ['IssueFirstSeen' => now()->subDays(2)->getTimestampMs()]))."\n");
+        });
+
+        expect(app(IssueAlertScan::class)->scan())->toBe(1)
+            ->and(AlertEvent::query()->sole()->type)->toBe(AlertEventType::IssueRegressed);
+
+        Http::assertSentCount(2);
+        Http::assertSent(function (Request $request) use ($issue): bool {
+            parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+
+            return ! str_contains($request->body(), 'issue_hourly')
+                && $query['param_fingerprints'] === "['{$issue->fingerprint}']"
+                && $query['param_ingestedSince'] === (string) CarbonImmutable::parse('2026-11-08 11:57:10', 'UTC')->getTimestamp();
+        });
+    });
+
+    it('gives new issues their own cap, so a crowd of regressions cannot push them out', function () {
+        $resolved = Issue::factory()->count(3)->resolved(now()->subMinutes(10))->create(['project_id' => $this->project->id]);
+        $new = str_repeat('e', 64);
+
+        Http::fake(fn (Request $request) => Http::response(str_contains($request->body(), 'FROM issue_hourly')
+            ? json_encode(issueCandidateRow($this->project, $new))."\n"
+            : implode('', $resolved->map(fn (Issue $issue): string => json_encode(issueCandidateRow($this->project, $issue->fingerprint, ['IssueFirstSeen' => now()->subDays(3)->getTimestampMs()]))."\n")->all())));
+
+        expect(app(IssueAlertScan::class)->scan())->toBe(4)
+            ->and(AlertEvent::query()->where('type', AlertEventType::IssueNew)->sole()->dedupe_key)->toBe("issue:{$this->project->id}:{$new}:new")
+            ->and(AlertEvent::query()->where('type', AlertEventType::IssueRegressed)->count())->toBe(3);
+    });
+
+    it('reads the people\'s decisions in a fixed number of queries, however many projects are involved', function () {
+        $projects = Project::factory()->count(4)->forTeam($this->team)->create()->push($this->project);
+        $rows = $projects->map(fn (Project $project): array => issueCandidateRow($project, hash('sha256', (string) $project->id)))->all();
+        Issue::factory()->ignored()->create(['project_id' => $projects->first()->id, 'fingerprint' => hash('sha256', (string) $projects->first()->id)]);
+        fakeIssueCandidates($rows);
+
+        DB::enableQueryLog();
+        expect(app(IssueAlertScan::class)->scan())->toBe(4);
+
+        $issueReads = collect(DB::getQueryLog())->filter(fn (array $entry): bool => str_starts_with($entry['query'], 'select') && str_contains($entry['query'], '"issues"'));
+        expect($issueReads)->toHaveCount(2);
     });
 
     it('skips an issue someone has ignored, and one first seen before the lookback', function () {
@@ -170,7 +223,7 @@ describe('scan', function () {
         NotificationChannel::factory()->for($this->team)->withIssueEvents()->disabled()->create();
         Http::fake();
 
-        expect(app(IssueAlertScan::class)->hasSubscribers())->toBeFalse()
+        expect(app(IssueAlertScan::class)->subscribedTeamIds())->toBe([])
             ->and(app(IssueAlertScan::class)->scan())->toBe(0);
 
         Http::assertNothingSent();
@@ -201,14 +254,37 @@ describe('scan', function () {
 });
 
 describe('dispatch', function () {
-    it('queues one unique scan per minute on the alerts queue while someone subscribes', function () {
+    it('queues one unique scan per subscribed team per minute on the alerts queue', function () {
         Queue::fake();
+        $other = Team::factory()->create();
+        NotificationChannel::factory()->for($other)->withIssueEvents()->create();
+        Team::factory()->create(); // no channel: no scan
 
         $this->artisan('alerts:evaluate')->assertSuccessful();
 
+        $minute = CarbonImmutable::parse('2026-11-08 12:00:00', 'UTC')->getTimestamp();
         Queue::assertPushedOn('alerts', ScanIssueAlerts::class);
-        Queue::assertPushed(ScanIssueAlerts::class, fn (ScanIssueAlerts $job): bool => $job->uniqueId() === (string) CarbonImmutable::parse('2026-11-08 12:00:00', 'UTC')->getTimestamp()
-            && $job->tries === 1);
+        Queue::assertPushedTimes(ScanIssueAlerts::class, 2);
+        foreach ([$this->team->id, $other->id] as $teamId) {
+            Queue::assertPushed(ScanIssueAlerts::class, fn (ScanIssueAlerts $job): bool => $job->uniqueId() === "{$teamId}:{$minute}"
+                && $job->teamId === $teamId
+                && $job->tries === 1);
+        }
+    });
+
+    it('scans only its own team, and nothing once the team has stopped taking issue events', function () {
+        $other = Team::factory()->create();
+        Project::factory()->forTeam($other)->create();
+        NotificationChannel::factory()->for($other)->withIssueEvents()->create();
+        fakeIssueCandidates([issueCandidateRow($this->project, str_repeat('f', 64))]);
+
+        (new ScanIssueAlerts($this->team->id, 0))->handle(app(IssueAlertScan::class));
+        expect(AlertEvent::query()->sole()->team_id)->toBe($this->team->id);
+        Http::assertSentCount(1);
+
+        $this->channel->update(['enabled' => false]);
+        (new ScanIssueAlerts($this->team->id, 60))->handle(app(IssueAlertScan::class));
+        Http::assertSentCount(1);
     });
 
     it('queues nothing when no team takes issue events', function () {

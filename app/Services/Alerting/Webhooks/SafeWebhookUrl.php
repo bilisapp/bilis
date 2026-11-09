@@ -74,23 +74,23 @@ final class SafeWebhookUrl
     {
         $target = $this->parse($url, $requiredHost);
 
-        if (filter_var($target->host, FILTER_VALIDATE_IP) !== false) {
-            return $target;
+        if ($target['ip'] !== null) {
+            return new ResolvedWebhookTarget($target['url'], $target['host'], $target['port'], $target['ip']);
         }
 
-        $addresses = $this->resolver->resolve($target->host);
+        $addresses = $this->resolver->resolve($target['host']);
 
         if ($addresses === []) {
-            throw new UnsafeWebhookUrl("The host {$target->host} does not resolve to an address.");
+            throw new UnsafeWebhookUrl("The host {$target['host']} does not resolve to an address.");
         }
 
         foreach ($addresses as $address) {
             if (! self::isPublicAddress($address)) {
-                throw new UnsafeWebhookUrl("The host {$target->host} resolves to a private or reserved address, which webhooks cannot be sent to.");
+                throw new UnsafeWebhookUrl("The host {$target['host']} resolves to a private or reserved address, which webhooks cannot be sent to.");
             }
         }
 
-        return new ResolvedWebhookTarget($target->url, $target->host, $target->port, $addresses[0]);
+        return new ResolvedWebhookTarget($target['url'], $target['host'], $target['port'], $addresses[0]);
     }
 
     /**
@@ -119,12 +119,15 @@ final class SafeWebhookUrl
     }
 
     /**
-     * The URL parsed into a target whose address is still unknown, unless it
-     * is an IP literal, which is then also checked.
+     * The URL parsed into its rebuilt form, host and port. `ip` is set (and
+     * already checked) only when the host is an IP literal; a hostname is
+     * resolved later, in {@see resolve()}.
+     *
+     * @return array{url: string, host: string, port: int, ip: ?string}
      *
      * @throws UnsafeWebhookUrl
      */
-    private function parse(string $url, ?string $requiredHost): ResolvedWebhookTarget
+    private function parse(string $url, ?string $requiredHost): array
     {
         if (strlen($url) > 2048 || preg_match('/[\s\\\\\x00-\x1f\x7f]/', $url) === 1) {
             throw new UnsafeWebhookUrl('The URL contains spaces, backslashes or control characters.');
@@ -169,7 +172,7 @@ final class SafeWebhookUrl
         $rebuilt = "{$scheme}://{$authority}".($parts['path'] ?? '/')
             .(isset($parts['query']) ? "?{$parts['query']}" : '');
 
-        return new ResolvedWebhookTarget($rebuilt, $ip ?? $host, $defaultPort, $ip ?? '');
+        return ['url' => $rebuilt, 'host' => $ip ?? $host, 'port' => $defaultPort, 'ip' => $ip];
     }
 
     /**

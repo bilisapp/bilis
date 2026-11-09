@@ -26,9 +26,11 @@ use Illuminate\Validation\Rule;
  *   bucket, averaged over the window.
  *
  * A percentile on a gauge or counter, or `avg` on a histogram, cannot be
- * answered and is refused as unavailable. Groups are capped at
- * `alerting.max_instances` (the explorer's 500-series read cap, R16, still
- * applies before grouping); the heaviest are kept.
+ * answered and is refused as unavailable. Every group of the read is reduced,
+ * then the `alerting.max_instances` most extreme for the rule's condition are
+ * kept. The explorer's 500-series read cap (R16) still applies before
+ * grouping; a read that hit it is marked truncated, so a series it dropped is
+ * not taken for one without data.
  */
 final class MetricAlertSource implements AlertSource
 {
@@ -38,13 +40,17 @@ final class MetricAlertSource implements AlertSource
 
     public function __construct(private readonly MetricQuery $metrics) {}
 
-    public function evaluate(AlertRule $rule, array $projectIds, CarbonImmutable $from, CarbonImmutable $to): array
+    public function evaluate(AlertRule $rule, array $projectIds, CarbonImmutable $from, CarbonImmutable $to): AlertReading
     {
         $query = $this->validatedQuery($rule);
         $aggregation = (string) $query['aggregation'];
         $instances = [];
 
-        foreach ($this->lines($query, $projectIds, $from, $to, null) as $line) {
+        // Every group the read returned, so the cap below ranks by value, not
+        // by how many points a group happened to have.
+        [$lines, $dropped] = $this->lines($query, $projectIds, $from, $to, null, MetricQuery::SERIES_LIMIT);
+
+        foreach ($lines as $line) {
             $values = array_values(array_filter($line['points'], fn (array $point): bool => $point[1] !== null));
 
             if ($values === []) {
@@ -61,14 +67,22 @@ final class MetricAlertSource implements AlertSource
             }];
         }
 
-        return $instances;
+        $lowestFirst = $this->lowestFirst($rule);
+
+        usort($instances, fn (array $a, array $b): int => $lowestFirst
+            ? $a['value'] <=> $b['value']
+            : $b['value'] <=> $a['value']);
+
+        [$kept, $truncated] = $this->withinCap($instances);
+
+        return new AlertReading($kept, $truncated || $dropped);
     }
 
     public function preview(AlertRule $rule, array $projectIds, CarbonImmutable $from, CarbonImmutable $to, int $stepSeconds): array
     {
         $query = $this->validatedQuery($rule);
 
-        return $this->lines($query, $projectIds, $from, $to, $this->previewStep($from, $to, $stepSeconds));
+        return $this->lines($query, $projectIds, $from, $to, $this->previewStep($from, $to, $stepSeconds), $this->maxInstances())[0];
     }
 
     public function rules(): array
@@ -84,16 +98,19 @@ final class MetricAlertSource implements AlertSource
     }
 
     /**
-     * The metric's line per group over `[$from, $to)`, as the explorer reads it.
+     * The metric's line per group over `[$from, $to)`, as the explorer reads
+     * it, and whether the read left any series out — the explorer's own
+     * series cap (R16), or groups past `$maxGroups`.
      *
      * @param  array<string, mixed>  $query
      * @param  list<string>  $projectIds
      * @param  int|null  $interval  the bucket width; null lets the explorer choose
-     * @return list<array{labels: array<string, string>, points: list<array{0: int, 1: float|null}>}>
+     * @param  int  $maxGroups  the heaviest groups kept, for the preview's chart
+     * @return array{0: list<array{labels: array<string, string>, points: list<array{0: int, 1: float|null}>}>, 1: bool}
      *
      * @throws AlertSourceUnavailable
      */
-    private function lines(array $query, array $projectIds, CarbonImmutable $from, CarbonImmutable $to, ?int $interval): array
+    private function lines(array $query, array $projectIds, CarbonImmutable $from, CarbonImmutable $to, ?int $interval, int $maxGroups): array
     {
         $aggregation = (string) $query['aggregation'];
         $percentile = array_key_exists($aggregation, MetricSeriesBuilder::PERCENTILES);
@@ -110,7 +127,7 @@ final class MetricAlertSource implements AlertSource
             from: Carbon::instance($from),
             to: Carbon::instance($to),
             interval: $interval,
-            maxGroups: $this->maxInstances(),
+            maxGroups: $maxGroups,
             exclusiveTo: true,
         );
 
@@ -124,8 +141,10 @@ final class MetricAlertSource implements AlertSource
             throw new AlertSourceUnavailable('ClickHouse is overloaded; the window was not read.');
         }
 
+        $dropped = $result['droppedSeries'] > 0 || $result['truncatedGroups'] > 0;
+
         if ($result['kind'] === null) {
-            return [];
+            return [[], $dropped];
         }
 
         $distribution = in_array($result['kind'], ['distribution', 'summary'], true);
@@ -162,6 +181,6 @@ final class MetricAlertSource implements AlertSource
             ];
         }
 
-        return $lines;
+        return [$lines, $dropped];
     }
 }

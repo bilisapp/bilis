@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\AlertCondition;
 use App\Models\AlertRule;
 use App\Services\Alerting\Sources\AlertSource;
 use App\Services\Alerting\Sources\AlertSourceUnavailable;
@@ -178,7 +179,7 @@ it('binds every user value as a parameter and reads the window closed-open', fun
     $to = CarbonImmutable::parse('2026-11-08 10:00:00', 'UTC');
     $rule = alertRuleFor('logs', ['filters' => ['services' => ["a'b"], 'search' => 'Timeout'], 'aggregation' => 'count']);
 
-    expect(app(LogAlertSource::class)->evaluate($rule, ['7'], $to->subMinutes(5), $to))
+    expect(app(LogAlertSource::class)->evaluate($rule, ['7'], $to->subMinutes(5), $to)->series)
         ->toBe([['labels' => [], 'value' => 3.0]]);
 
     Http::assertSent(function (Request $request): bool {
@@ -193,3 +194,96 @@ it('binds every user value as a parameter and reads the window closed-open', fun
             && $query['param_projectIds'] === "['7']";
     });
 });
+
+it('reads the lowest groups first for a less-than rule and reports a truncated reading', function () {
+    config(['clickhouse.host' => '127.0.0.1', 'clickhouse.port' => 8123, 'alerting.max_instances' => 2]);
+    Http::fake(['127.0.0.1:8123/*' => Http::response(implode("\n", [
+        '{"Grp":"api","Bucket":0,"Value":"1","Events":"1"}',
+        '{"Grp":"web","Bucket":0,"Value":"2","Events":"2"}',
+        '{"Grp":"checkout","Bucket":0,"Value":"9","Events":"9"}',
+    ]))]);
+
+    $to = CarbonImmutable::parse('2026-11-08 10:00:00', 'UTC');
+    $rule = AlertRule::factory()->make([
+        'source' => 'logs',
+        'query' => ['aggregation' => 'count', 'group_by' => 'service.name'],
+        'condition' => AlertCondition::LessThan,
+    ]);
+
+    $reading = app(LogAlertSource::class)->evaluate($rule, ['7'], $to->subMinutes(5), $to);
+
+    expect($reading->series)->toBe([
+        ['labels' => ['service.name' => 'api'], 'value' => 1.0],
+        ['labels' => ['service.name' => 'web'], 'value' => 2.0],
+    ])->and($reading->truncated)->toBeTrue();
+
+    // One row past the cap, lowest first, so the cap keeps what a `<` rule fires on.
+    Http::assertSent(fn (Request $request): bool => str_contains(clickHouseStatement($request), 'ORDER BY Value ASC LIMIT {groupLimit:UInt32}')
+        && clickHouseQuery($request)['param_groupLimit'] === '3');
+});
+
+/**
+ * Answer the explorer's statements for a gauge read by host: `quiet` reports
+ * once at 90, `busy` fifty times at 10, out of `$total` series in all.
+ */
+function fakeMetricAlertClickHouse(CarbonImmutable $bucket, int $total): void
+{
+    config(['clickhouse.host' => '127.0.0.1', 'clickhouse.port' => 8123]);
+
+    Http::fake(['127.0.0.1:8123/*' => function (Request $request) use ($bucket, $total) {
+        $body = $request->body();
+        $rows = match (true) {
+            str_contains($body, 'AS Points') => [[
+                'Name' => 'system.cpu.utilization', 'Type' => 'gauge', 'Unit' => '1', 'Description' => '',
+                'Services' => [], 'Monotonic' => false, 'Temporality' => 0, 'Points' => 51,
+            ]],
+            str_contains($body, 'AS Total') => [['Total' => $total]],
+            str_contains($body, 'AS W') => [
+                ['Bucket' => $bucket->getTimestamp(), 'Grp' => 'quiet', 'V' => 90, 'W' => 1],
+                ['Bucket' => $bucket->getTimestamp(), 'Grp' => 'busy', 'V' => 10, 'W' => 50],
+            ],
+            default => [],
+        };
+
+        return Http::response(implode('', array_map(fn (array $row): string => json_encode($row)."\n", $rows)));
+    }]);
+}
+
+it('caps metric groups by value for the rule\'s condition, not by how busy they are', function (AlertCondition $condition, string $kept) {
+    config(['alerting.max_instances' => 1]);
+
+    $to = CarbonImmutable::parse('2026-11-08 10:00:00', 'UTC');
+    fakeMetricAlertClickHouse($to->subMinutes(5), 2);
+
+    $rule = AlertRule::factory()->make([
+        'source' => 'metrics',
+        'query' => ['metric' => 'system.cpu.utilization', 'aggregation' => 'max', 'group_by' => 'host.name'],
+        'condition' => $condition,
+    ]);
+
+    $reading = app(MetricAlertSource::class)->evaluate($rule, ['7'], $to->subMinutes(5), $to);
+
+    expect(array_column($reading->series, 'labels'))->toBe([['host.name' => $kept]])
+        ->and($reading->truncated)->toBeTrue();
+})->with([
+    'the hottest for >' => [AlertCondition::GreaterThan, 'quiet'],
+    'the coldest for <' => [AlertCondition::LessThan, 'busy'],
+]);
+
+it('marks a metric reading truncated when the explorer\'s series cap dropped series', function (int $total, bool $truncated) {
+    $to = CarbonImmutable::parse('2026-11-08 10:00:00', 'UTC');
+    fakeMetricAlertClickHouse($to->subMinutes(5), $total);
+
+    $rule = AlertRule::factory()->make([
+        'source' => 'metrics',
+        'query' => ['metric' => 'system.cpu.utilization', 'aggregation' => 'max', 'group_by' => 'host.name'],
+    ]);
+
+    $reading = app(MetricAlertSource::class)->evaluate($rule, ['7'], $to->subMinutes(5), $to);
+
+    expect($reading->series)->toHaveCount(2)
+        ->and($reading->truncated)->toBe($truncated);
+})->with([
+    'every series read' => [2, false],
+    'past the 500-series cap' => [501, true],
+]);

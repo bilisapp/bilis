@@ -134,7 +134,9 @@ function toggle(rule: AlertRuleSummary) {
 
 /*
  * The "Bilis set up N alerts" banner, dismissed per person in this browser.
- * The count dismissed is stored, so a new template rule brings it back.
+ * The ids of the template rules on screen when it was dismissed are stored, so
+ * any template rule not among them brings it back — a count could return to
+ * the dismissed value after one was turned off and another set up.
  * Storage can throw (private windows, blocked site data); the banner then
  * simply shows, and dismissing still hides it for this visit.
  */
@@ -143,31 +145,49 @@ const bannerKey = computed(
         `bilis:alerts:templates-banner:${page.props.auth?.user?.id ?? 'guest'}:${teamSlug.value}`,
 );
 
-const dismissedTemplateCount = ref<number | null>(null);
+const templateRuleIds = computed(() =>
+    props.rules
+        .filter((rule) => rule.template && rule.enabled)
+        .map((rule) => rule.id),
+);
+
+const dismissedTemplateIds = ref<Set<number> | null>(null);
 
 onMounted(() => {
     try {
-        const stored = Number(localStorage.getItem(bannerKey.value));
+        const stored: unknown = JSON.parse(
+            localStorage.getItem(bannerKey.value) ?? '[]',
+        );
 
-        dismissedTemplateCount.value = Number.isFinite(stored) ? stored : 0;
+        dismissedTemplateIds.value = new Set(
+            Array.isArray(stored)
+                ? stored.filter((id): id is number => typeof id === 'number')
+                : [],
+        );
     } catch {
-        dismissedTemplateCount.value = 0;
+        dismissedTemplateIds.value = new Set();
     }
 });
 
-const showTemplateBanner = computed(
-    () =>
+const showTemplateBanner = computed(() => {
+    const dismissed = dismissedTemplateIds.value;
+
+    return (
         props.tab === 'rules' &&
         props.templateCount > 0 &&
-        dismissedTemplateCount.value !== null &&
-        props.templateCount > dismissedTemplateCount.value,
-);
+        dismissed !== null &&
+        templateRuleIds.value.some((id) => !dismissed.has(id))
+    );
+});
 
 function dismissTemplateBanner() {
-    dismissedTemplateCount.value = props.templateCount;
+    dismissedTemplateIds.value = new Set(templateRuleIds.value);
 
     try {
-        localStorage.setItem(bannerKey.value, String(props.templateCount));
+        localStorage.setItem(
+            bannerKey.value,
+            JSON.stringify(templateRuleIds.value),
+        );
     } catch {
         // Hidden for this visit only.
     }

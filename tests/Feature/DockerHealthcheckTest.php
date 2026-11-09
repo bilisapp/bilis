@@ -20,6 +20,13 @@ beforeEach(function () {
         file_put_contents($path, "#!/bin/sh\necho \"{$binary} \$*\" >> \"\$STUB_LOG\"\nexit \"\${{$variable}:-0}\"\n");
         chmod($path, 0755);
     }
+
+    // `alerts:heartbeat-check` answers with its own code, so a test can fail
+    // the heartbeat alone while `schedule:list` still boots.
+    file_put_contents(
+        $this->sandbox.'/bin/php',
+        "#!/bin/sh\necho \"php \$*\" >> \"\$STUB_LOG\"\ncase \"\$*\" in *alerts:heartbeat-check*) exit \"\${STUB_HEARTBEAT_CODE:-0}\" ;; esac\nexit \"\${STUB_PHP_CODE:-0}\"\n",
+    );
 });
 
 afterEach(function () {
@@ -128,16 +135,15 @@ test('the scheduler role is checked by booting the framework, not by HTTP', func
  * fails when `alerts:evaluate` has not run for three minutes (and passes when
  * alerting is disabled), so a stalled loop shows up as an unhealthy container.
  */
-test('the scheduler role also fails on a stale alerting heartbeat', function (string $phpCode, int $expected) {
+test('the scheduler role also fails on a stale alerting heartbeat', function (string $heartbeatCode, int $expected) {
     file_put_contents($this->sandbox.'/role', 'scheduler');
 
-    $result = runHealthcheck($this->sandbox, ['STUB_PHP_CODE' => $phpCode]);
+    $result = runHealthcheck($this->sandbox, ['STUB_HEARTBEAT_CODE' => $heartbeatCode]);
 
-    expect($result['code'])->toBe($expected);
-
-    if ($expected === 0) {
-        expect($result['calls'])->toContain('artisan alerts:heartbeat-check');
-    }
+    // `schedule:list` passes in both cases: only the heartbeat decides.
+    expect($result['code'])->toBe($expected)
+        ->and($result['calls'])->toContain('artisan schedule:list')
+        ->and($result['calls'])->toContain('artisan alerts:heartbeat-check');
 })->with([
     'fresh' => ['0', 0],
     'stale' => ['1', 1],

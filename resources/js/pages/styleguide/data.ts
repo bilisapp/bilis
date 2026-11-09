@@ -2043,10 +2043,10 @@ export const DEMO_ALERT_RULES: AlertRuleSummary[] = [
         enabled: true,
         mutedUntil: '2026-11-08T18:00:00Z',
         health: 'err',
-        lastError:
-            'system.cpu.utilization is a gauge: a percentile needs a histogram.',
+        lastError: 'ClickHouse timed out after 10s',
         lastEvaluatedAt: alertMinutesAgo(4),
-        firing: 0,
+        // A rule that cannot read keeps every series as it was: still firing.
+        firing: 1,
         pending: 0,
         template: false,
         why: null,
@@ -2227,14 +2227,14 @@ export const DEMO_ALERT_EVENTS: AlertEventSummary[] = [
         ruleId: 103,
         ruleName: 'Host CPU above 90%',
         source: 'metrics',
-        query: { aggregation: 'p95', metric: 'system.cpu.utilization' },
+        query: { aggregation: 'avg', metric: 'system.cpu.utilization' },
         condition: '>',
         labels: {},
         value: null,
         threshold: 0.9,
-        occurredAt: alertMinutesAgo(130),
+        occurredAt: alertMinutesAgo(4),
         headline:
-            'The rule could not be evaluated: system.cpu.utilization is a gauge: a percentile needs a histogram.',
+            'The rule could not be evaluated: ClickHouse timed out after 10s',
         href: null,
     },
     {
@@ -2251,6 +2251,22 @@ export const DEMO_ALERT_EVENTS: AlertEventSummary[] = [
         occurredAt: alertMinutesAgo(1440),
         headline: 'The value is 41, above the threshold of 20.',
         href: null,
+    },
+    {
+        id: 9005,
+        type: 'issue_new',
+        ruleId: null,
+        ruleName: null,
+        source: null,
+        query: null,
+        condition: null,
+        labels: { 'service.name': 'checkout-api' },
+        value: null,
+        threshold: null,
+        occurredAt: alertMinutesAgo(26),
+        headline:
+            "New issue in checkout-api: TypeError: Cannot read properties of undefined (reading 'total')",
+        href: '/acme/issues/7f3a9c2e',
     },
 ];
 
@@ -2402,7 +2418,7 @@ export const DEMO_NEEDS_ATTENTION: NeedsAttentionList = {
             condition: '>',
             threshold: 500,
             severity: 'warning',
-            muted: true,
+            muted: false,
             labels: { 'service.name': 'payments-api' },
             state: 'pending',
             value: 812,
@@ -2413,6 +2429,7 @@ export const DEMO_NEEDS_ATTENTION: NeedsAttentionList = {
         },
     ],
     total: 3,
+    firing: 2,
 };
 
 /**

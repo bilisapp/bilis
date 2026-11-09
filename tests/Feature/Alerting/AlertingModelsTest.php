@@ -15,6 +15,7 @@ use App\Services\Alerting\AlertStateMachine;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 it('builds a rule with instances, events and channels through the factories', function () {
     $team = Team::factory()->create();
@@ -23,7 +24,10 @@ it('builds a rule with instances, events and channels through the factories', fu
     $rule->notificationChannels()->attach($channel);
 
     $instance = AlertInstance::factory()->for($rule, 'rule')->firing()->withLabels(['host.name' => 'web-1'])->create();
-    AlertEvent::factory()->forRule($rule)->for($instance, 'instance')->create(['labels' => $instance->labels]);
+    $event = AlertEvent::factory()->forRule($rule)->for($instance, 'instance')->create(['labels' => $instance->labels]);
+
+    // The factory keys the event by the labels it was saved with.
+    expect($event->dedupe_key)->toBe('rule:'.$rule->id.':'.$instance->labels_hash.':firing:'.$event->occurred_at->getTimestamp());
 
     $rule->refresh();
 
@@ -67,6 +71,24 @@ it('records an event once per dedupe key', function () {
     AlertEvent::factory()->create(['dedupe_key' => 'rule:1:abc:firing:1762603200']);
 })->throws(UniqueConstraintViolationException::class);
 
+it('derives factory dedupe keys from the final attributes', function () {
+    $rule = AlertRule::factory()->create();
+
+    $resolved = AlertEvent::factory()->forRule($rule)->resolved()->create();
+    $web1 = AlertEvent::factory()->forRule($rule)->create(['labels' => ['service.name' => 'web-1']]);
+    $web2 = AlertEvent::factory()->forRule($rule)->create(['labels' => ['service.name' => 'web-2']]);
+
+    expect($resolved->dedupe_key)->toContain(':resolved:')
+        ->and($web1->dedupe_key)->not->toBe($web2->dedupe_key)
+        ->and(AlertEvent::factory()->create(['dedupe_key' => 'kept'])->dedupe_key)->toBe('kept');
+});
+
+it('makes more alert instances than there are demo service names', function () {
+    $rule = AlertRule::factory()->create();
+
+    expect(AlertInstance::factory()->for($rule, 'rule')->count(12)->create())->toHaveCount(12);
+});
+
 it('keeps history when the rule and instance are deleted', function () {
     $rule = AlertRule::factory()->create();
     $instance = AlertInstance::factory()->for($rule, 'rule')->create();
@@ -91,4 +113,11 @@ it('round-trips an instance through the state machine', function () {
         ->and($instance->fresh()->state)->toBe(AlertState::Firing)
         ->and($instance->fresh()->fired_at->equalTo($at))->toBeTrue()
         ->and($instance->fresh()->toState()->firedAt?->equalTo($at))->toBeTrue();
+});
+
+it('indexes the foreign keys a deleted rule or instance nulls', function () {
+    $indexed = collect(Schema::getIndexes('alert_events'))->pluck('columns')->all();
+
+    expect($indexed)->toContain(['alert_rule_id', 'occurred_at'])
+        ->and($indexed)->toContain(['alert_instance_id']);
 });

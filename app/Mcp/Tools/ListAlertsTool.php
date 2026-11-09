@@ -19,7 +19,7 @@ use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 
 #[Name('list-alerts')]
 #[Title('List alerts')]
-#[Description('What is alerting in a team right now, and what happened recently. Returns every firing and pending alert (rule name, source, the series\' labels, its last value, the threshold and since when), then the alert history over a window (default the last 24 hours): firing, resolved, rule errors, and new or regressed issues. Read-only: it never mutes, acknowledges or edits a rule. Follow a firing alert into search-logs, list-traces or query-metric for the same labels to see why.')]
+#[Description('What is alerting in a team right now, and what happened recently. Returns the firing and pending alerts of enabled rules, firing first and at most 200 (activeTruncated says when more exist) — rule name, source, the series\' labels, its last value, the threshold and since when — then the alert history over a window (default the last 24 hours): firing, resolved, rule errors, and new or regressed issues. Read-only: it never mutes, acknowledges or edits a rule. Follow a firing alert into search-logs, list-traces or query-metric for the same labels to see why.')]
 #[IsReadOnly]
 class ListAlertsTool extends Tool
 {
@@ -63,19 +63,17 @@ class ListAlertsTool extends Tool
 
         $instances = AlertInstance::query()
             ->with('rule')
-            ->whereHas('rule', fn ($query) => $query->where('team_id', $scope->team->getKey()))
+            ->whereHas('rule', fn ($query) => $query->where('team_id', $scope->team->getKey())->where('enabled', true))
             ->whereIn('state', match ($state) {
                 'firing' => [AlertState::Firing],
                 'pending' => [AlertState::Pending],
                 default => [AlertState::Firing, AlertState::Pending],
             })
-            ->get()
-            ->sortBy(fn (AlertInstance $instance): array => [
-                $instance->state === AlertState::Firing ? 0 : 1,
-                ($instance->fired_at ?? $instance->active_at)?->getTimestamp() ?? 0,
-            ])
-            ->take(self::MAX_INSTANCES)
-            ->values();
+            ->orderByRaw('CASE WHEN state = ? THEN 0 ELSE 1 END', [AlertState::Firing->value])
+            ->orderByRaw('COALESCE(fired_at, active_at) ASC')
+            ->orderBy('id')
+            ->limit(self::MAX_INSTANCES + 1)
+            ->get();
 
         $events = AlertEvent::query()
             ->with(['rule', 'team'])
@@ -89,7 +87,7 @@ class ListAlertsTool extends Tool
 
         return Response::json([
             'team' => $scope->team->slug,
-            'active' => $instances->map(fn (AlertInstance $instance): array => [
+            'active' => $instances->take(self::MAX_INSTANCES)->map(fn (AlertInstance $instance): array => [
                 'rule' => $instance->rule->name,
                 'source' => $instance->rule->source,
                 'severity' => $instance->rule->severity->value,
@@ -100,7 +98,8 @@ class ListAlertsTool extends Tool
                 'threshold' => $instance->rule->threshold,
                 'since' => ($instance->state === AlertState::Firing ? $instance->fired_at : $instance->active_at)?->toIso8601String(),
                 'muted' => $instance->rule->isMutedAt($now),
-            ])->all(),
+            ])->values()->all(),
+            'activeTruncated' => $instances->count() > self::MAX_INSTANCES,
             'from' => $from->toIso8601String(),
             'to' => $to->toIso8601String(),
             'events' => $events->take($limit)->map(function (AlertEvent $event): array {

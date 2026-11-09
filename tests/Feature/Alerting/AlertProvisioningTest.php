@@ -18,6 +18,8 @@ use App\Services\ClickHouse\ClickHouseException;
 use App\Services\Logs\LogQuery;
 use App\Services\Metrics\MetricQuery;
 use App\Services\Traces\TraceQuery;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -29,9 +31,10 @@ use Illuminate\Validation\Rule;
  */
 
 /**
- * Fake the three detection reads. `true`/`false` answers, a Throwable is thrown.
+ * Fake the detection reads. `true`/`false` answers, a Throwable is thrown.
+ * `hosts` answers for every host metric unless `metrics` names that one.
  *
- * @param  array{logs?: bool|Throwable, traces?: bool|Throwable, hosts?: bool|Throwable}  $answers
+ * @param  array{logs?: bool|Throwable, traces?: bool|Throwable, hosts?: bool|Throwable, metrics?: array<string, bool|Throwable>}  $answers
  */
 function fakeDetection(array $answers): void
 {
@@ -45,7 +48,9 @@ function fakeDetection(array $answers): void
 
     test()->mock(LogQuery::class)->allows('hasAnyLogs')->andReturnUsing(fn () => $answer($answers['logs'] ?? false));
     test()->mock(TraceQuery::class)->allows('hasAnyTraces')->andReturnUsing(fn () => $answer($answers['traces'] ?? false));
-    test()->mock(MetricQuery::class)->allows('hasHosts')->andReturnUsing(fn () => $answer($answers['hosts'] ?? false));
+    test()->mock(MetricQuery::class)->allows('hasMetric')->andReturnUsing(
+        fn (array $projectIds, string $metric) => $answer($answers['metrics'][$metric] ?? $answers['hosts'] ?? false),
+    );
 }
 
 function teamWithProject(): Team
@@ -197,7 +202,8 @@ it('never duplicates a rule and reads nothing once everything is installed', fun
 
     app(LogQuery::class)->shouldHaveReceived('hasAnyLogs')->once();
     app(TraceQuery::class)->shouldHaveReceived('hasAnyTraces')->once();
-    app(MetricQuery::class)->shouldHaveReceived('hasHosts')->once();
+    // Two host metrics (disk and memory utilization), each read once.
+    app(MetricQuery::class)->shouldHaveReceived('hasMetric')->twice();
 });
 
 it('upgrades an untouched rule on a version bump, leaving its switches alone', function () {
@@ -261,6 +267,77 @@ it('skips a kind it cannot detect, installs the rest, and retries next run', fun
     fakeDetection(['logs' => true, 'traces' => true]);
 
     expect(app(AlertProvisioner::class)->provision($team->fresh())->created)->toBe(['logs.error_spike']);
+});
+
+it('installs a host template only when the metric it reads is reported', function () {
+    fakeDetection(['metrics' => ['system.memory.utilization' => true, 'system.filesystem.utilization' => false]]);
+    $team = teamWithProject();
+
+    $result = app(AlertProvisioner::class)->provision($team);
+
+    expect($result->created)->toBe(['hosts.memory_pressure', 'hosts.silent']);
+    app(MetricQuery::class)->shouldHaveReceived('hasMetric')->with(Mockery::any(), 'system.memory.utilization')->once();
+});
+
+it('asks the query services not to guess under overload', function () {
+    test()->mock(LogQuery::class)->expects('hasAnyLogs')->with(Mockery::any(), true)->andReturnFalse();
+    test()->mock(TraceQuery::class)->expects('hasAnyTraces')->with(Mockery::any(), true)->andReturnFalse();
+    test()->mock(MetricQuery::class)->allows('hasMetric')->andReturnFalse();
+
+    expect(app(AlertProvisioner::class)->provision(teamWithProject())->created)->toBe([]);
+});
+
+it('installs nothing while ClickHouse is unreachable, though the pages answer yes', function () {
+    config(['clickhouse.host' => '127.0.0.1', 'clickhouse.port' => 8123]);
+    Http::fake(['127.0.0.1:8123/*' => Http::failedConnection()]);
+    $team = teamWithProject();
+
+    // The page chrome keeps its optimistic answer…
+    expect(app(LogQuery::class)->hasAnyLogs(['1']))->toBeTrue()
+        ->and(app(TraceQuery::class)->hasAnyTraces(['1']))->toBeTrue();
+
+    // …but provisioning sees the failure, skips every kind and retries later.
+    $result = app(AlertProvisioner::class)->provision($team);
+
+    expect($result->created)->toBe([])
+        ->and($result->undetectable)->toBe(['logs', 'traces', 'hosts:system.filesystem.utilization', 'hosts:system.memory.utilization'])
+        ->and(AlertRule::query()->count())->toBe(0);
+});
+
+it('does not upgrade a rule edited after it was read', function () {
+    fakeDetection(['logs' => true]);
+    $team = teamWithProject();
+    app(AlertProvisioner::class)->provision($team);
+    bumpTemplate('logs.error_spike', 99);
+
+    $rule = AlertRule::query()->where('template_key', 'logs.error_spike')->sole();
+    $edited = false;
+
+    // A person's save lands right after provision() loaded the rule: the
+    // upgrade re-reads it under a lock and stays away.
+    AlertRule::retrieved(function (AlertRule $retrieved) use ($rule, &$edited): void {
+        if (! $edited && $retrieved->is($rule)) {
+            $edited = true;
+            AlertRule::query()->whereKey($rule->getKey())->update(['customized_at' => now(), 'threshold' => 7]);
+        }
+    });
+
+    $result = app(AlertProvisioner::class)->provision($team->fresh());
+    AlertRule::flushEventListeners();
+
+    expect($result->upgraded)->toBe([])
+        ->and($edited)->toBeTrue()
+        ->and($rule->fresh()->threshold)->toBe(7.0)
+        ->and($rule->fresh()->template_version)->toBe(1);
+});
+
+it('never runs two provisioning jobs for one team at once', function () {
+    $middleware = (new ProvisionTeamAlerts(42))->middleware();
+
+    expect($middleware)->toHaveCount(1)
+        ->and($middleware[0])->toBeInstanceOf(WithoutOverlapping::class)
+        ->and($middleware[0]->key)->toBe('provision-team-alerts:42')
+        ->and($middleware[0]->releaseAfter)->toBeNull();
 });
 
 it('queues provisioning when a team is created, personal teams included', function () {

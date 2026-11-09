@@ -316,11 +316,12 @@ class LogQuery
      * whether to show onboarding, so it stops at the first matching row and
      * ignores every filter the user has set. A busy ClickHouse answers "yes",
      * because an overloaded database must never make an established team look
-     * like a brand new one.
+     * like a brand new one. A caller that acts on the answer (default-alert
+     * provisioning) passes `$throwOnOverload` and gets the exception instead.
      *
      * @param  list<string>  $projectIds
      */
-    public function hasAnyLogs(array $projectIds): bool
+    public function hasAnyLogs(array $projectIds, bool $throwOnOverload = false): bool
     {
         if ($projectIds === []) {
             return false;
@@ -338,7 +339,7 @@ class LogQuery
         try {
             return $this->client->select($sql, $params) !== [];
         } catch (ClickHouseException $exception) {
-            if (! $exception->isOverload()) {
+            if ($throwOnOverload || ! $exception->isOverload()) {
                 throw $exception;
             }
 
@@ -939,7 +940,8 @@ class LogQuery
      * Ungrouped and unbucketed, the statement has no GROUP BY and always
      * answers one row, so a window without a matching line reads 0 rather than
      * "no data". A ratio over no lines at all is NaN, which arrives as null.
-     * Grouped by service, the `$limit` highest readings are kept; bucketed for
+     * Grouped by service, the `$limit` highest readings (lowest with
+     * `$lowestFirst`, for a `<` rule) are kept; bucketed for
      * the preview, the `$limit` busiest services are. `events` is the row
      * count under the WHERE (every line of the services, for `ratio`), which
      * a rule's `min_events` reads. A rule's baseline comparison is a second
@@ -948,9 +950,10 @@ class LogQuery
      * @param  list<string>  $projectIds
      * @param  'count'|'rate'|'ratio'  $aggregation
      * @param  int|null  $bucketSeconds  bucket the reading for the editor's preview; null reads the window as one
+     * @param  bool  $lowestFirst  keep the lowest grouped readings rather than the highest
      * @return list<array{group: string, bucket: int|null, value: float|null, events: int}>|null null when ClickHouse is overloaded
      */
-    public function alertValues(array $projectIds, LogFilters $filters, string $aggregation, bool $groupByService, int $limit, ?int $bucketSeconds = null): ?array
+    public function alertValues(array $projectIds, LogFilters $filters, string $aggregation, bool $groupByService, int $limit, ?int $bucketSeconds = null, bool $lowestFirst = false): ?array
     {
         if ($projectIds === []) {
             return [];
@@ -1001,7 +1004,7 @@ class LogQuery
             $bucketSeconds === null ? '0' : 'toUnixTimestamp(toStartOfInterval(Timestamp, toIntervalSecond({bucketSeconds:UInt32})))',
             $value,
             $where,
-            $groupBy === [] ? '' : ' GROUP BY '.implode(', ', $groupBy).($bucketSeconds === null ? ' ORDER BY Value DESC LIMIT {groupLimit:UInt32}' : ''),
+            $groupBy === [] ? '' : ' GROUP BY '.implode(', ', $groupBy).($bucketSeconds === null ? ' ORDER BY Value '.($lowestFirst ? 'ASC' : 'DESC').' LIMIT {groupLimit:UInt32}' : ''),
         );
 
         try {

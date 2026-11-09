@@ -16,8 +16,10 @@ use Illuminate\Support\Carbon;
 class AlertEventFactory extends Factory
 {
     /**
-     * Define the model's default state: a rule-less firing event, with a
-     * unique dedupe key. Use `forRule()` to attach it to a rule.
+     * Define the model's default state: a rule-less firing event. Its dedupe
+     * key is derived in {@see configure()} from the final attributes, so a
+     * state or override applied later (`resolved()`, other labels, another
+     * time) is reflected in the key. Use `forRule()` to attach it to a rule.
      *
      * @return array<string, mixed>
      */
@@ -36,8 +38,30 @@ class AlertEventFactory extends Factory
             'threshold' => 25.0,
             'occurred_at' => $occurredAt,
             'context' => ['logs_url' => '/logs?service=checkout&severity=error'],
-            'dedupe_key' => 'rule:0:'.Labels::hash($labels).':firing:'.$occurredAt->getTimestamp().':'.fake()->unique()->uuid(),
+            'dedupe_key' => null,
         ];
+    }
+
+    /**
+     * Derive the dedupe key once every state and override has been applied,
+     * the way `AlertStateMachine` builds it:
+     * `rule:{rule}:{labels hash}:{type}:{occurred at}`. A rule-less event gets
+     * a random suffix so fixtures never collide. An explicit key is kept.
+     */
+    public function configure(): static
+    {
+        return $this->afterMaking(function (AlertEvent $event): void {
+            if ($event->getAttribute('dedupe_key') !== null) {
+                return;
+            }
+
+            $key = 'rule:'.($event->alert_rule_id ?? 0)
+                .':'.Labels::hash((array) $event->labels)
+                .':'.$event->type->value
+                .':'.Carbon::parse($event->occurred_at)->getTimestamp();
+
+            $event->dedupe_key = $event->alert_rule_id === null ? $key.':'.fake()->unique()->uuid() : $key;
+        });
     }
 
     /**
@@ -45,16 +69,11 @@ class AlertEventFactory extends Factory
      */
     public function forRule(AlertRule $rule): static
     {
-        return $this->state(function (array $attributes) use ($rule): array {
-            $type = AlertEventType::from($attributes['type'] instanceof AlertEventType ? $attributes['type']->value : $attributes['type']);
-
-            return [
-                'team_id' => $rule->team_id,
-                'alert_rule_id' => $rule->id,
-                'threshold' => $rule->threshold,
-                'dedupe_key' => 'rule:'.$rule->id.':'.Labels::hash($attributes['labels']).':'.$type->value.':'.Carbon::parse($attributes['occurred_at'])->getTimestamp(),
-            ];
-        });
+        return $this->state(fn (): array => [
+            'team_id' => $rule->team_id,
+            'alert_rule_id' => $rule->id,
+            'threshold' => $rule->threshold,
+        ]);
     }
 
     /**

@@ -81,7 +81,9 @@ class SaveAlertRuleRequest extends FormRequest
             'project_ids.min' => 'Pick at least one project.',
             'project_ids.*.exists' => 'That project does not belong to this team.',
             'channel_ids.*.exists' => 'That channel does not belong to this team.',
-            'window_seconds.max' => 'A trace rule reads at most a one-hour window.',
+            'window_seconds.max' => $this->input('source') === 'traces'
+                ? 'A trace rule reads at most a one-hour window.'
+                : 'A rule reads at most a 24-hour window.',
         ];
     }
 

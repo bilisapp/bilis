@@ -163,6 +163,17 @@ describe('editing a template rule', function () {
             ->and($this->template->notificationChannels->modelKeys())->toBe([$channel->id]);
     });
 
+    it('does not count the same set of severities in another order as customising', function () {
+        $this->actingAs($this->user)
+            ->put(route('alerts.update', ['current_team' => 'acme', 'alertRule' => $this->template->id]), templatePayload(['query' => [
+                'aggregation' => 'count', 'group_by' => 'service.name', 'compare' => ['offset_seconds' => 604800], 'min_events' => 20,
+                'filters' => ['severities' => ['fatal', 'error']],
+            ]]))
+            ->assertSessionHasNoErrors();
+
+        expect($this->template->refresh()->customized_at)->toBeNull();
+    });
+
     it('does not count mute or enable as customising', function () {
         $this->actingAs($this->user)->post(route('alerts.mute', ['current_team' => 'acme', 'alertRule' => $this->template->id]), ['until' => '1h']);
         $this->actingAs($this->user)->post(route('alerts.toggle', ['current_team' => 'acme', 'alertRule' => $this->template->id]));

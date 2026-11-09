@@ -14,6 +14,7 @@ import {
     isUtilization,
     previewSeriesName,
     sinceSeconds,
+    thresholdAxisMax,
     thresholdHint,
 } from '@/lib/alerts';
 
@@ -234,6 +235,25 @@ describe('sinceSeconds and hints', () => {
     it('tells the editor what unit a threshold is in', () => {
         expect(thresholdHint('traces', 'p95')).toBe('Milliseconds.');
         expect(thresholdHint('logs', 'ratio')).toContain('0 to 1');
+        expect(
+            thresholdHint(
+                'metrics',
+                'avg',
+                null,
+                'system.filesystem.utilization',
+            ),
+        ).toContain('0 to 1');
+        expect(
+            thresholdHint('metrics', 'avg', null, 'http.server.duration'),
+        ).toBe('In the metric’s own unit.');
+    });
+
+    it('keeps the threshold line on the preview axis for any sign', () => {
+        expect(thresholdAxisMax(100, { min: 0, max: 40 })).toBe(110);
+        expect(thresholdAxisMax(-10, { min: -50, max: -20 })).toBe(-9);
+        expect(thresholdAxisMax(0, { min: -50, max: -20 })).toBe(5);
+        expect(thresholdAxisMax(10, { min: 0, max: 40 })).toBeUndefined();
+        expect(thresholdAxisMax(null, { min: 0, max: 40 })).toBeUndefined();
     });
 });
 

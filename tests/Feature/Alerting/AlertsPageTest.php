@@ -141,6 +141,23 @@ describe('index', function () {
             );
     });
 
+    it('leaves a disabled rule\'s stale series out of firing and pending', function () {
+        $disabled = AlertRule::factory()->forTeam($this->team)->disabled()->create(['name' => 'Turned off']);
+
+        AlertInstance::factory()->for($disabled, 'rule')->create([
+            'labels' => ['service.name' => 'checkout'], 'labels_hash' => Labels::hash(['service.name' => 'checkout']),
+            'state' => AlertState::Firing, 'value' => 87, 'active_at' => now()->subMinutes(12), 'fired_at' => now()->subMinutes(12),
+        ]);
+
+        $this->actingAs($this->user)
+            ->get(route('alerts.index', ['current_team' => 'acme']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('rules', 1)
+                ->has('instances', 0)
+            );
+    });
+
     it('counts rules that are more than one interval overdue', function () {
         AlertRule::factory()->forTeam($this->team)->create(['next_evaluation_at' => now()->subMinutes(5), 'interval_seconds' => 60]);
         AlertRule::factory()->forTeam($this->team)->create(['next_evaluation_at' => now()->subSeconds(30), 'interval_seconds' => 60]);
@@ -361,6 +378,17 @@ describe('store and update', function () {
         'a zero volume guard' => [fn ($test) => alertRulePayload($test->project, ['query' => ['aggregation' => 'count', 'min_events' => 0]]), 'query.min_events'],
         'a fractional trace volume guard' => [fn ($test) => alertRulePayload($test->project, ['source' => 'traces', 'query' => ['aggregation' => 'p95', 'min_events' => 2.5]]), 'query.min_events'],
         'a trace comparison a minute back' => [fn ($test) => alertRulePayload($test->project, ['source' => 'traces', 'query' => ['aggregation' => 'p95', 'compare' => ['offset_seconds' => 60]]]), 'query.compare.offset_seconds'],
+    ]);
+
+    it('names the window limit of the rule\'s own source', function (string $source, array $query, string $message) {
+        $this->actingAs($this->user)
+            ->post(route('alerts.store', ['current_team' => 'acme']), alertRulePayload($this->project, [
+                'source' => $source, 'query' => $query, 'window_seconds' => 90_000,
+            ]))
+            ->assertSessionHasErrors(['window_seconds' => $message]);
+    })->with([
+        'traces' => ['traces', ['aggregation' => 'p95'], 'A trace rule reads at most a one-hour window.'],
+        'logs' => ['logs', ['aggregation' => 'count'], 'A rule reads at most a 24-hour window.'],
     ]);
 
     it('saves changes, makes the rule due now and starts its health over', function () {

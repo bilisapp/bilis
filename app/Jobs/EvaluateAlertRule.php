@@ -15,6 +15,7 @@ use App\Services\Alerting\AlertNotifier;
 use App\Services\Alerting\AlertSources;
 use App\Services\Alerting\AlertStateMachine;
 use App\Services\Alerting\Labels;
+use App\Services\Alerting\Sources\AlertReading;
 use App\Services\Alerting\Sources\AlertSourceUnavailable;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -93,8 +94,9 @@ class EvaluateAlertRule implements ShouldBeUnique, ShouldQueue
             return;
         }
 
-        // A delayed job must never move a rule's instances back in time.
-        if ($rule->last_evaluated_at !== null && $rule->last_evaluated_at->getTimestamp() > $this->evaluatedAt) {
+        // A delayed job must never move a rule's instances back in time. This
+        // early check only saves the read; the writes check again under a lock.
+        if ($this->isOutdatedFor($rule)) {
             return;
         }
 
@@ -108,7 +110,7 @@ class EvaluateAlertRule implements ShouldBeUnique, ShouldQueue
         }
 
         try {
-            $series = $sources->for($rule->source)->evaluate(
+            $reading = $sources->for($rule->source)->evaluate(
                 $rule,
                 $projectIds,
                 $evaluatedAt->subSeconds($rule->window_seconds),
@@ -126,22 +128,64 @@ class EvaluateAlertRule implements ShouldBeUnique, ShouldQueue
             return;
         }
 
-        $this->recordEvaluation($rule, $series, $notifier);
+        $this->recordEvaluation($rule, $reading, $notifier);
     }
 
     /**
      * The queue gave up on the job (timeout, or an error outside the source):
      * the rule's health says so, and its instances are left as they were.
+     *
+     * Not when a newer evaluation — or this one — has already recorded an
+     * outcome: an old tick that timed out must not turn a healthy rule `err`,
+     * rewind `last_evaluated_at` or send a `rule_error`.
      */
     public function failed(?Throwable $exception): void
     {
         $rule = AlertRule::query()->find($this->ruleId);
 
-        if ($rule === null) {
+        if ($rule === null || $this->isOutdatedFor($rule, includingThisTick: true)) {
             return;
         }
 
-        $this->recordError($rule, 'The evaluation did not finish: '.($exception?->getMessage() ?? 'unknown error'), app(AlertNotifier::class));
+        $this->recordError(
+            $rule,
+            'The evaluation did not finish: '.($exception?->getMessage() ?? 'unknown error'),
+            app(AlertNotifier::class),
+            includingThisTick: true,
+        );
+    }
+
+    /**
+     * Whether the rule has already been evaluated past this job's timestamp
+     * (or, with `$includingThisTick`, at it).
+     */
+    private function isOutdatedFor(AlertRule $rule, bool $includingThisTick = false): bool
+    {
+        $last = $rule->last_evaluated_at?->getTimestamp();
+
+        if ($last === null) {
+            return false;
+        }
+
+        return $includingThisTick ? $last >= $this->evaluatedAt : $last > $this->evaluatedAt;
+    }
+
+    /**
+     * The rule row, locked for the rest of the transaction, unless it is gone,
+     * turned off, or already evaluated past this job — rechecked here because
+     * two evaluations of one rule can both pass the early check in `handle()`.
+     * The lock is `SELECT … FOR UPDATE` on PostgreSQL; SQLite serialises
+     * writers on its own and Laravel compiles no lock clause there.
+     */
+    private function lockedRule(AlertRule $rule, bool $includingThisTick = false): ?AlertRule
+    {
+        $locked = AlertRule::query()->lockForUpdate()->find($rule->id);
+
+        if ($locked === null || ! $locked->enabled || $this->isOutdatedFor($locked, $includingThisTick)) {
+            return null;
+        }
+
+        return $locked;
     }
 
     /**
@@ -170,21 +214,29 @@ class EvaluateAlertRule implements ShouldBeUnique, ShouldQueue
     /**
      * Apply one successful reading to the rule's instances, in one transaction.
      *
-     * @param  list<array{labels: array<string, string>, value: float}>  $series
+     * A truncated reading (the source kept only the most extreme series) says
+     * nothing about the series it left out, so known instances missing from it
+     * keep their state rather than taking the no-data path.
      */
-    private function recordEvaluation(AlertRule $rule, array $series, AlertNotifier $notifier): void
+    private function recordEvaluation(AlertRule $rule, AlertReading $reading, AlertNotifier $notifier): void
     {
         $evaluatedAt = CarbonImmutable::createFromTimestampUTC($this->evaluatedAt);
-        $settings = AlertEvaluationSettings::fromRule($rule);
 
         $seen = [];
-        foreach ($series as $entry) {
+        foreach ($reading->series as $entry) {
             $seen[Labels::hash($entry['labels'])] = $entry;
         }
 
-        $kept = $this->capped($seen, $rule->condition);
+        DB::transaction(function () use ($rule, $reading, $seen, $evaluatedAt, $notifier): void {
+            $rule = $this->lockedRule($rule);
 
-        DB::transaction(function () use ($rule, $seen, $kept, $settings, $evaluatedAt, $notifier): void {
+            if ($rule === null) {
+                return;
+            }
+
+            $settings = AlertEvaluationSettings::fromRule($rule);
+            $kept = $this->capped($seen, $rule->condition);
+
             $rule->forceFill([
                 'health' => AlertRuleHealth::Ok,
                 'last_error' => null,
@@ -215,8 +267,11 @@ class EvaluateAlertRule implements ShouldBeUnique, ShouldQueue
             }
 
             // Known series absent from the reading: the no-data case. Series
-            // that had data but fell outside the cap are left as they were.
-            $absent = $existing->reject(fn (AlertInstance $instance): bool => isset($seen[$instance->labels_hash]));
+            // that had data but fell outside the cap — ours, or the source's
+            // when it says the reading was truncated — are left as they were.
+            $absent = $reading->truncated
+                ? new Collection
+                : $existing->reject(fn (AlertInstance $instance): bool => isset($seen[$instance->labels_hash]));
 
             foreach ($absent as $instance) {
                 $result = AlertStateMachine::next($instance->toState(), null, $settings, $evaluatedAt);
@@ -263,12 +318,19 @@ class EvaluateAlertRule implements ShouldBeUnique, ShouldQueue
      * Mark the rule's health `err`, change no instance, and on the edge into
      * `err` record (and notify) one `rule_error` event.
      */
-    private function recordError(AlertRule $rule, string $message, AlertNotifier $notifier): void
+    private function recordError(AlertRule $rule, string $message, AlertNotifier $notifier, bool $includingThisTick = false): void
     {
         $evaluatedAt = CarbonImmutable::createFromTimestampUTC($this->evaluatedAt);
-        $wasFailing = $rule->health === AlertRuleHealth::Err;
 
-        DB::transaction(function () use ($rule, $message, $notifier, $evaluatedAt, $wasFailing): void {
+        DB::transaction(function () use ($rule, $message, $notifier, $evaluatedAt, $includingThisTick): void {
+            $rule = $this->lockedRule($rule, $includingThisTick);
+
+            if ($rule === null) {
+                return;
+            }
+
+            $wasFailing = $rule->health === AlertRuleHealth::Err;
+
             $rule->forceFill([
                 'health' => AlertRuleHealth::Err,
                 'last_error' => Str::limit($message, 1000),
@@ -312,6 +374,10 @@ class EvaluateAlertRule implements ShouldBeUnique, ShouldQueue
             'labels' => $labels,
             'value' => $value,
             'threshold' => $rule->threshold,
+            // Frozen with the threshold, so the message never pairs this
+            // event's threshold with a condition edited since.
+            'condition' => $rule->condition,
+            'severity' => $rule->severity,
             'occurred_at' => $evaluatedAt,
             'context' => [
                 'labels' => $labels,

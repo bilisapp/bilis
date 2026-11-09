@@ -20,9 +20,11 @@ class AlertInstanceFactory extends Factory
      */
     public function definition(): array
     {
-        $labels = ['service.name' => fake()->unique()->randomElement([
+        // A realistic name, made unique by a suffix: `unique()` over the
+        // eight names alone would run out on the ninth instance.
+        $labels = ['service.name' => fake()->randomElement([
             'checkout', 'payments', 'auth', 'search', 'worker', 'gateway', 'inventory', 'emails',
-        ])];
+        ]).'-'.fake()->unique()->numberBetween(1, 999_999)];
 
         return [
             'alert_rule_id' => AlertRule::factory(),

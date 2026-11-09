@@ -161,6 +161,38 @@ class MetricQuery
     }
 
     /**
+     * Whether the given projects have ever reported this metric, in any of the
+     * five tables. What default-alert provisioning asks before installing a
+     * metric template: a host whose agent does not emit `*.utilization` gets
+     * no rule that could only ever read "no data".
+     *
+     * Every branch leads with the sort key (`ProjectId`, `MetricName`) and
+     * stops at its first row. Unlike {@see hasHosts()} nothing is swallowed:
+     * an overloaded or failing ClickHouse throws, so the caller skips and
+     * asks again later rather than acting on a guess.
+     *
+     * @param  list<string>  $projectIds
+     */
+    public function hasMetric(array $projectIds, string $metric): bool
+    {
+        if ($projectIds === []) {
+            return false;
+        }
+
+        $branches = array_map(
+            fn (string $table): string => "(SELECT 1 FROM {$table} WHERE ProjectId IN {projectIds:Array(String)} AND MetricName = {metric:String} LIMIT 1)",
+            array_values(self::TABLES),
+        );
+
+        $rows = $this->client->select(
+            'SELECT 1 FROM ('.implode(' UNION ALL ', $branches).') LIMIT 1',
+            ['projectIds' => self::arrayParameter($projectIds), 'metric' => $metric],
+        );
+
+        return $rows !== [];
+    }
+
+    /**
      * Every host that reported in the window, with how it is doing now.
      *
      * A host is a `host.name` that sent one of the host-metrics receiver's
@@ -447,12 +479,16 @@ class MetricQuery
             return $this->builder->empty($filters);
         }
 
-        // A catalog that could not be read is not a metric without data.
-        if ($this->catalog($projectIds, $filters)['unavailable']) {
+        // A catalog that could not be read is not a metric without data. The
+        // entry comes from this same read, so a second catalog read can never
+        // turn a failure back into an empty chart.
+        $catalog = $this->catalog($projectIds, $filters);
+
+        if ($catalog['unavailable']) {
             return $this->builder->empty($filters, unavailable: true);
         }
 
-        $entry = $this->entry($projectIds, $filters);
+        $entry = self::findEntry($catalog['metrics'], $filters->metric);
 
         if ($entry === null) {
             return $this->builder->empty($filters);
@@ -619,8 +655,19 @@ class MetricQuery
      */
     public function entry(array $projectIds, MetricFilters $filters): ?array
     {
-        foreach ($this->catalog($projectIds, $filters)['metrics'] as $entry) {
-            if ($entry['name'] === $filters->metric) {
+        return self::findEntry($this->catalog($projectIds, $filters)['metrics'], $filters->metric);
+    }
+
+    /**
+     * The named metric's entry in a catalog already read.
+     *
+     * @param  list<CatalogEntry>  $metrics
+     * @return CatalogEntry|null
+     */
+    private static function findEntry(array $metrics, ?string $metric): ?array
+    {
+        foreach ($metrics as $entry) {
+            if ($entry['name'] === $metric) {
                 return $entry;
             }
         }

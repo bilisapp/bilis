@@ -18,7 +18,10 @@ use Carbon\CarbonImmutable;
  * out: nothing is evaluating them any more. Muted rules stay in: muting
  * silences delivery, not the truth.
  *
- * @phpstan-type NeedsAttentionList array{items: list<array<string, mixed>>, total: int}
+ * `total` and `firing` count every listed series, not only the eight shown,
+ * so the card's header stays true when the list is cut.
+ *
+ * @phpstan-type NeedsAttentionList array{items: list<array<string, mixed>>, total: int, firing: int}
  */
 class NeedsAttention
 {
@@ -54,6 +57,7 @@ class NeedsAttention
                 'ruleHref' => route('alerts.edit', ['current_team' => $team->slug, 'alertRule' => $instance->rule->id]),
             ])->all()),
             'total' => $instances->count(),
+            'firing' => $instances->filter(fn (AlertInstance $instance): bool => $instance->state === AlertState::Firing)->count(),
         ];
     }
 

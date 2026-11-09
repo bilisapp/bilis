@@ -261,24 +261,54 @@ test('a project with issues says so and an unknown one does not', function () {
         ->and($query->hasAnyIssues(['1'.random_int(100000, 999999)]))->toBeFalse();
 });
 
-test('alert candidates nominate from the recent hours and keep only what is new or just arrived', function () {
+test('new-issue alert candidates nominate from the recent hours and keep only issues that began inside the bound', function () {
     $query = app(IssueQuery::class);
     $now = Carbon::now('UTC');
 
-    // Everything here arrived seconds ago, so the arrival bound keeps all three issues…
-    $recent = $query->alertCandidates([$this->projectId], $now->clone()->subHour(), $now->clone()->subMinutes(3), $now->clone()->subMinutes(3));
-    expect($recent)->toHaveCount(3);
+    // PaymentFailed began three hours ago and billing thirty minutes ago; only orders is new.
+    $new = $query->newIssueCandidates([$this->projectId], $now->clone()->subHour(), $now->clone()->subMinutes(20));
+    expect(collect($new)->pluck('service')->all())->toBe(['orders'])
+        ->and($new[0]['events'])->toBe(4);
 
-    $payment = collect($recent)->firstWhere('type', 'App\\Exceptions\\PaymentFailed');
-    // Re-aggregated across both insert blocks; first seen is the oldest event's time.
-    expect($payment['events'])->toBe(3)
-        ->and($payment['service'])->toBe('checkout')
-        ->and($payment['message'])->toBe('Card 4242 was declined')
-        ->and($payment['firstSeen'])->toBeLessThan($now->clone()->subHours(2)->getTimestampMs())
-        ->and($payment['lastIngested'])->toBeGreaterThan($now->clone()->subMinute()->getTimestampMs());
+    expect($query->newIssueCandidates([$this->projectId], $now->clone()->subHour(), $now->clone()->addMinute()))->toBe([]);
+});
 
-    // …while a first-seen bound alone keeps only issues that began inside it.
-    $future = $now->clone()->addMinute();
-    $new = $query->alertCandidates([$this->projectId], $now->clone()->subHour(), $now->clone()->subMinutes(20), $future);
-    expect(collect($new)->pluck('service')->sort()->values()->all())->toBe(['orders']);
+test('regression candidates are looked up by key on arrival time, so an old event flushed late still counts', function () {
+    $query = app(IssueQuery::class);
+    $now = Carbon::now('UTC');
+
+    // A buffered SDK flushes an event stamped two days ago: issue_hourly files it under that old hour.
+    app(LogWriter::class)->write([
+        liveIssueRow($this->projectId, $now->clone()->subDays(2), 'worker', ['exception.type' => 'LateFlush', 'exception.stacktrace' => '#0 /srv/app/Queue.php(9): App\\Queue->drain()'], body: 'LateFlush: buffered'),
+    ]);
+
+    $fingerprint = null;
+
+    for ($attempt = 0; $attempt < 50 && $fingerprint === null; $attempt++) {
+        $rows = $this->client->select(
+            'SELECT IssueFingerprint FROM issue_summary WHERE ProjectId = {p:String} GROUP BY IssueFingerprint HAVING argMaxMerge(ExceptionType) = {t:String}',
+            ['p' => $this->projectId, 't' => 'LateFlush'],
+        );
+        $fingerprint = $rows[0]['IssueFingerprint'] ?? null;
+
+        if ($fingerprint === null) {
+            usleep(100_000);
+        }
+    }
+
+    expect($fingerprint)->toBeString();
+
+    // The hour nomination cannot see it, however wide the first-seen bound…
+    $new = $query->newIssueCandidates([$this->projectId], $now->clone()->subHour(), $now->clone()->subDays(3));
+    expect(collect($new)->pluck('fingerprint'))->not->toContain($fingerprint);
+
+    // …while the key lookup does, re-aggregated, with its arrival time.
+    $regressed = $query->regressionCandidates([$this->projectId], [$fingerprint, str_repeat('0', 64)], $now->clone()->subMinutes(3));
+    expect($regressed)->toHaveCount(1)
+        ->and($regressed[0]['fingerprint'])->toBe($fingerprint)
+        ->and($regressed[0]['type'])->toBe('LateFlush')
+        ->and($regressed[0]['firstSeen'])->toBeLessThan($now->clone()->subDay()->getTimestampMs())
+        ->and($regressed[0]['lastIngested'])->toBeGreaterThan($now->clone()->subMinute()->getTimestampMs());
+
+    expect($query->regressionCandidates([$this->projectId], [$fingerprint], $now->clone()->addMinute()))->toBe([]);
 });

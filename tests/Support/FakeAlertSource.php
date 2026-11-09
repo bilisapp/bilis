@@ -3,8 +3,10 @@
 namespace Tests\Support;
 
 use App\Models\AlertRule;
+use App\Services\Alerting\Sources\AlertReading;
 use App\Services\Alerting\Sources\AlertSource;
 use Carbon\CarbonImmutable;
+use Closure;
 use Throwable;
 
 /**
@@ -18,7 +20,13 @@ class FakeAlertSource implements AlertSource
     /** @var list<array{labels: array<string, string>, value: float}> */
     public array $series = [];
 
+    /** whether the reading says series were left out */
+    public bool $truncated = false;
+
     public ?Throwable $throw = null;
+
+    /** runs inside {@see evaluate()}, before it answers — to change the world mid-read */
+    public ?Closure $during = null;
 
     /** @var array<string, mixed> what {@see rules()} answers */
     public array $rules = [];
@@ -32,15 +40,19 @@ class FakeAlertSource implements AlertSource
     /** @var list<array{project_ids: list<string>, from: CarbonImmutable, to: CarbonImmutable}> */
     public array $calls = [];
 
-    public function evaluate(AlertRule $rule, array $projectIds, CarbonImmutable $from, CarbonImmutable $to): array
+    public function evaluate(AlertRule $rule, array $projectIds, CarbonImmutable $from, CarbonImmutable $to): AlertReading
     {
         $this->calls[] = ['project_ids' => $projectIds, 'from' => $from, 'to' => $to];
+
+        if ($this->during !== null) {
+            ($this->during)();
+        }
 
         if ($this->throw !== null) {
             throw $this->throw;
         }
 
-        return $this->series;
+        return new AlertReading($this->series, $this->truncated);
     }
 
     public function preview(AlertRule $rule, array $projectIds, CarbonImmutable $from, CarbonImmutable $to, int $stepSeconds): array

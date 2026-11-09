@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { BellOff, CircleCheck, CircleDashed, TriangleAlert } from '@lucide/vue';
 import { computed } from 'vue';
+import { ALERT_STATE_LABEL } from '@/lib/alerts';
 import { cn } from '@/lib/utils';
 import type { AlertInstanceState } from '@/types';
 
@@ -32,9 +33,7 @@ const word = computed(
     () =>
         props.label ??
         {
-            firing: 'Firing',
-            pending: 'Pending',
-            inactive: 'OK',
+            ...ALERT_STATE_LABEL,
             error: 'Error',
             disabled: 'Disabled',
             muted: 'Muted',

@@ -45,12 +45,14 @@ list-metrics — checked against the catalog *before* `series()`, whose empty
 result cannot tell "no such metric" from "no points in the window".
 
 ## `list-alerts` reads only the app database
-`list-alerts` is the one tool that never touches ClickHouse: it reads
-`alert_instances` (firing/pending, joined to rules of the resolved team) and
+`list-alerts` reads the app database only, never ClickHouse (like
+`list-teams`): `alert_instances` (firing/pending, joined to the resolved team's
+**enabled** rules — a disabled rule's stale series are not alerts) and
 `alert_events` (`team_id` = the resolved team), both team-bounded by
 `ResolvesScope`. History window defaults to 24 h, is capped at 7 days
 (`ListAlertsTool::MAX_WINDOW_DAYS`), `limit` 1–200 (default 50) with a
-`truncated` flag; active instances are capped at 200, firing first. Event
+`truncated` flag; active instances are ordered and capped at 200 in SQL,
+firing first, with an `activeTruncated` flag. Event
 wording comes from `AlertMessage::fromEvent()` — the same title, headline and
 `issue` object a notification carries — so do not re-render events here. It
 never mutes, acknowledges or edits.

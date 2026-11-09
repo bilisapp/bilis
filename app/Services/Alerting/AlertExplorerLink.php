@@ -5,6 +5,7 @@ namespace App\Services\Alerting;
 use App\Models\AlertRule;
 use App\Models\Project;
 use App\Models\Team;
+use App\Services\Metrics\MetricFilters;
 use Carbon\CarbonImmutable;
 
 /**
@@ -14,7 +15,14 @@ use Carbon\CarbonImmutable;
  *
  * Built with named routes and the same query keys the pages read
  * (`LogFilters`, `TraceFilters`, `MetricFilters::fromRequest()`), so a link
- * never invents a parameter the page would ignore.
+ * never invents a parameter the page would ignore — nor more of one than the
+ * page accepts (`where` is capped at {@see MetricFilters::MAX_WHERE}).
+ *
+ * An `error_ratio` trace rule opens the trace list on its errors only
+ * (`errors=1`): the ratio says something is failing, and the failing
+ * requests are what a person follows the link to read. The volume behind the
+ * ratio is one click away (clearing the filter), and the page's histogram
+ * still shows it.
  */
 final class AlertExplorerLink
 {
@@ -48,8 +56,10 @@ final class AlertExplorerLink
             'metrics' => route('metrics.index', array_filter([
                 ...$base,
                 'metric' => is_string($query['metric'] ?? null) ? $query['metric'] : null,
-                'where' => [...$filters, ...$labels] ?: null,
+                'where' => self::metricWhere($filters, $labels) ?: null,
                 'group_by' => is_string($query['group_by'] ?? null) && $query['group_by'] !== '' ? $query['group_by'] : null,
+                // The explorer combines a gauge's series with `agg`; percentiles and sums are its own reading.
+                'agg' => in_array($query['aggregation'] ?? null, ['min', 'max'], true) ? $query['aggregation'] : null,
             ], fn (mixed $value): bool => $value !== null)),
             default => null,
         };
@@ -72,6 +82,30 @@ final class AlertExplorerLink
             ->value('slug');
 
         return is_string($slug) ? $slug : null;
+    }
+
+    /**
+     * The rule's attribute filters with the instance's labels, at most as many
+     * as the explorer accepts. The labels name the series, so they come first
+     * and win over a filter on the same attribute; filters beyond the cap are
+     * dropped (the chart then shows a little more than the rule read, rather
+     * than the page refusing the link).
+     *
+     * @param  array<array-key, mixed>  $filters
+     * @param  array<string, string>  $labels
+     * @return array<string, string>
+     */
+    private static function metricWhere(array $filters, array $labels): array
+    {
+        $where = $labels;
+
+        foreach ($filters as $attribute => $value) {
+            if (is_string($attribute) && is_string($value) && ! array_key_exists($attribute, $where)) {
+                $where[$attribute] = $value;
+            }
+        }
+
+        return array_slice($where, 0, MetricFilters::MAX_WHERE, true);
     }
 
     /**

@@ -31,7 +31,9 @@ user's job changes from *building* rules to *tuning or turning off* the ones Bil
   later*. Templates use it, so a new project is covered without anyone touching the rule. The job
   resolves it to the team's current project ids.
 - **Baseline comparison.** The optional `query.compare = {"offset_seconds": 604800}` (logs and
-  traces sources) changes the value to `current / max(baseline, 1)`:
+  traces sources) changes the value to `current / baseline` — floored at 1 for counts only
+  (`current / max(baseline, 1)` for logs `count` / `rate` and traces `count`; see the refinement
+  below):
   - `current` is the window's reading, and `baseline` is the same reading over the same-length
     window `offset_seconds` earlier;
   - it is one more query through the same query-service method;
@@ -82,8 +84,10 @@ them alerting.
   1. **Default channel, once.** If `teams.alerting_provisioned_at` is null, create an email channel
      "Team email" (`recipients: members`, `issue_events: true`), link it as the default, and stamp
      the team. A user who later deletes it is never given it back.
-  2. **Detection.** Use `LogQuery::hasAnyLogs`, `TraceQuery::hasAnyTraces` and
-     `MetricQuery::hasHosts` over the team's projects (already cached or cheap).
+  2. **Detection.** Use `LogQuery::hasAnyLogs`, `TraceQuery::hasAnyTraces` and, for a host
+     template, `MetricQuery::hasMetric` on the very metric the rule reads (the `*.utilization`
+     gauges are opt-in in the host scraper, so "this team has hosts" is not enough) — each over the
+     team's projects, at most once per kind or metric per run.
   3. **Templates.** For each template whose `requires` holds:
      - **no rule with that `template_key`:** create it, with `project_ids = null`, linked to the
        team's default channel, and due now;
@@ -92,8 +96,10 @@ them alerting.
      - **a rule exists and was edited or turned off:** leave it alone.
 - **Turning off.** Deleting a template rule turns it off (`enabled = false`) rather than deleting
   the row, so the reconciler sees it and does not recreate it. The UI says "Turn off", not "Delete".
-- **Detection failures.** If ClickHouse cannot be read, that template is skipped and retried on the
-  next run.
+- **Detection failures.** If ClickHouse cannot be read — overload included — that template is
+  skipped and retried on the next run. Detection asks the query services to throw rather than
+  guess: the optimistic "yes" the pages give under overload would install rules for data the team
+  never sent.
 - **No extra table.** The rule row (`template_key`, `template_version`, `customized_at`) and
   `teams.alerting_provisioned_at` are all the state there is.
 
@@ -161,5 +167,9 @@ thresholds from feedback. Revisit after real data shows which defaults are noisy
 - **Banner dismissal.** "Bilis set up N alerts" is dismissed in `localStorage`, keyed per user and
   team, storing the count dismissed — a new template rule brings it back. With storage unavailable
   it shows, and dismissing hides it for the visit.
-- **Detection overload.** `hasAnyLogs` / `hasAnyTraces` answer *yes* under ClickHouse overload,
-  `hasHosts` answers *no*; only a thrown detection counts as "skipped, retried next run".
+- **Detection overload.** `hasAnyLogs` / `hasAnyTraces` answer *yes* under ClickHouse overload for
+  the pages, so provisioning calls them with `throwOnOverload: true`; `hasMetric` always throws.
+  Any failed detection counts as "skipped, retried next run" (`ProvisionResult::$undetectable`).
+- **Host templates detect their own metric.** `requires: hosts` is checked as "the team reports the
+  metric this rule reads", not "the team has hosts" — a host without the utilization gauges would
+  otherwise get a `hosts.silent` rule whose no-data state fires for a series that never existed.

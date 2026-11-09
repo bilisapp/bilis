@@ -199,7 +199,10 @@ Channels are set up once per team, under **Team settings → Alert
 notifications** (owners and admins), and each rule picks the channels it sends to. A
 channel can send a test message, and shows its last delivery failure.
 
-- **Email** — to every team member, or to a list of addresses.
+- **Email** — to every team member, or to a list of addresses. On a
+  self-hosted install it goes through your mailer (`MAIL_*`). With Mailgun,
+  the endpoint defaults to the **EU** region; a US-region account must set
+  `MAILGUN_ENDPOINT=api.mailgun.net`.
 - **Slack** — a Slack
   [incoming webhook](https://api.slack.com/messaging/webhooks) URL. No bot and
   no OAuth: create the webhook in Slack, paste its URL. It must be on

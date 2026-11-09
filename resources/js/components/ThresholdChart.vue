@@ -12,6 +12,7 @@ import {
     formatLabels,
     formatSeconds,
     previewSeriesName,
+    thresholdAxisMax,
 } from '@/lib/alerts';
 import type { BilisChartOption } from '@/lib/echarts';
 import type { AlertCompare, AlertCondition, AlertPreviewResult } from '@/types';
@@ -36,12 +37,14 @@ const props = withDefaults(
         aggregation: string;
         /** A compared rule: every point is a multiple of its baseline. */
         compare?: AlertCompare | null;
+        /** The metric a metrics rule reads; `*.utilization` reads as a percentage. */
+        metric?: string | null;
         condition: AlertCondition;
         threshold: number | null;
         loading?: boolean;
         height?: string | number;
     }>(),
-    { compare: null, loading: false, height: '14rem' },
+    { compare: null, metric: null, loading: false, height: '14rem' },
 );
 
 const { tokens } = useChartTokens();
@@ -82,7 +85,13 @@ const starts = computed(() => {
 const step = computed(() => (props.result?.stepSeconds ?? 60) * 1000);
 
 const format = (value: number | null) =>
-    formatAlertValue(value, props.source, props.aggregation, props.compare);
+    formatAlertValue(
+        value,
+        props.source,
+        props.aggregation,
+        props.compare,
+        props.metric,
+    );
 
 /** How many separate times the condition held: a rough "would have fired". */
 const breaches = computed(() => ranges.value.length);
@@ -167,13 +176,27 @@ const option = computed<BilisChartOption>(() => {
                 formatter: (value: number) => format(value),
             },
             // Keep the threshold on the chart even when every value is far below it.
-            max: (extent: { max: number }) =>
-                threshold.value !== null && threshold.value > extent.max
-                    ? threshold.value * 1.1
-                    : undefined,
+            max: (extent: { min: number; max: number }) =>
+                thresholdAxisMax(threshold.value, extent),
         },
         series: lines,
     } as BilisChartOption;
+});
+
+/** What a screen reader hears for the chart: the rule and what it would have done. */
+const label = computed(() => {
+    const rule =
+        threshold.value === null
+            ? 'no threshold set'
+            : `threshold ${props.condition} ${format(threshold.value)}`;
+    const crossed =
+        threshold.value === null
+            ? ''
+            : breaches.value === 0
+              ? ', never crossed'
+              : `, crossed ${breaches.value} ${breaches.value === 1 ? 'time' : 'times'}`;
+
+    return `Rule preview over the last 24 hours: ${series.value.length} series, ${rule}${crossed}.`;
 });
 
 const caption = computed(() => {
@@ -279,7 +302,11 @@ const caption = computed(() => {
                 series.length === 1 ? formatLabels(series[0].labels) : undefined
             "
         >
-            <ChartCanvas :option="option" :height="height" />
+            <ChartCanvas
+                :option="option"
+                :height="height"
+                :aria-label="label"
+            />
         </div>
     </div>
 </template>

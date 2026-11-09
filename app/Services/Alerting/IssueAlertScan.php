@@ -23,15 +23,18 @@ use Throwable;
 /**
  * New and regressed issue events (specs/alerting.md, "Issue events").
  *
- * `alerts:evaluate` dispatches {@see ScanIssueAlerts} every minute, but only
- * while some team has an enabled channel flagged `issue_events`; the job calls
- * {@see scan()}, which reads ClickHouse once per such team and nobody else.
+ * `alerts:evaluate` dispatches one {@see ScanIssueAlerts} per minute for each
+ * team with an enabled channel flagged `issue_events`; the job calls
+ * {@see scanTeamId()}, so a slow team never starves the next one of its
+ * time budget, and a team without such a channel costs no ClickHouse read.
  *
  * - **issue_new:** an issue whose `FirstSeen` is within the last
  *   {@see LOOKBACK_SECONDS}, unless someone has already ignored it.
  * - **issue_regressed:** a resolved issue whose last event arrived after
- *   `resolved_at` — {@see IssueState}'s own rule —
- *   among issues whose last event arrived within the lookback.
+ *   `resolved_at` — {@see IssueState}'s own rule — among the team's
+ *   resolved issues whose last event arrived within the lookback. Looked up
+ *   by key from the app database's resolved set, not nominated by event
+ *   hour, so a late-flushed old event still counts.
  *
  * The lookback overlaps consecutive scans on purpose; `dedupe_key` makes the
  * overlap harmless. The regression key carries `resolved_at`, so resolving the
@@ -44,6 +47,8 @@ use Throwable;
  *
  * A storage failure for one team is reported and that team skipped; nothing
  * here throws out of the job.
+ *
+ * @phpstan-import-type AlertCandidate from IssueQuery
  */
 class IssueAlertScan
 {
@@ -64,33 +69,52 @@ class IssueAlertScan
     ) {}
 
     /**
-     * Whether any team would receive an issue event at all — the cheap check
-     * that decides whether a scan is dispatched.
+     * The teams that would receive an issue event at all, in id order — the
+     * cheap check that decides which scans are dispatched.
+     *
+     * @return list<int>
      */
-    public function hasSubscribers(): bool
+    public function subscribedTeamIds(): array
     {
-        return $this->subscribedTeams()->exists();
+        return array_values(array_map(intval(...), $this->subscribedTeams()->orderBy('id')->pluck('id')->all()));
     }
 
     /**
-     * Scan every subscribed team.
+     * Scan every subscribed team in turn (what the per-team jobs do, inline).
      *
      * @return int the number of events recorded
      */
     public function scan(?CarbonImmutable $now = null): int
     {
         $now ??= CarbonImmutable::now('UTC');
-        $recorded = 0;
 
-        foreach ($this->subscribedTeams()->get() as $team) {
-            try {
-                $recorded += $this->scanTeam($team, $now);
-            } catch (Throwable $exception) {
-                report($exception);
-            }
+        return array_sum(array_map(
+            fn (int $teamId): int => $this->scanTeamId($teamId, $now),
+            $this->subscribedTeamIds(),
+        ));
+    }
+
+    /**
+     * Scan one team if it still takes issue events. A failure is reported and
+     * counts as nothing recorded; the next tick overlaps this one.
+     *
+     * @return int the number of events recorded
+     */
+    public function scanTeamId(int $teamId, ?CarbonImmutable $now = null): int
+    {
+        $team = $this->subscribedTeams()->whereKey($teamId)->first();
+
+        if ($team === null) {
+            return 0;
         }
 
-        return $recorded;
+        try {
+            return $this->scanTeam($team, $now ?? CarbonImmutable::now('UTC'));
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return 0;
+        }
     }
 
     /**
@@ -108,60 +132,68 @@ class IssueAlertScan
         }
 
         $since = Carbon::instance($now->subSeconds(self::LOOKBACK_SECONDS));
+        $projectIds = array_values(array_map('strval', $projects->keys()->all()));
 
-        $candidates = $this->issues->alertCandidates(
-            array_values(array_map('strval', $projects->keys()->all())),
-            Carbon::instance($now->subHour()),
-            $since,
-            $since,
-        );
+        $resolved = $this->resolvedIssues($projectIds);
 
-        if ($candidates === null) {
+        $newCandidates = $this->issues->newIssueCandidates($projectIds, Carbon::instance($now->subHour()), $since);
+        $regressionCandidates = $resolved === []
+            ? []
+            : $this->issues->regressionCandidates(
+                $projectIds,
+                array_values(array_unique(array_map(fn (Issue $issue): string => $issue->fingerprint, $resolved))),
+                $since,
+            );
+
+        if ($newCandidates === null || $regressionCandidates === null) {
             // Overloaded: IssueQuery has reported it. The next tick overlaps this one.
             return 0;
         }
 
-        if ($candidates === []) {
+        if ($newCandidates === [] && $regressionCandidates === []) {
             return 0;
         }
 
-        $decisions = $this->decisions($candidates);
+        $ignored = $this->ignoredIssues($newCandidates);
 
-        return DB::transaction(function () use ($team, $projects, $candidates, $decisions, $since, $now): int {
+        return DB::transaction(function () use ($team, $projects, $newCandidates, $regressionCandidates, $ignored, $resolved, $since, $now): int {
             $eventIds = [];
             $newRecorded = 0;
 
-            foreach ($candidates as $candidate) {
+            foreach ($newCandidates as $candidate) {
                 $project = $projects->get($candidate['projectId']);
 
-                if ($project === null) {
+                if ($project === null
+                    || $candidate['firstSeen'] < $since->getTimestampMs()
+                    || isset($ignored[$candidate['projectId'].':'.$candidate['fingerprint']])
+                    || $newRecorded >= self::MAX_NEW_PER_TEAM
+                ) {
                     continue;
                 }
 
-                $decision = $decisions[$candidate['projectId'].':'.$candidate['fingerprint']] ?? null;
+                $id = $this->record($team, $project, $candidate, AlertEventType::IssueNew, null, $now);
 
-                if ($candidate['firstSeen'] >= $since->getTimestampMs()
-                    && $decision?->status !== IssueStatus::Ignored
-                    && $newRecorded < self::MAX_NEW_PER_TEAM
+                if ($id !== null) {
+                    $eventIds[] = $id;
+                    $newRecorded++;
+                }
+            }
+
+            foreach ($regressionCandidates as $candidate) {
+                $project = $projects->get($candidate['projectId']);
+                $decision = $resolved[$candidate['projectId'].':'.$candidate['fingerprint']] ?? null;
+
+                if ($project === null
+                    || $decision?->resolved_at === null
+                    || $candidate['lastIngested'] <= $decision->resolved_at->getTimestampMs()
                 ) {
-                    $id = $this->record($team, $project, $candidate, AlertEventType::IssueNew, null, $now);
-
-                    if ($id !== null) {
-                        $eventIds[] = $id;
-                        $newRecorded++;
-                    }
+                    continue;
                 }
 
-                if ($decision !== null
-                    && $decision->status === IssueStatus::Resolved
-                    && $decision->resolved_at !== null
-                    && $candidate['lastIngested'] > $decision->resolved_at->getTimestampMs()
-                ) {
-                    $id = $this->record($team, $project, $candidate, AlertEventType::IssueRegressed, $decision, $now);
+                $id = $this->record($team, $project, $candidate, AlertEventType::IssueRegressed, $decision, $now);
 
-                    if ($id !== null) {
-                        $eventIds[] = $id;
-                    }
+                if ($id !== null) {
+                    $eventIds[] = $id;
                 }
             }
 
@@ -193,32 +225,56 @@ class IssueAlertScan
     }
 
     /**
-     * The people's decisions about these issues, keyed `projectId:fingerprint`.
+     * The team's resolved issues — the only ones that can regress — keyed
+     * `projectId:fingerprint`. One query.
      *
-     * @param  list<array{projectId: string, fingerprint: string}>  $candidates
+     * @param  list<string>  $projectIds
      * @return array<string, Issue>
      */
-    private function decisions(array $candidates): array
+    private function resolvedIssues(array $projectIds): array
     {
-        $decisions = [];
+        return Issue::query()
+            ->whereIn('project_id', array_map('intval', $projectIds))
+            ->where('status', IssueStatus::Resolved)
+            ->whereNotNull('resolved_at')
+            ->get()
+            ->keyBy(fn (Issue $issue): string => $issue->project_id.':'.$issue->fingerprint)
+            ->all();
+    }
 
-        foreach (collect($candidates)->groupBy('projectId') as $projectId => $group) {
-            Issue::query()
-                ->where('project_id', (int) $projectId)
-                ->whereIn('fingerprint', $group->pluck('fingerprint')->all())
-                ->get()
-                ->each(function (Issue $issue) use (&$decisions): void {
-                    $decisions[$issue->project_id.':'.$issue->fingerprint] = $issue;
-                });
+    /**
+     * Which of these new-issue candidates someone has already ignored, as a
+     * set keyed `projectId:fingerprint`. One query: the fingerprint list is
+     * shared across projects and the pairs are matched here.
+     *
+     * @param  list<AlertCandidate>  $candidates
+     * @return array<string, true>
+     */
+    private function ignoredIssues(array $candidates): array
+    {
+        if ($candidates === []) {
+            return [];
         }
 
-        return $decisions;
+        $wanted = array_fill_keys(array_map(fn (array $candidate): string => $candidate['projectId'].':'.$candidate['fingerprint'], $candidates), true);
+
+        $keys = Issue::query()
+            ->whereIn('project_id', array_values(array_unique(array_map(fn (array $candidate): int => (int) $candidate['projectId'], $candidates))))
+            ->whereIn('fingerprint', array_values(array_unique(array_column($candidates, 'fingerprint'))))
+            ->where('status', IssueStatus::Ignored)
+            ->get(['project_id', 'fingerprint'])
+            ->map(fn (Issue $issue): string => $issue->project_id.':'.$issue->fingerprint)
+            ->filter(fn (string $key): bool => isset($wanted[$key]))
+            ->values()
+            ->all();
+
+        return array_fill_keys($keys, true);
     }
 
     /**
      * Insert one issue event unless its dedupe key exists.
      *
-     * @param  array{projectId: string, fingerprint: string, firstSeen: int, lastIngested: int, events: int, type: string, message: string, service: string}  $candidate
+     * @param  AlertCandidate  $candidate
      * @return int|null the new event's id, or null when it was already recorded
      */
     private function record(Team $team, Project $project, array $candidate, AlertEventType $type, ?Issue $decision, CarbonImmutable $now): ?int

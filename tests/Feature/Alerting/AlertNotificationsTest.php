@@ -1,6 +1,8 @@
 <?php
 
+use App\Enums\AlertCondition;
 use App\Enums\AlertEventType;
+use App\Enums\AlertSeverity;
 use App\Enums\NotificationChannelType;
 use App\Enums\TeamRole;
 use App\Models\AlertEvent;
@@ -14,10 +16,13 @@ use App\Notifications\Channels\DeliveryFailed;
 use App\Notifications\Channels\SlackWebhookChannel;
 use App\Notifications\Channels\WebhookChannel;
 use App\Notifications\Middleware\FailWithoutRetry;
+use App\Services\Alerting\AlertExplorerLink;
+use App\Services\Alerting\AlertMessage;
 use App\Services\Alerting\AlertNotifier;
 use App\Services\Alerting\Webhooks\StandardWebhookSigner;
 use App\Services\Alerting\Webhooks\UnsafeWebhookUrl;
 use App\Services\Alerting\Webhooks\WebhookHostResolver;
+use App\Services\Metrics\MetricFilters;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Request;
 use Illuminate\Notifications\AnonymousNotifiable;
@@ -156,6 +161,19 @@ describe('routing', function () {
         });
     });
 
+    it('records a failure on an email channel that resolves to no recipients', function () {
+        Notification::fake();
+
+        $channel = NotificationChannel::factory()->for($this->team)->create(['config' => ['recipients' => 'members']]);
+        $this->rule->notificationChannels()->attach($channel);
+
+        app(AlertNotifier::class)->notify(firingEvent($this->rule));
+
+        Notification::assertNothingSent();
+        expect($channel->refresh()->last_failed_at)->not->toBeNull()
+            ->and($channel->last_error)->toBe(AlertNotifier::NO_RECIPIENTS);
+    });
+
     it('is a no-op once the event has been pruned or the channel switched off', function () {
         Http::fake();
 
@@ -214,6 +232,33 @@ describe('email', function () {
             ]));
     });
 
+    it('describes the event as it was judged, not as the rule reads after an edit', function () {
+        $event = firingEvent($this->rule);
+        $event->forceFill(['condition' => AlertCondition::GreaterThan, 'severity' => AlertSeverity::Critical])->save();
+        $this->rule->update(['condition' => AlertCondition::LessThan, 'severity' => AlertSeverity::Info, 'threshold' => 500]);
+
+        $message = AlertMessage::fromEvent($event->fresh());
+
+        expect($message->headline)->toBe('The value is 87, above the threshold of 25.')
+            ->and($message->facts['Threshold'])->toBe('> 25')
+            ->and($message->facts['Severity'])->toBe('critical')
+            ->and($message->severity)->toBe(AlertSeverity::Critical)
+            ->and($message->payload['condition'])->toBe('>')
+            ->and($message->payload['severity'])->toBe('critical');
+    });
+
+    it('prints small values with significant digits instead of rounding them to zero', function (float $value, string $text) {
+        expect(AlertMessage::number($value))->toBe($text);
+    })->with([
+        [0.00003, '0.00003'],
+        [0.0000312345, '0.0000312'],
+        [-0.00005, '-0.00005'],
+        [0.0001, '0.0001'],
+        [87.123456, '87.1235'],
+        [0.0, '0'],
+        [-0.0, '0'],
+    ]);
+
     it('links trace and metric rules into their own explorers', function () {
         $channel = NotificationChannel::factory()->for($this->team)->create();
 
@@ -230,6 +275,32 @@ describe('email', function () {
             'current_team' => 'acme', 'from' => '2026-11-08T11:54:00Z', 'to' => '2026-11-08T11:59:00Z',
             'metric' => 'system.cpu.utilization', 'where' => ['host.name' => 'web-1'], 'group_by' => 'host.name',
         ]));
+    });
+
+    it('carries a metric rule\'s min/max into the explorer and never more filters than it accepts', function () {
+        $rule = AlertRule::factory()->forTeam($this->team)->metrics()->create([
+            'project_ids' => null,
+            'query' => [
+                'metric' => 'system.filesystem.utilization',
+                'aggregation' => 'max',
+                'group_by' => 'host.name',
+                'filters' => ['a' => '1', 'b' => '2', 'c' => '3', 'd' => '4', 'e' => '5'],
+            ],
+        ]);
+        $from = CarbonImmutable::parse('2026-11-08T11:54:00Z');
+        $to = CarbonImmutable::parse('2026-11-08T11:59:00Z');
+
+        $url = AlertExplorerLink::forRule($rule, $this->team, ['host.name' => 'db-1'], $from, $to);
+        parse_str((string) parse_url((string) $url, PHP_URL_QUERY), $params);
+
+        expect($params['agg'])->toBe('max')
+            ->and($params['where'])->toHaveCount(MetricFilters::MAX_WHERE)
+            ->and($params['where'])->toHaveKey('host.name', 'db-1');
+
+        $rule->update(['query' => ['metric' => 'system.cpu.utilization', 'aggregation' => 'avg']]);
+        parse_str((string) parse_url((string) AlertExplorerLink::forRule($rule, $this->team, [], $from, $to), PHP_URL_QUERY), $params);
+
+        expect($params)->not->toHaveKey('agg')->not->toHaveKey('where');
     });
 });
 
@@ -408,6 +479,21 @@ describe('failure recording', function () {
 
         expect($channel->refresh()->last_failed_at)->toBeNull()
             ->and($channel->last_error)->toBeNull();
+    });
+
+    it('keeps the recorded failure when the send was skipped', function () {
+        Http::fake();
+
+        $channel = NotificationChannel::factory()->for($this->team)->slack()->failing()->create();
+        $this->rule->notificationChannels()->attach($channel);
+
+        app(AlertNotifier::class)->notify(firingEvent($this->rule));
+        $channel->update(['enabled' => false]);
+        workOneAlertJob();
+
+        Http::assertNothingSent();
+        expect($channel->refresh()->last_failed_at)->not->toBeNull()
+            ->and($channel->last_error)->not->toBeNull();
     });
 
     it('treats unsafe URLs and broken channel config as permanent, everything else as transient', function () {

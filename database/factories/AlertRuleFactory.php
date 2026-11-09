@@ -32,7 +32,9 @@ class AlertRuleFactory extends Factory
                 'Auth failures',
             ]),
             'source' => 'logs',
-            'project_ids' => [],
+            // Every project of the team, now and later — the representation
+            // templates use. An empty list is no selection at all.
+            'project_ids' => null,
             'query' => [
                 'filters' => ['services' => ['checkout'], 'severities' => ['error', 'fatal']],
                 'aggregation' => 'count',
