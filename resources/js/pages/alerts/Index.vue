@@ -5,6 +5,7 @@ import { computed, onMounted, ref } from 'vue';
 import AlertEventRow from '@/components/AlertEventRow.vue';
 import AlertInstanceRow from '@/components/AlertInstanceRow.vue';
 import AlertRuleRow from '@/components/AlertRuleRow.vue';
+import AlertTemplateRow from '@/components/AlertTemplateRow.vue';
 import PageHeader from '@/components/PageHeader.vue';
 import PageSection from '@/components/PageSection.vue';
 import SegmentedControl from '@/components/SegmentedControl.vue';
@@ -27,18 +28,23 @@ import {
     mute as alertsMute,
     toggle as alertsToggle,
 } from '@/routes/alerts';
+import {
+    activate as alertsTemplatesActivate,
+    index as alertsTemplates,
+} from '@/routes/alerts/templates';
 import { index as projectsIndex } from '@/routes/projects';
 import { edit as teamEdit } from '@/routes/teams';
 import type {
     AlertEventSummary,
     AlertInstanceSummary,
     AlertRuleSummary,
+    AlertTemplateSummary,
     Team,
 } from '@/types';
 
 const props = withDefaults(
     defineProps<{
-        tab: 'rules' | 'history';
+        tab: 'rules' | 'history' | 'templates';
         hasChannels: boolean;
         hasProjects: boolean;
         ruleCount: number;
@@ -52,6 +58,8 @@ const props = withDefaults(
         /** History tab. */
         events?: AlertEventSummary[];
         historyLimit?: number;
+        /** Templates tab: the whole catalogue and where each stands. */
+        templates?: AlertTemplateSummary[];
     }>(),
     {
         rules: () => [],
@@ -60,6 +68,7 @@ const props = withDefaults(
         templateCount: 0,
         events: () => [],
         historyLimit: 100,
+        templates: () => [],
     },
 );
 
@@ -106,11 +115,35 @@ const tabs = computed(() => [
         count: props.ruleCount,
     },
     {
+        value: 'templates' as const,
+        label: 'Templates',
+        href: alertsTemplates(teamSlug.value).url,
+    },
+    {
         value: 'history' as const,
         label: 'History',
         href: alertsHistory(teamSlug.value).url,
     },
 ]);
+
+const activating = ref<string | null>(null);
+
+function activateTemplate(template: AlertTemplateSummary) {
+    activating.value = template.key;
+
+    router.post(
+        alertsTemplatesActivate([teamSlug.value, template.key]).url,
+        {},
+        {
+            preserveScroll: true,
+            onFinish: () => (activating.value = null),
+        },
+    );
+}
+
+const templatesOn = computed(
+    () => props.templates.filter((template) => template.status === 'on').length,
+);
 
 const channelsHref = computed(
     () => `${teamEdit(teamSlug.value).url}#notification-channels`,
@@ -208,7 +241,15 @@ function confirmDelete() {
 </script>
 
 <template>
-    <Head :title="tab === 'history' ? 'Alert history' : 'Alerts'" />
+    <Head
+        :title="
+            tab === 'history'
+                ? 'Alert history'
+                : tab === 'templates'
+                  ? 'Alert templates'
+                  : 'Alerts'
+        "
+    />
 
     <div class="flex flex-1 flex-col">
         <PageHeader title="Alerts">
@@ -233,6 +274,11 @@ function confirmDelete() {
                 </template>
                 <template v-else-if="tab === 'history'">
                     Firing, resolved and rule errors, newest first
+                </template>
+                <template v-else-if="tab === 'templates'">
+                    {{ templatesOn }} of {{ templates.length }} recommended
+                    rules on · Bilis turns them on for the data you send, or
+                    turn one on yourself
                 </template>
                 <template v-else>
                     Threshold rules over your logs, traces and metrics
@@ -417,6 +463,33 @@ function confirmDelete() {
                 </PageSection>
             </template>
         </template>
+
+        <section
+            v-else-if="tab === 'templates'"
+            class="flex flex-1 flex-col border-t pb-8"
+            data-test="alerts-templates"
+        >
+            <header
+                class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 border-b column-header px-4 py-2.5 md:grid-cols-[minmax(0,1fr)_7.5rem_7rem] md:px-10"
+            >
+                <span>Template</span>
+                <span class="hidden md:block">Status</span>
+                <span class="sr-only">Action</span>
+            </header>
+            <AlertTemplateRow
+                v-for="template in templates"
+                :key="template.key"
+                :template="template"
+                :team-slug="teamSlug"
+                :busy="activating === template.key"
+                @activate="activateTemplate(template)"
+            />
+            <p class="px-4 pt-4 text-xs text-muted-foreground md:px-10">
+                A rule turned on here watches every project, now and later, and
+                notifies the channels that carry issue alerts. Turned off, Bilis
+                never sets it up again on its own.
+            </p>
+        </section>
 
         <section
             v-else

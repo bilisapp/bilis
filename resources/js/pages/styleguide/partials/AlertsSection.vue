@@ -3,6 +3,7 @@ import AlertEventRow from '@/components/AlertEventRow.vue';
 import AlertInstanceRow from '@/components/AlertInstanceRow.vue';
 import AlertRuleRow from '@/components/AlertRuleRow.vue';
 import AlertStateBadge from '@/components/AlertStateBadge.vue';
+import AlertTemplateRow from '@/components/AlertTemplateRow.vue';
 import NeedsAttentionCard from '@/components/NeedsAttentionCard.vue';
 import NotificationChannelsCard from '@/components/NotificationChannelsCard.vue';
 import {
@@ -10,6 +11,7 @@ import {
     DEMO_ALERT_INSTANCES,
     DEMO_ALERT_NOW,
     DEMO_ALERT_RULES,
+    DEMO_ALERT_TEMPLATES,
     DEMO_NEEDS_ATTENTION,
     DEMO_NOTIFICATION_CHANNELS,
 } from '@/pages/styleguide/data';
@@ -56,6 +58,20 @@ import DemoBlock from './DemoBlock.vue';
                     v-for="rule in DEMO_ALERT_RULES"
                     :key="rule.id"
                     :rule="rule"
+                    team-slug="acme"
+                />
+            </div>
+        </DemoBlock>
+
+        <DemoBlock
+            title="AlertTemplateRow"
+            description="one entry of Bilis' alert catalogue on the Alerts page's Templates tab, laid out like the rule it becomes — name, the catalogue's reason, the condition in lib/alerts.ts words. Status is neutral chrome (On, Turned off, Not set up): it is a fact about the rule, not the telemetry. One action: 'Turn on' installs a template now, without waiting for its data, or switches a turned-off one back on; 'Edit' once it is on. It emits; the page owns the request."
+        >
+            <div class="overflow-hidden rounded-md border bg-card">
+                <AlertTemplateRow
+                    v-for="template in DEMO_ALERT_TEMPLATES"
+                    :key="template.key"
+                    :template="template"
                     team-slug="acme"
                 />
             </div>

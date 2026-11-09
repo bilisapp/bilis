@@ -22,6 +22,7 @@ use App\Services\Alerting\Sources\AlertSourceUnavailable;
 use App\Services\Alerting\Sources\LogAlertSource;
 use App\Services\Alerting\Sources\MetricAlertSource;
 use App\Services\Alerting\Sources\TraceAlertSource;
+use App\Services\Alerting\Templates\AlertProvisioner;
 use App\Services\ClickHouse\ClickHouseException;
 use App\Services\Logs\LogFilters;
 use App\Services\Logs\LogQuery;
@@ -113,6 +114,78 @@ class AlertsController extends Controller
             'overdue' => $this->overdueCount($rules),
             'templateCount' => $rules->filter(fn (AlertRule $rule): bool => $rule->isTemplate() && $rule->enabled)->count(),
         ]);
+    }
+
+    /**
+     * The whole template catalogue (`config/alerting_templates.php`) and where
+     * each stands for this team: on, turned off, or not set up yet. Provisioning
+     * installs a template only once its data is seen; here a person can turn
+     * one on before that, or switch a turned-off one back on. App DB only — no
+     * detection read, so the tab never waits on ClickHouse.
+     */
+    public function templates(Request $request, AlertProvisioner $provisioner): Response
+    {
+        $team = $this->team($request);
+
+        /** @var array<string, AlertRule> $rules */
+        $rules = $team->alertRules()
+            ->whereNotNull('template_key')
+            ->get()
+            ->keyBy('template_key')
+            ->all();
+
+        $templates = [];
+
+        foreach ($provisioner->templates() as $key => $template) {
+            $rule = $rules[$key] ?? null;
+            $definition = $template['rule'];
+
+            $templates[] = [
+                'key' => $key,
+                'name' => $template['name'],
+                'why' => $template['why'],
+                'requires' => $template['requires'],
+                'source' => $definition['source'],
+                'query' => (object) ($definition['query'] ?? []),
+                'condition' => $definition['condition'],
+                'threshold' => $definition['threshold'],
+                'windowSeconds' => $definition['window_seconds'],
+                'intervalSeconds' => $definition['interval_seconds'],
+                'forSeconds' => $definition['for_seconds'],
+                'severity' => $definition['severity'],
+                'status' => match (true) {
+                    $rule === null => 'available',
+                    $rule->enabled => 'on',
+                    default => 'off',
+                },
+                'ruleId' => $rule?->id,
+                'customized' => $rule?->customized_at !== null,
+            ];
+        }
+
+        return Inertia::render('alerts/Index', [
+            ...$this->shared($team),
+            'tab' => 'templates',
+            'templates' => $templates,
+        ]);
+    }
+
+    /**
+     * Turn one template on: install it now, or switch its turned-off rule back
+     * on. Never a second rule — `(team_id, template_key)` is unique.
+     */
+    public function activateTemplate(Request $request, string $currentTeam, string $template, AlertProvisioner $provisioner): RedirectResponse
+    {
+        abort_unless(array_key_exists($template, $provisioner->templates()), 404);
+
+        $changed = $provisioner->activate($this->team($request), $template);
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => $changed ? __('Alert rule turned on.') : __('That alert rule is already on.'),
+        ]);
+
+        return back();
     }
 
     /**
