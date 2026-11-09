@@ -54,6 +54,10 @@ default (`null` for a rule you built).
 - **Turn off** a rule you do not want. A default rule is never deleted, only
   turned off, and it **stays off**: Bilis does not set it up again. Switch it
   back on from the Alerts page at any time.
+- **Turn one on yourself** from the **Templates** tab on the Alerts page. It
+  lists every default with its status — on, turned off, or not set up yet —
+  and **Turn on** installs a default straight away, without waiting for Bilis
+  to see its data, or switches a turned-off one back on.
 - Rules you have not edited are kept up to date: when Bilis improves a
   default, they move to the new version automatically.
 

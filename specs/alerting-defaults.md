@@ -115,6 +115,12 @@ That is intended (decision 2026-11-08: "as automatic as possible for existing an
   - A dismissible banner: "Bilis set up N alerts for the data you send."
   - Editing a template rule sets `customized_at`, and the editor says that it will stop receiving
     Bilis' updates.
+  - *Added 2026-11-09:* a **Templates** tab (`alerts.templates.index`) lists the whole catalogue
+    with each template's status for the team (`on` / `off` / `available`) — app DB only, no
+    detection read. **Turn on** (`alerts.templates.activate` → `AlertProvisioner::activate()`)
+    installs a missing template exactly as provisioning would (all projects, issue-alert
+    channels) but **without detection**, or re-enables a turned-off rule (due next tick,
+    definition untouched). It never creates a second rule.
 
 ### 5. "Needs attention" on the dashboard
 

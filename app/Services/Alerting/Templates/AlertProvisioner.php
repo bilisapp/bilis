@@ -11,6 +11,7 @@ use App\Services\Logs\LogQuery;
 use App\Services\Metrics\MetricQuery;
 use App\Services\Traces\TraceQuery;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 use Throwable;
 
 /**
@@ -100,6 +101,45 @@ final class AlertProvisioner
         }
 
         return new ProvisionResult($channelCreated, $created, $upgraded, $undetectable);
+    }
+
+    /**
+     * Turn one template on by hand, from the Alerts page's Templates tab: a
+     * template with no rule yet is installed now, exactly as provisioning
+     * would install it but without waiting for its data to be detected; a
+     * turned-off rule is switched back on and is due at the next tick (the
+     * next provisioning run then upgrades it if it is behind and unedited).
+     *
+     * False when the template's rule was already on.
+     *
+     * @throws InvalidArgumentException for a key that is not in the catalogue
+     */
+    public function activate(Team $team, string $key): bool
+    {
+        $template = $this->templates()[$key] ?? throw new InvalidArgumentException("Unknown alert template [{$key}].");
+
+        $rule = AlertRule::query()
+            ->where('team_id', $team->id)
+            ->where('template_key', $key)
+            ->first();
+
+        if ($rule === null) {
+            /*
+             * A concurrent provisioning run may have created it in between;
+             * that rule is on, which is what was asked for.
+             */
+            $this->install($team, $key, $template);
+
+            return true;
+        }
+
+        if ($rule->enabled) {
+            return false;
+        }
+
+        $rule->forceFill(['enabled' => true, 'next_evaluation_at' => null])->save();
+
+        return true;
     }
 
     /**

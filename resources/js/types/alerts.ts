@@ -98,6 +98,31 @@ export type AlertTemplateFacts = {
     customized: boolean;
 };
 
+/**
+ * One entry of the template catalogue (`config/alerting_templates.php`) on
+ * the Alerts page's Templates tab, and where it stands for this team: `on`,
+ * turned `off`, or `available` — not set up yet, because its data has not
+ * been seen or it was never turned on.
+ */
+export type AlertTemplateSummary = {
+    key: string;
+    name: string;
+    why: string;
+    requires: 'logs' | 'traces' | 'hosts';
+    source: AlertSourceKey;
+    query: AlertQuery;
+    condition: AlertCondition;
+    threshold: number;
+    windowSeconds: number;
+    intervalSeconds: number;
+    forSeconds: number;
+    severity: AlertSeverity;
+    status: 'on' | 'off' | 'available';
+    /** The team's rule from this template, once there is one. */
+    ruleId: number | null;
+    customized: boolean;
+};
+
 export type AlertInstanceSummary = {
     id: number;
     ruleId: number;

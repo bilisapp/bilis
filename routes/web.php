@@ -216,6 +216,10 @@ Route::prefix('{current_team}')
          */
         Route::get('alerts', [AlertsController::class, 'index'])->name('alerts.index');
         Route::get('alerts/history', [AlertsController::class, 'history'])->name('alerts.history');
+        Route::get('alerts/templates', [AlertsController::class, 'templates'])->name('alerts.templates.index');
+        Route::post('alerts/templates/{template}', [AlertsController::class, 'activateTemplate'])
+            ->where('template', '[a-z0-9_.]+')
+            ->name('alerts.templates.activate');
         Route::get('alerts/create', [AlertsController::class, 'create'])->name('alerts.create');
         Route::post('alerts', [AlertsController::class, 'store'])->name('alerts.store');
         Route::post('alerts/preview', [AlertsController::class, 'preview'])
