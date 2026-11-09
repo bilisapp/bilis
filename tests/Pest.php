@@ -406,3 +406,46 @@ function pkceChallenge(string $verifier): string
 {
     return strtr(rtrim(base64_encode(hash('sha256', $verifier, true)), '='), '+/', '-_');
 }
+
+/**
+ * Run the entrypoint and return its exit code, stdout and stderr.
+ *
+ * @param  array<string, string>  $env
+ * @return array{code: int, out: string, err: string}
+ */
+function runEntrypoint(string $sandbox, array $env = [], string $args = ''): array
+{
+    $environment = array_merge([
+        'PATH' => $sandbox.'/bin:/usr/bin:/bin',
+        // The stub php would happily "run" it, but the point here is the role
+        // that gets chosen, not the warm-up.
+        'BILIS_OPTIMIZE_ON_STARTUP' => 'false',
+        'DB_CONNECTION' => 'sqlite',
+        'DB_DATABASE' => $sandbox.'/database.sqlite',
+    ], $env);
+
+    $exports = '';
+    foreach ($environment as $key => $value) {
+        $exports .= sprintf('%s=%s ', $key, escapeshellarg($value));
+    }
+
+    $script = escapeshellarg(base_path('docker-entrypoint.sh'));
+    $stderr = $sandbox.'/stderr';
+
+    $command = sprintf(
+        'cd %s && env %s sh %s %s 2>%s',
+        escapeshellarg($sandbox),
+        $exports,
+        $script,
+        $args,
+        escapeshellarg($stderr),
+    );
+
+    exec($command, $output, $code);
+
+    return [
+        'code' => $code,
+        'out' => implode("\n", $output),
+        'err' => is_file($stderr) ? (string) file_get_contents($stderr) : '',
+    ];
+}

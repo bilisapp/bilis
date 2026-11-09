@@ -19,7 +19,7 @@
 | ten seconds writes thousands a day without anything happening, so folding
 | them into the event count would spend a log budget on a heartbeat.
 |
-| Two of the seven published numbers are deliberately absent: retention comes
+| Two of the eight published numbers are deliberately absent: retention comes
 | from `legal.log_retention_days` (the privacy and terms pages promise it) and
 | requests per minute from `security.ingest_rate_limit` (the limiter enforces
 | it). Duplicating either here is how a published number goes stale against
@@ -56,6 +56,12 @@ return [
          * point regardless of how many buckets it carries.
          */
         'metric_points_per_day' => (int) env('BILIS_PLAN_FREE_METRIC_POINTS_PER_DAY', 1_000_000),
+
+        /**
+         * Alert rules one team may define, enabled or not. Soft like the
+         * rest: a rule past the number is saved and evaluated as normal.
+         */
+        'alert_rules_per_team' => (int) env('BILIS_PLAN_FREE_ALERT_RULES', 10),
 
     ],
 

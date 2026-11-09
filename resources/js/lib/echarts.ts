@@ -8,6 +8,8 @@ import {
     DatasetComponent,
     GridComponent,
     LegendComponent,
+    MarkAreaComponent,
+    MarkLineComponent,
     TooltipComponent,
     TransformComponent,
 } from 'echarts/components';
@@ -15,6 +17,8 @@ import type {
     DatasetComponentOption,
     GridComponentOption,
     LegendComponentOption,
+    MarkAreaComponentOption,
+    MarkLineComponentOption,
     TooltipComponentOption,
 } from 'echarts/components';
 import { registerTheme, use } from 'echarts/core';
@@ -37,6 +41,8 @@ use([
     DatasetComponent,
     GridComponent,
     LegendComponent,
+    MarkAreaComponent,
+    MarkLineComponent,
     TooltipComponent,
     TransformComponent,
 ]);
@@ -51,6 +57,8 @@ export type BilisChartOption = ComposeOption<
     | DatasetComponentOption
     | GridComponentOption
     | LegendComponentOption
+    | MarkAreaComponentOption
+    | MarkLineComponentOption
     | TooltipComponentOption
 >;
 

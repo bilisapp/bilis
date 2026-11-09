@@ -3,6 +3,7 @@
 namespace App\Actions\Teams;
 
 use App\Enums\TeamRole;
+use App\Jobs\ProvisionTeamAlerts;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -10,7 +11,8 @@ use Illuminate\Support\Facades\DB;
 class CreateTeam
 {
     /**
-     * Create a new team and add the user as owner.
+     * Create a new team and add the user as owner, then queue its default
+     * alerts once the team is committed (specs/alerting-defaults.md).
      */
     public function handle(User $user, string $name, bool $isPersonal = false): Team
     {
@@ -26,6 +28,8 @@ class CreateTeam
             ]);
 
             $user->switchTeam($team);
+
+            ProvisionTeamAlerts::dispatch($team->id)->afterCommit();
 
             return $team;
         });

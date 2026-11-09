@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
 import {
+    BellRing,
     BookOpen,
     Bug,
     ChartLine,
@@ -25,6 +26,7 @@ import {
     SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
+import { index as alertsIndex } from '@/routes/alerts';
 import { index as autofixIndex } from '@/routes/autofix';
 import { index as docsIndex } from '@/routes/docs';
 import { index as issuesIndex } from '@/routes/issues';
@@ -46,6 +48,10 @@ const logsUrl = computed(() =>
 
 const issuesUrl = computed(() =>
     page.props.currentTeam ? issuesIndex(page.props.currentTeam.slug).url : '/',
+);
+
+const alertsUrl = computed(() =>
+    page.props.currentTeam ? alertsIndex(page.props.currentTeam.slug).url : '/',
 );
 
 const autofixUrl = computed(() =>
@@ -74,8 +80,8 @@ const projectsUrl = computed(() =>
  * The rail, in the order a reader reaches for it.
  *
  * Dashboard stands alone. Explore holds what Bilis stores — logs, traces,
- * metrics — and Triage what it concludes from them: issues, and the fixes
- * Autofix proposes. Setup is what a team configures, plus the docs. Traces and
+ * metrics — and Triage what it concludes from them: issues, the alerts that
+ * are firing, and the fixes Autofix proposes. Setup is what a team configures, plus the docs. Traces and
  * Metrics each have two views, but those are tabs on the page (they carry the
  * filters across); a sub-menu in the rail would only repeat them.
  */
@@ -107,6 +113,8 @@ const exploreNavItems = computed<NavItem[]>(() => [
 
 const issueBadge = computed(() => page.props.issueBadge ?? null);
 
+const alertBadge = computed(() => page.props.alertBadge ?? null);
+
 const triageNavItems = computed<NavItem[]>(() => [
     {
         title: 'Issues',
@@ -116,6 +124,21 @@ const triageNavItems = computed<NavItem[]>(() => [
             ? {
                   count: issueBadge.value.unresolved,
                   alert: issueBadge.value.regressed > 0,
+              }
+            : null,
+    },
+
+    // What is firing now. The count is neutral like the issue count; its dot
+    // is the one bit of data colour, since a firing series is the news.
+    {
+        title: 'Alerts',
+        href: alertsUrl.value,
+        icon: BellRing,
+        badge: alertBadge.value
+            ? {
+                  count: alertBadge.value.firing,
+                  alert: alertBadge.value.firing > 0,
+                  alertLabel: 'firing',
               }
             : null,
     },

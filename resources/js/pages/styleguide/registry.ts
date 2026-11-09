@@ -1,5 +1,6 @@
 import type { Component } from 'vue';
 import type { StyleguideDemo } from './context';
+import AlertsSection from './partials/AlertsSection.vue';
 import AppComponentsSection from './partials/AppComponentsSection.vue';
 import AutofixSection from './partials/AutofixSection.vue';
 import ChartsSection from './partials/ChartsSection.vue';
@@ -151,6 +152,13 @@ export const STYLEGUIDE_CATEGORIES: StyleguideCategory[] = [
                 description:
                     'Exceptions grouped by their fingerprint — the service, the exception class and the top of the stack, normalised so a line number or a release path cannot split one bug in two. The list reads counts from ClickHouse and status from the app database; the issue page reads one event at a time and lays out what an error-reporting SDK sends — frames with source, causes, breadcrumbs, request, user and tags — falling back to parsing a printed stack when that is all a log carried. Colour follows the product rule: every event is an exception, so trends and the regressed state take the severity-error token, tag shares take the magnitude ladder, and the chrome stays achromatic.',
                 component: IssuesSection,
+            },
+            {
+                id: 'alerts',
+                name: 'Alerts',
+                description:
+                    "Threshold rules over logs, traces and metrics, evaluated on a schedule — never at ingest — with Prometheus' semantics: each series a rule produces is an alert instance that goes inactive → pending → firing, and only firing and resolved are announced. State colours are data: firing is --severity-error, pending --severity-warn, everything else is neutral chrome, including a rule that failed to evaluate. The condition is always said the same way ('p95 > 500 ms for 5m'), and a channel's URL or secret never reaches the browser. The editor's 24-hour preview is ThresholdChart, in the Charts section.",
+                component: AlertsSection,
             },
             {
                 id: 'traces',

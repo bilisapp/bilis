@@ -24,9 +24,11 @@ export type NavItem = {
      * A live count beside the label — how much is waiting there.
      *
      * Only the count is achromatic; `alert` adds the one dot of severity
-     * colour, and is reserved for "something came back that was fixed".
+     * colour, reserved for news: an issue that came back after it was fixed,
+     * an alert firing now. `alertLabel` says what the dot means to a screen
+     * reader ("some regressed" when omitted).
      */
-    badge?: { count: number; alert?: boolean } | null;
+    badge?: { count: number; alert?: boolean; alertLabel?: string } | null;
     /** Leaves the app (the public docs): opens in a new tab, marked with ↗. */
     external?: boolean;
 };

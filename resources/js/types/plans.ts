@@ -37,6 +37,8 @@ export type PlanUsage = {
     plan: 'free';
     projects: PlanAllowance;
     members: PlanAllowance;
+    /** Alert rules the team has defined, enabled or not. */
+    alertRules: PlanAllowance;
     events: PlanEvents;
     metricPoints: PlanMetricPoints;
     retentionDays: number;

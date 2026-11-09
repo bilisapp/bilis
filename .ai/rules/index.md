@@ -4,6 +4,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 
 | Applies to | Rule file |
 | --- | --- |
+| app/Services/Alerting/**, app/Jobs/EvaluateAlertRule.php, app/Jobs/ScanIssueAlerts.php, app/Jobs/ProvisionTeamAlerts.php, app/Notifications/**, app/Http/Controllers/Alert*.php, app/Http/Controllers/Teams/NotificationChannelController.php, app/Http/Requests/Alerts/**, app/Http/Requests/Teams/SaveNotificationChannelRequest.php, app/Models/Alert*.php, app/Models/NotificationChannel.php, app/Enums/Alert*.php, app/Enums/NoDataState.php, app/Enums/NotificationChannelType.php, app/Console/Commands/Alerts*.php, app/Mcp/Tools/ListAlertsTool.php, config/alerting*.php, resources/js/pages/alerts/**, resources/js/components/Alert*.vue, resources/js/components/ThresholdChart.vue, resources/js/components/NotificationChannelsCard.vue, resources/js/components/NeedsAttentionCard.vue, resources/js/lib/alerts.ts | .ai/rules/alerting.md |
 | app/Services/Autofix/** | .ai/rules/autofix.md |
 | app/Services/ClickHouse/** | .ai/rules/click-house.md |
 | database/clickhouse/*.sql | .ai/rules/clickhouse.md |

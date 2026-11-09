@@ -7,8 +7,8 @@ use Illuminate\Contracts\Config\Repository;
 /**
  * The published allowances of the hosted Free plan.
  *
- * One reader for seven numbers, so the pricing page, the docs trip-wire, the
- * dashboard card and the team settings page cannot drift apart. Five come
+ * One reader for eight numbers, so the pricing page, the docs trip-wire, the
+ * dashboard card and the team settings page cannot drift apart. Six come
  * from `config/plans.php`; retention comes from `legal.log_retention_days`
  * and the per-key request ceiling from `security.ingest_rate_limit`, because
  * those two are already promised (legal pages) and already enforced (the
@@ -17,7 +17,7 @@ use Illuminate\Contracts\Config\Repository;
  * Every limit here is soft. Nothing in the ingest path reads this class, and
  * nothing in the UI blocks on it — going over is reported, never punished.
  *
- * @phpstan-type FreePlan array{projectsPerTeam: int, membersPerTeam: int, eventsPerDay: int, metricPointsPerDay: int, retentionDays: int, requestsPerMinute: int, warnAtPercent: int}
+ * @phpstan-type FreePlan array{projectsPerTeam: int, membersPerTeam: int, eventsPerDay: int, metricPointsPerDay: int, alertRulesPerTeam: int, retentionDays: int, requestsPerMinute: int, warnAtPercent: int}
  */
 class PlanLimits
 {
@@ -57,6 +57,14 @@ class PlanLimits
     }
 
     /**
+     * Alert rules one team may define, enabled or not.
+     */
+    public function alertRulesPerTeam(): int
+    {
+        return (int) $this->config->get('plans.free.alert_rules_per_team', 10);
+    }
+
+    /**
      * How long logs, spans and metric points are kept, from the retention the legal pages promise.
      */
     public function retentionDays(): int
@@ -92,6 +100,7 @@ class PlanLimits
             'membersPerTeam' => $this->membersPerTeam(),
             'eventsPerDay' => $this->eventsPerDay(),
             'metricPointsPerDay' => $this->metricPointsPerDay(),
+            'alertRulesPerTeam' => $this->alertRulesPerTeam(),
             'retentionDays' => $this->retentionDays(),
             'requestsPerMinute' => $this->requestsPerMinute(),
             'warnAtPercent' => $this->warnAtPercent(),

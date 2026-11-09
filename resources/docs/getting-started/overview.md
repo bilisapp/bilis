@@ -32,6 +32,9 @@ Grafana stack to operate.
 - **Logs and traces linked both ways.** A log line carrying a trace id opens
   its trace's waterfall; a span in the waterfall opens the log viewer filtered
   to that exact trace and span.
+- **Alerting**: threshold rules over logs, traces and metrics, with
+  Prometheus-style pending / firing / resolved states, delivered by email,
+  Slack or a signed webhook. See [Alerting](/docs/reference/alerting).
 - **A Sentry-SDK-compatible endpoint** for shipping exceptions your app already
   catches, stored as error logs. See
   [Sentry-compatible ingest](/docs/ingestion/sentry).
@@ -43,7 +46,8 @@ Grafana stack to operate.
 
 Said plainly, so you can plan around it:
 
-- No alerting, no user-defined dashboards, no saved searches.
+- No user-defined dashboards, no saved searches. Alerting is threshold rules
+  only — no anomaly detection, escalation or on-call.
 - No eBPF collection, no S3 tiering, no ClickHouse replication.
 - No self-serve billing. bilis.app has a Free plan with published limits; paid
   plans are arranged by contact; a self-hosted install has no plan at all.

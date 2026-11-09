@@ -19,6 +19,7 @@ use Illuminate\Support\Carbon;
  * @property string $name
  * @property string $slug
  * @property bool $is_personal
+ * @property Carbon|null $alerting_provisioned_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
@@ -28,6 +29,8 @@ use Illuminate\Support\Carbon;
  * @property-read Collection<int, Project> $projects
  * @property-read Collection<int, GitHubInstallation> $githubInstallations
  * @property-read Collection<int, TeamLlmCredential> $llmCredentials
+ * @property-read Collection<int, AlertRule> $alertRules
+ * @property-read Collection<int, NotificationChannel> $notificationChannels
  */
 #[Fillable(['name', 'slug', 'is_personal'])]
 class Team extends Model
@@ -141,6 +144,26 @@ class Team extends Model
     }
 
     /**
+     * Get the alert rules this team has defined.
+     *
+     * @return HasMany<AlertRule, $this>
+     */
+    public function alertRules(): HasMany
+    {
+        return $this->hasMany(AlertRule::class);
+    }
+
+    /**
+     * Get the places this team's alerts are delivered to.
+     *
+     * @return HasMany<NotificationChannel, $this>
+     */
+    public function notificationChannels(): HasMany
+    {
+        return $this->hasMany(NotificationChannel::class);
+    }
+
+    /**
      * Get all invitations for this team.
      *
      * @return HasMany<TeamInvitation, $this>
@@ -159,6 +182,7 @@ class Team extends Model
     {
         return [
             'is_personal' => 'boolean',
+            'alerting_provisioned_at' => 'datetime',
         ];
     }
 

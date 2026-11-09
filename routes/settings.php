@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SecurityController;
+use App\Http\Controllers\Teams\NotificationChannelController;
 use App\Http\Controllers\Teams\TeamController;
 use App\Http\Controllers\Teams\TeamInvitationController;
 use App\Http\Controllers\Teams\TeamLlmCredentialController;
@@ -49,6 +50,22 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('teams.llm-credentials.update');
         Route::delete('settings/teams/{team}/llm-credentials/{credential}', [TeamLlmCredentialController::class, 'destroy'])
             ->name('teams.llm-credentials.destroy');
+        /*
+         * Where the team's alerts are delivered. Like the model API keys these
+         * hold credentials, so they have endpoints of their own; `test` sends
+         * one message now and answers JSON, so the card can say how it went.
+         */
+        Route::post('settings/teams/{team}/notification-channels', [NotificationChannelController::class, 'store'])
+            ->name('teams.notification-channels.store');
+        Route::patch('settings/teams/{team}/notification-channels/{notificationChannel}', [NotificationChannelController::class, 'update'])
+            ->name('teams.notification-channels.update');
+        Route::post('settings/teams/{team}/notification-channels/{notificationChannel}/toggle', [NotificationChannelController::class, 'toggle'])
+            ->name('teams.notification-channels.toggle');
+        Route::post('settings/teams/{team}/notification-channels/{notificationChannel}/test', [NotificationChannelController::class, 'test'])
+            ->middleware('throttle:10,1')
+            ->name('teams.notification-channels.test');
+        Route::delete('settings/teams/{team}/notification-channels/{notificationChannel}', [NotificationChannelController::class, 'destroy'])
+            ->name('teams.notification-channels.destroy');
         Route::delete('settings/teams/{team}', [TeamController::class, 'destroy'])->name('teams.destroy');
         Route::post('settings/teams/{team}/switch', [TeamController::class, 'switch'])->name('teams.switch');
         Route::delete('settings/teams/{team}/leave', [TeamController::class, 'leave'])->name('teams.leave');

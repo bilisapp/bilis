@@ -6,6 +6,7 @@ use App\Mcp\Prompts\DebugWithBilisPrompt;
 use App\Mcp\Prompts\InstrumentWithBilisPrompt;
 use App\Mcp\Tools\ErrorSummaryTool;
 use App\Mcp\Tools\GetTraceTool;
+use App\Mcp\Tools\ListAlertsTool;
 use App\Mcp\Tools\ListMetricsTool;
 use App\Mcp\Tools\ListProjectsTool;
 use App\Mcp\Tools\ListServicesTool;
@@ -50,6 +51,10 @@ use Laravel\Mcp\Server\Tool;
       by `group_by` and narrowed by `where`), each series with min/max/avg/last.
       Metrics answer "is it saturated, climbing, slower than usual?"; logs and
       traces answer "which request, and why?".
+    - **Alerts** are threshold rules a team defined over logs, traces or
+      metrics, plus new and regressed issues. list-alerts says what is firing
+      or pending now and what fired, resolved or broke recently — a good first
+      call when asked "is anything wrong?".
 
     Reading efficiently:
     - Every read is a time window, and it defaults to the last hour (list-metrics
@@ -68,7 +73,8 @@ use Laravel\Mcp\Server\Tool;
 
     What this server deliberately cannot do:
     - It is **read-only**. It never sends logs, spans or metrics, never deletes
-      anything, never creates a project, and never mints or reveals an API key. Wiring an
+      anything, never creates a project, never edits, mutes or acknowledges an
+      alert, and never mints or reveals an API key. Wiring an
       app up to Bilis and managing keys happen in the Bilis web app; the
       instrument-with-bilis prompt explains the integration if you are asked to
       build one.
@@ -92,6 +98,7 @@ class BilisServer extends Server
         ServiceLatencyTool::class,
         ListMetricsTool::class,
         QueryMetricTool::class,
+        ListAlertsTool::class,
     ];
 
     /**

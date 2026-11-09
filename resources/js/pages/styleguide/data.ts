@@ -1,4 +1,9 @@
 import type {
+    AlertEventSummary,
+    AlertInstanceSummary,
+    AlertPreviewResult,
+    AlertRuleSummary,
+    NeedsAttentionList,
     Breadcrumb,
     FixJobEvent,
     FixJobStatus,
@@ -17,6 +22,7 @@ import type {
     MetricCatalog,
     MetricSeries,
     MetricSeriesResult,
+    NotificationChannelSummary,
     PlanUsage,
     ProjectRepository,
     ServiceLatencyResult,
@@ -551,6 +557,7 @@ export const demoPlanUsage: PlanUsage = {
     plan: 'free',
     projects: { used: 2, limit: 3 },
     members: { used: 3, limit: 5 },
+    alertRules: { used: 4, limit: 10 },
     events: {
         used: 21_480,
         limit: 100_000,
@@ -598,6 +605,7 @@ export const demoPlanUsageOver: PlanUsage = {
     ...demoPlanUsage,
     projects: { used: 4, limit: 3 },
     members: { used: 6, limit: 5 },
+    alertRules: { used: 13, limit: 10 },
     events: {
         ...demoPlanUsage.events,
         used: 140_000,
@@ -1947,3 +1955,516 @@ export const DEMO_AUTOFIX_OFF: LogAutofixState = {
     projects: {},
     credentials: [],
 };
+
+/*
+ * Alerting. Times are relative to a fixed instant so the demo reads the same
+ * on every load; the rows that say "for 12m" are given this clock.
+ */
+export const DEMO_ALERT_NOW = Date.parse('2026-11-08T12:00:00Z');
+
+const alertMinutesAgo = (minutes: number) =>
+    new Date(DEMO_ALERT_NOW - minutes * 60_000).toISOString();
+
+export const DEMO_ALERT_RULES: AlertRuleSummary[] = [
+    {
+        id: 101,
+        name: 'Checkout error spike',
+        source: 'logs',
+        query: {
+            filters: {
+                services: ['checkout-api'],
+                severities: ['error', 'fatal'],
+            },
+            aggregation: 'count',
+            group_by: 'service.name',
+        },
+        condition: '>',
+        threshold: 25,
+        windowSeconds: 300,
+        intervalSeconds: 60,
+        forSeconds: 0,
+        severity: 'critical',
+        enabled: true,
+        mutedUntil: null,
+        health: 'ok',
+        lastError: null,
+        lastEvaluatedAt: alertMinutesAgo(1),
+        firing: 1,
+        pending: 0,
+        template: false,
+        why: null,
+        customized: false,
+        channels: [
+            { id: 1, name: '#alerts', type: 'slack', enabled: true },
+            { id: 2, name: 'On-call inbox', type: 'email', enabled: true },
+        ],
+    },
+    {
+        id: 102,
+        name: 'Payments p95 latency',
+        source: 'traces',
+        query: {
+            filters: { services: ['payments-api'], kind: 'Server' },
+            aggregation: 'p95',
+        },
+        condition: '>',
+        threshold: 500,
+        windowSeconds: 300,
+        intervalSeconds: 60,
+        forSeconds: 300,
+        severity: 'warning',
+        enabled: true,
+        mutedUntil: null,
+        health: 'ok',
+        lastError: null,
+        lastEvaluatedAt: alertMinutesAgo(1),
+        firing: 0,
+        pending: 1,
+        template: false,
+        why: null,
+        customized: false,
+        channels: [{ id: 1, name: '#alerts', type: 'slack', enabled: true }],
+    },
+    {
+        id: 103,
+        name: 'Host CPU above 90%',
+        source: 'metrics',
+        query: {
+            metric: 'system.cpu.utilization',
+            aggregation: 'avg',
+            group_by: 'host.name',
+        },
+        condition: '>',
+        threshold: 0.9,
+        windowSeconds: 600,
+        intervalSeconds: 300,
+        forSeconds: 600,
+        severity: 'warning',
+        enabled: true,
+        mutedUntil: '2026-11-08T18:00:00Z',
+        health: 'err',
+        lastError: 'ClickHouse timed out after 10s',
+        lastEvaluatedAt: alertMinutesAgo(4),
+        // A rule that cannot read keeps every series as it was: still firing.
+        firing: 1,
+        pending: 0,
+        template: false,
+        why: null,
+        customized: false,
+        channels: [],
+    },
+    {
+        id: 104,
+        name: 'Auth failure ratio',
+        source: 'logs',
+        query: {
+            filters: { services: ['auth'], search: 'invalid credentials' },
+            aggregation: 'ratio',
+        },
+        condition: '>=',
+        threshold: 0.05,
+        windowSeconds: 900,
+        intervalSeconds: 300,
+        forSeconds: 0,
+        severity: 'info',
+        enabled: false,
+        mutedUntil: null,
+        health: 'unknown',
+        lastError: null,
+        lastEvaluatedAt: null,
+        firing: 0,
+        pending: 0,
+        template: false,
+        why: null,
+        customized: false,
+        channels: [
+            { id: 3, name: 'Incident bridge', type: 'webhook', enabled: false },
+        ],
+    },
+    {
+        id: 105,
+        name: 'Error logs spiking',
+        source: 'logs',
+        query: {
+            filters: { severities: ['error', 'fatal'] },
+            aggregation: 'count',
+            group_by: 'service.name',
+            compare: { offset_seconds: 604800 },
+            min_events: 20,
+        },
+        condition: '>',
+        threshold: 3,
+        windowSeconds: 600,
+        intervalSeconds: 300,
+        forSeconds: 0,
+        severity: 'warning',
+        enabled: true,
+        mutedUntil: null,
+        health: 'ok',
+        lastError: null,
+        lastEvaluatedAt: alertMinutesAgo(2),
+        firing: 1,
+        pending: 0,
+        template: true,
+        why: 'A service logging three times its usual errors is usually a bad deploy or a failing dependency.',
+        customized: false,
+        channels: [{ id: 4, name: 'Team email', type: 'email', enabled: true }],
+    },
+    {
+        id: 106,
+        name: 'Disk almost full',
+        source: 'metrics',
+        query: {
+            metric: 'system.filesystem.utilization',
+            aggregation: 'max',
+            group_by: 'host.name',
+        },
+        condition: '>',
+        threshold: 0.9,
+        windowSeconds: 600,
+        intervalSeconds: 300,
+        forSeconds: 600,
+        severity: 'critical',
+        enabled: true,
+        mutedUntil: null,
+        health: 'ok',
+        lastError: null,
+        lastEvaluatedAt: alertMinutesAgo(3),
+        firing: 1,
+        pending: 0,
+        template: true,
+        why: 'A full disk stops databases and log writers without warning.',
+        customized: true,
+        channels: [{ id: 4, name: 'Team email', type: 'email', enabled: true }],
+    },
+];
+
+export const DEMO_ALERT_INSTANCES: AlertInstanceSummary[] = [
+    {
+        id: 501,
+        ruleId: 101,
+        ruleName: 'Checkout error spike',
+        source: 'logs',
+        query: { aggregation: 'count', group_by: 'service.name' },
+        condition: '>',
+        threshold: 25,
+        severity: 'critical',
+        muted: false,
+        labels: { 'service.name': 'checkout-api' },
+        state: 'firing',
+        value: 87,
+        activeAt: alertMinutesAgo(12),
+        firedAt: alertMinutesAgo(12),
+    },
+    {
+        id: 502,
+        ruleId: 102,
+        ruleName: 'Payments p95 latency',
+        source: 'traces',
+        query: { aggregation: 'p95' },
+        condition: '>',
+        threshold: 500,
+        severity: 'warning',
+        muted: false,
+        labels: {},
+        state: 'pending',
+        value: 742.5,
+        activeAt: alertMinutesAgo(3),
+        firedAt: null,
+    },
+    {
+        id: 503,
+        ruleId: 103,
+        ruleName: 'Host CPU above 90%',
+        source: 'metrics',
+        query: { aggregation: 'avg', metric: 'system.cpu.utilization' },
+        condition: '>',
+        threshold: 0.9,
+        severity: 'warning',
+        muted: true,
+        labels: { 'host.name': 'worker-3' },
+        state: 'firing',
+        value: 0.9731,
+        activeAt: alertMinutesAgo(95),
+        firedAt: alertMinutesAgo(85),
+    },
+];
+
+export const DEMO_ALERT_EVENTS: AlertEventSummary[] = [
+    {
+        id: 9001,
+        type: 'firing',
+        ruleId: 101,
+        ruleName: 'Checkout error spike',
+        source: 'logs',
+        query: { aggregation: 'count' },
+        condition: '>',
+        labels: { 'service.name': 'checkout-api' },
+        value: 87,
+        threshold: 25,
+        occurredAt: alertMinutesAgo(12),
+        headline: 'The value is 87, above the threshold of 25.',
+        href: '/acme/logs?service=checkout-api',
+    },
+    {
+        id: 9002,
+        type: 'resolved',
+        ruleId: 102,
+        ruleName: 'Payments p95 latency',
+        source: 'traces',
+        query: { aggregation: 'p95' },
+        condition: '>',
+        labels: {},
+        value: 312,
+        threshold: 500,
+        occurredAt: alertMinutesAgo(48),
+        headline: 'Resolved: the value is back to 312.',
+        href: '/acme/traces?service=payments-api',
+    },
+    {
+        id: 9003,
+        type: 'rule_error',
+        ruleId: 103,
+        ruleName: 'Host CPU above 90%',
+        source: 'metrics',
+        query: { aggregation: 'avg', metric: 'system.cpu.utilization' },
+        condition: '>',
+        labels: {},
+        value: null,
+        threshold: 0.9,
+        occurredAt: alertMinutesAgo(4),
+        headline:
+            'The rule could not be evaluated: ClickHouse timed out after 10s',
+        href: null,
+    },
+    {
+        id: 9004,
+        type: 'firing',
+        ruleId: null,
+        ruleName: null,
+        source: null,
+        query: null,
+        condition: null,
+        labels: { 'service.name': 'search' },
+        value: 41,
+        threshold: 20,
+        occurredAt: alertMinutesAgo(1440),
+        headline: 'The value is 41, above the threshold of 20.',
+        href: null,
+    },
+    {
+        id: 9005,
+        type: 'issue_new',
+        ruleId: null,
+        ruleName: null,
+        source: null,
+        query: null,
+        condition: null,
+        labels: { 'service.name': 'checkout-api' },
+        value: null,
+        threshold: null,
+        occurredAt: alertMinutesAgo(26),
+        headline:
+            "New issue in checkout-api: TypeError: Cannot read properties of undefined (reading 'total')",
+        href: '/acme/issues/7f3a9c2e',
+    },
+];
+
+export const DEMO_NOTIFICATION_CHANNELS: NotificationChannelSummary[] = [
+    {
+        id: 1,
+        type: 'slack',
+        name: '#alerts',
+        enabled: true,
+        issueEvents: true,
+        target: 'hooks.slack.com (URL hidden)',
+        recipients: null,
+        addresses: [],
+        host: 'hooks.slack.com',
+        hasSecret: false,
+        lastFailedAt: null,
+        lastError: null,
+    },
+    {
+        id: 2,
+        type: 'email',
+        name: 'On-call inbox',
+        enabled: true,
+        issueEvents: false,
+        target: 'oncall@acme.dev, sre@acme.dev +1',
+        recipients: null,
+        addresses: ['oncall@acme.dev', 'sre@acme.dev', 'cto@acme.dev'],
+        host: null,
+        hasSecret: false,
+        lastFailedAt: null,
+        lastError: null,
+    },
+    {
+        id: 3,
+        type: 'webhook',
+        name: 'Incident bridge',
+        enabled: false,
+        issueEvents: false,
+        target: 'ops.acme.dev (URL hidden)',
+        recipients: null,
+        addresses: [],
+        host: 'ops.acme.dev',
+        hasSecret: true,
+        lastFailedAt: alertMinutesAgo(180),
+        lastError: 'The endpoint answered HTTP 410.',
+    },
+];
+
+/**
+ * 24 hours of a grouped error count in 15-minute buckets: checkout spikes
+ * twice over the line, billing stays under it.
+ */
+export const DEMO_ALERT_PREVIEW: AlertPreviewResult = (() => {
+    const step = 900;
+    const start = Math.floor(DEMO_ALERT_NOW / 1000 / step) * step - 96 * step;
+    const checkout = (index: number) =>
+        Math.round(
+            8 +
+                4 * Math.sin(index / 5) +
+                (index >= 38 && index <= 42
+                    ? 30 - Math.abs(40 - index) * 6
+                    : 0) +
+                (index >= 80 && index <= 85 ? 24 : 0),
+        );
+    const billing = (index: number) => Math.round(5 + 3 * Math.cos(index / 7));
+
+    return {
+        series: [
+            {
+                labels: { 'service.name': 'checkout-api' },
+                points: Array.from({ length: 96 }, (_, index) => [
+                    start + index * step,
+                    checkout(index),
+                ]),
+            },
+            {
+                labels: { 'service.name': 'billing-worker' },
+                points: Array.from({ length: 96 }, (_, index) => [
+                    start + index * step,
+                    index === 60 ? null : billing(index),
+                ]),
+            },
+        ],
+        unavailable: false,
+        reason: null,
+        stepSeconds: 900,
+        windowSeconds: 300,
+        scaled: true,
+    };
+})();
+
+/**
+ * The dashboard's "Needs attention" list: two firing (critical first), one
+ * pending, from a template comparison, a utilization gauge and a percentile.
+ */
+export const DEMO_NEEDS_ATTENTION: NeedsAttentionList = {
+    items: [
+        {
+            id: 601,
+            ruleId: 106,
+            ruleName: 'Disk almost full',
+            source: 'metrics',
+            query: {
+                aggregation: 'max',
+                metric: 'system.filesystem.utilization',
+                group_by: 'host.name',
+            },
+            condition: '>',
+            threshold: 0.9,
+            severity: 'critical',
+            muted: false,
+            labels: { 'host.name': 'db-1' },
+            state: 'firing',
+            value: 0.93,
+            activeAt: alertMinutesAgo(48),
+            firedAt: alertMinutesAgo(38),
+            explorerHref: '/acme/metrics?metric=system.filesystem.utilization',
+            ruleHref: '/acme/alerts/106/edit',
+        },
+        {
+            id: 602,
+            ruleId: 105,
+            ruleName: 'Error logs spiking',
+            source: 'logs',
+            query: {
+                aggregation: 'count',
+                group_by: 'service.name',
+                compare: { offset_seconds: 604800 },
+                min_events: 20,
+            },
+            condition: '>',
+            threshold: 3,
+            severity: 'warning',
+            muted: false,
+            labels: { 'service.name': 'checkout-api' },
+            state: 'firing',
+            value: 4.2,
+            activeAt: alertMinutesAgo(12),
+            firedAt: alertMinutesAgo(12),
+            explorerHref: '/acme/logs?service=checkout-api',
+            ruleHref: '/acme/alerts/105/edit',
+        },
+        {
+            id: 603,
+            ruleId: 102,
+            ruleName: 'Payments p95 latency',
+            source: 'traces',
+            query: { aggregation: 'p95' },
+            condition: '>',
+            threshold: 500,
+            severity: 'warning',
+            muted: false,
+            labels: { 'service.name': 'payments-api' },
+            state: 'pending',
+            value: 812,
+            activeAt: alertMinutesAgo(3),
+            firedAt: null,
+            explorerHref: '/acme/traces?service=payments-api',
+            ruleHref: '/acme/alerts/102/edit',
+        },
+    ],
+    total: 3,
+    firing: 2,
+};
+
+/**
+ * A compared rule's preview: each point is the error count divided by the
+ * same 15 minutes last week, so 1 is a normal day and the line crosses 3×
+ * once, in the afternoon.
+ */
+export const DEMO_ALERT_COMPARE_PREVIEW: AlertPreviewResult = (() => {
+    const step = 900;
+    const start = Math.floor(DEMO_ALERT_NOW / 1000 / step) * step - 96 * step;
+    const ratio = (index: number) =>
+        Number(
+            (
+                1 +
+                0.25 * Math.sin(index / 4) +
+                (index >= 70 && index <= 76
+                    ? 3.2 - Math.abs(73 - index) * 0.6
+                    : 0)
+            ).toFixed(2),
+        );
+
+    return {
+        series: [
+            {
+                labels: { 'service.name': 'checkout-api' },
+                points: Array.from({ length: 96 }, (_, index) => [
+                    start + index * step,
+                    ratio(index),
+                ]),
+            },
+        ],
+        unavailable: false,
+        reason: null,
+        stepSeconds: 900,
+        windowSeconds: 600,
+        scaled: false,
+    };
+})();

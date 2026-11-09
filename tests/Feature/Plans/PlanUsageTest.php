@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\AlertRule;
 use App\Models\Project;
 use App\Models\Team;
 use App\Models\User;
@@ -45,9 +46,26 @@ it('counts projects and members from the app database', function () {
         ->and($usage['projects']['limit'])->toBe((int) config('plans.free.projects_per_team'))
         ->and($usage['members']['used'])->toBe(1)
         ->and($usage['members']['limit'])->toBe((int) config('plans.free.members_per_team'))
+        ->and($usage['alertRules']['used'])->toBe(0)
+        ->and($usage['alertRules']['limit'])->toBe((int) config('plans.free.alert_rules_per_team'))
         ->and($usage['retentionDays'])->toBe((int) config('legal.log_retention_days'))
         ->and($usage['requestsPerMinute'])->toBe((int) config('security.ingest_rate_limit'))
         ->and($usage['warnAtPercent'])->toBe((int) config('plans.warn_at_percent'));
+});
+
+it('counts the team\'s alert rules live, and never stops one past the number', function () {
+    config(['plans.free.alert_rules_per_team' => 2]);
+
+    $team = Team::factory()->create();
+    AlertRule::factory()->count(3)->create(['team_id' => $team->id]);
+    AlertRule::factory()->disabled()->create(['team_id' => $team->id]);
+    AlertRule::factory()->create(); // another team's
+
+    $usage = app(PlanUsage::class)->forTeam($team, []);
+
+    // Soft: four rules against a limit of two is reported, and every one stays enabled as saved.
+    expect($usage['alertRules'])->toBe(['used' => 4, 'limit' => 2])
+        ->and($team->alertRules()->where('enabled', true)->count())->toBe(3);
 });
 
 it('adds today\'s logs and spans into one event count', function () {

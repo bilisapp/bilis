@@ -1,11 +1,15 @@
 <?php
 
+use App\Enums\AlertSeverity;
 use App\Enums\TeamRole;
+use App\Models\AlertInstance;
+use App\Models\AlertRule;
 use App\Models\Project;
 use App\Models\ProjectApiKey;
 use App\Models\Team;
 use App\Models\TeamInvitation;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use GuzzleHttp\Promise\PromiseInterface;
 use Illuminate\Http\Client\Request;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -254,6 +258,8 @@ test('dashboard reports where the team stands on the Free plan', function () {
         ->where('planUsage.projects.limit', (int) config('plans.free.projects_per_team'))
         ->where('planUsage.members.used', 1)
         ->where('planUsage.members.limit', (int) config('plans.free.members_per_team'))
+        ->where('planUsage.alertRules.used', 0)
+        ->where('planUsage.alertRules.limit', (int) config('plans.free.alert_rules_per_team'))
         ->where('planUsage.events.used', 0)
         ->where('planUsage.events.logs', 0)
         ->where('planUsage.events.spans', 0)
@@ -705,4 +711,91 @@ test('each service carries its own dense 24 hour trend', function () {
             && ! str_contains($request->body(), 'toStartOfInterval(Timestamp, toIntervalHour(1)) >=')
             && isset($query['param_projectIds'], $query['param_from'], $query['param_to'], $query['param_errorSeverity']);
     });
+});
+
+test('needs attention is deferred, and lists firing then pending series, most severe first', function () {
+    Http::fake();
+    $this->travelTo(CarbonImmutable::parse('2026-11-08 12:00:00', 'UTC'));
+
+    $user = User::factory()->create();
+    $team = $user->currentTeam;
+    $other = Team::factory()->create();
+
+    $rule = fn (AlertSeverity $severity, array $attributes = []) => AlertRule::factory()
+        ->forTeam($team)->create(['severity' => $severity, 'name' => $severity->value.' rule', ...$attributes]);
+
+    $info = $rule(AlertSeverity::Info);
+    $warning = $rule(AlertSeverity::Warning);
+    $critical = $rule(AlertSeverity::Critical);
+    $disabled = $rule(AlertSeverity::Critical, ['enabled' => false]);
+    $foreign = AlertRule::factory()->forTeam($other)->create(['severity' => AlertSeverity::Critical]);
+
+    $instance = fn (AlertRule $rule, string $state, string $service, int $minutesAgo) => AlertInstance::factory()
+        ->for($rule, 'rule')->{$state}()->withLabels(['service.name' => $service])
+        ->create($state === 'firing'
+            ? ['active_at' => now()->subMinutes($minutesAgo + 5), 'fired_at' => now()->subMinutes($minutesAgo)]
+            : ['active_at' => now()->subMinutes($minutesAgo)]);
+
+    $pendingCritical = $instance($critical, 'pending', 'auth', 1);
+    $firingInfo = $instance($info, 'firing', 'search', 2);
+    $firingWarningOld = $instance($warning, 'firing', 'worker', 30);
+    $firingWarningNew = $instance($warning, 'firing', 'gateway', 5);
+    $firingCritical = $instance($critical, 'firing', 'checkout', 60);
+    $instance($disabled, 'firing', 'emails', 1);
+    $instance($foreign, 'firing', 'payments', 1);
+    AlertInstance::factory()->for($critical, 'rule')->withLabels(['service.name' => 'inventory'])->create();
+
+    $this->actingAs($user)
+        ->get(route('dashboard', ['current_team' => $team->slug]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Dashboard')
+            ->missing('needsAttention')
+            ->loadDeferredProps(fn (Assert $reload) => $reload
+                ->where('needsAttention.total', 5)
+                ->where('needsAttention.firing', 4)
+                ->where('needsAttention.items', fn ($items) => collect($items)->pluck('id')->all() === [
+                    $firingCritical->id, $firingWarningNew->id, $firingWarningOld->id, $firingInfo->id, $pendingCritical->id,
+                ])
+                ->where('needsAttention.items.4.state', 'pending')
+                ->where('needsAttention.items.0.ruleName', 'critical rule')
+                ->where('needsAttention.items.0.labels', ['service.name' => 'checkout'])
+                ->where('needsAttention.items.0.ruleHref', route('alerts.edit', ['current_team' => $team->slug, 'alertRule' => $critical->id]))
+                ->where('needsAttention.items.0.explorerHref', fn (string $href) => str_contains($href, '/logs')
+                    && str_contains($href, 'service=checkout')
+                    && str_contains($href, 'from=2026-11-08T10%3A55%3A00Z')),
+            ),
+        );
+});
+
+test('needs attention shows at most eight series and still counts them all', function () {
+    Http::fake();
+
+    $user = User::factory()->create();
+    $rule = AlertRule::factory()->forTeam($user->currentTeam)->create();
+
+    foreach (range(1, 10) as $index) {
+        fake()->unique(true); // the factory draws from eight unique service names
+        AlertInstance::factory()->for($rule, 'rule')->firing()->withLabels(['service.name' => "svc-{$index}"])->create();
+    }
+
+    $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertInertia(fn (Assert $page) => $page->loadDeferredProps(fn (Assert $reload) => $reload
+            ->has('needsAttention.items', 8)
+            ->where('needsAttention.total', 10)
+            ->where('needsAttention.firing', 10),
+        ));
+});
+
+test('needs attention is empty for a team with nothing firing, even with no channels', function () {
+    Http::fake();
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertInertia(fn (Assert $page) => $page->loadDeferredProps(fn (Assert $reload) => $reload
+            ->where('needsAttention', ['items' => [], 'total' => 0, 'firing' => 0]),
+        ));
 });

@@ -29,6 +29,7 @@ use Illuminate\Support\Carbon;
  *
  * @phpstan-type IssueCandidate array{projectId: string, fingerprint: string, windowEvents: int, windowUsers: int, series: array<int, int>}
  * @phpstan-type IssueSummary array{projectId: string, fingerprint: string, type: string, message: string, origin: string, service: string, services: list<string>, environments: list<string>, firstSeen: int, lastSeen: int, lastIngested: int, events: int, users: int, firstRelease: string, lastRelease: string}
+ * @phpstan-type AlertCandidate array{projectId: string, fingerprint: string, firstSeen: int, lastIngested: int, events: int, type: string, message: string, service: string}
  * @phpstan-type IssueHistogramBucket array{bucket: int, events: int, users: int}
  * @phpstan-type IssueHistogram array{buckets: list<IssueHistogramBucket>, intervalSeconds: int, unavailable: bool}
  */
@@ -201,6 +202,140 @@ class IssueQuery
         }
 
         return $summaries[$projectId.':'.$fingerprint] ?? null;
+    }
+
+    /**
+     * Issues first seen since `$firstSeenSince` — candidates for `issue_new`.
+     *
+     * R18 then R17: fingerprints are nominated from `issue_hourly` from
+     * `$hourFrom` on (no upper bound, so a client with a fast clock still
+     * lands in the set), and their headlines re-aggregated by key from
+     * `issue_summary`. "New" is judged on `FirstSeen`, the client's clock, so
+     * the hour nomination is exact for it. Oldest first, so a cap drops the
+     * newest. Regressions are a separate read ({@see regressionCandidates()}),
+     * so they can never crowd new issues out of this cap.
+     *
+     * @param  list<string>  $projectIds
+     * @return list<AlertCandidate>|null
+     */
+    public function newIssueCandidates(array $projectIds, Carbon $hourFrom, Carbon $firstSeenSince, int $limit = self::CANDIDATE_LIMIT): ?array
+    {
+        if ($projectIds === []) {
+            return [];
+        }
+
+        $rows = $this->select(
+            <<<'SQL'
+            SELECT
+                ProjectId,
+                IssueFingerprint,
+                toUnixTimestamp64Milli(min(FirstSeen)) AS IssueFirstSeen,
+                toUnixTimestamp(max(LastIngested))     AS IssueLastIngested,
+                sum(Events)                            AS IssueEvents,
+                argMaxMerge(ExceptionType)             AS IssueType,
+                argMaxMerge(Message)                   AS IssueMessage,
+                argMaxMerge(LastService)               AS IssueService
+            FROM issue_summary
+            WHERE ProjectId IN {projectIds:Array(String)}
+              AND (ProjectId, IssueFingerprint) IN
+              (
+                  SELECT DISTINCT ProjectId, IssueFingerprint
+                  FROM issue_hourly
+                  WHERE ProjectId IN {projectIds:Array(String)}
+                    AND Hour >= {hourFrom:DateTime('UTC')}
+              )
+            GROUP BY ProjectId, IssueFingerprint
+            HAVING IssueFirstSeen >= {firstSeenSince:Int64}
+            ORDER BY IssueFirstSeen, ProjectId, IssueFingerprint
+            LIMIT {candidateLimit:UInt32}
+            SQL,
+            [
+                'projectIds' => ClickHouseParameters::stringArray($projectIds),
+                'hourFrom' => $hourFrom->clone()->utc()->startOfHour()->format('Y-m-d H:i:s'),
+                'firstSeenSince' => $firstSeenSince->getTimestampMs(),
+                'candidateLimit' => max(1, $limit),
+            ],
+        );
+
+        return $rows === null ? null : array_map($this->mapAlertCandidate(...), $rows);
+    }
+
+    /**
+     * Of these (resolved) issues, those whose last event *arrived* since
+     * `$ingestedSince` — candidates for `issue_regressed`.
+     *
+     * Not nominated from `issue_hourly`: that table is keyed by the event's
+     * client timestamp, so a buffered SDK flushing an hours-old event after
+     * the resolution would land in an old hour and never be nominated, though
+     * {@see IssueState} calls the issue regressed (it reads `LastIngested`,
+     * the server's arrival clock). The app database already knows exactly
+     * which issues are resolved, so this is a key lookup on `issue_summary`
+     * (R17 re-aggregation), in chunks so the bound list stays a sane URL.
+     *
+     * @param  list<string>  $projectIds
+     * @param  list<string>  $fingerprints
+     * @return list<AlertCandidate>|null
+     */
+    public function regressionCandidates(array $projectIds, array $fingerprints, Carbon $ingestedSince): ?array
+    {
+        if ($projectIds === [] || $fingerprints === []) {
+            return [];
+        }
+
+        $candidates = [];
+
+        foreach (array_chunk(array_values(array_unique($fingerprints)), self::SUMMARY_CHUNK) as $chunk) {
+            $rows = $this->select(
+                <<<'SQL'
+                SELECT
+                    ProjectId,
+                    IssueFingerprint,
+                    toUnixTimestamp64Milli(min(FirstSeen)) AS IssueFirstSeen,
+                    toUnixTimestamp(max(LastIngested))     AS IssueLastIngested,
+                    sum(Events)                            AS IssueEvents,
+                    argMaxMerge(ExceptionType)             AS IssueType,
+                    argMaxMerge(Message)                   AS IssueMessage,
+                    argMaxMerge(LastService)               AS IssueService
+                FROM issue_summary
+                WHERE ProjectId IN {projectIds:Array(String)}
+                  AND IssueFingerprint IN {fingerprints:Array(String)}
+                GROUP BY ProjectId, IssueFingerprint
+                HAVING IssueLastIngested >= {ingestedSince:UInt32}
+                ORDER BY IssueLastIngested, ProjectId, IssueFingerprint
+                SQL,
+                [
+                    'projectIds' => ClickHouseParameters::stringArray($projectIds),
+                    'fingerprints' => ClickHouseParameters::stringArray($chunk),
+                    'ingestedSince' => $ingestedSince->getTimestamp(),
+                ],
+            );
+
+            if ($rows === null) {
+                return null;
+            }
+
+            array_push($candidates, ...array_map($this->mapAlertCandidate(...), $rows));
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @return AlertCandidate
+     */
+    private function mapAlertCandidate(array $row): array
+    {
+        return [
+            'projectId' => (string) ($row['ProjectId'] ?? ''),
+            'fingerprint' => (string) ($row['IssueFingerprint'] ?? ''),
+            'firstSeen' => (int) ($row['IssueFirstSeen'] ?? 0),
+            'lastIngested' => (int) ($row['IssueLastIngested'] ?? 0) * 1000,
+            'events' => (int) ($row['IssueEvents'] ?? 0),
+            'type' => (string) ($row['IssueType'] ?? ''),
+            'message' => (string) ($row['IssueMessage'] ?? ''),
+            'service' => (string) ($row['IssueService'] ?? ''),
+        ];
     }
 
     /**

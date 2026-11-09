@@ -16,8 +16,8 @@ use Illuminate\Support\Carbon;
  * button is disabled, and no row is dropped. A limit that quietly deletes
  * telemetry is worse than no limit at all.
  *
- * Projects and members are counted live from SQLite: they are two cheap
- * queries and a stale count on the page a person just created a project from
+ * Projects, members and alert rules are counted live from the app database:
+ * they are three cheap queries and a stale count on the page a person just created a project from
  * reads as a bug. The event count is a pair of ClickHouse aggregates and is
  * cached for five minutes like `LogStorage`, with today's UTC date in the key
  * so yesterday's total can never survive midnight.
@@ -30,7 +30,7 @@ use Illuminate\Support\Carbon;
  * @phpstan-type PlanMetricPoints array{used: int, limit: int, since: string, unavailable: bool}
  * @phpstan-type PlanEvents array{used: int, limit: int, logs: int, spans: int, since: string, unavailable: bool}
  * @phpstan-type PlanAllowance array{used: int, limit: int}
- * @phpstan-type PlanUsageResult array{plan: string, projects: PlanAllowance, members: PlanAllowance, events: PlanEvents, metricPoints: PlanMetricPoints, retentionDays: int, requestsPerMinute: int, warnAtPercent: int}
+ * @phpstan-type PlanUsageResult array{plan: string, projects: PlanAllowance, members: PlanAllowance, alertRules: PlanAllowance, events: PlanEvents, metricPoints: PlanMetricPoints, retentionDays: int, requestsPerMinute: int, warnAtPercent: int}
  */
 class PlanUsage
 {
@@ -75,6 +75,10 @@ class PlanUsage
             'members' => [
                 'used' => $team->members()->count(),
                 'limit' => $this->limits->membersPerTeam(),
+            ],
+            'alertRules' => [
+                'used' => $team->alertRules()->count(),
+                'limit' => $this->limits->alertRulesPerTeam(),
             ],
             'events' => $this->events($projectIds, $since),
             'metricPoints' => $this->metricPoints($projectIds, $since),

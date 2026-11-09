@@ -18,7 +18,7 @@ namespace App\Services\Metrics;
  *
  * @phpstan-import-type Exponential from HistogramMath
  *
- * @phpstan-type Context array{metric: string, type: string, unit: string, grouped: bool, interval: int, starts: list<int>, readFrom: int, droppedSeries: int}
+ * @phpstan-type Context array{metric: string, type: string, unit: string, grouped: bool, interval: int, starts: list<int>, readFrom: int, droppedSeries: int, maxGroups?: int}
  * @phpstan-type Values array<string, array<string, array<int, float>>>
  * @phpstan-type Result array{metric: string|null, type: string|null, kind: string|null, unit: string, intervalSeconds: int, buckets: list<string>, series: list<array{label: string, group: string|null, stat: string, points: list<float|null>}>, truncatedGroups: int, droppedSeries: int, approximate: bool, unavailable: bool}
  */
@@ -326,7 +326,8 @@ class MetricSeriesBuilder
     public function result(array $context, string $kind, array $values, array $weights): array
     {
         arsort($weights);
-        $groups = array_slice(array_map(strval(...), array_keys($weights)), 0, self::MAX_GROUPS);
+        $maxGroups = $context['maxGroups'] ?? self::MAX_GROUPS;
+        $groups = array_slice(array_map(strval(...), array_keys($weights)), 0, $maxGroups);
 
         $series = [];
 
@@ -355,7 +356,7 @@ class MetricSeriesBuilder
             'intervalSeconds' => $context['interval'],
             'buckets' => array_map(fn (int $start): string => gmdate('Y-m-d H:i:s', $start), $context['starts']),
             'series' => $series,
-            'truncatedGroups' => max(0, count($weights) - self::MAX_GROUPS),
+            'truncatedGroups' => max(0, count($weights) - $maxGroups),
             'droppedSeries' => $context['droppedSeries'],
             'approximate' => false,
             'unavailable' => false,

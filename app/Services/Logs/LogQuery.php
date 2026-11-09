@@ -316,11 +316,12 @@ class LogQuery
      * whether to show onboarding, so it stops at the first matching row and
      * ignores every filter the user has set. A busy ClickHouse answers "yes",
      * because an overloaded database must never make an established team look
-     * like a brand new one.
+     * like a brand new one. A caller that acts on the answer (default-alert
+     * provisioning) passes `$throwOnOverload` and gets the exception instead.
      *
      * @param  list<string>  $projectIds
      */
-    public function hasAnyLogs(array $projectIds): bool
+    public function hasAnyLogs(array $projectIds, bool $throwOnOverload = false): bool
     {
         if ($projectIds === []) {
             return false;
@@ -338,7 +339,7 @@ class LogQuery
         try {
             return $this->client->select($sql, $params) !== [];
         } catch (ClickHouseException $exception) {
-            if (! $exception->isOverload()) {
+            if ($throwOnOverload || ! $exception->isOverload()) {
                 throw $exception;
             }
 
@@ -926,6 +927,107 @@ class LogQuery
     }
 
     /**
+     * One alert reading per series over the closed-open window `[from, to)`.
+     *
+     * `LogAlertSource` is the caller. The predicate is `conditions()`'s, read
+     * closed-open (R4's own form), so the ProjectId predicate, the services
+     * filter and R5's search expression are the viewer's, character for
+     * character. `count` and `rate` keep every filter in WHERE, where the body
+     * index can serve the search. `ratio` keeps the projects, window and
+     * services in WHERE and counts the severity and search match with
+     * `countIf`: its denominator is every line those services wrote.
+     *
+     * Ungrouped and unbucketed, the statement has no GROUP BY and always
+     * answers one row, so a window without a matching line reads 0 rather than
+     * "no data". A ratio over no lines at all is NaN, which arrives as null.
+     * Grouped by service, the `$limit` highest readings (lowest with
+     * `$lowestFirst`, for a `<` rule) are kept; bucketed for
+     * the preview, the `$limit` busiest services are. `events` is the row
+     * count under the WHERE (every line of the services, for `ratio`), which
+     * a rule's `min_events` reads. A rule's baseline comparison is a second
+     * call with the window shifted back — same statement, same R4 range.
+     *
+     * @param  list<string>  $projectIds
+     * @param  'count'|'rate'|'ratio'  $aggregation
+     * @param  int|null  $bucketSeconds  bucket the reading for the editor's preview; null reads the window as one
+     * @param  bool  $lowestFirst  keep the lowest grouped readings rather than the highest
+     * @return list<array{group: string, bucket: int|null, value: float|null, events: int}>|null null when ClickHouse is overloaded
+     */
+    public function alertValues(array $projectIds, LogFilters $filters, string $aggregation, bool $groupByService, int $limit, ?int $bucketSeconds = null, bool $lowestFirst = false): ?array
+    {
+        if ($projectIds === []) {
+            return [];
+        }
+
+        [$conditions, $params] = $this->conditions($projectIds, $filters, exclusiveTo: true);
+
+        $value = match ($aggregation) {
+            'rate' => 'count() / {perMinute:Float64}',
+            default => 'count()',
+        };
+
+        if ($aggregation === 'ratio') {
+            [$denominator] = $this->conditions(
+                $projectIds,
+                new LogFilters(service: $filters->service, from: $filters->from, to: $filters->to, services: $filters->services),
+                exclusiveTo: true,
+            );
+
+            // What severity and search add on top of the denominator's predicate.
+            $matched = array_values(array_diff($conditions, $denominator));
+            $conditions = $denominator;
+            $value = sprintf('countIf(%s) / count()', $matched === [] ? 'true' : implode(' AND ', $matched));
+        }
+
+        $params['perMinute'] = ($bucketSeconds ?? max(1, $filters->to->getTimestamp() - $filters->from->getTimestamp())) / 60;
+        $params['groupLimit'] = $limit;
+
+        $where = implode(' AND ', $conditions);
+        $groupBy = [];
+
+        if ($groupByService) {
+            $groupBy[] = 'Grp';
+        }
+
+        if ($bucketSeconds !== null) {
+            $params['bucketSeconds'] = $bucketSeconds;
+            $groupBy[] = 'Bucket';
+
+            if ($groupByService) {
+                $where .= " AND ServiceName IN (SELECT ServiceName FROM otel_logs WHERE {$where} GROUP BY ServiceName ORDER BY count() DESC LIMIT {groupLimit:UInt32})";
+            }
+        }
+
+        $sql = sprintf(
+            'SELECT %s AS Grp, %s AS Bucket, %s AS Value, count() AS Events FROM otel_logs WHERE %s%s',
+            $groupByService ? 'ServiceName' : "''",
+            $bucketSeconds === null ? '0' : 'toUnixTimestamp(toStartOfInterval(Timestamp, toIntervalSecond({bucketSeconds:UInt32})))',
+            $value,
+            $where,
+            $groupBy === [] ? '' : ' GROUP BY '.implode(', ', $groupBy).($bucketSeconds === null ? ' ORDER BY Value '.($lowestFirst ? 'ASC' : 'DESC').' LIMIT {groupLimit:UInt32}' : ''),
+        );
+
+        try {
+            $rows = $this->client->select($sql, $params);
+        } catch (ClickHouseException $exception) {
+            if (! $exception->isOverload()) {
+                throw $exception;
+            }
+
+            report($exception);
+
+            return null;
+        }
+
+        return array_values(array_map(fn (array $row): array => [
+            'group' => (string) ($row['Grp'] ?? ''),
+            'bucket' => $bucketSeconds === null ? null : (int) ($row['Bucket'] ?? 0),
+            'value' => is_numeric($row['Value'] ?? null) ? (float) $row['Value'] : null,
+            'events' => (int) ($row['Events'] ?? 0),
+        ], $rows));
+    }
+
+    /**
      * The SQL expression bucketing an OTel severity number into a level index.
      *
      * A record with no severity number at all is counted as info, matching the
@@ -1034,9 +1136,10 @@ class LogQuery
      *
      * @param  list<string>  $projectIds
      * @param  bool  $withUserFilters  whether the service, severity and search filters apply
+     * @param  bool  $exclusiveTo  read `[from, to)` rather than `[from, to]` — the alert window
      * @return array{0: list<string>, 1: array<string, scalar|null>}
      */
-    private function conditions(array $projectIds, LogFilters $filters, bool $withTimeWindow = true, bool $withUserFilters = true): array
+    private function conditions(array $projectIds, LogFilters $filters, bool $withTimeWindow = true, bool $withUserFilters = true, bool $exclusiveTo = false): array
     {
         $conditions = ['ProjectId IN {projectIds:Array(String)}'];
         $params = ['projectIds' => $this->projectIdsParameter($projectIds)];
@@ -1049,7 +1152,7 @@ class LogQuery
              * column, with the bound itself truncated.
              */
             $conditions[] = 'Timestamp >= {from:DateTime64(9)}';
-            $conditions[] = 'Timestamp <= {to:DateTime64(9)}';
+            $conditions[] = $exclusiveTo ? 'Timestamp < {to:DateTime64(9)}' : 'Timestamp <= {to:DateTime64(9)}';
             $params['from'] = $this->formatTimestamp($filters->from);
             $params['to'] = $this->formatTimestamp($filters->to);
         }
@@ -1061,6 +1164,11 @@ class LogQuery
         if ($filters->service !== null) {
             $conditions[] = 'ServiceName = {service:String}';
             $params['service'] = $filters->service;
+        }
+
+        if ($filters->services !== []) {
+            $conditions[] = 'ServiceName IN {services:Array(String)}';
+            $params['services'] = $this->stringArrayParameter($filters->services);
         }
 
         /*

@@ -76,34 +76,55 @@ private-use URI scheme rather than a localhost URL; those are accepted.
 
 ## What your agent can do
 
-Ten tools, all of them reads, scoped to the teams you belong to.
+Eleven tools, all of them reads, scoped to the teams you belong to.
 
-| Tool              | What it does                                                                                                      |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `list-teams`      | The teams you belong to, and which one the other tools default to.                                                |
-| `list-projects`   | A team's projects, and whether each has ever received logs, spans or metrics.                                     |
-| `list-services`   | The service names a project actually sends, so the `service` filter is never a guess.                             |
-| `search-logs`     | Log lines over a window, filtered by service, severity, a full-text term, or a trace or span id.                  |
-| `error-summary`   | A window's errors folded into distinct problems, with counts and a trace id to open. The "what broke?" call.      |
-| `list-traces`     | Traces over a window, with duration and error count. Filter to failures or to anything above a threshold.         |
-| `get-trace`       | One request as a text waterfall — every span, its service, duration, status and the attributes that locate a bug. |
-| `service-latency` | p95 and p99 per service over a window, slowest first.                                                             |
-| `list-metrics`    | The metrics a project reports, with type, unit and how each is read; given a name, its attribute keys and values. |
-| `query-metric`    | One metric as a time series — counters as a rate, histograms as p50/p95/p99 — with min/max/avg/last per series.   |
+| Tool              | What it does                                                                                                          |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `list-teams`      | The teams you belong to, and which one the other tools default to.                                                    |
+| `list-projects`   | A team's projects, and whether each has ever received logs, spans or metrics.                                         |
+| `list-services`   | The service names a project actually sends, so the `service` filter is never a guess.                                 |
+| `search-logs`     | Log lines over a window, filtered by service, severity, a full-text term, or a trace or span id.                      |
+| `error-summary`   | A window's errors folded into distinct problems, with counts and a trace id to open. The "what broke?" call.          |
+| `list-traces`     | Traces over a window, with duration and error count. Filter to failures or to anything above a threshold.             |
+| `get-trace`       | One request as a text waterfall — every span, its service, duration, status and the attributes that locate a bug.     |
+| `service-latency` | p95 and p99 per service over a window, slowest first.                                                                 |
+| `list-metrics`    | The metrics a project reports, with type, unit and how each is read; given a name, its attribute keys and values.     |
+| `query-metric`    | One metric as a time series — counters as a rate, histograms as p50/p95/p99 — with min/max/avg/last per series.       |
+| `list-alerts`     | What is firing or pending now, and the recent alert history (fired, resolved, rule errors, new and regressed issues). |
 
 Two prompts come with them: `instrument-with-bilis`, which teaches a fresh
 assistant how to wire an app up to send here, and `debug-with-bilis`, which
 turns a reported symptom into a plan across the tools above.
 
 Every read is a time window, and it defaults to the last hour (`list-metrics`
-looks at the last day, and a metric window stops at 30 days). Pass `from` and
-`to` when the question is about something older.
+and `list-alerts` look at the last day, a metric window stops at 30 days, and an
+alert history window at 7). Pass `from` and `to` when the question is about
+something older.
+
+### `list-alerts`
+
+Alert rules belong to a team, so this tool takes no `project`.
+
+| Input   | Meaning                                                                                         |
+| ------- | ----------------------------------------------------------------------------------------------- |
+| `team`  | Team slug; omit for your current team.                                                          |
+| `state` | Which active alerts to return: `all` (default — firing and pending), `firing` or `pending`.     |
+| `from`  | Start of the history window, ISO-8601. Defaults to 24 hours before `to`; at most 7 days before. |
+| `to`    | End of the history window, ISO-8601. Defaults to now.                                           |
+| `limit` | History events to return, newest first, 1–200. Defaults to 50.                                  |
+
+It returns `active` — every firing or pending alert (up to 200, firing first),
+with its rule, source, severity, labels, last value, condition, threshold, since
+when and whether the rule is muted — then `events`, the history in the window
+(each with a type, time, title, summary and link; issue events also carry the
+issue), and `truncated` when more events matched than `limit`. It reads alert
+state Bilis already recorded; it never mutes, acknowledges or edits anything.
 
 ## What it deliberately cannot do
 
-The MCP server is **read-only**. Your agent can read logs, traces and metrics and
+The MCP server is **read-only**. Your agent can read logs, traces, metrics and alerts and
 list teams, projects and services. It cannot send a log line or a metric, delete anything, create
-a project, read or issue an API key, change a setting, or start an Autofix job.
+a project, read or issue an API key, change a setting, create or mute an alert rule, or start an Autofix job.
 Those stay in the web app, behind a real click.
 
 The access token expires after 24 hours and refreshes silently for up to 30

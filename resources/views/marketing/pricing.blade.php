@@ -54,6 +54,7 @@
                             [number_format($free['membersPerTeam']).' members', 'per team, the owner included.'],
                             [number_format($free['eventsPerDay']).' events a day', 'log records plus spans, counted across the team from 00:00 UTC.'],
                             [number_format($free['metricPointsPerDay']).' metric data points a day', 'one gauge reading, counter value or histogram point each, counted separately from events.'],
+                            [number_format($free['alertRulesPerTeam']).' alert rules', 'per team, over logs, traces or metrics. New and regressed issues notify without one.'],
                             [number_format($free['retentionDays']).'-day retention', 'for logs, spans and metrics, then deleted automatically.'],
                             [number_format($free['requestsPerMinute']).' requests a minute', 'per API key on the ingest endpoints. A batching exporter sends thousands of records per request.'],
                             ['Every feature', 'no capability is held back for a paid tier that does not exist yet.'],

@@ -1,3 +1,4 @@
+export * from './alerts';
 export * from './auth';
 export * from './autofix';
 export * from './issues';

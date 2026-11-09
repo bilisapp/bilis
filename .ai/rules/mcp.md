@@ -9,8 +9,8 @@ paths:
 # MCP
 
 ## The MCP server is read-only, and that is a promise made on a public page
-`app/Mcp/Servers/BilisServer.php` exposes ten tools over logs, traces and
-metrics and nothing that writes: no ingest, no delete, no project or key creation, no
+`app/Mcp/Servers/BilisServer.php` exposes eleven tools over logs, traces,
+metrics and alerts and nothing that writes: no ingest, no delete, no project or key creation, no
 Autofix. The consent screen, `/features/mcp` and `resources/docs/reference/mcp.md`
 all state this to the person approving the connection, so adding a write tool is
 not a code change — it is breaking a published guarantee. If one is ever wanted,
@@ -43,6 +43,19 @@ since the tools build `MetricFilters` directly rather than via `fromRequest()`.
 `query-metric` to the usual hour. An unknown metric name is an error pointing at
 list-metrics — checked against the catalog *before* `series()`, whose empty
 result cannot tell "no such metric" from "no points in the window".
+
+## `list-alerts` reads only the app database
+`list-alerts` reads the app database only, never ClickHouse (like
+`list-teams`): `alert_instances` (firing/pending, joined to the resolved team's
+**enabled** rules — a disabled rule's stale series are not alerts) and
+`alert_events` (`team_id` = the resolved team), both team-bounded by
+`ResolvesScope`. History window defaults to 24 h, is capped at 7 days
+(`ListAlertsTool::MAX_WINDOW_DAYS`), `limit` 1–200 (default 50) with a
+`truncated` flag; active instances are ordered and capped at 200 in SQL,
+firing first, with an `activeTruncated` flag. Event
+wording comes from `AlertMessage::fromEvent()` — the same title, headline and
+`issue` object a notification carries — so do not re-render events here. It
+never mutes, acknowledges or edits.
 
 ## `routes/ai.php` is auto-loaded, and `/mcp` is the server's URI
 `Laravel\Mcp\Server\McpServiceProvider` registers `routes/ai.php` itself — do

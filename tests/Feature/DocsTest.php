@@ -206,7 +206,7 @@ it('lists every section and page in front matter order', function () {
     expect($pages)->toBe([
         'getting-started' => ['overview', 'quickstart'],
         'ingestion' => ['endpoints', 'traces', 'metrics', 'api-keys', 'timestamps', 'severity', 'shippers', 'go', 'server-agent', 'linux-host', 'sentry', 'cloudflare-workers', 'claude-code'],
-        'reference' => ['limits-and-behavior', 'mcp'],
+        'reference' => ['limits-and-behavior', 'mcp', 'alerting'],
     ]);
 });
 
@@ -290,6 +290,7 @@ it('states the hosted Free plan numbers the app actually measures against', func
         ->toMatch($row('Members per team (owner included)', number_format($limits->membersPerTeam())))
         ->toMatch($row('Events per day (log records + spans, per team, from 00:00 UTC)', number_format($limits->eventsPerDay())))
         ->toMatch($row('Metric data points per day (per team, from 00:00 UTC)', number_format($limits->metricPointsPerDay())))
+        ->toMatch($row('Alert rules per team', number_format($limits->alertRulesPerTeam())))
         ->toMatch($row('Retention for logs, spans and metrics', number_format($limits->retentionDays()).' days'))
         ->toMatch($row('Ingest requests per minute, per API key', number_format($limits->requestsPerMinute())))
         ->toContain($limits->warnAtPercent().'%')

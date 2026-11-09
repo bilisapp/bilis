@@ -214,10 +214,16 @@ return [
     'defaults' => [
         'supervisor-1' => [
             'connection' => 'redis',
-            'queue' => array_values(array_filter(array_map(
-                fn (string $queue): string => trim($queue),
-                explode(',', (string) env('HORIZON_QUEUES', env('REDIS_QUEUE', 'default'))),
-            ))),
+            // `alerts` (EvaluateAlertRule) is always consumed, after whatever
+            // HORIZON_QUEUES names, so overriding the list cannot silently
+            // stop alerting.
+            'queue' => array_values(array_unique([
+                ...array_filter(array_map(
+                    fn (string $queue): string => trim($queue),
+                    explode(',', (string) env('HORIZON_QUEUES', env('REDIS_QUEUE', 'default'))),
+                )),
+                'alerts',
+            ])),
             'balance' => 'auto',
             'autoScalingStrategy' => 'time',
             'maxProcesses' => (int) env('HORIZON_DEFAULT_MAX_PROCESSES', 1),

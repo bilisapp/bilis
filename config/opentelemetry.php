@@ -274,6 +274,7 @@ return [
                 '*/envelope',
                 '*/store',
                 'up',
+                'health/alerting',
             ],
             'excluded_methods' => [],
 
