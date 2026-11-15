@@ -41,7 +41,10 @@ x-bilis: &bilis
 
 services:
   clickhouse:
-    image: clickhouse/clickhouse-server:26.3
+    # 26.9, not 26.3: 26.3 throws "Invalid partition key size: 0" (LOGICAL_ERROR)
+    # when an async-insert flush mixes a deduplicated retry with new rows,
+    # failing every insert in that flush. SCHEMA.md is verified on 26.9.
+    image: clickhouse/clickhouse-server:26.9
     restart: unless-stopped
     environment:
       CLICKHOUSE_USER: bilis

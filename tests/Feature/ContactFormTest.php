@@ -151,3 +151,24 @@ it('throttles the form after five submissions', function () {
 
     expect(ContactMessage::count())->toBe(5);
 });
+
+it('renders the notification for every kind of sender', function (bool $signedIn, bool $withTeam, string $expected) {
+    $user = $signedIn ? User::factory()->create() : null;
+
+    $message = ContactMessage::factory()->create([
+        'user_id' => $user?->id,
+        'team_id' => $withTeam ? $user?->currentTeam?->id : null,
+    ]);
+
+    $html = (new ContactMessageReceived($message))->render();
+
+    expect($html)->toContain(str_replace('{email}', (string) $user?->email, $expected));
+
+    if ($withTeam) {
+        expect($html)->toContain($user->currentTeam->name);
+    }
+})->with([
+    'anonymous' => [false, false, 'Not signed in.'],
+    'signed in, no team' => [true, false, 'Signed in as {email}.'],
+    'signed in with a team' => [true, true, 'Signed in as {email}, looking at the'],
+]);

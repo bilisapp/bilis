@@ -7,8 +7,10 @@
 {{ $contactMessage->message }}
 </x-mail::panel>
 
-@if ($contactMessage->user)
-Signed in as {{ $contactMessage->user->email }}@if ($contactMessage->team), looking at the **{{ $contactMessage->team->name }}** team@endif.
+@if ($contactMessage->user && $contactMessage->team)
+Signed in as {{ $contactMessage->user->email }}, looking at the **{{ $contactMessage->team->name }}** team.
+@elseif ($contactMessage->user)
+Signed in as {{ $contactMessage->user->email }}.
 @else
 Not signed in.
 @endif
