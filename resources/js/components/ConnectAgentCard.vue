@@ -9,9 +9,14 @@ type Props = {
     url: string;
     /** Where the guide lives, so the card never restates it. */
     docsHref: string;
+    /**
+     * Drop the heading and the introduction, for a host that already says
+     * both (ConnectAgentDialog's title and description).
+     */
+    bare?: boolean;
 };
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), { bare: false });
 
 /**
  * The one line that connects Claude Code.
@@ -37,9 +42,13 @@ const showConfig = ref(false);
       the one line to copy.
     -->
     <section class="flex flex-col gap-5" data-test="connect-agent">
-        <Heading variant="small" title="Connect your coding agent" />
+        <Heading
+            v-if="!props.bare"
+            variant="small"
+            title="Connect your coding agent"
+        />
 
-        <p class="max-w-prose text-sm text-muted-foreground">
+        <p v-if="!props.bare" class="max-w-prose text-sm text-muted-foreground">
             Let the assistant you already code with read this team's logs,
             traces and metrics while it works. It signs in as you in the browser
             — there is no key to paste — and it can only read: nothing it does

@@ -3,6 +3,7 @@ import { Head, Link, usePage } from '@inertiajs/vue3';
 import { ArrowRight } from '@lucide/vue';
 import { computed } from 'vue';
 import BarSparkline from '@/components/BarSparkline.vue';
+import ConnectAgentCallout from '@/components/ConnectAgentCallout.vue';
 import GetStartedPanel from '@/components/GetStartedPanel.vue';
 import IngestRateCard from '@/components/IngestRateCard.vue';
 import NeedsAttentionCard from '@/components/NeedsAttentionCard.vue';
@@ -69,6 +70,9 @@ const page = usePage();
 const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
 
 const stage = computed(() => props.onboarding.stage);
+
+/** Until this account has approved an agent, connecting one is the ask. */
+const agentConnected = computed(() => page.props.agent?.connected ?? true);
 
 /** The hourly trends behind the two headline numbers, oldest hour first. */
 const logsSeries = computed(() =>
@@ -352,6 +356,14 @@ function storageBarWidth(project: LogStorageProject): number {
                 :attention="needsAttention"
                 :team-slug="teamSlug"
             />
+        </div>
+
+        <!--
+          Connecting an agent is offered at every stage — before data it helps
+          instrument, after it checks issues — and leaves once one is approved.
+        -->
+        <div v-if="!agentConnected" class="px-4 pb-8 md:px-10">
+            <ConnectAgentCallout :ready="stage === 'ready'" />
         </div>
 
         <!--

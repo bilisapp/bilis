@@ -31,6 +31,8 @@ declare module '@inertiajs/core' {
             sidebarOpen: boolean;
             currentTeam: Team | null;
             teams: Team[];
+            /** The MCP endpoint, and whether this user has approved an agent yet. */
+            agent: { mcpUrl: string; connected: boolean } | null;
             autofix: { enabled: boolean };
             /** Deferred and kept once per minute; null when storage is busy. */
             issueBadge?: IssueBadgeCounts | null;

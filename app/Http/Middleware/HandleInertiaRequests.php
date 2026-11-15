@@ -54,6 +54,16 @@ class HandleInertiaRequests extends Middleware
              * switch: with it off the endpoints 404, so the rail must not
              * offer a door that does not open.
              */
+            /*
+             * Connecting a coding agent over MCP is the first thing a new
+             * account is nudged towards (dashboard, issues, rail), until it
+             * has happened. The URL is resolved here: a client told the wrong
+             * host silently fails its OAuth discovery.
+             */
+            'agent' => fn (): ?array => $user ? [
+                'mcpUrl' => url('/mcp'),
+                'connected' => $user->hasConnectedAgent(),
+            ] : null,
             'autofix' => ['enabled' => config('autofix.enabled') === true],
             /*
              * The count beside "Issues" in the rail. Deferred so no page waits

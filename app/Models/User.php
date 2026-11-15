@@ -17,6 +17,7 @@ use Laravel\Fortify\PasskeyAuthenticatable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Passport\Contracts\OAuthenticatable;
 use Laravel\Passport\HasApiTokens;
+use Laravel\Passport\Passport;
 
 /**
  * @property int $id
@@ -56,5 +57,21 @@ class User extends Authenticatable implements OAuthenticatable, PasskeyUser
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Whether an agent is connected to Bilis as this user over MCP.
+     *
+     * Every Passport client is an MCP client (there is no first-party one), so
+     * any access token the user approved counts. An access token lasts a day
+     * but its refresh token a month, so a token that expired inside the
+     * refresh window still means a client that can carry on without asking.
+     */
+    public function hasConnectedAgent(): bool
+    {
+        return $this->tokens()
+            ->where('revoked', false)
+            ->where('expires_at', '>', now()->sub(Passport::refreshTokensExpireIn()))
+            ->exists();
     }
 }

@@ -8,7 +8,9 @@ import AppLogoMark from '@/components/AppLogoMark.vue';
 import AskAiMenu from '@/components/AskAiMenu.vue';
 import AutofixUpsellModal from '@/components/AutofixUpsellModal.vue';
 import BrowserOriginsCard from '@/components/BrowserOriginsCard.vue';
+import ConnectAgentCallout from '@/components/ConnectAgentCallout.vue';
 import ConnectAgentCard from '@/components/ConnectAgentCard.vue';
+import ConnectAgentDialog from '@/components/ConnectAgentDialog.vue';
 import CopyableValue from '@/components/CopyableValue.vue';
 import ErrorMonitoringSetup from '@/components/ErrorMonitoringSetup.vue';
 import GetStartedPanel from '@/components/GetStartedPanel.vue';
@@ -396,6 +398,28 @@ const onHistogramZoom = (window: { from: string; to: string }) => {
                 url="https://bilis.example.com/mcp"
                 docs-href="/docs/reference/mcp"
             />
+        </DemoBlock>
+
+        <DemoBlock
+            title="ConnectAgentCallout"
+            description="the dashboard's invitation to connect a coding agent, shown at every onboarding stage until this account has approved one (a live Passport token), then gone. Before data flows it sells the agent as the one who helps instrument the app; after, as the one who checks new issues. The button opens ConnectAgentDialog."
+        >
+            <div class="flex flex-col gap-4">
+                <ConnectAgentCallout url="https://bilis.example.com/mcp" />
+                <ConnectAgentCallout
+                    ready
+                    url="https://bilis.example.com/mcp"
+                />
+            </div>
+        </DemoBlock>
+
+        <DemoBlock
+            title="ConnectAgentDialog"
+            description="ConnectAgentCard (bare) in a dialog, around any trigger in its slot — the dashboard callout, the Issues header and the rail's footer all open the same one. Below the connect command sits a first thing to ask, phrased as a standing check of new errors, since that is what connecting is for."
+        >
+            <ConnectAgentDialog url="https://bilis.example.com/mcp">
+                <Button variant="outline">Connect your agent</Button>
+            </ConnectAgentDialog>
         </DemoBlock>
 
         <DemoBlock

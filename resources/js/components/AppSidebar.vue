@@ -3,6 +3,7 @@ import { Link, usePage } from '@inertiajs/vue3';
 import {
     BellRing,
     BookOpen,
+    Bot,
     Bug,
     ChartLine,
     FolderKanban,
@@ -13,6 +14,7 @@ import {
 } from '@lucide/vue';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
+import ConnectAgentDialog from '@/components/ConnectAgentDialog.vue';
 import NavAccount from '@/components/NavAccount.vue';
 import NavMain from '@/components/NavMain.vue';
 import {
@@ -209,6 +211,24 @@ const setupNavItems = computed<NavItem[]>(() => [
         </SidebarContent>
 
         <SidebarFooter class="pt-2 pb-3">
+            <!--
+              Until this account has approved an agent, the rail keeps the one
+              setup step that pays off on every page in reach. It goes away for
+              good once a token exists.
+            -->
+            <SidebarMenu v-if="page.props.agent?.connected === false">
+                <SidebarMenuItem>
+                    <ConnectAgentDialog>
+                        <SidebarMenuButton
+                            tooltip="Connect your agent"
+                            data-test="sidebar-connect-agent"
+                        >
+                            <Bot />
+                            <span>Connect your agent</span>
+                        </SidebarMenuButton>
+                    </ConnectAgentDialog>
+                </SidebarMenuItem>
+            </SidebarMenu>
             <NavAccount />
         </SidebarFooter>
     </Sidebar>

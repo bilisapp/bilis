@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { Bot } from '@lucide/vue';
 import { computed, nextTick, watch } from 'vue';
 import BarSparkline from '@/components/BarSparkline.vue';
+import ConnectAgentDialog from '@/components/ConnectAgentDialog.vue';
 import IssueListRow from '@/components/IssueListRow.vue';
 import IssuesToolbar from '@/components/IssuesToolbar.vue';
 import KeyHint from '@/components/KeyHint.vue';
@@ -230,6 +232,13 @@ watch(cursor, (index) => {
             </p>
 
             <template #actions>
+                <ConnectAgentDialog
+                    v-if="page.props.agent?.connected === false"
+                >
+                    <Button variant="outline" data-test="issues-connect-agent">
+                        <Bot /> Connect your agent
+                    </Button>
+                </ConnectAgentDialog>
                 <SegmentedControl
                     :model-value="filters.status"
                     :options="statusOptions"
