@@ -177,7 +177,7 @@ test('a trace over the span cap keeps the triggering path, its siblings, the fai
 
     expect($rendered['rendered'])->toBeLessThanOrEqual(TraceWaterfallRenderer::MAX_SPANS)
         ->and($rendered['omitted'])->toBe(count($spans) - $rendered['rendered'])
-        ->and($text)->toContain(sprintf('(%d more spans omitted)', $rendered['omitted']))
+        ->and($text)->toContain(sprintf('(%d more spans omitted: checkout %d)', $rendered['omitted'], $rendered['omitted']))
         // Marks are a fixed four-character column; the trigger sits at depth 3.
         ->and($text)->toContain('>>   '.str_repeat('  ', 3).'checkout span trigger')
         ->and($text)->toContain('checkout span sibling')
@@ -204,14 +204,100 @@ test('the character cap cuts whole lines and reports what it dropped', function 
 
     $rendered = (new TraceWaterfallRenderer)->render($spans);
 
-    expect(mb_strlen($rendered['text']))->toBeLessThanOrEqual(TraceWaterfallRenderer::MAX_CHARS + 40)
+    expect(mb_strlen($rendered['text']))->toBeLessThanOrEqual(TraceWaterfallRenderer::MAX_CHARS)
         ->and($rendered['rendered'])->toBeLessThan(50)
         ->and($rendered['omitted'])->toBe(50 - $rendered['rendered'])
-        ->and($rendered['text'])->toEndWith(sprintf('(%d more spans omitted)', $rendered['omitted']));
+        ->and($rendered['text'])->toEndWith(sprintf('(%d more spans omitted: checkout %d)', $rendered['omitted'], $rendered['omitted']));
 
     foreach (waterfallLines($rendered['text']) as $line) {
         expect($line)->toEndWith(str_repeat('r', 90));
     }
+});
+
+test('the character cap keeps the slow tail of a trace instead of cutting by position', function () {
+    // An HTTP request whose early spans carry long SQL, then a queued job that
+    // ran seconds later. Under the span cap, over the character cap.
+    $spans = [waterfallSpan('root', '', ['name' => 'GET /api/settings', 'kind' => 'Server', 'durationMs' => 3400.0])];
+
+    for ($i = 0; $i < 30; $i++) {
+        $spans[] = waterfallSpan('sql'.$i, 'root', [
+            'serviceName' => 'web',
+            'name' => 'SELECT integrations',
+            'durationMs' => 1.0,
+            'attributes' => ['db.statement' => 'SELECT * FROM integrations WHERE '.str_repeat('id = ? AND ', 20)],
+        ]);
+    }
+
+    $spans[] = waterfallSpan('job', 'root', ['serviceName' => 'worker', 'name' => 'WakeUpJob', 'durationMs' => 800.0]);
+    $spans[] = waterfallSpan('search', 'job', ['serviceName' => 'worker', 'name' => 'POST /search/{id}', 'kind' => 'Client', 'durationMs' => 410.0]);
+
+    $rendered = (new TraceWaterfallRenderer)->render($spans);
+    $lines = waterfallLines($rendered['text']);
+
+    expect(count($spans))->toBeLessThan(TraceWaterfallRenderer::MAX_SPANS)
+        ->and($rendered['omitted'])->toBeGreaterThan(0)
+        ->and(mb_strlen($rendered['text']))->toBeLessThanOrEqual(TraceWaterfallRenderer::MAX_CHARS)
+        ->and($rendered['text'])->toContain('worker WakeUpJob')
+        ->and($rendered['text'])->toContain('worker POST /search/{id}')
+        ->and($rendered['text'])->toEndWith(sprintf('(%d more spans omitted: web %d)', $rendered['omitted'], $rendered['omitted']))
+        // Still a waterfall: the root first, the job before its child.
+        ->and($lines[0])->toContain('GET /api/settings');
+
+    $jobAt = array_search(true, array_map(fn (string $line): bool => str_contains($line, 'WakeUpJob'), $lines), true);
+    $searchAt = array_search(true, array_map(fn (string $line): bool => str_contains($line, 'POST /search'), $lines), true);
+
+    expect($jobAt)->toBeLessThan($searchAt);
+});
+
+test('a kept span always brings its ancestors, so the result stays a tree', function () {
+    $spans = [waterfallSpan('root', '', ['durationMs' => 1.0])];
+    $parent = 'root';
+
+    // A deep, fast chain ending in one failure, buried under slow noise.
+    for ($i = 0; $i < 5; $i++) {
+        $spans[] = waterfallSpan('deep'.$i, $parent, ['durationMs' => 1.0]);
+        $parent = 'deep'.$i;
+    }
+
+    $spans[] = waterfallSpan('leaf', $parent, ['statusCode' => 'Error', 'durationMs' => 1.0]);
+
+    for ($i = 0; $i < 100; $i++) {
+        $spans[] = waterfallSpan('noise'.$i, 'root', ['durationMs' => 500.0]);
+    }
+
+    $rendered = (new TraceWaterfallRenderer)->render($spans, maxSpans: 10);
+
+    expect($rendered['rendered'])->toBe(10)
+        ->and($rendered['text'])->toContain('!! '.str_repeat('  ', 6).'checkout span leaf');
+
+    for ($i = 0; $i < 5; $i++) {
+        expect($rendered['text'])->toContain('checkout span deep'.$i.' ');
+    }
+});
+
+test('the omission line names the services that were cut, busiest first', function () {
+    $spans = [waterfallSpan('root', '', ['durationMs' => 1000.0])];
+
+    foreach (['db' => 6, 'cache' => 4, 'mail' => 3, 'queue' => 2, 'search' => 1, 'auth' => 1] as $service => $count) {
+        for ($i = 0; $i < $count; $i++) {
+            $spans[] = waterfallSpan($service.$i, 'root', ['serviceName' => $service, 'durationMs' => 1.0]);
+        }
+    }
+
+    $rendered = (new TraceWaterfallRenderer)->render($spans, maxSpans: 1);
+
+    expect($rendered['text'])->toEndWith('(17 more spans omitted: db 6, cache 4, mail 3, queue 2, 2 other services)');
+});
+
+test('a caller can widen both caps', function () {
+    $spans = [];
+
+    for ($i = 0; $i < 100; $i++) {
+        $spans[] = waterfallSpan('s'.$i, '', ['attributes' => ['http.route' => str_repeat('r', 60)]]);
+    }
+
+    expect((new TraceWaterfallRenderer)->render($spans)['omitted'])->toBeGreaterThan(0)
+        ->and((new TraceWaterfallRenderer)->render($spans, '', 250, 20000)['omitted'])->toBe(0);
 });
 
 test('an empty span list renders nothing', function () {

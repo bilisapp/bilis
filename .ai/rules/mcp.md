@@ -28,7 +28,11 @@ R4/R5/R10/R11/R13 live in those services.
 builder the Autofix agent is handed: summary, spans inside the trace's own
 bounds, and a capped text waterfall, with every empty outcome reported as a
 state (`expired`/`missing`/`unavailable`) rather than thrown. Do not write a
-second renderer.
+second renderer — pass a budget instead: the tool hands the builder its own,
+larger `MAX_SPANS`/`MAX_CHARS` (250 / 20,000), because over MCP the trace is
+the whole answer rather than one bounded part of a prompt. The tool
+description explains `span_count` / `rendered_spans` / `omitted_spans` /
+`read_capped`; keep it in step with `TraceContextBuilder::context()`.
 
 ## Metric tools go through `MetricQuery` only
 `list-metrics` and `query-metric` call `App\Services\Metrics\MetricQuery` and

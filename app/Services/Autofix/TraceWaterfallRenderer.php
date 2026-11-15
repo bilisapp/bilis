@@ -22,11 +22,14 @@ use App\Services\Traces\SpanTree;
  *
  * The output is bounded twice, by span count and by characters, because it is
  * appended to a prompt whose other parts are already bounded (`TaskRenderer`)
- * and a two-thousand-span trace would drown them. When the cap bites, the
+ * and a two-thousand-span trace would drown them. When either cap bites, the
  * spans kept are the ones most likely to matter: the triggering span and its
- * ancestors, then its siblings, then every failed span, then the slowest of
- * whatever is left. The rendering order is always the tree's own, so what
- * survives still reads as a waterfall rather than as a ranking.
+ * ancestors, then its siblings, then every failed span, then the roots, then
+ * the slowest of whatever is left — each with its ancestors, so the result
+ * stays a tree. The rendering order is always the tree's own, so what
+ * survives still reads as a waterfall rather than as a ranking, and a closing
+ * line counts what was cut per service. The caps default to the Autofix
+ * prompt's budget; the MCP `get-trace` tool passes a larger one.
  *
  * Pure: no clock, no storage, no config.
  *
@@ -65,6 +68,16 @@ class TraceWaterfallRenderer
      * Marks the span that emitted the triggering log line.
      */
     public const TRIGGER_MARK = '>>';
+
+    /**
+     * Characters held back for the omission line when spans are cut.
+     */
+    public const OMISSION_RESERVE = 260;
+
+    /**
+     * How many services the omission line names before summing the rest.
+     */
+    public const OMISSION_SERVICES = 4;
 
     /**
      * Marks a span whose status is Error.
@@ -111,12 +124,14 @@ class TraceWaterfallRenderer
      * Render the spans, marking the one the triggering log line came from.
      *
      * The spans are in whatever order storage returned them; the tree order
-     * comes from {@see SpanTree::flatten()}, which never drops a span.
+     * comes from {@see SpanTree::flatten()}, which never drops a span. The two
+     * caps default to the Autofix prompt's budget; a caller with more room (the
+     * MCP `get-trace` tool) passes its own.
      *
      * @param  list<Span>  $spans
      * @return RenderedWaterfall
      */
-    public function render(array $spans, string $triggerSpanId = ''): array
+    public function render(array $spans, string $triggerSpanId = '', int $maxSpans = self::MAX_SPANS, int $maxChars = self::MAX_CHARS): array
     {
         $ordered = SpanTree::flatten($spans);
         $total = count($ordered);
@@ -125,72 +140,78 @@ class TraceWaterfallRenderer
             return ['text' => '', 'rendered' => 0, 'omitted' => 0];
         }
 
-        $kept = $this->select($ordered, $triggerSpanId);
+        $legend = $this->legend($triggerSpanId !== '');
 
-        $lines = [$this->legend($triggerSpanId !== '')];
-        $length = mb_strlen($lines[0]);
-        $rendered = 0;
+        /** @var array<string, string> $lines */
+        $lines = [];
+
+        foreach ($ordered as $span) {
+            $spanId = $this->string($span, 'spanId');
+            $lines[$spanId] = $this->line($span, $spanId !== '' && $spanId === $triggerSpanId);
+        }
+
+        $kept = $this->select($ordered, $lines, $triggerSpanId, $maxSpans, $maxChars - mb_strlen($legend));
+
+        $output = [$legend];
+        $omitted = [];
 
         foreach ($ordered as $span) {
             $spanId = $this->string($span, 'spanId');
 
-            if (! isset($kept[$spanId])) {
-                continue;
+            if (isset($kept[$spanId])) {
+                $output[] = $lines[$spanId];
+            } else {
+                $omitted[] = $span;
             }
-
-            $line = $this->line($span, $spanId === $triggerSpanId);
-            $cost = mb_strlen($line) + 1;
-
-            /*
-             * The character cap is checked line by line so a span is either
-             * whole or absent: a waterfall row cut mid-attribute reads as a
-             * value that was never there.
-             */
-            if ($length + $cost > self::MAX_CHARS) {
-                break;
-            }
-
-            $lines[] = $line;
-            $length += $cost;
-            $rendered++;
         }
 
-        $omitted = $total - $rendered;
-
-        if ($omitted > 0) {
-            $lines[] = sprintf('(%d more span%s omitted)', $omitted, $omitted === 1 ? '' : 's');
+        if ($omitted !== []) {
+            $output[] = $this->omissionLine($omitted);
         }
 
         return [
-            'text' => implode("\n", $lines),
-            'rendered' => $rendered,
-            'omitted' => $omitted,
+            'text' => implode("\n", $output),
+            'rendered' => $total - count($omitted),
+            'omitted' => count($omitted),
         ];
     }
 
     /**
-     * Decide which spans survive the count cap.
+     * Decide which spans survive both caps.
      *
-     * Everything survives a small trace. A large one keeps, in priority order:
-     * the triggering span and its ancestors (the call path that led there), its
-     * siblings (what else that parent was doing), every span that failed, and
-     * finally the slowest of the rest. The result is a set keyed by span id;
-     * ordering is the caller's.
+     * Everything survives a trace that fits. Otherwise spans are offered in
+     * priority order — the triggering span and its ancestors (the call path
+     * that led there), its siblings (what else that parent was doing), every
+     * span that failed, the roots, then the rest slowest first — and each is
+     * kept together with whichever of its ancestors are not kept yet, so a
+     * survivor is never an orphan floating at a depth its parent is absent
+     * from. A candidate that would break either cap is skipped rather than
+     * ending the walk, so a cheaper span further down can still use the room.
+     *
+     * Both caps are applied here, by priority. Cutting by characters in tree
+     * order instead — the old behaviour — silently drops the tail of any
+     * trace whose early spans carry long statements, and the tail is where a
+     * queue job or a slow downstream call usually is.
      *
      * @param  list<Span>  $ordered
+     * @param  array<string, string>  $lines
      * @return array<string, true>
      */
-    private function select(array $ordered, string $triggerSpanId): array
+    private function select(array $ordered, array $lines, string $triggerSpanId, int $maxSpans, int $charBudget): array
     {
-        $kept = [];
+        $cost = fn (string $spanId): int => mb_strlen($lines[$spanId] ?? '') + 1;
 
-        if (count($ordered) <= self::MAX_SPANS) {
-            foreach ($ordered as $span) {
-                $kept[$this->string($span, 'spanId')] = true;
-            }
+        $everything = 0;
 
-            return $kept;
+        foreach ($ordered as $span) {
+            $everything += $cost($this->string($span, 'spanId'));
         }
+
+        if (count($ordered) <= $maxSpans && $everything <= $charBudget) {
+            return array_fill_keys(array_keys($lines), true);
+        }
+
+        $charBudget -= self::OMISSION_RESERVE;
 
         /** @var array<string, Span> $byId */
         $byId = [];
@@ -199,36 +220,59 @@ class TraceWaterfallRenderer
             $byId[$this->string($span, 'spanId')] = $span;
         }
 
-        $keep = function (string $spanId) use (&$kept): bool {
-            if ($spanId === '' || isset($kept[$spanId]) || count($kept) >= self::MAX_SPANS) {
-                return false;
+        $kept = [];
+        $used = 0;
+
+        foreach ($this->priority($ordered, $byId, $triggerSpanId) as $spanId) {
+            if (count($kept) >= $maxSpans) {
+                break;
             }
 
-            $kept[$spanId] = true;
-
-            return true;
-        };
-
-        if ($triggerSpanId !== '' && isset($byId[$triggerSpanId])) {
             /*
-             * The path from the triggering span up to the root, guarded against
-             * a parent cycle the same way SpanTree is.
+             * The candidate plus every ancestor not already kept, guarded
+             * against a parent cycle the same way SpanTree is.
              */
-            $seen = [];
-            $current = $triggerSpanId;
+            $chain = [];
+            $current = $spanId;
 
-            while ($current !== '' && isset($byId[$current]) && ! isset($seen[$current])) {
-                $seen[$current] = true;
-                $keep($current);
+            while ($current !== '' && isset($byId[$current]) && ! isset($kept[$current]) && ! isset($chain[$current])) {
+                $chain[$current] = $cost($current);
                 $current = $this->string($byId[$current], 'parentSpanId');
             }
+
+            if ($chain === [] || count($kept) + count($chain) > $maxSpans || $used + array_sum($chain) > $charBudget) {
+                continue;
+            }
+
+            foreach ($chain as $chainId => $chainCost) {
+                $kept[$chainId] = true;
+                $used += $chainCost;
+            }
+        }
+
+        return $kept;
+    }
+
+    /**
+     * Every span id once, most worth keeping first.
+     *
+     * @param  list<Span>  $ordered
+     * @param  array<string, Span>  $byId
+     * @return list<string>
+     */
+    private function priority(array $ordered, array $byId, string $triggerSpanId): array
+    {
+        $ids = [];
+
+        if ($triggerSpanId !== '' && isset($byId[$triggerSpanId])) {
+            $ids[] = $triggerSpanId;
 
             $parentId = $this->string($byId[$triggerSpanId], 'parentSpanId');
 
             if ($parentId !== '') {
                 foreach ($ordered as $span) {
                     if ($this->string($span, 'parentSpanId') === $parentId) {
-                        $keep($this->string($span, 'spanId'));
+                        $ids[] = $this->string($span, 'spanId');
                     }
                 }
             }
@@ -236,7 +280,13 @@ class TraceWaterfallRenderer
 
         foreach ($ordered as $span) {
             if ($this->isError($span)) {
-                $keep($this->string($span, 'spanId'));
+                $ids[] = $this->string($span, 'spanId');
+            }
+        }
+
+        foreach ($ordered as $span) {
+            if ((int) ($span['depth'] ?? 0) === 0) {
+                $ids[] = $this->string($span, 'spanId');
             }
         }
 
@@ -245,14 +295,44 @@ class TraceWaterfallRenderer
         usort($slowest, fn (array $a, array $b): int => $this->duration($b) <=> $this->duration($a));
 
         foreach ($slowest as $span) {
-            if (count($kept) >= self::MAX_SPANS) {
-                break;
-            }
-
-            $keep($this->string($span, 'spanId'));
+            $ids[] = $this->string($span, 'spanId');
         }
 
-        return $kept;
+        return array_values(array_unique(array_filter($ids, fn (string $id): bool => $id !== '')));
+    }
+
+    /**
+     * Say what was cut, and from which services, so a reader knows whether
+     * the part they need is among it and can pass a `span_id` to keep it.
+     *
+     * @param  non-empty-list<Span>  $omitted
+     */
+    private function omissionLine(array $omitted): string
+    {
+        $byService = [];
+
+        foreach ($omitted as $span) {
+            $service = $this->string($span, 'serviceName') ?: '(no service)';
+            $byService[$service] = ($byService[$service] ?? 0) + 1;
+        }
+
+        arsort($byService);
+
+        $parts = [];
+
+        foreach (array_slice($byService, 0, self::OMISSION_SERVICES, true) as $service => $count) {
+            $parts[] = $this->truncate($service, 40).' '.$count;
+        }
+
+        $others = count($byService) - count($parts);
+
+        if ($others > 0) {
+            $parts[] = sprintf('%d other service%s', $others, $others === 1 ? '' : 's');
+        }
+
+        $count = count($omitted);
+
+        return sprintf('(%d more span%s omitted: %s)', $count, $count === 1 ? '' : 's', implode(', ', $parts));
     }
 
     /**

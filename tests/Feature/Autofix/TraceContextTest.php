@@ -296,7 +296,7 @@ test('the task explains an expired, missing or unavailable trace in one line', f
                 'error_count' => 1,
                 'rendered_spans' => 0,
                 'omitted_spans' => 0,
-                'truncated' => false,
+                'read_capped' => false,
                 'waterfall' => null,
             ],
         ],

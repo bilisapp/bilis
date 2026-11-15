@@ -233,6 +233,39 @@ test('get-trace renders the request as a waterfall', function () {
         ->assertSee('checkout');
 });
 
+test('get-trace renders a large trace whole within its wider budget and says what each count means', function () {
+    [$user] = mcpTeam();
+
+    // 100 spans, well over the Autofix prompt's 60-span cap.
+    $rows = [mcpSpan(['StatusCode' => 'Unset', 'StatusMessage' => ''])];
+
+    for ($i = 0; $i < 99; $i++) {
+        $rows[] = mcpSpan([
+            'SpanId' => sprintf('%016x', $i + 1),
+            'ParentSpanId' => str_repeat('b', 16),
+            'SpanName' => 'SELECT orders '.$i,
+            'ServiceName' => 'db',
+            'Duration' => 1000000,
+            'StatusCode' => 'Unset',
+            'StatusMessage' => '',
+            'SpanAttributes' => ['db.statement' => 'SELECT * FROM orders WHERE id = ?'],
+        ]);
+    }
+
+    Http::fakeSequence('127.0.0.1:8123/*')
+        ->push(mcpTraceSummary(['TraceSpanCount' => 100]))
+        ->push(implode("\n", $rows));
+
+    BilisServer::actingAs($user)
+        ->tool(GetTraceTool::class, ['trace_id' => str_repeat('a', 32)])
+        ->assertOk()
+        ->assertSee('"span_count":100')
+        ->assertSee('"rendered_spans":100')
+        ->assertSee('"omitted_spans":0')
+        ->assertSee('"read_capped":false')
+        ->assertSee('SELECT orders 98');
+});
+
 test('get-trace insists on a real trace id', function () {
     [$user] = mcpTeam();
 

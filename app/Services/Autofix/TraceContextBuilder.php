@@ -31,7 +31,7 @@ use Illuminate\Support\Carbon;
  * Project ids come from the repository the job is raised on — the same ids
  * the rest of the scan reads logs with — never from the row.
  *
- * @phpstan-type TraceContext array{trace_id: string, span_id: string, state: 'rendered'|'expired'|'missing'|'unavailable', root_name: string, root_service: string, started_at: string, duration_ms: float, span_count: int, error_count: int, rendered_spans: int, omitted_spans: int, truncated: bool, waterfall: string|null}
+ * @phpstan-type TraceContext array{trace_id: string, span_id: string, state: 'rendered'|'expired'|'missing'|'unavailable', root_name: string, root_service: string, started_at: string, duration_ms: float, span_count: int, error_count: int, rendered_spans: int, omitted_spans: int, read_capped: bool, waterfall: string|null}
  */
 class TraceContextBuilder
 {
@@ -51,16 +51,24 @@ class TraceContextBuilder
     /**
      * Resolve one trace reference into the context stored on the job.
      *
+     * The two caps bound the rendered waterfall; they default to the Autofix
+     * prompt's budget, and the MCP `get-trace` tool passes a larger one.
+     *
      * @param  list<string>  $projectIds
      * @return TraceContext
      */
-    public function build(array $projectIds, string $traceId, string $spanId = ''): array
-    {
+    public function build(
+        array $projectIds,
+        string $traceId,
+        string $spanId = '',
+        int $maxSpans = TraceWaterfallRenderer::MAX_SPANS,
+        int $maxChars = TraceWaterfallRenderer::MAX_CHARS,
+    ): array {
         $traceId = strtolower(trim($traceId));
         $spanId = strtolower(trim($spanId));
 
         try {
-            return $this->resolve($projectIds, $traceId, $spanId);
+            return $this->resolve($projectIds, $traceId, $spanId, $maxSpans, $maxChars);
         } catch (ClickHouseException $exception) {
             report($exception);
 
@@ -72,7 +80,7 @@ class TraceContextBuilder
      * @param  list<string>  $projectIds
      * @return TraceContext
      */
-    private function resolve(array $projectIds, string $traceId, string $spanId): array
+    private function resolve(array $projectIds, string $traceId, string $spanId, int $maxSpans, int $maxChars): array
     {
         $summary = $this->traces->summary($projectIds, $traceId);
 
@@ -115,7 +123,7 @@ class TraceContextBuilder
             return $this->context($traceId, $spanId, self::STATE_EXPIRED, $trace);
         }
 
-        $rendered = $this->renderer->render($result['spans'], $spanId);
+        $rendered = $this->renderer->render($result['spans'], $spanId, $maxSpans, $maxChars);
 
         return $this->context($traceId, $spanId, self::STATE_RENDERED, $trace, $rendered, $result['truncated']);
     }
@@ -123,12 +131,18 @@ class TraceContextBuilder
     /**
      * Assemble the stored shape, whatever was or was not found.
      *
+     * Two different cuts are reported separately. `omitted_spans` is the
+     * renderer's: spans that were read but left out of the waterfall text.
+     * `read_capped` is storage's: the trace has more spans than
+     * `TraceQuery::SPAN_LIMIT` or runs longer than its window cap, so not every
+     * span was read in the first place.
+     *
      * @param  'rendered'|'expired'|'missing'|'unavailable'  $state
      * @param  array<string, mixed>|null  $trace
      * @param  array{text: string, rendered: int, omitted: int}|null  $rendered
      * @return TraceContext
      */
-    private function context(string $traceId, string $spanId, string $state, ?array $trace = null, ?array $rendered = null, bool $truncated = false): array
+    private function context(string $traceId, string $spanId, string $state, ?array $trace = null, ?array $rendered = null, bool $readCapped = false): array
     {
         return [
             'trace_id' => $traceId,
@@ -142,7 +156,7 @@ class TraceContextBuilder
             'error_count' => (int) ($trace['errorCount'] ?? 0),
             'rendered_spans' => $rendered['rendered'] ?? 0,
             'omitted_spans' => $rendered['omitted'] ?? 0,
-            'truncated' => $truncated,
+            'read_capped' => $readCapped,
             'waterfall' => $rendered['text'] ?? null,
         ];
     }

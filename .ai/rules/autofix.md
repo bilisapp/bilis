@@ -58,7 +58,7 @@ It is fetched when the job is RAISED, not at dispatch, for the same reason the l
 and pull requests are reviewed later than that. Project ids are `[(string) $repository->project_id]` — the scan's own
 scope — never the row's. `TraceQuery::summary()` runs first (a point lookup on `trace_summary`'s key), and
 `TraceQuery::spansBetween()` then reads exactly `[startedAt − 1 s, endedAt + 1 s]`, so a queue job or agent session
-longer than five minutes reads whole (up to TraceQuery's window cap, reported as `truncated`). Only a summary without
+longer than five minutes reads whole (up to TraceQuery's window cap, reported as `read_capped`). Only a summary without
 usable times falls back to `spans()` bracketed around now.
 
 Four states, four sentences, and none of them throws: `rendered`, `expired` (summary but no spans — designed, 90-day
@@ -66,12 +66,20 @@ summaries outlive 30-day spans), `missing` (no summary), `unavailable` (storage 
 trace is an enrichment and must never be why a fix job failed to be raised). An agent told "read the waterfall" and
 handed nothing will go looking for it, so the empty states always say why in one line.
 
-`TraceWaterfallRenderer` is pure and caps the text twice — `MAX_SPANS` (60) and `MAX_CHARS` (3,000) — because it is
-appended to a prompt whose other parts are already bounded (`STACK_LIMIT`, `SAMPLE_LIMIT`) and a 2,000-span trace would
-drown them. Over the span cap it keeps, in order: the triggering span (matched on the row's `SpanId`) and its ancestors,
-its siblings, every `StatusCode = 'Error'` span, then the slowest; rendering order is always `SpanTree::flatten()`'s, so
-the survivors still read as a waterfall. The character cap cuts whole lines only. `>>` marks the triggering span, `!!`
-an Error span, and a trailing `(N more spans omitted)` says what was cut. Attributes are a curated allow-list (
+`TraceWaterfallRenderer` is pure and caps the text twice — `MAX_SPANS` (60) and `MAX_CHARS` (3,000) by default, because
+it is appended to a prompt whose other parts are already bounded (`STACK_LIMIT`, `SAMPLE_LIMIT`) and a 2,000-span trace
+would drown them. **Both caps are applied by priority in `select()`, never by position**: when either bites, spans are
+offered in order — the triggering span (matched on the row's `SpanId`), its siblings, every `StatusCode = 'Error'`
+span, the roots, then the rest slowest first — and each is kept together with its not-yet-kept ancestors (so survivors
+are never orphans), skipped rather than ending the walk if it would break a cap. Cutting by characters in tree order
+was a real bug: a 39-span trace whose early spans carried long SQL lost its whole queue-job tail. Rendering order is
+always `SpanTree::flatten()`'s; lines are whole; `OMISSION_RESERVE` keeps room for the trailing
+`(N more spans omitted: svc n, …)` line, which names the busiest services cut. Callers may pass their own caps
+(`render(..., $maxSpans, $maxChars)`, threaded through `TraceContextBuilder::build()`); the MCP `get-trace` tool
+passes a larger budget (`GetTraceTool::MAX_SPANS`/`MAX_CHARS`). The context reports two different cuts:
+`omitted_spans` (renderer) and `read_capped` (storage: over `TraceQuery::SPAN_LIMIT` or the window cap — it was
+called `truncated` until 2026-11-15; jobs raised before then still store that key, which nothing reads). `>>` marks
+the triggering span, `!!` an Error span. Attributes are a curated allow-list (
 `ATTRIBUTE_KEYS`: http/url, db, rpc, messaging, code.*, both old and stable semconv spellings, six per span), plus every
 `exception` event as `type: message` — never the environment/identity/session keys the UI groups away. Mirror
 `resources/js/lib/attributes.ts` when adding a key.
