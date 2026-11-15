@@ -122,4 +122,24 @@ return [
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Markdown Mail Settings
+    |--------------------------------------------------------------------------
+    |
+    | Every Markdown email — alerts, invitations, password resets, the contact
+    | form — renders through the published components in
+    | resources/views/vendor/mail and the Bilis theme (themes/bilis.css), so
+    | they all look like the app.
+    |
+    */
+
+    'markdown' => [
+        'theme' => env('MAIL_MARKDOWN_THEME', 'bilis'),
+
+        'paths' => [
+            resource_path('views/vendor/mail'),
+        ],
+    ],
+
 ];

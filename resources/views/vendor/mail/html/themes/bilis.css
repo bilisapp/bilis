@@ -1,0 +1,492 @@
+/*
+ * Bilis mail theme (config `mail.markdown.theme`), inlined into every email.
+ *
+ * The app's light neutral ladder (hue 225, resources/css/app.css) converted
+ * to hex, since mail clients read neither custom properties nor hsl() reliably.
+ * As in the app, the chrome is achromatic: the only hue is data — an alert's
+ * state dot in the severity tokens. Geist is not available in a mail client,
+ * so the stacks name it first (a reader who has it installed gets it) and
+ * fall back to the platform's own sans and mono. Sizes keep DESIGN.md's ramp:
+ * 16px heading (`text-lead`), 14px body, 12px support and mono data, 11px
+ * uppercase labels — no 13px or 15px anything.
+ *
+ *   background #f6f7f9   card #ffffff     border #dfe1e7   muted #f0f1f4
+ *   foreground #191c24   muted-fg #6b7080 subtle #9499a8   primary #1d202a
+ *   severity-error #c72939   severity-warn #a27107
+ */
+
+/* Base */
+
+body,
+body *:not(html):not(style):not(br):not(tr):not(code) {
+    box-sizing: border-box;
+    font-family:
+        Geist,
+        -apple-system,
+        BlinkMacSystemFont,
+        'Segoe UI',
+        Helvetica,
+        Arial,
+        sans-serif;
+    position: relative;
+}
+
+body {
+    -webkit-text-size-adjust: none;
+    background-color: #f6f7f9;
+    color: #191c24;
+    height: 100%;
+    line-height: 1.5;
+    margin: 0;
+    padding: 0;
+    width: 100% !important;
+}
+
+p,
+ul,
+ol,
+blockquote {
+    line-height: 1.6;
+    text-align: left;
+}
+
+a {
+    color: #191c24;
+    text-decoration: underline;
+    text-decoration-color: #9499a8;
+}
+
+a img {
+    border: none;
+}
+
+/* Typography */
+
+h1 {
+    color: #191c24;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.625;
+    margin-top: 0;
+    margin-bottom: 8px;
+    text-align: left;
+}
+
+h2 {
+    color: #191c24;
+    font-size: 14px;
+    font-weight: 600;
+    margin-top: 0;
+    text-align: left;
+}
+
+h3 {
+    color: #191c24;
+    font-size: 14px;
+    font-weight: 600;
+    margin-top: 0;
+    text-align: left;
+}
+
+p {
+    color: #191c24;
+    font-size: 14px;
+    line-height: 1.55;
+    margin-top: 0;
+    margin-bottom: 16px;
+    text-align: left;
+}
+
+p.sub {
+    font-size: 12px;
+}
+
+img {
+    max-width: 100%;
+}
+
+code {
+    font-family:
+        'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+}
+
+/* Layout */
+
+.wrapper {
+    -premailer-cellpadding: 0;
+    -premailer-cellspacing: 0;
+    -premailer-width: 100%;
+    background-color: #f6f7f9;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+}
+
+.content {
+    -premailer-cellpadding: 0;
+    -premailer-cellspacing: 0;
+    -premailer-width: 100%;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+}
+
+/* Header: the mark and the wordmark, left-aligned over the card. */
+
+.header {
+    padding: 32px 0 16px;
+}
+
+.header-inner {
+    margin: 0 auto;
+    width: 570px;
+}
+
+.header a {
+    color: #191c24;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    text-decoration: none;
+}
+
+.logo {
+    border-radius: 6px;
+    height: 28px;
+    max-height: 28px;
+    vertical-align: middle;
+    width: 28px;
+}
+
+.wordmark {
+    padding-left: 10px;
+    vertical-align: middle;
+}
+
+/* Body */
+
+.body {
+    -premailer-cellpadding: 0;
+    -premailer-cellspacing: 0;
+    -premailer-width: 100%;
+    background-color: #f6f7f9;
+    border-bottom: 1px solid #f6f7f9;
+    border-top: 1px solid #f6f7f9;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+}
+
+.inner-body {
+    -premailer-cellpadding: 0;
+    -premailer-cellspacing: 0;
+    -premailer-width: 570px;
+    background-color: #ffffff;
+    border-color: #dfe1e7;
+    border-radius: 8px;
+    border-width: 1px;
+    border-style: solid;
+    margin: 0 auto;
+    padding: 0;
+    width: 570px;
+}
+
+.inner-body a {
+    word-break: break-all;
+}
+
+/* Subcopy */
+
+.subcopy {
+    border-top: 1px solid #dfe1e7;
+    margin-top: 24px;
+    padding-top: 20px;
+}
+
+.subcopy p {
+    color: #6b7080;
+    font-size: 12px;
+    margin-bottom: 8px;
+}
+
+.subcopy a {
+    color: #6b7080;
+}
+
+/* Footer */
+
+.footer {
+    -premailer-cellpadding: 0;
+    -premailer-cellspacing: 0;
+    -premailer-width: 570px;
+    margin: 0 auto;
+    padding: 0;
+    text-align: left;
+    width: 570px;
+}
+
+.footer p {
+    color: #9499a8;
+    font-size: 12px;
+    text-align: left;
+}
+
+.footer a {
+    color: #6b7080;
+    text-decoration: underline;
+}
+
+/* Tables (Markdown) */
+
+.table table {
+    -premailer-cellpadding: 0;
+    -premailer-cellspacing: 0;
+    -premailer-width: 100%;
+    margin: 24px 0;
+    width: 100%;
+}
+
+.table th {
+    border-bottom: 1px solid #dfe1e7;
+    color: #6b7080;
+    font-size: 12px;
+    font-weight: 500;
+    margin: 0;
+    padding-bottom: 8px;
+}
+
+.table td {
+    border-bottom: 1px solid #f0f1f4;
+    color: #191c24;
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 0;
+    padding: 8px 0;
+}
+
+.content-cell {
+    max-width: 100vw;
+    padding: 32px;
+}
+
+.footer .content-cell {
+    padding: 24px 0 40px;
+}
+
+/* Buttons: one achromatic primary, as in the app — no coloured buttons. */
+
+.action {
+    -premailer-cellpadding: 0;
+    -premailer-cellspacing: 0;
+    -premailer-width: 100%;
+    float: unset;
+    margin: 24px 0;
+    padding: 0;
+    text-align: left;
+    width: 100%;
+}
+
+.button {
+    -webkit-text-size-adjust: none;
+    border-radius: 6px;
+    color: #f9f9fb;
+    display: inline-block;
+    font-size: 14px;
+    font-weight: 500;
+    overflow: hidden;
+    text-decoration: none;
+}
+
+.button-blue,
+.button-primary,
+.button-green,
+.button-success,
+.button-red,
+.button-error {
+    background-color: #1d202a;
+    border-bottom: 10px solid #1d202a;
+    border-left: 18px solid #1d202a;
+    border-right: 18px solid #1d202a;
+    border-top: 10px solid #1d202a;
+}
+
+/* Panels */
+
+.panel {
+    border-left: #dfe1e7 solid 3px;
+    margin: 21px 0;
+}
+
+.panel-content {
+    background-color: #f0f1f4;
+    color: #191c24;
+    padding: 16px;
+}
+
+.panel-content p {
+    color: #191c24;
+}
+
+.panel-item {
+    padding: 0;
+}
+
+.panel-item p:last-of-type {
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+/* Alerts (resources/views/vendor/mail/html/alert-*.blade.php) */
+
+.alert-state {
+    color: #191c24;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    margin-bottom: 14px;
+    text-transform: uppercase;
+}
+
+.alert-state-severity {
+    color: #6b7080;
+    font-weight: 500;
+}
+
+.alert-dot {
+    border-radius: 50%;
+    display: inline-block;
+    height: 8px;
+    margin-right: 6px;
+    width: 8px;
+}
+
+.alert-dot-error {
+    background-color: #c72939;
+}
+
+.alert-dot-warn {
+    background-color: #a27107;
+}
+
+.alert-dot-ink {
+    background-color: #191c24;
+}
+
+.alert-dot-hollow {
+    background-color: #ffffff;
+    border: 1.5px solid #9499a8;
+}
+
+.alert-labels {
+    color: #6b7080;
+    font-family:
+        'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    margin-bottom: 16px;
+    word-break: break-all;
+}
+
+.alert-headline {
+    font-size: 14px;
+    margin-bottom: 20px;
+}
+
+.alert-section {
+    color: #6b7080;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    margin: 24px 0 4px;
+    text-transform: uppercase;
+}
+
+.alert-facts {
+    -premailer-cellpadding: 0;
+    -premailer-cellspacing: 0;
+    border-top: 1px solid #dfe1e7;
+    width: 100%;
+}
+
+.alert-fact-label {
+    border-bottom: 1px solid #f0f1f4;
+    color: #6b7080;
+    font-size: 12px;
+    padding: 8px 16px 8px 0;
+    vertical-align: top;
+    white-space: nowrap;
+    width: 96px;
+}
+
+.alert-fact-value {
+    border-bottom: 1px solid #f0f1f4;
+    color: #191c24;
+    font-size: 14px;
+    padding: 8px 0;
+    vertical-align: top;
+    word-break: break-word;
+}
+
+.alert-mono {
+    font-family:
+        'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+}
+
+.alert-examples {
+    -premailer-cellpadding: 0;
+    -premailer-cellspacing: 0;
+    border-top: 1px solid #dfe1e7;
+    width: 100%;
+}
+
+.alert-example {
+    border-bottom: 1px solid #f0f1f4;
+    padding: 9px 0;
+    vertical-align: top;
+}
+
+.alert-example-title {
+    color: #191c24;
+    font-family:
+        'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.45;
+    word-break: break-word;
+}
+
+.alert-example-meta {
+    color: #6b7080;
+    font-size: 12px;
+    padding-top: 2px;
+}
+
+.alert-example-count {
+    border-bottom: 1px solid #f0f1f4;
+    color: #191c24;
+    font-family:
+        'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    padding: 9px 0 9px 16px;
+    text-align: right;
+    vertical-align: top;
+    white-space: nowrap;
+    width: 64px;
+}
+
+.alert-secondary {
+    color: #6b7080;
+    font-size: 12px;
+    margin: -12px 0 4px;
+}
+
+.alert-secondary a {
+    color: #191c24;
+}
+
+/* Utilities */
+
+.break-all {
+    word-break: break-all;
+}

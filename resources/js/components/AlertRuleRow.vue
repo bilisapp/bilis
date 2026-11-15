@@ -23,7 +23,7 @@ import {
 } from '@/lib/alerts';
 import { formatRelativeTime } from '@/lib/logs';
 import { cn } from '@/lib/utils';
-import { edit as alertsEdit } from '@/routes/alerts';
+import { edit as alertsEdit, show as alertsShow } from '@/routes/alerts';
 import type { AlertRuleSummary } from '@/types';
 
 /**
@@ -54,7 +54,11 @@ const emit = defineEmits<{
     delete: [];
 }>();
 
-const href = computed(() => alertsEdit([props.teamSlug, props.rule.id]).url);
+const href = computed(() => alertsShow([props.teamSlug, props.rule.id]).url);
+
+const editHref = computed(
+    () => alertsEdit([props.teamSlug, props.rule.id]).url,
+);
 
 const condition = computed(() =>
     formatCondition({
@@ -229,7 +233,7 @@ const mutedUntil = computed(() =>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" class="w-48">
                 <DropdownMenuItem as-child>
-                    <Link :href="href">Edit</Link>
+                    <Link :href="editHref">Edit</Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel class="text-xs text-muted-foreground"

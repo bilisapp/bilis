@@ -225,6 +225,7 @@ Route::prefix('{current_team}')
         Route::post('alerts/preview', [AlertsController::class, 'preview'])
             ->middleware('throttle:30,1')
             ->name('alerts.preview');
+        Route::get('alerts/{alertRule}', [AlertsController::class, 'show'])->name('alerts.show');
         Route::get('alerts/{alertRule}/edit', [AlertsController::class, 'edit'])->name('alerts.edit');
         Route::put('alerts/{alertRule}', [AlertsController::class, 'update'])->name('alerts.update');
         Route::delete('alerts/{alertRule}', [AlertsController::class, 'destroy'])->name('alerts.destroy');

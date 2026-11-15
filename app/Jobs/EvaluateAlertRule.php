@@ -15,9 +15,11 @@ use App\Services\Alerting\AlertNotifier;
 use App\Services\Alerting\AlertSources;
 use App\Services\Alerting\AlertStateMachine;
 use App\Services\Alerting\Labels;
+use App\Services\Alerting\Sources\AlertExample;
 use App\Services\Alerting\Sources\AlertReading;
 use App\Services\Alerting\Sources\AlertSourceUnavailable;
 use Carbon\CarbonImmutable;
+use Closure;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Collection;
@@ -64,6 +66,17 @@ class EvaluateAlertRule implements ShouldBeUnique, ShouldQueue
      * An inactive series with no data for this long is forgotten.
      */
     private const int STALE_INSTANCE_SECONDS = 86_400;
+
+    /**
+     * Firing events per evaluation that get their examples read before they
+     * are sent — each is one more ClickHouse read inside the job's budget.
+     */
+    private const int EXAMPLE_EVENTS = 3;
+
+    /**
+     * Examples kept on one event.
+     */
+    private const int EXAMPLES_PER_EVENT = 5;
 
     /**
      * @param  int  $evaluatedAt  unix seconds, aligned to the rule's interval
@@ -128,7 +141,43 @@ class EvaluateAlertRule implements ShouldBeUnique, ShouldQueue
             return;
         }
 
-        $this->recordEvaluation($rule, $reading, $notifier);
+        $this->recordEvaluation(
+            $rule,
+            $reading,
+            $notifier,
+            fn (array $labels): array => $this->examplesFor($sources, $rule, $projectIds, $labels),
+        );
+    }
+
+    /**
+     * What a series caught in this evaluation's window, read through the
+     * rule's source. Advisory: any failure is reported and the event is
+     * recorded — and sent — without examples.
+     *
+     * @param  list<string>  $projectIds
+     * @param  array<string, string>  $labels
+     * @return list<array<string, mixed>>
+     */
+    private function examplesFor(AlertSources $sources, AlertRule $rule, array $projectIds, array $labels): array
+    {
+        $to = CarbonImmutable::createFromTimestampUTC($this->evaluatedAt);
+
+        try {
+            $examples = $sources->for($rule->source)->examples(
+                $rule,
+                $projectIds,
+                $labels,
+                $to->subSeconds($rule->window_seconds),
+                $to,
+                self::EXAMPLES_PER_EVENT,
+            );
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return [];
+        }
+
+        return array_map(fn (AlertExample $example): array => $example->toArray(), $examples);
     }
 
     /**
@@ -218,7 +267,16 @@ class EvaluateAlertRule implements ShouldBeUnique, ShouldQueue
      * nothing about the series it left out, so known instances missing from it
      * keep their state rather than taking the no-data path.
      */
-    private function recordEvaluation(AlertRule $rule, AlertReading $reading, AlertNotifier $notifier): void
+    /**
+     * Events are append-only, so what a firing series caught is read before
+     * the transaction — for the series the state machine says will fire,
+     * judged on the instances as last stored (it is pure, so the locked
+     * re-run inside the transaction agrees unless another evaluation raced
+     * this one, which the lock then drops) — and written with the event.
+     *
+     * @param  (Closure(array<string, string>): list<array<string, mixed>>)|null  $examples  what a series caught in the window
+     */
+    private function recordEvaluation(AlertRule $rule, AlertReading $reading, AlertNotifier $notifier, ?Closure $examples = null): void
     {
         $evaluatedAt = CarbonImmutable::createFromTimestampUTC($this->evaluatedAt);
 
@@ -227,7 +285,14 @@ class EvaluateAlertRule implements ShouldBeUnique, ShouldQueue
             $seen[Labels::hash($entry['labels'])] = $entry;
         }
 
-        DB::transaction(function () use ($rule, $reading, $seen, $evaluatedAt, $notifier): void {
+        $quiet = [];
+        foreach ($reading->quiet as $entry) {
+            $quiet[Labels::hash($entry['labels'])] = $entry['events'];
+        }
+
+        $caught = $examples === null ? [] : $this->examplesForNewlyFiring($rule, $seen, $evaluatedAt, $examples);
+
+        DB::transaction(function () use ($rule, $reading, $seen, $quiet, $caught, $evaluatedAt, $notifier): void {
             $rule = $this->lockedRule($rule);
 
             if ($rule === null) {
@@ -262,7 +327,11 @@ class EvaluateAlertRule implements ShouldBeUnique, ShouldQueue
                 ])->save();
 
                 if ($result->transition !== null) {
-                    $eventIds[] = $this->recordEvent($rule, $instance, $result->transition, $entry['value'], $evaluatedAt, ['no_data' => false]);
+                    $eventIds[] = $this->recordEvent($rule, $instance, $result->transition, $entry['value'], $evaluatedAt, [
+                        'no_data' => false,
+                        ...$this->readingContext($rule, $entry),
+                        ...($result->transition === AlertEventType::Firing && isset($caught[$hash]) ? ['examples' => $caught[$hash]] : []),
+                    ]);
                 }
             }
 
@@ -279,7 +348,15 @@ class EvaluateAlertRule implements ShouldBeUnique, ShouldQueue
                 $instance->applyState($result->state)->save();
 
                 if ($result->transition !== null) {
-                    $eventIds[] = $this->recordEvent($rule, $instance, $result->transition, null, $evaluatedAt, ['no_data' => true]);
+                    $eventIds[] = $this->recordEvent($rule, $instance, $result->transition, null, $evaluatedAt, [
+                        'no_data' => true,
+                        // Rows arrived, just fewer than the rule judges on.
+                        ...(isset($quiet[$instance->labels_hash]) ? [
+                            'below_minimum' => true,
+                            'events' => $quiet[$instance->labels_hash],
+                            'min_events' => $this->minEvents($rule),
+                        ] : []),
+                    ]);
                 }
             }
 
@@ -288,6 +365,69 @@ class EvaluateAlertRule implements ShouldBeUnique, ShouldQueue
 
             $this->notifyAfterCommit($rule, $eventIds, $notifier);
         });
+    }
+
+    /**
+     * Examples for the first {@see EXAMPLE_EVENTS} series this reading will
+     * turn firing, keyed by labels hash. Read without a lock: a guess that
+     * turns out wrong costs one unused read, never a wrong event.
+     *
+     * @param  array<string, array{labels: array<string, string>, value: float}>  $seen
+     * @param  Closure(array<string, string>): list<array<string, mixed>>  $examples
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private function examplesForNewlyFiring(AlertRule $rule, array $seen, CarbonImmutable $evaluatedAt, Closure $examples): array
+    {
+        $settings = AlertEvaluationSettings::fromRule($rule);
+        $existing = $rule->instances()->get()->keyBy('labels_hash');
+        $caught = [];
+
+        foreach ($this->capped($seen, $rule->condition) as $hash => $entry) {
+            if (count($caught) >= self::EXAMPLE_EVENTS) {
+                break;
+            }
+
+            $state = ($existing->get($hash) ?? new AlertInstance(['state' => AlertState::Inactive]))->toState();
+
+            if (AlertStateMachine::next($state, $entry['value'], $settings, $evaluatedAt)->transition !== AlertEventType::Firing) {
+                continue;
+            }
+
+            $found = $examples($entry['labels']);
+
+            if ($found !== []) {
+                $caught[$hash] = $found;
+            }
+        }
+
+        return $caught;
+    }
+
+    /**
+     * What an event says about the reading beyond its value: how many rows
+     * it counted, and for a compared rule what the baseline was and how far
+     * back — so "21" can be said as "21 errors, against none last week".
+     *
+     * @param  array{labels: array<string, string>, value: float, events?: int|null, baseline?: float|null}  $entry
+     * @return array<string, int|float>
+     */
+    private function readingContext(AlertRule $rule, array $entry): array
+    {
+        $offset = $rule->query['compare']['offset_seconds'] ?? null;
+
+        return array_filter([
+            'events' => $entry['events'] ?? null,
+            'baseline' => is_numeric($offset) ? ($entry['baseline'] ?? null) : null,
+            'compare_offset_seconds' => is_numeric($offset) ? (int) $offset : null,
+            'min_events' => $this->minEvents($rule),
+        ], fn (mixed $value): bool => $value !== null);
+    }
+
+    private function minEvents(AlertRule $rule): ?int
+    {
+        $minimum = $rule->query['min_events'] ?? null;
+
+        return is_numeric($minimum) ? (int) $minimum : null;
     }
 
     /**

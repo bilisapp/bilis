@@ -16,8 +16,10 @@ use App\Models\AlertRule;
 use App\Models\NotificationChannel;
 use App\Models\Project;
 use App\Models\Team;
+use App\Services\Alerting\AlertExplorerLink;
 use App\Services\Alerting\AlertMessage;
 use App\Services\Alerting\AlertSources;
+use App\Services\Alerting\Sources\AlertExample;
 use App\Services\Alerting\Sources\AlertSourceUnavailable;
 use App\Services\Alerting\Sources\LogAlertSource;
 use App\Services\Alerting\Sources\MetricAlertSource;
@@ -46,9 +48,10 @@ use Inertia\Response;
 /**
  * The Alerts page and the rule editor (specs/alerting.md, "Plans, MCP, UI").
  *
- * Everything here reads and writes the app database; the only ClickHouse read
- * is the editor's preview (one {@see AlertSource::preview()} over the last
- * 24 hours) and the editor's deferred pickers. Rules are bound through the
+ * Everything here reads and writes the app database; the only ClickHouse reads
+ * are the 24-hour preview (one {@see AlertSource::preview()}, in the editor
+ * and on a rule's page), a rule page's live examples
+ * ({@see AlertSource::examples()}) and the editor's deferred pickers. Rules are bound through the
  * team in the route (`AppServiceProvider`), so another team's rule is a 404.
  */
 class AlertsController extends Controller
@@ -69,6 +72,16 @@ class AlertsController extends Controller
      * The most history rows the History tab lists.
      */
     private const HISTORY_LIMIT = 100;
+
+    /**
+     * The most history rows one rule's page lists.
+     */
+    private const RULE_HISTORY_LIMIT = 50;
+
+    /**
+     * The most examples the rule page lists for its live window.
+     */
+    private const LIVE_EXAMPLES = 10;
 
     /**
      * The fields that say what a rule is, which provisioning would otherwise
@@ -222,13 +235,13 @@ class AlertsController extends Controller
     }
 
     /**
-     * Save a new rule; it is due at the scheduler's next tick.
+     * Save a new rule and open its page; it is due at the scheduler's next tick.
      */
     public function store(SaveAlertRuleRequest $request): RedirectResponse
     {
         $team = $request->team();
 
-        DB::transaction(function () use ($request, $team): void {
+        $rule = DB::transaction(function () use ($request, $team): AlertRule {
             $rule = new AlertRule([
                 ...$this->attributes($request),
                 'team_id' => $team->getKey(),
@@ -238,11 +251,13 @@ class AlertsController extends Controller
             $rule->save();
 
             $rule->notificationChannels()->sync($this->channelIds($request));
+
+            return $rule;
         });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Alert rule created.')]);
 
-        return to_route('alerts.index', ['current_team' => $team->slug]);
+        return to_route('alerts.show', ['current_team' => $team->slug, 'alertRule' => $rule->id]);
     }
 
     /**
@@ -277,7 +292,7 @@ class AlertsController extends Controller
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Alert rule saved.')]);
 
-        return to_route('alerts.index', ['current_team' => $request->team()->slug]);
+        return to_route('alerts.show', ['current_team' => $request->team()->slug, 'alertRule' => $alertRule->id]);
     }
 
     /**
@@ -362,10 +377,87 @@ class AlertsController extends Controller
         $rule = new AlertRule($this->definition($request));
         $rule->team_id = $team->getKey();
 
-        $projectIds = array_values(array_map(
-            fn (Project $project): string => (string) $project->getKey(),
-            $team->projects()->when($rule->project_ids !== null, fn ($query) => $query->whereKey($rule->project_ids))->get()->all(),
-        ));
+        return response()->json($this->previewReading($rule, $team, $sources));
+    }
+
+    /**
+     * One rule as it is now — read-only, unlike the editor: its series and
+     * their state, the last 24 hours against the threshold, what its window
+     * is catching right now, and its history. The page polls; nothing here
+     * evaluates the rule or changes a state, it only reads.
+     */
+    public function show(Request $request, string $currentTeam, AlertRule $alertRule, AlertSources $sources): Response
+    {
+        $team = $this->team($request);
+        $now = CarbonImmutable::now('UTC');
+        $liveFrom = $now->subSeconds($alertRule->window_seconds);
+
+        $alertRule->load(['notificationChannels' => fn ($query) => $query->orderBy('name'), 'instances']);
+
+        $instances = $alertRule->instances
+            ->each(fn (AlertInstance $instance) => $instance->setRelation('rule', $alertRule))
+            ->sortBy(fn (AlertInstance $instance): array => [
+                match ($instance->state) {
+                    AlertState::Firing => 0,
+                    AlertState::Pending => 1,
+                    default => 2,
+                },
+                $this->lowestFirst($alertRule) ? (float) $instance->value : -((float) $instance->value),
+            ])
+            ->values();
+
+        $alertRule->setAttribute('firing_count', $instances->where('state', AlertState::Firing)->count());
+        $alertRule->setAttribute('pending_count', $instances->where('state', AlertState::Pending)->count());
+
+        $events = AlertEvent::query()
+            ->with(['rule', 'team'])
+            ->where('alert_rule_id', $alertRule->getKey())
+            ->orderByDesc('occurred_at')
+            ->orderByDesc('id')
+            ->limit(self::RULE_HISTORY_LIMIT)
+            ->get();
+
+        return Inertia::render('alerts/Show', [
+            'rule' => [
+                ...$this->ruleSummary($alertRule),
+                'keepFiringForSeconds' => $alertRule->keep_firing_for_seconds,
+                'noDataState' => $alertRule->no_data_state->value,
+                'nextEvaluationAt' => $alertRule->next_evaluation_at?->toIso8601String(),
+                'projects' => $alertRule->project_ids === null
+                    ? null
+                    : $team->projects()->whereKey($alertRule->project_ids)->orderBy('name')->pluck('name')->all(),
+            ],
+            'instances' => $instances->map(fn (AlertInstance $instance): array => [
+                ...$this->instanceSummary($instance),
+                'lastSeenWithDataAt' => $instance->last_seen_with_data_at?->toIso8601String(),
+                'explorerHref' => AlertExplorerLink::forRule($alertRule, $team, $instance->labels, $liveFrom, $now),
+            ])->values(),
+            'events' => $events->map(fn (AlertEvent $event): array => $this->eventSummary($event))->values(),
+            'historyLimit' => self::RULE_HISTORY_LIMIT,
+            'live' => [
+                'from' => $liveFrom->toIso8601ZuluString(),
+                'to' => $now->toIso8601ZuluString(),
+                'explorerHref' => AlertExplorerLink::forRule($alertRule, $team, [], $liveFrom, $now),
+            ],
+            'preview' => Inertia::defer(fn (): array => $this->previewReading($alertRule, $team, $sources), 'chart'),
+            'examples' => Inertia::defer(fn (): array => $this->liveExamples($alertRule, $team, $sources, $liveFrom, $now), 'live'),
+        ]);
+    }
+
+    /**
+     * A rule's reading over the last 24 hours, for a chart against its
+     * threshold: the editor's draft, or a saved rule's live page.
+     *
+     * A store that cannot answer is `unavailable` — the page says "busy, try
+     * again", never an error page. A query the source refuses for what it is
+     * (a percentile on a gauge) carries that reason; a ClickHouse failure
+     * carries none, because its message is not written for a reader.
+     *
+     * @return array{series: list<array{labels: object, points: list<array{0: int, 1: float|null}>}>, unavailable: bool, reason: string|null, stepSeconds: int, windowSeconds: int, scaled: bool}
+     */
+    private function previewReading(AlertRule $rule, Team $team, AlertSources $sources): array
+    {
+        $projectIds = $this->ruleProjectIds($rule, $team);
 
         $now = CarbonImmutable::now('UTC');
         $from = $now->subHours(self::PREVIEW_HOURS);
@@ -383,23 +475,20 @@ class AlertsController extends Controller
         try {
             $series = $sources->for($rule->source)->preview($rule, $projectIds, $from, $now, $step);
         } catch (AlertSourceUnavailable $unavailable) {
-            $busy = $unavailable->getPrevious() instanceof ClickHouseException
-                || str_starts_with($unavailable->getMessage(), 'ClickHouse');
-
-            return response()->json([
+            return [
                 'series' => [],
                 'unavailable' => true,
-                'reason' => $busy ? null : $unavailable->getMessage(),
+                'reason' => $this->isBusy($unavailable) ? null : $unavailable->getMessage(),
                 'stepSeconds' => $step,
                 'windowSeconds' => $rule->window_seconds,
                 'scaled' => false,
-            ]);
+            ];
         }
 
         $scaled = $this->isCount($rule) && $step !== $rule->window_seconds;
         $factor = $rule->window_seconds / $step;
 
-        return response()->json([
+        return [
             'series' => array_map(fn (array $line): array => [
                 'labels' => (object) $line['labels'],
                 'points' => array_map(
@@ -412,7 +501,61 @@ class AlertsController extends Controller
             'stepSeconds' => $step,
             'windowSeconds' => $rule->window_seconds,
             'scaled' => $scaled,
-        ]);
+        ];
+    }
+
+    /**
+     * What the rule's window holds right now, across every series: the
+     * messages or spans behind its reading, most first. A metric rule has
+     * none to show (`supported: false`).
+     *
+     * @return array{items: list<array{title: string, count: int, service: string|null, detail: string|null, trace_id: string|null}>, supported: bool, unavailable: bool}
+     */
+    private function liveExamples(AlertRule $rule, Team $team, AlertSources $sources, CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        if ($rule->source === 'metrics') {
+            return ['items' => [], 'supported' => false, 'unavailable' => false];
+        }
+
+        try {
+            $examples = $sources->for($rule->source)->examples($rule, $this->ruleProjectIds($rule, $team), [], $from, $to, self::LIVE_EXAMPLES);
+        } catch (AlertSourceUnavailable) {
+            return ['items' => [], 'supported' => true, 'unavailable' => true];
+        }
+
+        return [
+            'items' => array_map(fn (AlertExample $example): array => $example->toArray(), $examples),
+            'supported' => true,
+            'unavailable' => false,
+        ];
+    }
+
+    /**
+     * The rule's projects that belong to the team, as ClickHouse `ProjectId`
+     * strings; null `project_ids` is every project the team has.
+     *
+     * @return list<string>
+     */
+    private function ruleProjectIds(AlertRule $rule, Team $team): array
+    {
+        return array_values(array_map(
+            fn (Project $project): string => (string) $project->getKey(),
+            $team->projects()->when($rule->project_ids !== null, fn ($query) => $query->whereKey($rule->project_ids))->get()->all(),
+        ));
+    }
+
+    private function isBusy(AlertSourceUnavailable $unavailable): bool
+    {
+        return $unavailable->getPrevious() instanceof ClickHouseException
+            || str_starts_with($unavailable->getMessage(), 'ClickHouse');
+    }
+
+    /**
+     * Whether the rule's most extreme series are its lowest (`<`, `<=`).
+     */
+    private function lowestFirst(AlertRule $rule): bool
+    {
+        return in_array($rule->condition, [AlertCondition::LessThan, AlertCondition::LessThanOrEqual], true);
     }
 
     /**
@@ -879,6 +1022,7 @@ class AlertsController extends Controller
             'occurredAt' => $event->occurred_at->toIso8601String(),
             'headline' => $message->headline,
             'href' => $message->url,
+            'examples' => array_map(fn (AlertExample $example): array => $example->toArray(), $message->examples),
         ];
     }
 }

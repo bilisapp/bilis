@@ -85,6 +85,15 @@ final class MetricAlertSource implements AlertSource
         return $this->lines($query, $projectIds, $from, $to, $this->previewStep($from, $to, $stepSeconds), $this->maxInstances())[0];
     }
 
+    /**
+     * A metric reading is one number per series; there is nothing smaller in
+     * it to name.
+     */
+    public function examples(AlertRule $rule, array $projectIds, array $labels, CarbonImmutable $from, CarbonImmutable $to, int $limit): array
+    {
+        return [];
+    }
+
     public function rules(): array
     {
         return [

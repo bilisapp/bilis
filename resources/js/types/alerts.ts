@@ -156,6 +156,52 @@ export type AlertEventSummary = {
     headline: string;
     /** The explorer over the evaluated window, as the notification linked it. */
     href: string | null;
+    /** What a firing event caught, as its notification listed it; empty otherwise. */
+    examples: AlertExample[];
+};
+
+/**
+ * One distinct thing behind a rule's reading — a log message, a span name —
+ * and how many rows of the window it accounts for (`AlertSource::examples()`).
+ */
+export type AlertExample = {
+    title: string;
+    count: number;
+    service: string | null;
+    /** A short qualifier: `3 failed · p95 1.2 s`. */
+    detail: string | null;
+    /** One request to open, when the rows carry one. */
+    trace_id: string | null;
+};
+
+/** A rule on its own page: the list's summary plus what the page explains. */
+export type AlertRuleLive = AlertRuleSummary & {
+    keepFiringForSeconds: number;
+    noDataState: NoDataState;
+    nextEvaluationAt: string | null;
+    /** Project names, or null for every project of the team. */
+    projects: string[] | null;
+};
+
+/** One series on a rule's page, with the explorer over the window ending now. */
+export type AlertSeriesLive = AlertInstanceSummary & {
+    lastSeenWithDataAt: string | null;
+    explorerHref: string | null;
+};
+
+/** The rule's window ending now — what the page's "Right now" reads. */
+export type AlertLiveWindow = {
+    from: string;
+    to: string;
+    explorerHref: string | null;
+};
+
+/** Deferred on a rule's page: what the live window holds. */
+export type AlertLiveExamples = {
+    items: AlertExample[];
+    /** False for a metric rule, whose reading has nothing smaller to name. */
+    supported: boolean;
+    unavailable: boolean;
 };
 
 /** The editor's fields, exactly as they are posted. */

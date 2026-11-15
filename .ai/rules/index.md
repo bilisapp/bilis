@@ -20,6 +20,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | resources/js/lib/traces.ts, resources/js/lib/attributes.ts | .ai/rules/lib.md |
 | app/Logging/** | .ai/rules/logging.md |
 | app/Services/Logs/** | .ai/rules/logs.md |
+| resources/views/vendor/mail/** | .ai/rules/mail.md |
 | resources/js/marketing/** | .ai/rules/marketing.md |
 | app/Mcp/**, routes/ai.php, app/Models/Passport/**, resources/views/mcp/** | .ai/rules/mcp.md |
 | app/Services/Metrics/**, app/Http/Controllers/MetricsController.php | .ai/rules/metrics.md |

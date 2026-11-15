@@ -58,7 +58,11 @@ final class TraceAlertSource implements AlertSource
             $this->values($query, $projectIds, $from, $to, null, $this->maxInstances() + 1, $this->lowestFirst($rule)),
         );
 
-        return new AlertReading($this->instances($rows, $labelKey, $this->minEvents($query)), $truncated);
+        return new AlertReading(
+            $this->instances($rows, $labelKey, $this->minEvents($query)),
+            $truncated,
+            $this->quiet($rows, $labelKey, $this->minEvents($query)),
+        );
     }
 
     public function preview(AlertRule $rule, array $projectIds, CarbonImmutable $from, CarbonImmutable $to, int $stepSeconds): array
@@ -74,6 +78,52 @@ final class TraceAlertSource implements AlertSource
             $step,
             $query['aggregation'] === 'count' ? 0.0 : null,
         );
+    }
+
+    public function examples(AlertRule $rule, array $projectIds, array $labels, CarbonImmutable $from, CarbonImmutable $to, int $limit): array
+    {
+        $query = $this->validatedQuery($rule);
+        $aggregation = $this->aggregation($query);
+        /** @var array{services?: list<string>, span_name?: string|null, kind?: string|null} $filters */
+        $filters = $query['filters'] ?? [];
+        $spanName = trim((string) ($filters['span_name'] ?? ''));
+        $service = $labels['service.name'] ?? null;
+
+        $rows = $this->read(fn (): ?array => $this->traces->alertExamples(
+            $projectIds,
+            Carbon::instance($from),
+            Carbon::instance($to),
+            $service !== null ? [$service] : array_values(array_unique($filters['services'] ?? [])),
+            $spanName === '' ? null : $spanName,
+            $filters['kind'] ?? null,
+            match ($aggregation) {
+                'error_ratio' => 'errors',
+                'count' => 'events',
+                default => 'p95',
+            },
+            $limit,
+        ));
+
+        return array_map(fn (array $row): AlertExample => new AlertExample(
+            title: AlertExample::oneLine($row['name']) ?: '(unnamed span)',
+            count: $row['events'],
+            service: $row['service'] !== '' ? $row['service'] : null,
+            detail: implode(' · ', array_filter([
+                $row['errors'] > 0 ? number_format($row['errors']).' failed' : null,
+                'p95 '.self::duration($row['p95Ms']),
+            ])),
+            traceId: $row['traceId'] !== '' ? $row['traceId'] : null,
+        ), $rows);
+    }
+
+    /**
+     * Milliseconds as a person reads them: `840 ms`, `1.2 s`.
+     */
+    private static function duration(float $milliseconds): string
+    {
+        return $milliseconds >= 1000
+            ? rtrim(rtrim(number_format($milliseconds / 1000, 1, '.', ''), '0'), '.').' s'
+            : number_format($milliseconds, $milliseconds < 10 ? 1 : 0, '.', '').' ms';
     }
 
     public function rules(): array

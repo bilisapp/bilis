@@ -318,8 +318,12 @@ describe('message', function () {
         $notification = new AlertNotification($this->channel->id, $this->channel->type, $this->event->id);
         $mail = $notification->toMail(new AnonymousNotifiable);
 
+        $html = html_entity_decode((string) $mail->render());
+
         expect($mail->subject)->toStartWith('[NEW ISSUE] TypeError:')
-            ->and($mail->actionUrl)->toContain('/issues/shop/'.$this->fingerprint);
+            ->and($html)->toContain('/issues/shop/'.$this->fingerprint)
+            ->and($html)->toContain('Open the issue')
+            ->and($html)->toMatch("/<h1[^>]*>TypeError: Cannot read properties of undefined \\(reading 'total'\\)<\\/h1>/");
 
         $message = AlertMessage::fromEvent($this->event);
         expect(SlackWebhookChannel::text($message))

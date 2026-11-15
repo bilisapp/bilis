@@ -110,38 +110,55 @@ class AlertNotification extends Notification implements ShouldQueue
         ];
     }
 
+    /**
+     * The event as an email (`resources/views/mail/alert.blade.php`): its
+     * state and severity, the rule and series, the sentence, the facts, what
+     * the window caught, and where to look.
+     */
     public function toMail(object $notifiable): MailMessage
     {
         $message = $this->message();
+        $isIssue = in_array($message->state, ['new', 'regressed'], true);
+        /** @var array<string, string> $labels */
+        $labels = (array) ($message->payload['labels'] ?? []);
+        $labelText = $labels !== [] ? AlertMessage::labelText($labels) : null;
 
-        $mail = (new MailMessage)
+        // An issue is named by its exception, its service printed under it; a
+        // rule by its name, its series' labels under it. Neither is repeated
+        // as a fact, and the severity has the state line.
+        $heading = $isIssue && isset($message->facts['Issue'])
+            ? $message->facts['Issue']
+            : self::heading($message->title, $labelText);
+        $subtitle = $isIssue ? ($message->facts['Service'] ?? null) : $labelText;
+        $hidden = $isIssue ? ['Issue', 'Service'] : ['Severity', 'Labels'];
+
+        return (new MailMessage)
             ->subject($message->title)
-            ->greeting($message->title)
-            ->line($message->headline);
+            ->markdown('mail.alert', [
+                'alert' => $message,
+                'heading' => $heading,
+                'labels' => $subtitle,
+                'facts' => array_diff_key($message->facts, array_flip($hidden)),
+                'actionText' => $isIssue ? 'Open the issue' : 'Open in Bilis',
+                'ruleUrl' => is_string($message->payload['links']['rule'] ?? null) ? $message->payload['links']['rule'] : null,
+                'editUrl' => is_string($message->payload['links']['edit'] ?? null) ? $message->payload['links']['edit'] : null,
+                'footnote' => 'You get this because a Bilis notification channel lists you.',
+            ]);
+    }
 
-        if (in_array($message->state, ['firing', 'error'], true)) {
-            $mail->error();
+    /**
+     * The title without its `[FIRING]` tag (the state line says it) and
+     * without the labels (printed under it in mono).
+     */
+    private static function heading(string $title, ?string $labels): string
+    {
+        $heading = (string) preg_replace('/^\[[^\]]+\]\s*/', '', $title);
+
+        if ($labels !== null && str_ends_with($heading, ' — '.$labels)) {
+            $heading = substr($heading, 0, -strlen(' — '.$labels));
         }
 
-        foreach ($message->facts as $label => $value) {
-            $mail->line("{$label}: {$value}");
-        }
-
-        if ($message->url !== null) {
-            $mail->action('Open in Bilis', $message->url);
-        }
-
-        $ruleUrl = $message->payload['links']['rule'] ?? null;
-
-        if (is_string($ruleUrl)) {
-            $mail->line("View the rule: {$ruleUrl}");
-        }
-
-        if ($message->footer !== null) {
-            $mail->line($message->footer);
-        }
-
-        return $mail;
+        return $heading;
     }
 
     /**

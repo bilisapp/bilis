@@ -66,6 +66,11 @@ class LogQuery
     private const ERROR_SAMPLE_MAX = 5000;
 
     /**
+     * How much of a body identifies "the same message" in an alert's examples.
+     */
+    private const int ALERT_EXAMPLE_SIGNATURE = 120;
+
+    /**
      * How many error rows one verification pass reads for a merged fix.
      *
      * Wider than a scan's default: the window runs from the merge to now, so
@@ -1024,6 +1029,61 @@ class LogQuery
             'bucket' => $bucketSeconds === null ? null : (int) ($row['Bucket'] ?? 0),
             'value' => is_numeric($row['Value'] ?? null) ? (float) $row['Value'] : null,
             'events' => (int) ($row['Events'] ?? 0),
+        ], $rows));
+    }
+
+    /**
+     * The messages behind an alert's reading: the log lines `[from, to)`
+     * matching the rule's filters, grouped by service and the start of their
+     * body, most frequent first — what a notification lists under "what it
+     * caught".
+     *
+     * R4's base predicate from `conditions()` with the user filters appended
+     * and the closed-open alert window, like `alertValues()`. One aggregate
+     * read; the body prefix groups "the same message with a different id"
+     * into one line, the way the MCP error summary does. The aliases must not
+     * reuse a column name (`Body`, `TraceId`): ClickHouse would read the
+     * GROUP BY's `Body` as the aggregate and refuse the statement.
+     *
+     * @param  list<string>  $projectIds
+     * @return list<array{service: string, body: string, events: int, traceId: string}>|null null when ClickHouse is overloaded
+     */
+    public function alertExamples(array $projectIds, LogFilters $filters, int $limit): ?array
+    {
+        if ($projectIds === []) {
+            return [];
+        }
+
+        [$conditions, $params] = $this->conditions($projectIds, $filters, exclusiveTo: true);
+
+        $params['signatureLength'] = self::ALERT_EXAMPLE_SIGNATURE;
+        $params['exampleLimit'] = max(1, min($limit, 50));
+
+        $sql = sprintf(
+            'SELECT ServiceName AS Service, any(Body) AS Message, count() AS Events, anyIf(TraceId, TraceId != \'\') AS SampleTrace'
+            .' FROM otel_logs WHERE %s'
+            .' GROUP BY ServiceName, substringUTF8(Body, 1, {signatureLength:UInt32})'
+            .' ORDER BY Events DESC LIMIT {exampleLimit:UInt32}',
+            implode(' AND ', $conditions),
+        );
+
+        try {
+            $rows = $this->client->select($sql, $params);
+        } catch (ClickHouseException $exception) {
+            if (! $exception->isOverload()) {
+                throw $exception;
+            }
+
+            report($exception);
+
+            return null;
+        }
+
+        return array_values(array_map(fn (array $row): array => [
+            'service' => (string) ($row['Service'] ?? ''),
+            'body' => (string) ($row['Message'] ?? ''),
+            'events' => (int) ($row['Events'] ?? 0),
+            'traceId' => (string) ($row['SampleTrace'] ?? ''),
         ], $rows));
     }
 

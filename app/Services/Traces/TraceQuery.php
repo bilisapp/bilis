@@ -815,6 +815,89 @@ class TraceQuery
     }
 
     /**
+     * The spans behind an alert's reading: span rows `[from, to)` matching the
+     * rule's filters, grouped by service and span name — with their failures,
+     * p95 and one trace to open (a failed one when there is one, else the
+     * slowest) — ordered by what the rule measures: failures for
+     * `error_ratio`, p95 for a percentile, volume for a count.
+     *
+     * The same base predicate as `alertValues()` (`spanConditions()`, R4's
+     * shape, the alert's closed-open window) and the exporter's `Error`
+     * literal (R10).
+     *
+     * @param  list<string>  $projectIds
+     * @param  list<string>  $services
+     * @param  'events'|'errors'|'p95'  $orderBy
+     * @return list<array{service: string, name: string, events: int, errors: int, p95Ms: float, traceId: string}>|null null when ClickHouse is overloaded
+     */
+    public function alertExamples(
+        array $projectIds,
+        Carbon $from,
+        Carbon $to,
+        array $services,
+        ?string $spanName,
+        ?string $kind,
+        string $orderBy,
+        int $limit,
+    ): ?array {
+        if ($projectIds === []) {
+            return [];
+        }
+
+        [$conditions, $params] = $this->spanConditions($projectIds, $from, $to, exclusiveTo: true);
+
+        if ($services !== []) {
+            $conditions[] = 'ServiceName IN {services:Array(String)}';
+            $params['services'] = $this->stringArrayParameter($services);
+        }
+
+        if ($spanName !== null) {
+            $conditions[] = 'SpanName = {spanName:String}';
+            $params['spanName'] = $spanName;
+        }
+
+        if ($kind !== null) {
+            $conditions[] = 'SpanKind = {spanKind:String}';
+            $params['spanKind'] = $kind;
+        }
+
+        $params['errorStatus'] = self::STATUS_ERROR;
+        $params['exampleLimit'] = max(1, min($limit, 50));
+
+        $order = match ($orderBy) {
+            'errors' => 'Errors DESC, Events DESC',
+            'p95' => 'P95 DESC',
+            default => 'Events DESC',
+        };
+
+        $sql = sprintf(
+            'SELECT ServiceName AS Service, SpanName AS Name, count() AS Events,'
+            .' countIf(StatusCode = {errorStatus:String}) AS Errors,'
+            .' quantile(0.95)(Duration) / 1000000 AS P95,'
+            .' if(Errors > 0, anyIf(TraceId, StatusCode = {errorStatus:String}), argMax(TraceId, Duration)) AS SampleTrace'
+            .' FROM otel_traces WHERE %s GROUP BY ServiceName, SpanName'
+            .' %s LIMIT {exampleLimit:UInt32}',
+            implode(' AND ', $conditions),
+            $orderBy === 'errors' ? 'HAVING Errors > 0 ORDER BY '.$order : 'ORDER BY '.$order,
+        );
+
+        $rows = $this->select($sql, $params);
+
+        if ($rows === null) {
+            return null;
+        }
+
+        return array_values(array_map(fn (array $row): array => [
+            'service' => (string) ($row['Service'] ?? ''),
+            'name' => (string) ($row['Name'] ?? ''),
+            'events' => (int) ($row['Events'] ?? 0),
+            'errors' => (int) ($row['Errors'] ?? 0),
+            'p95Ms' => is_numeric($row['P95'] ?? null) ? round((float) $row['P95'], 2) : 0.0,
+            'traceId' => (string) ($row['SampleTrace'] ?? ''),
+        ], $rows));
+    }
+
+    /**
      * The base predicate of every read of span rows over a window.
      *
      * `otel_traces` is sorted `(ProjectId, Timestamp, ServiceName)`, so this is

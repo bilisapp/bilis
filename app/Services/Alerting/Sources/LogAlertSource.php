@@ -48,7 +48,11 @@ final class LogAlertSource implements AlertSource
             $this->values($query, $projectIds, $from, $to, null, $this->maxInstances() + 1, $this->lowestFirst($rule)),
         );
 
-        return new AlertReading($this->instances($rows, $labelKey, $this->minEvents($query)), $truncated);
+        return new AlertReading(
+            $this->instances($rows, $labelKey, $this->minEvents($query)),
+            $truncated,
+            $this->quiet($rows, $labelKey, $this->minEvents($query)),
+        );
     }
 
     public function preview(AlertRule $rule, array $projectIds, CarbonImmutable $from, CarbonImmutable $to, int $stepSeconds): array
@@ -64,6 +68,25 @@ final class LogAlertSource implements AlertSource
             $step,
             $query['aggregation'] === 'ratio' ? null : 0.0,
         );
+    }
+
+    public function examples(AlertRule $rule, array $projectIds, array $labels, CarbonImmutable $from, CarbonImmutable $to, int $limit): array
+    {
+        $query = $this->validatedQuery($rule);
+        $service = $labels['service.name'] ?? null;
+
+        $rows = $this->read(fn (): ?array => $this->logs->alertExamples(
+            $projectIds,
+            $this->filters($query, $from, $to, $service !== null ? [$service] : null),
+            $limit,
+        ));
+
+        return array_map(fn (array $row): AlertExample => new AlertExample(
+            title: AlertExample::oneLine($row['body']) ?: '(empty message)',
+            count: $row['events'],
+            service: $row['service'] !== '' ? $row['service'] : null,
+            traceId: $row['traceId'] !== '' ? $row['traceId'] : null,
+        ), $rows);
     }
 
     public function rules(): array

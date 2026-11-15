@@ -43,6 +43,24 @@ interface AlertSource
     public function preview(AlertRule $rule, array $projectIds, CarbonImmutable $from, CarbonImmutable $to, int $stepSeconds): array;
 
     /**
+     * What a series is made of in `[$from, $to)`: the few distinct things
+     * (log messages, span names) that account for most of its reading, most
+     * first, so a notification or the rule page can say what was caught
+     * rather than only how much. `$labels` narrows to one series; `[]` reads
+     * every series the rule's filters match.
+     *
+     * Advisory only: a source with nothing to say returns `[]`, and a caller
+     * never lets a failed read here block an evaluation or a notification.
+     *
+     * @param  list<string>  $projectIds
+     * @param  array<string, string>  $labels
+     * @return list<AlertExample>
+     *
+     * @throws AlertSourceUnavailable
+     */
+    public function examples(AlertRule $rule, array $projectIds, array $labels, CarbonImmutable $from, CarbonImmutable $to, int $limit): array;
+
+    /**
      * Laravel validation rules for the rule's `query` JSON, keyed `query.*`.
      *
      * @return array<string, mixed>

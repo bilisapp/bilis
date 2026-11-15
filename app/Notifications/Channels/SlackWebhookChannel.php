@@ -51,6 +51,14 @@ class SlackWebhookChannel
             $lines[] = '• '.$label.': '.self::escape($value);
         }
 
+        if ($message->examples !== []) {
+            $lines[] = '*What it caught:*';
+
+            foreach ($message->examples as $example) {
+                $lines[] = '• '.self::escape(AlertMessage::exampleLine($example));
+            }
+        }
+
         if ($message->url !== null) {
             $lines[] = '<'.$message->url.'|Open in Bilis>';
         }

@@ -12,6 +12,7 @@ use App\Models\AlertRule;
 use App\Models\Project;
 use App\Models\Team;
 use App\Services\Alerting\AlertNotifier;
+use App\Services\Alerting\Sources\AlertExample;
 use App\Services\Alerting\Sources\AlertSourceUnavailable;
 use Carbon\CarbonImmutable;
 use Tests\Support\FakeAlertSource;
@@ -408,4 +409,96 @@ it('is unique per rule and evaluation, on the alerts queue, tried once', functio
         ->and($job->queue)->toBe('alerts')
         ->and($job->tries)->toBe(1)
         ->and($job->timeout)->toBe(20);
+});
+
+describe('what an event says about its reading', function () {
+    it('records the counts behind a compared value, and what a firing series caught', function () {
+        $this->rule->forceFill(['query' => [
+            'aggregation' => 'count',
+            'group_by' => 'service.name',
+            'compare' => ['offset_seconds' => 604_800],
+            'min_events' => 20,
+        ], 'threshold' => 3])->save();
+
+        $this->source->series = [['labels' => ['service.name' => 'bilis'], 'value' => 21.0, 'events' => 21, 'baseline' => 0.0]];
+        $this->source->examples = [
+            new AlertExample('Failed to write OTLP metrics to ClickHouse.', 18, 'bilis'),
+            new AlertExample('Failed to write log records to ClickHouse.', 3, 'bilis', traceId: str_repeat('a', 32)),
+        ];
+
+        evaluate($this->rule, $this->at);
+
+        $event = AlertEvent::query()->sole();
+
+        expect($event->context)->toMatchArray([
+            'events' => 21,
+            'baseline' => 0.0,
+            'compare_offset_seconds' => 604_800,
+            'min_events' => 20,
+        ])
+            ->and($event->context['examples'])->toBe([
+                ['title' => 'Failed to write OTLP metrics to ClickHouse.', 'count' => 18, 'service' => 'bilis', 'detail' => null, 'trace_id' => null],
+                ['title' => 'Failed to write log records to ClickHouse.', 'count' => 3, 'service' => 'bilis', 'detail' => null, 'trace_id' => str_repeat('a', 32)],
+            ])
+            // Read for the firing series, over the evaluated window.
+            ->and($this->source->exampleCalls)->toHaveCount(1)
+            ->and($this->source->exampleCalls[0]['labels'])->toBe(['service.name' => 'bilis'])
+            ->and($this->source->exampleCalls[0]['from']->getTimestamp())->toBe($this->at - 300)
+            ->and($this->source->exampleCalls[0]['to']->getTimestamp())->toBe($this->at)
+            ->and($this->notifier->events)->toHaveCount(1);
+    });
+
+    it('reads examples only for a series about to fire, never while it stays firing or pending', function () {
+        $this->rule->forceFill(['for_seconds' => 120])->save();
+        $this->source->series = [['labels' => [], 'value' => 40.0, 'events' => 40]];
+
+        evaluate($this->rule, $this->at);
+
+        expect($this->source->exampleCalls)->toBe([])
+            ->and(AlertInstance::query()->sole()->state)->toBe(AlertState::Pending);
+
+        evaluate($this->rule, $this->at + 120);
+        evaluate($this->rule, $this->at + 180);
+
+        expect($this->source->exampleCalls)->toHaveCount(1)
+            ->and(AlertEvent::query()->sole()->context)->not->toHaveKey('examples');
+    });
+
+    it('records and sends the event without examples when they cannot be read', function () {
+        $this->source->series = [['labels' => [], 'value' => 40.0, 'events' => 40]];
+        $this->source->examplesThrow = new AlertSourceUnavailable('ClickHouse is overloaded; the window was not read.');
+
+        evaluate($this->rule, $this->at);
+
+        $event = AlertEvent::query()->sole();
+
+        expect($event->type)->toBe(AlertEventType::Firing)
+            ->and($event->context)->not->toHaveKey('examples')
+            ->and($this->notifier->events)->toHaveCount(1)
+            ->and($this->rule->fresh()->health)->toBe(AlertRuleHealth::Ok);
+    });
+
+    it('says a series resolved because it fell under min_events, not because nothing arrived', function () {
+        $this->rule->forceFill([
+            'query' => ['aggregation' => 'count', 'group_by' => 'service.name', 'min_events' => 20],
+            'keep_firing_for_seconds' => 0,
+        ])->save();
+        $this->source->series = [['labels' => ['service.name' => 'bilis'], 'value' => 40.0, 'events' => 40]];
+
+        evaluate($this->rule, $this->at);
+
+        $this->source->series = [];
+        $this->source->quiet = [['labels' => ['service.name' => 'bilis'], 'events' => 12]];
+
+        evaluate($this->rule, $this->at + 60);
+
+        $resolved = AlertEvent::query()->where('type', AlertEventType::Resolved)->sole();
+
+        expect($resolved->context)->toMatchArray([
+            'no_data' => true,
+            'below_minimum' => true,
+            'events' => 12,
+            'min_events' => 20,
+        ]);
+    });
 });

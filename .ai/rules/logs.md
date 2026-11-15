@@ -44,3 +44,6 @@ The onboarding prop is eager, not deferred — pass it the team's *whole* projec
 
 ## List reads drop the issue page's structured attributes
 `LogQuery::mapRow()` removes `RICH_ATTRIBUTE_KEYS` (`exception.frames`, `exception.chain`, `breadcrumbs.json`) from every row except `issueEvent()`'s. They can be tens of kilobytes per envelope row; a page of a hundred errors would ship megabytes of props. The text forms (`exception.stacktrace`, `breadcrumbs`) stay, so search and Autofix are unaffected.
+
+## Never alias an aggregate with a column name used in GROUP BY
+ClickHouse resolves aliases before columns: `any(Body) AS Body … GROUP BY substringUTF8(Body, …)` fails with ILLEGAL_AGGREGATION (code 184) because GROUP BY sees the aggregate. A faked HTTP test accepts it; only the live test catches it. Use distinct aliases (`Message`, `SampleTrace`), as `LogQuery::alertExamples()` / `TraceQuery::alertExamples()` do.

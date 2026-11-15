@@ -1,5 +1,6 @@
 import type {
     AlertEventSummary,
+    AlertExample,
     AlertInstanceSummary,
     AlertPreviewResult,
     AlertRuleSummary,
@@ -2276,6 +2277,29 @@ export const DEMO_ALERT_EVENTS: AlertEventSummary[] = [
         occurredAt: alertMinutesAgo(12),
         headline: 'The value is 87, above the threshold of 25.',
         href: '/acme/logs?service=checkout-api',
+        examples: [
+            {
+                title: 'PaymentDeclined: card_declined (insufficient_funds)',
+                count: 61,
+                service: 'checkout-api',
+                detail: null,
+                trace_id: '0af7651916cd43dd8448eb211c80319c',
+            },
+            {
+                title: 'Stripe webhook signature mismatch',
+                count: 19,
+                service: 'checkout-api',
+                detail: null,
+                trace_id: null,
+            },
+            {
+                title: 'Redis connection reset by peer',
+                count: 7,
+                service: 'checkout-api',
+                detail: null,
+                trace_id: null,
+            },
+        ],
     },
     {
         id: 9002,
@@ -2291,6 +2315,7 @@ export const DEMO_ALERT_EVENTS: AlertEventSummary[] = [
         occurredAt: alertMinutesAgo(48),
         headline: 'Resolved: the value is back to 312.',
         href: '/acme/traces?service=payments-api',
+        examples: [],
     },
     {
         id: 9003,
@@ -2307,6 +2332,7 @@ export const DEMO_ALERT_EVENTS: AlertEventSummary[] = [
         headline:
             'The rule could not be evaluated: ClickHouse timed out after 10s',
         href: null,
+        examples: [],
     },
     {
         id: 9004,
@@ -2322,6 +2348,7 @@ export const DEMO_ALERT_EVENTS: AlertEventSummary[] = [
         occurredAt: alertMinutesAgo(1440),
         headline: 'The value is 41, above the threshold of 20.',
         href: null,
+        examples: [],
     },
     {
         id: 9005,
@@ -2338,6 +2365,32 @@ export const DEMO_ALERT_EVENTS: AlertEventSummary[] = [
         headline:
             "New issue in checkout-api: TypeError: Cannot read properties of undefined (reading 'total')",
         href: '/acme/issues/7f3a9c2e',
+        examples: [],
+    },
+];
+
+/** What an error-spike rule's window held: messages and spans behind a reading. */
+export const DEMO_ALERT_EXAMPLES: AlertExample[] = [
+    {
+        title: 'Failed to write OTLP metrics to ClickHouse.',
+        count: 333,
+        service: 'bilis',
+        detail: null,
+        trace_id: null,
+    },
+    {
+        title: 'Failed to write log records to ClickHouse.',
+        count: 13,
+        service: 'bilis',
+        detail: null,
+        trace_id: '0af7651916cd43dd8448eb211c80319c',
+    },
+    {
+        title: 'POST /api/v1/metrics',
+        count: 120,
+        service: 'ingest',
+        detail: '9 failed · p95 1.2 s',
+        trace_id: '4bf92f3577b34da6a3ce929d0e0e4736',
     },
 ];
 

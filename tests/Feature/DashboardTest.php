@@ -760,7 +760,7 @@ test('needs attention is deferred, and lists firing then pending series, most se
                 ->where('needsAttention.items.4.state', 'pending')
                 ->where('needsAttention.items.0.ruleName', 'critical rule')
                 ->where('needsAttention.items.0.labels', ['service.name' => 'checkout'])
-                ->where('needsAttention.items.0.ruleHref', route('alerts.edit', ['current_team' => $team->slug, 'alertRule' => $critical->id]))
+                ->where('needsAttention.items.0.ruleHref', route('alerts.show', ['current_team' => $team->slug, 'alertRule' => $critical->id]))
                 ->where('needsAttention.items.0.explorerHref', fn (string $href) => str_contains($href, '/logs')
                     && str_contains($href, 'service=checkout')
                     && str_contains($href, 'from=2026-11-08T10%3A55%3A00Z')),

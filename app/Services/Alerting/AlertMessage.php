@@ -8,6 +8,7 @@ use App\Enums\AlertSeverity;
 use App\Models\AlertEvent;
 use App\Models\NotificationChannel;
 use App\Models\Team;
+use App\Services\Alerting\Sources\AlertExample;
 use Carbon\CarbonImmutable;
 
 /**
@@ -32,6 +33,7 @@ final readonly class AlertMessage
      * @param  string|null  $url  the explorer over the evaluated window
      * @param  array<string, mixed>  $payload
      * @param  string|null  $footer  the last line, for a rule Bilis set up itself (specs/alerting-defaults.md §4)
+     * @param  list<AlertExample>  $examples  what the window was made of, most first (firing events only)
      */
     public function __construct(
         public string $type,
@@ -44,6 +46,7 @@ final readonly class AlertMessage
         public CarbonImmutable $occurredAt,
         public array $payload,
         public ?string $footer = null,
+        public array $examples = [],
     ) {}
 
     /**
@@ -78,15 +81,23 @@ final readonly class AlertMessage
             ? AlertExplorerLink::forRule($rule, $team, $labels, $from, $to)
             : self::issuesLink($event, $team);
 
-        // The rule's editor, which also lists what it has firing now.
+        // The rule's live page: its series, its chart and what it is catching now.
         $ruleUrl = $rule !== null
+            ? route('alerts.show', ['current_team' => $team->slug, 'alertRule' => $rule->id])
+            : null;
+        $editUrl = $rule !== null
             ? route('alerts.edit', ['current_team' => $team->slug, 'alertRule' => $rule->id])
             : null;
 
+        $offset = self::compareOffset($context);
+        $multiple = $offset !== null ? '× '.self::offsetText($offset) : '';
+        $examples = $event->type === AlertEventType::Firing ? self::examples($context) : [];
+
         $facts = $isIssue ? self::issueFacts($event, $context) : array_filter([
-            'Value' => $event->value !== null ? self::number($event->value) : null,
+            'Value' => $event->value !== null ? self::number($event->value).$multiple : null,
+            'Counted' => self::countedText($event, $context, $offset),
             'Threshold' => $condition !== null && $event->threshold !== null
-                ? $condition->value.' '.self::number($event->threshold)
+                ? $condition->value.' '.self::number($event->threshold).$multiple
                 : null,
             'Severity' => $severity?->value,
             'Window' => $from !== null && $to !== null ? self::windowText($from, $to) : null,
@@ -123,11 +134,14 @@ final readonly class AlertMessage
                     : null,
                 'error' => $event->type === AlertEventType::RuleError && is_string($context['error'] ?? null) ? $context['error'] : null,
                 'issue' => $isIssue ? self::issuePayload($context) : null,
-                'links' => ['explorer' => $explorer, 'rule' => $ruleUrl],
+                'reading' => $isIssue ? null : self::readingPayload($context),
+                'examples' => array_map(fn (AlertExample $example): array => $example->toArray(), $examples),
+                'links' => ['explorer' => $explorer, 'rule' => $ruleUrl, 'edit' => $editUrl],
             ],
-            footer: $rule !== null && $rule->isTemplate() && $ruleUrl !== null
-                ? self::TEMPLATE_FOOTER.' '.$ruleUrl
+            footer: $rule !== null && $rule->isTemplate() && $editUrl !== null
+                ? self::TEMPLATE_FOOTER.' '.$editUrl
                 : null,
+            examples: $examples,
         );
     }
 
@@ -159,7 +173,9 @@ final readonly class AlertMessage
                 'window' => null,
                 'error' => null,
                 'issue' => null,
-                'links' => ['explorer' => null, 'rule' => null],
+                'reading' => null,
+                'examples' => [],
+                'links' => ['explorer' => null, 'rule' => null, 'edit' => null],
             ],
         );
     }
@@ -201,18 +217,30 @@ final readonly class AlertMessage
     private static function headline(AlertEvent $event, ?AlertCondition $condition, array $context): string
     {
         $noData = ($context['no_data'] ?? false) === true || $event->value === null;
+        $offset = self::compareOffset($context);
+        $multiple = $offset !== null ? '×' : '';
         $comparison = $condition !== null && $event->threshold !== null
-            ? self::comparison($condition).' the threshold of '.self::number($event->threshold)
+            ? self::comparison($condition).' the threshold of '.self::number($event->threshold).$multiple
             : null;
+        $belowMinimum = ($context['below_minimum'] ?? false) === true && is_int($context['events'] ?? null);
 
         return match ($event->type) {
             AlertEventType::Firing => match (true) {
                 $noData => 'No data arrived in the window, and the rule treats that as firing.',
+                $offset !== null => self::comparedHeadline($event, $context, $offset, $comparison),
                 $comparison !== null => 'The value is '.self::number((float) $event->value).", {$comparison}.",
                 default => 'The value is '.self::number((float) $event->value).'.',
             },
             AlertEventType::Resolved => match (true) {
-                $noData => 'Resolved: no data arrived in the window.',
+                $belowMinimum => 'Resolved: only '.self::rows($context['events'], $context)
+                    .' in the window'
+                    .(is_int($context['min_events'] ?? null) ? ', under the rule\'s minimum of '.number_format($context['min_events']) : '')
+                    .' — too few to judge, so the rule stopped firing.',
+                $noData => in_array($context['source'] ?? null, ['logs', 'traces'], true)
+                    ? 'Resolved: nothing matched in the window.'
+                    : 'Resolved: no data arrived in the window.',
+                $offset !== null => 'Resolved: back to '.self::number((float) $event->value).'× '.self::offsetText($offset)
+                    .(is_int($context['events'] ?? null) ? ' ('.self::rows($context['events'], $context).' in the window)' : '').'.',
                 default => 'Resolved: the value is back to '.self::number((float) $event->value).'.',
             },
             AlertEventType::RuleError => 'The rule could not be evaluated: '
@@ -224,6 +252,133 @@ final readonly class AlertMessage
                     ? ', after it was resolved on '.CarbonImmutable::parse($context['resolved_at'])->utc()->format('Y-m-d H:i').' UTC.'
                     : '.'),
         };
+    }
+
+    /**
+     * A compared reading in words: `21 matching log lines in the window,
+     * against none at the same time last week — 21×, above the threshold of
+     * 3×.` A count names both counts; a ratio or a percentile, whose baseline
+     * is not a count, names the multiple only.
+     *
+     * @param  array<string, mixed>  $context
+     */
+    private static function comparedHeadline(AlertEvent $event, array $context, int $offset, ?string $comparison): string
+    {
+        $value = self::number((float) $event->value).'×';
+        $then = 'at the same time '.self::offsetText($offset);
+        $tail = $comparison !== null ? " — {$value}, {$comparison}." : " — {$value}.";
+
+        if (self::isComparedCount($event) && is_int($context['events'] ?? null) && is_numeric($context['baseline'] ?? null)) {
+            $baseline = (int) $context['baseline'];
+
+            return ucfirst(self::rows($context['events'], $context)).' in the window, against '
+                .($baseline === 0 ? 'none' : number_format($baseline))." {$then}{$tail}";
+        }
+
+        return "The reading is {$value} what it was {$then}".($comparison !== null ? ", {$comparison}." : '.');
+    }
+
+    /**
+     * Whether the rule compared event counts (`count`/`rate`), whose baseline
+     * is a number of rows rather than a value.
+     */
+    private static function isComparedCount(AlertEvent $event): bool
+    {
+        return in_array($event->rule?->query['aggregation'] ?? null, ['count', 'rate'], true);
+    }
+
+    /**
+     * `21 matching log lines`, `1 span`.
+     *
+     * @param  array<string, mixed>  $context
+     */
+    private static function rows(int $count, array $context): string
+    {
+        $noun = match ($context['source'] ?? null) {
+            'logs' => $count === 1 ? 'matching log line' : 'matching log lines',
+            'traces' => $count === 1 ? 'span' : 'spans',
+            default => $count === 1 ? 'event' : 'events',
+        };
+
+        return number_format($count).' '.$noun;
+    }
+
+    /**
+     * The "Counted" fact: how many rows the reading was over, and the
+     * baseline's count for a compared count rule.
+     *
+     * @param  array<string, mixed>  $context
+     */
+    private static function countedText(AlertEvent $event, array $context, ?int $offset): ?string
+    {
+        if (! is_int($context['events'] ?? null) || ! in_array($context['source'] ?? null, ['logs', 'traces'], true)) {
+            return null;
+        }
+
+        $text = self::rows($context['events'], $context).' in the window';
+
+        if ($offset !== null && self::isComparedCount($event) && is_numeric($context['baseline'] ?? null)) {
+            $text .= ', '.number_format((int) $context['baseline']).' '.self::offsetText($offset);
+        }
+
+        return $text;
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    private static function compareOffset(array $context): ?int
+    {
+        return is_int($context['compare_offset_seconds'] ?? null) && $context['compare_offset_seconds'] > 0
+            ? $context['compare_offset_seconds']
+            : null;
+    }
+
+    private static function offsetText(int $seconds): string
+    {
+        return match ($seconds) {
+            86_400 => 'yesterday',
+            604_800 => 'last week',
+            default => self::number($seconds / 3600).' h earlier',
+        };
+    }
+
+    /**
+     * The webhook's `reading` object: the counts behind the value.
+     *
+     * @param  array<string, mixed>  $context
+     * @return array<string, mixed>
+     */
+    private static function readingPayload(array $context): array
+    {
+        return [
+            'events' => is_int($context['events'] ?? null) ? $context['events'] : null,
+            'baseline' => is_numeric($context['baseline'] ?? null) ? (float) $context['baseline'] : null,
+            'compare_offset_seconds' => self::compareOffset($context),
+            'min_events' => is_int($context['min_events'] ?? null) ? $context['min_events'] : null,
+            'below_minimum' => ($context['below_minimum'] ?? false) === true,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     * @return list<AlertExample>
+     */
+    private static function examples(array $context): array
+    {
+        $examples = is_array($context['examples'] ?? null) ? $context['examples'] : [];
+
+        return array_values(array_filter(array_map(AlertExample::fromArray(...), $examples)));
+    }
+
+    /**
+     * One example as a line: `333 × Failed to write OTLP metrics (bilis) — 3 failed · p95 1.2 s`.
+     */
+    public static function exampleLine(AlertExample $example): string
+    {
+        return number_format($example->count).' × '.$example->title
+            .($example->service !== null ? " ({$example->service})" : '')
+            .($example->detail !== null ? " — {$example->detail}" : '');
     }
 
     private static function comparison(AlertCondition $condition): string

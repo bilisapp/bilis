@@ -188,9 +188,12 @@ trait ReadsAlertValues
      * baseline's own top N is not mistaken for a new one.
      *
      * @param  array<string, mixed>  $query
+     *                                       Each compared row also carries `baseline`: the baseline's event count for
+     *                                       `count`/`rate`, its value otherwise (null when there was none), which a
+     *                                       notification prints beside the multiple.
      * @param  list<array{group: string, bucket: int|null, value: float|null, events: int}>  $current
      * @param  Closure(int, list<string>|null): list<array{group: string, bucket: int|null, value: float|null, events: int}>  $readBaseline  given the offset and the groups to read (null: ungrouped)
-     * @return list<array{group: string, bucket: int|null, value: float|null, events: int}>
+     * @return list<array{group: string, bucket: int|null, value: float|null, events: int, baseline?: float|null}>
      *
      * @throws AlertSourceUnavailable
      */
@@ -223,12 +226,14 @@ trait ReadsAlertValues
             $baseline = $baselines[$row['group']."\0".($row['bucket'] ?? '')] ?? null;
 
             if ($counts) {
-                return [...$row, 'value' => (float) $row['events'] / max($baseline['events'] ?? 0, 1.0)];
+                $then = (int) ($baseline['events'] ?? 0);
+
+                return [...$row, 'value' => (float) $row['events'] / max($then, 1), 'baseline' => (float) $then];
             }
 
             $normal = $baseline['value'] ?? null;
 
-            return [...$row, 'value' => $row['value'] === null || $normal === null || is_nan($normal) || $normal <= 0.0
+            return [...$row, 'baseline' => $normal === null || is_nan($normal) ? null : $normal, 'value' => $row['value'] === null || $normal === null || is_nan($normal) || $normal <= 0.0
                 ? null
                 : $row['value'] / $normal];
         }, $current);
@@ -239,8 +244,8 @@ trait ReadsAlertValues
      * `min_events`, at least that many events in the window — a quieter
      * series counts as no data.
      *
-     * @param  list<array{group: string, bucket: int|null, value: float|null, events: int}>  $rows
-     * @return list<array{labels: array<string, string>, value: float}>
+     * @param  list<array{group: string, bucket: int|null, value: float|null, events: int, baseline?: float|null}>  $rows
+     * @return list<array{labels: array<string, string>, value: float, events: int, baseline: float|null}>
      */
     protected function instances(array $rows, ?string $labelKey, ?int $minEvents = null): array
     {
@@ -255,10 +260,39 @@ trait ReadsAlertValues
                 continue;
             }
 
-            $instances[] = ['labels' => $this->labels($row['group'], $labelKey), 'value' => $row['value']];
+            $instances[] = [
+                'labels' => $this->labels($row['group'], $labelKey),
+                'value' => $row['value'],
+                'events' => $row['events'],
+                'baseline' => $row['baseline'] ?? null,
+            ];
         }
 
         return $instances;
+    }
+
+    /**
+     * The series {@see instances()} dropped for having fewer events than
+     * `min_events` — not no data, just too little of it to judge.
+     *
+     * @param  list<array{group: string, bucket: int|null, value: float|null, events: int, baseline?: float|null}>  $rows
+     * @return list<array{labels: array<string, string>, events: int}>
+     */
+    protected function quiet(array $rows, ?string $labelKey, ?int $minEvents): array
+    {
+        if ($minEvents === null) {
+            return [];
+        }
+
+        $quiet = [];
+
+        foreach ($rows as $row) {
+            if ($row['events'] > 0 && $row['events'] < $minEvents) {
+                $quiet[] = ['labels' => $this->labels($row['group'], $labelKey), 'events' => $row['events']];
+            }
+        }
+
+        return $quiet;
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace Tests\Support;
 
 use App\Models\AlertRule;
+use App\Services\Alerting\Sources\AlertExample;
 use App\Services\Alerting\Sources\AlertReading;
 use App\Services\Alerting\Sources\AlertSource;
 use Carbon\CarbonImmutable;
@@ -17,8 +18,19 @@ use Throwable;
  */
 class FakeAlertSource implements AlertSource
 {
-    /** @var list<array{labels: array<string, string>, value: float}> */
+    /** @var list<array{labels: array<string, string>, value: float, events?: int|null, baseline?: float|null}> */
     public array $series = [];
+
+    /** @var list<array{labels: array<string, string>, events: int}> series below the rule's `min_events` */
+    public array $quiet = [];
+
+    /** @var list<AlertExample> what {@see examples()} answers */
+    public array $examples = [];
+
+    public ?Throwable $examplesThrow = null;
+
+    /** @var list<array{labels: array<string, string>, from: CarbonImmutable, to: CarbonImmutable, limit: int}> */
+    public array $exampleCalls = [];
 
     /** whether the reading says series were left out */
     public bool $truncated = false;
@@ -52,7 +64,7 @@ class FakeAlertSource implements AlertSource
             throw $this->throw;
         }
 
-        return new AlertReading($this->series, $this->truncated);
+        return new AlertReading($this->series, $this->truncated, $this->quiet);
     }
 
     public function preview(AlertRule $rule, array $projectIds, CarbonImmutable $from, CarbonImmutable $to, int $stepSeconds): array
@@ -74,6 +86,17 @@ class FakeAlertSource implements AlertSource
         }
 
         return [['labels' => [], 'points' => $points]];
+    }
+
+    public function examples(AlertRule $rule, array $projectIds, array $labels, CarbonImmutable $from, CarbonImmutable $to, int $limit): array
+    {
+        $this->exampleCalls[] = ['labels' => $labels, 'from' => $from, 'to' => $to, 'limit' => $limit];
+
+        if ($this->examplesThrow !== null) {
+            throw $this->examplesThrow;
+        }
+
+        return array_slice($this->examples, 0, $limit);
     }
 
     public function rules(): array

@@ -2,18 +2,20 @@
 import { Link } from '@inertiajs/vue3';
 import { ArrowUpRight } from '@lucide/vue';
 import { computed } from 'vue';
+import AlertExampleList from '@/components/AlertExampleList.vue';
 import {
     ALERT_EVENT_LABEL,
     formatAlertValue,
     formatLabels,
 } from '@/lib/alerts';
 import { cn } from '@/lib/utils';
-import { edit as alertsEdit } from '@/routes/alerts';
+import { show as alertsShow } from '@/routes/alerts';
 import type { AlertEventSummary } from '@/types';
 
 /**
- * One line of alert history: when, what happened, to which series, and the
- * sentence the notification said.
+ * One line of alert history: when, what happened, to which series, the
+ * sentence the notification said and — for a firing event — the top of what
+ * it caught.
  *
  * Only firing takes a hue — the severity-error dot — because it is the one
  * event that meant something broke. Resolved is the same dot hollowed, a
@@ -44,7 +46,7 @@ const utc = computed(
 
 const ruleHref = computed(() =>
     props.event.ruleId !== null
-        ? alertsEdit([props.teamSlug, props.event.ruleId]).url
+        ? alertsShow([props.teamSlug, props.event.ruleId]).url
         : null,
 );
 
@@ -121,6 +123,14 @@ const isRuleEvent = computed(() =>
             <p class="line-clamp-2 text-xs text-muted-foreground">
                 {{ event.headline }}
             </p>
+            <AlertExampleList
+                v-if="event.examples?.length"
+                :examples="event.examples"
+                :team-slug="teamSlug"
+                :limit="3"
+                dense
+                class="mt-1.5 max-w-xl"
+            />
         </div>
 
         <span

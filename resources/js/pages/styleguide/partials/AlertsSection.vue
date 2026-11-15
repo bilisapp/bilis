@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AlertEventRow from '@/components/AlertEventRow.vue';
+import AlertExampleList from '@/components/AlertExampleList.vue';
 import AlertInstanceRow from '@/components/AlertInstanceRow.vue';
 import AlertRuleRow from '@/components/AlertRuleRow.vue';
 import AlertStateBadge from '@/components/AlertStateBadge.vue';
@@ -8,6 +9,7 @@ import NeedsAttentionCard from '@/components/NeedsAttentionCard.vue';
 import NotificationChannelsCard from '@/components/NotificationChannelsCard.vue';
 import {
     DEMO_ALERT_EVENTS,
+    DEMO_ALERT_EXAMPLES,
     DEMO_ALERT_INSTANCES,
     DEMO_ALERT_NOW,
     DEMO_ALERT_RULES,
@@ -104,6 +106,28 @@ import DemoBlock from './DemoBlock.vue';
                     :event="event"
                     team-slug="acme"
                 />
+            </div>
+        </DemoBlock>
+
+        <DemoBlock
+            title="AlertExampleList"
+            description="what a rule's reading was made of: the distinct log messages or span names behind the number, most first, with their count in a fixed right lane and a neutral bar for each one's share of the largest — a count is magnitude, not severity. A row with a trace links to one request. On a rule's page it lists the live window; dense, under a firing history row, what that firing caught."
+        >
+            <div class="grid gap-6 md:grid-cols-2">
+                <div class="rounded-md border bg-card px-4 py-4">
+                    <AlertExampleList
+                        :examples="DEMO_ALERT_EXAMPLES"
+                        team-slug="acme"
+                    />
+                </div>
+                <div class="rounded-md border bg-card px-4 py-4">
+                    <AlertExampleList
+                        :examples="DEMO_ALERT_EXAMPLES"
+                        team-slug="acme"
+                        :limit="2"
+                        dense
+                    />
+                </div>
             </div>
         </DemoBlock>
 

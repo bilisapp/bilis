@@ -68,7 +68,19 @@ function alertLiveEvaluate(object $test, string $source, array $query, CarbonImm
 {
     $rule = AlertRule::factory()->make(['source' => $source, 'query' => $query]);
 
-    return app(config("alerting.sources.{$source}"))->evaluate($rule, [$test->projectId], $from, $test->to)->series;
+    return alertLiveValues(app(config("alerting.sources.{$source}"))->evaluate($rule, [$test->projectId], $from, $test->to)->series);
+}
+
+/**
+ * Instances as labels and value only: what these tests compare. The counts
+ * an instance also carries (`events`, `baseline`) are asserted where they matter.
+ *
+ * @param  list<array{labels: array<string, string>, value: float}>  $series
+ * @return list<array{labels: array<string, string>, value: float}>
+ */
+function alertLiveValues(array $series): array
+{
+    return array_map(fn (array $entry): array => ['labels' => $entry['labels'], 'value' => $entry['value']], $series);
 }
 
 /**
@@ -196,7 +208,7 @@ describe('logs', function () {
         $source = app(LogAlertSource::class);
         $below = $source->evaluate(AlertRule::factory()->make(['source' => 'logs', 'query' => $query, 'condition' => AlertCondition::LessThan]), [$this->projectId], $this->from, $this->to);
 
-        expect($below->series)->toBe([['labels' => ['service.name' => 'api'], 'value' => 2.0]])
+        expect(alertLiveValues($below->series))->toBe([['labels' => ['service.name' => 'api'], 'value' => 2.0]])
             ->and($below->truncated)->toBeTrue();
 
         config(['alerting.max_instances' => 2]);
@@ -218,7 +230,7 @@ describe('logs', function () {
         $source = app(LogAlertSource::class);
         $from = $this->from->subHour();
 
-        expect($source->evaluate($rule, [$this->projectId], $from, $from->addMinutes(5))->series)
+        expect(alertLiveValues($source->evaluate($rule, [$this->projectId], $from, $from->addMinutes(5))->series))
             ->toBe([['labels' => [], 'value' => 0.0]]);
     });
 
@@ -237,6 +249,34 @@ describe('logs', function () {
         expect(array_keys($byService))->toEqualCanonicalizing(['api', 'checkout'])
             ->and($byService['checkout'])->toBe([$start => 1.0, $start + 60 => 1.0, $start + 120 => 1.0, $start + 180 => 0.0, $start + 240 => 0.0])
             ->and($byService['api'])->toBe([$start => 0.0, $start + 60 => 0.0, $start + 120 => 0.0, $start + 180 => 1.0, $start + 240 => 1.0]);
+    });
+    it('names the messages behind a reading, grouped and counted, inside [from, to) for its own projects', function () {
+        $rule = AlertRule::factory()->make(['source' => 'logs', 'query' => ['aggregation' => 'count', 'filters' => ['severities' => ['error', 'fatal']], 'group_by' => 'service.name']]);
+        $source = app(LogAlertSource::class);
+
+        $all = array_map(fn ($example) => [$example->title, $example->count, $example->service], $source->examples($rule, [$this->projectId], [], $this->from, $this->to, 5));
+        $checkout = array_map(fn ($example) => $example->title, $source->examples($rule, [$this->projectId], ['service.name' => 'checkout'], $this->from, $this->to, 5));
+
+        expect($all)->toEqualCanonicalizing([
+            ['Payment TIMEOUT upstream', 1, 'checkout'],
+            ['db timeout', 1, 'api'],
+        ])->and($checkout)->toBe(['Payment TIMEOUT upstream']);
+    });
+
+    it('reports the counts and baseline behind a compared count', function () {
+        $rule = AlertRule::factory()->make(['source' => 'logs', 'query' => ['aggregation' => 'count', 'compare' => ['offset_seconds' => 86_400]]]);
+
+        expect(app(LogAlertSource::class)->evaluate($rule, [$this->projectId], $this->from, $this->to)->series)
+            ->toBe([['labels' => [], 'value' => 5.0, 'events' => 5, 'baseline' => 0.0]]);
+    });
+
+    it('lists the series that fell under min_events as quiet, not as instances', function () {
+        $rule = AlertRule::factory()->make(['source' => 'logs', 'query' => ['aggregation' => 'count', 'group_by' => 'service.name', 'min_events' => 3]]);
+
+        $reading = app(LogAlertSource::class)->evaluate($rule, [$this->projectId], $this->from, $this->to);
+
+        expect(alertLiveValues($reading->series))->toBe([['labels' => ['service.name' => 'checkout'], 'value' => 3.0]])
+            ->and($reading->quiet)->toBe([['labels' => ['service.name' => 'api'], 'events' => 2]]);
     });
 });
 
@@ -273,6 +313,21 @@ describe('traces', function () {
             ->and(alertLiveByLabel($evaluate(['aggregation' => 'p95']), 'service.name'))->toBe(['api' => 290.0, 'web' => 400.0]);
     });
 
+    it('names the spans behind a reading: failures first for an error ratio, slowest first for a percentile', function () {
+        $source = app(TraceAlertSource::class);
+        $rule = fn (string $aggregation): AlertRule => AlertRule::factory()->make(['source' => 'traces', 'query' => ['aggregation' => $aggregation]]);
+
+        $failing = $source->examples($rule('error_ratio'), [$this->projectId], [], $this->from, $this->to, 5);
+        $slowest = $source->examples($rule('p95'), [$this->projectId], ['service.name' => 'api'], $this->from, $this->to, 5);
+
+        expect(array_map(fn ($example) => [$example->service, $example->title, $example->count, $example->detail], $failing))->toEqualCanonicalizing([
+            ['api', 'GET /pay', 2, '1 failed · p95 195 ms'],
+            ['web', 'GET /', 1, '1 failed · p95 400 ms'],
+        ])
+            ->and($failing[0]->traceId)->toMatch('/^[0-9a-f]{32}$/')
+            ->and(array_map(fn ($example) => $example->title, $slowest))->toBe(['SELECT', 'GET /pay']);
+    });
+
     it('has no percentile or ratio for a window without spans', function () {
         $from = $this->from->subMinutes(30);
         $to = $from->addMinutes(5);
@@ -281,7 +336,7 @@ describe('traces', function () {
 
         expect($source->evaluate($rule('p95'), [$this->projectId], $from, $to)->series)->toBe([])
             ->and($source->evaluate($rule('error_ratio'), [$this->projectId], $from, $to)->series)->toBe([])
-            ->and($source->evaluate($rule('count'), [$this->projectId], $from, $to)->series)->toBe([['labels' => [], 'value' => 0.0]]);
+            ->and(alertLiveValues($source->evaluate($rule('count'), [$this->projectId], $from, $to)->series))->toBe([['labels' => [], 'value' => 0.0]]);
     });
 });
 

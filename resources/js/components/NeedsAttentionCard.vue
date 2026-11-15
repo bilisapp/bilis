@@ -12,7 +12,7 @@ import {
     formatSeconds,
     sinceSeconds,
 } from '@/lib/alerts';
-import { edit as alertsEdit, index as alertsIndex } from '@/routes/alerts';
+import { index as alertsIndex, show as alertsShow } from '@/routes/alerts';
 import type { AlertAttentionItem, NeedsAttentionList } from '@/types';
 
 /**
@@ -116,7 +116,7 @@ function since(item: AlertAttentionItem): string | null {
                 <div class="flex min-w-0 flex-col gap-0.5">
                     <div class="flex min-w-0 items-center gap-2">
                         <Link
-                            :href="alertsEdit([teamSlug, item.ruleId]).url"
+                            :href="alertsShow([teamSlug, item.ruleId]).url"
                             class="truncate text-sm font-medium text-foreground hover:underline hover:underline-offset-4"
                             :title="item.ruleName"
                             >{{ item.ruleName }}</Link

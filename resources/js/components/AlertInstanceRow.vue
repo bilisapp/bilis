@@ -10,7 +10,7 @@ import {
     sinceSeconds,
 } from '@/lib/alerts';
 import { cn } from '@/lib/utils';
-import { edit as alertsEdit } from '@/routes/alerts';
+import { show as alertsShow } from '@/routes/alerts';
 import type { AlertInstanceSummary } from '@/types';
 
 /**
@@ -34,7 +34,7 @@ const props = withDefaults(
 );
 
 const href = computed(
-    () => alertsEdit([props.teamSlug, props.instance.ruleId]).url,
+    () => alertsShow([props.teamSlug, props.instance.ruleId]).url,
 );
 
 const since = computed(() =>

@@ -56,6 +56,18 @@
         ],
         "createdAt": "2026-11-07T11:36:16.214Z",
         "reason": "Claude: title already raised to text-xl (20px vs 14px body = 1.43); remaining sizes 11/12/14/20px are all DESIGN.md ramp steps used across the app"
+      },
+      {
+        "rule": "overused-font",
+        "value": "geist",
+        "createdAt": "2026-11-15T13:43:13.269Z",
+        "reason": "Project brand face: CLAUDE.md Branding + DESIGN.md Typography name Geist as the interface font; the mail theme mirrors the app"
+      },
+      {
+        "rule": "overused-font",
+        "value": "geist mono",
+        "createdAt": "2026-11-15T13:43:13.311Z",
+        "reason": "Project brand face: CLAUDE.md Branding + DESIGN.md Typography name Geist Mono for log data; the mail theme mirrors the app"
       }
     ]
   }

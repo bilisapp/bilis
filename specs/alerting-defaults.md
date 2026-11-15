@@ -63,7 +63,7 @@ Each entry is the full shape of an `AlertRule`, plus `key`, `version`, `requires
 
 | Key | Requires | Rule | Severity |
 | --- | --- | --- | --- |
-| `logs.error_spike` | logs | count of ERROR+FATAL logs per service, 10 min, **> 3× the same window last week**, `min_events` 20, every 5 min, keep firing 10 min | warning |
+| `logs.error_spike` | logs | count of ERROR+FATAL logs per service, 10 min, **> 3× the same window last week**, `min_events` 20, every 5 min, keep firing 30 min (v2; was 10 min, which flapped on a spike that dipped under `min_events` for one window) | warning |
 | `traces.error_rate` | traces | `error_ratio` of server spans per service, 10 min, **> 5 %**, `min_events` 50, `for` 5 min, every 5 min | critical |
 | `traces.latency_regression` | traces | p95 of server spans per service, 15 min, **> 2× last week**, `min_events` 50, `for` 10 min, every 5 min | warning |
 | `hosts.disk_full` | hosts | `system.filesystem.utilization` max per host, 10 min, **> 0.90**, `for` 10 min, every 5 min | critical |

@@ -33,6 +33,7 @@ import { cn } from '@/lib/utils';
 import {
     index as alertsIndex,
     preview as alertsPreview,
+    show as alertsShow,
     store as alertsStore,
     update as alertsUpdate,
 } from '@/routes/alerts';
@@ -77,10 +78,18 @@ defineOptions({
                     ? alertsIndex(layoutProps.currentTeam.slug)
                     : '/',
             },
-            {
-                title: layoutProps.rule ? layoutProps.rule.name : 'New rule',
-                href: '#',
-            },
+            ...(layoutProps.rule && layoutProps.currentTeam
+                ? [
+                      {
+                          title: layoutProps.rule.name,
+                          href: alertsShow([
+                              layoutProps.currentTeam.slug,
+                              layoutProps.rule.id,
+                          ]).url,
+                      },
+                      { title: 'Edit', href: '#' },
+                  ]
+                : [{ title: 'New rule', href: '#' }]),
         ],
     }),
 });
@@ -614,7 +623,14 @@ const CHIP_OFF =
 
             <template #actions>
                 <Button variant="ghost" as-child>
-                    <Link :href="alertsIndex(teamSlug).url">Cancel</Link>
+                    <Link
+                        :href="
+                            rule
+                                ? alertsShow([teamSlug, rule.id]).url
+                                : alertsIndex(teamSlug).url
+                        "
+                        >Cancel</Link
+                    >
                 </Button>
                 <Button
                     type="submit"

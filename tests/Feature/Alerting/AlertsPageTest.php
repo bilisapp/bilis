@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Notifications\AlertNotification;
 use App\Services\Alerting\AlertBadge;
 use App\Services\Alerting\Labels;
+use App\Services\Alerting\Sources\AlertExample;
 use App\Services\Alerting\Sources\AlertSourceUnavailable;
 use App\Services\Alerting\Sources\LogAlertSource;
 use App\Services\ClickHouse\ClickHouseException;
@@ -279,7 +280,7 @@ describe('store and update', function () {
 
         $this->actingAs($this->user)
             ->post(route('alerts.store', ['current_team' => 'acme']), alertRulePayload($this->project, ['channel_ids' => [$channel->id]]))
-            ->assertRedirect(route('alerts.index', ['current_team' => 'acme']));
+            ->assertRedirect(route('alerts.show', ['current_team' => 'acme', 'alertRule' => AlertRule::query()->value('id') ?? 1]));
 
         $rule = AlertRule::query()->sole();
 
@@ -406,7 +407,7 @@ describe('store and update', function () {
                 'threshold' => 50,
                 'channel_ids' => [$new->id],
             ]))
-            ->assertRedirect(route('alerts.index', ['current_team' => 'acme']));
+            ->assertRedirect(route('alerts.show', ['current_team' => 'acme', 'alertRule' => $rule->id]));
 
         $rule->refresh();
 
@@ -606,10 +607,125 @@ it('links a notification to the rule\'s page', function () {
     ]);
 
     $notification = new AlertNotification($channel->id, $channel->type, $event->id);
-    $ruleUrl = route('alerts.edit', ['current_team' => 'acme', 'alertRule' => $rule->id]);
+    $ruleUrl = route('alerts.show', ['current_team' => 'acme', 'alertRule' => $rule->id]);
 
     $mail = $notification->toMail(new AnonymousNotifiable);
 
     expect($notification->message()->payload['links']['rule'])->toBe($ruleUrl)
-        ->and(array_merge($mail->introLines, $mail->outroLines))->toContain("View the rule: {$ruleUrl}");
+        ->and($notification->message()->payload['links']['edit'])->toBe(route('alerts.edit', ['current_team' => 'acme', 'alertRule' => $rule->id]))
+        ->and((string) $mail->render())->toContain('href="'.$ruleUrl.'"')
+        ->and((string) $mail->render())->toContain('See the rule live');
+});
+
+describe('show', function () {
+    it('shows a rule as it is now: series firing first, history with what it caught, and the live window', function () {
+        $source = fakePreviewSource('logs');
+        $rule = AlertRule::factory()->forTeam($this->team)->create([
+            'name' => 'Error spike',
+            'project_ids' => [$this->project->id],
+            'query' => ['aggregation' => 'count', 'group_by' => 'service.name'],
+            'window_seconds' => 600,
+        ]);
+        AlertInstance::factory()->for($rule, 'rule')->create([
+            'labels' => ['service.name' => 'web'], 'labels_hash' => Labels::hash(['service.name' => 'web']),
+            'state' => AlertState::Inactive, 'value' => 2,
+        ]);
+        AlertInstance::factory()->for($rule, 'rule')->create([
+            'labels' => ['service.name' => 'bilis'], 'labels_hash' => Labels::hash(['service.name' => 'bilis']),
+            'state' => AlertState::Firing, 'value' => 108, 'fired_at' => now()->subMinutes(20),
+        ]);
+        AlertEvent::factory()->forRule($rule)->create([
+            'type' => AlertEventType::Firing,
+            'labels' => ['service.name' => 'bilis'],
+            'value' => 108,
+            'occurred_at' => now()->subMinutes(20),
+            'context' => [
+                'source' => 'logs',
+                'window' => ['from' => '2026-11-08T11:30:00Z', 'to' => '2026-11-08T11:40:00Z'],
+                'no_data' => false,
+                'examples' => [['title' => 'Failed to write OTLP metrics to ClickHouse.', 'count' => 108, 'service' => 'bilis', 'detail' => null, 'trace_id' => null]],
+            ],
+        ]);
+        $source->examples = [new AlertExample('Failed to write OTLP metrics to ClickHouse.', 42, 'bilis')];
+
+        $this->actingAs($this->user)
+            ->get(route('alerts.show', ['current_team' => 'acme', 'alertRule' => $rule->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('alerts/Show')
+                ->where('rule.id', $rule->id)
+                ->where('rule.firing', 1)
+                ->where('rule.projects', ['Shop'])
+                ->has('instances', 2)
+                ->where('instances.0.labels', ['service.name' => 'bilis'])
+                ->where('instances.0.state', 'firing')
+                ->where('instances.1.state', 'inactive')
+                ->where('instances.0.explorerHref', fn (string $href): bool => str_contains($href, 'service=bilis') && str_contains($href, 'from=2026-11-08T11%3A50%3A37Z'))
+                ->has('events', 1)
+                ->where('events.0.examples.0.title', 'Failed to write OTLP metrics to ClickHouse.')
+                ->where('live.from', '2026-11-08T11:50:37Z')
+                ->where('live.to', '2026-11-08T12:00:37Z')
+                ->missing('preview')
+                ->missing('examples')
+                ->loadDeferredProps(fn (Assert $reload) => $reload
+                    ->where('preview.unavailable', false)
+                    ->has('preview.series', 1)
+                    ->where('examples.supported', true)
+                    ->where('examples.unavailable', false)
+                    ->where('examples.items.0.count', 42)
+                ),
+            );
+
+        // The live examples read the rule's own projects over the window ending now, every series.
+        expect($source->exampleCalls)->toHaveCount(1)
+            ->and($source->exampleCalls[0]['labels'])->toBe([])
+            ->and($source->exampleCalls[0]['from']->toIso8601ZuluString())->toBe('2026-11-08T11:50:37Z');
+    });
+
+    it('says the store was busy rather than failing the page', function () {
+        $source = fakePreviewSource('logs');
+        $source->examplesThrow = new AlertSourceUnavailable('ClickHouse is overloaded; the window was not read.');
+        $rule = AlertRule::factory()->forTeam($this->team)->create(['project_ids' => [$this->project->id]]);
+
+        $this->actingAs($this->user)
+            ->get(route('alerts.show', ['current_team' => 'acme', 'alertRule' => $rule->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->loadDeferredProps(fn (Assert $reload) => $reload
+                ->where('examples.unavailable', true)
+                ->where('examples.items', [])
+            ));
+    });
+
+    it('has no examples to read for a metric rule', function () {
+        $source = fakePreviewSource('metrics');
+        $rule = AlertRule::factory()->forTeam($this->team)->create(['source' => 'metrics', 'query' => ['metric' => 'system.cpu.utilization', 'aggregation' => 'avg']]);
+
+        $this->actingAs($this->user)
+            ->get(route('alerts.show', ['current_team' => 'acme', 'alertRule' => $rule->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->loadDeferredProps(fn (Assert $reload) => $reload
+                ->where('examples.supported', false)
+            ));
+
+        expect($source->exampleCalls)->toBe([]);
+    });
+
+    it('is a 404 for another team\'s rule', function () {
+        $foreign = AlertRule::factory()->forTeam($this->otherTeam)->create();
+
+        $this->actingAs($this->user)
+            ->get("/acme/alerts/{$foreign->id}")
+            ->assertNotFound();
+    });
+
+    it('leaves the create, history and templates pages where they were', function (string $path, string $component) {
+        $this->actingAs($this->user)
+            ->get("/acme/alerts/{$path}")
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->component($component));
+    })->with([
+        'create' => ['create', 'alerts/Edit'],
+        'history' => ['history', 'alerts/Index'],
+        'templates' => ['templates', 'alerts/Index'],
+    ]);
 });

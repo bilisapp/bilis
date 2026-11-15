@@ -239,22 +239,21 @@ describe('notifications', function () {
         $editUrl = route('alerts.edit', ['current_team' => 'acme', 'alertRule' => $this->template->id]);
         $footer = "Bilis set this alert up automatically. Tune it or turn it off: {$editUrl}";
 
-        $mailLines = $notification->toMail(new stdClass)->introLines;
-        $outro = $notification->toMail(new stdClass)->outroLines;
-        $lines = [...$mailLines, ...$outro];
+        $mail = html_entity_decode((string) $notification->toMail(new stdClass)->render());
 
         expect($message->footer)->toBe($footer)
-            ->and(end($lines))->toBe($footer)
+            ->and($mail)->toContain('Bilis set this alert up automatically.')
+            ->and($mail)->toContain('href="'.$editUrl.'"')
             ->and(SlackWebhookChannel::text($message))->toEndWith("\n".$footer)
             ->and($message->payload['rule']['template_key'])->toBe('logs.error_spike');
     });
 
     it('adds nothing for a rule a person built, and its webhook template_key is null', function () {
         [$message, $notification] = templateMessage($this->userRule);
-        $lines = [...$notification->toMail(new stdClass)->introLines, ...$notification->toMail(new stdClass)->outroLines];
+        $mail = (string) $notification->toMail(new stdClass)->render();
 
         expect($message->footer)->toBeNull()
-            ->and(implode("\n", $lines))->not->toContain('set this alert up automatically')
+            ->and($mail)->not->toContain('set this alert up automatically')
             ->and(SlackWebhookChannel::text($message))->not->toContain('set this alert up automatically')
             ->and($message->payload['rule'])->toHaveKey('template_key', null);
     });

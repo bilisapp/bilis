@@ -180,7 +180,7 @@ it('binds every user value as a parameter and reads the window closed-open', fun
     $rule = alertRuleFor('logs', ['filters' => ['services' => ["a'b"], 'search' => 'Timeout'], 'aggregation' => 'count']);
 
     expect(app(LogAlertSource::class)->evaluate($rule, ['7'], $to->subMinutes(5), $to)->series)
-        ->toBe([['labels' => [], 'value' => 3.0]]);
+        ->toBe([['labels' => [], 'value' => 3.0, 'events' => 0, 'baseline' => null]]);
 
     Http::assertSent(function (Request $request): bool {
         $sql = clickHouseStatement($request);
@@ -213,8 +213,8 @@ it('reads the lowest groups first for a less-than rule and reports a truncated r
     $reading = app(LogAlertSource::class)->evaluate($rule, ['7'], $to->subMinutes(5), $to);
 
     expect($reading->series)->toBe([
-        ['labels' => ['service.name' => 'api'], 'value' => 1.0],
-        ['labels' => ['service.name' => 'web'], 'value' => 2.0],
+        ['labels' => ['service.name' => 'api'], 'value' => 1.0, 'events' => 1, 'baseline' => null],
+        ['labels' => ['service.name' => 'web'], 'value' => 2.0, 'events' => 2, 'baseline' => null],
     ])->and($reading->truncated)->toBeTrue();
 
     // One row past the cap, lowest first, so the cap keeps what a `<` rule fires on.
@@ -287,3 +287,78 @@ it('marks a metric reading truncated when the explorer\'s series cap dropped ser
     'every series read' => [2, false],
     'past the 500-series cap' => [501, true],
 ]);
+
+describe('examples', function () {
+    beforeEach(function () {
+        config(['clickhouse.host' => '127.0.0.1', 'clickhouse.port' => 8123]);
+        $this->to = CarbonImmutable::parse('2026-11-08 10:00:00', 'UTC');
+    });
+
+    it('groups a log rule\'s matching lines by message, narrowed to the series, with every value bound', function () {
+        Http::fake(['127.0.0.1:8123/*' => Http::response(implode("\n", [
+            '{"Service":"bilis","Message":"Failed to write OTLP metrics to ClickHouse.\nsecond line","Events":"333","SampleTrace":""}',
+            '{"Service":"bilis","Message":"Failed to write log records","Events":"13","SampleTrace":"0af7651916cd43dd8448eb211c80319c"}',
+        ]))]);
+
+        $rule = alertRuleFor('logs', ['filters' => ['severities' => ['error', 'fatal'], 'search' => "it's"], 'aggregation' => 'count', 'group_by' => 'service.name']);
+
+        $examples = app(LogAlertSource::class)->examples($rule, ['7'], ['service.name' => 'bilis'], $this->to->subMinutes(10), $this->to, 5);
+
+        expect(array_map(fn ($example) => $example->toArray(), $examples))->toBe([
+            ['title' => 'Failed to write OTLP metrics to ClickHouse.', 'count' => 333, 'service' => 'bilis', 'detail' => null, 'trace_id' => null],
+            ['title' => 'Failed to write log records', 'count' => 13, 'service' => 'bilis', 'detail' => null, 'trace_id' => '0af7651916cd43dd8448eb211c80319c'],
+        ]);
+
+        Http::assertSent(function (Request $request): bool {
+            $sql = clickHouseStatement($request);
+            $query = clickHouseQuery($request);
+
+            return str_contains($sql, 'ProjectId IN {projectIds:Array(String)}')
+                && str_contains($sql, 'Timestamp < {to:DateTime64(9)}')
+                && str_contains($sql, 'GROUP BY ServiceName, substringUTF8(Body, 1, {signatureLength:UInt32})')
+                && str_contains($sql, 'ORDER BY Events DESC LIMIT {exampleLimit:UInt32}')
+                && ! str_contains($sql, "it's")
+                && ! str_contains($sql, 'bilis')
+                && $query['param_projectIds'] === "['7']"
+                && $query['param_exampleLimit'] === '5';
+        });
+    });
+
+    it('orders an error-ratio rule\'s spans by failures, and only those that failed', function () {
+        Http::fake(['127.0.0.1:8123/*' => Http::response(
+            '{"Service":"checkout","Name":"POST /pay","Events":"120","Errors":"9","P95":"1240.5","SampleTrace":"0af7651916cd43dd8448eb211c80319c"}',
+        )]);
+
+        $rule = alertRuleFor('traces', ['filters' => ['kind' => 'Server'], 'aggregation' => 'error_ratio', 'group_by' => 'service.name']);
+
+        $examples = app(TraceAlertSource::class)->examples($rule, ['7'], [], $this->to->subMinutes(10), $this->to, 5);
+
+        expect($examples[0]->toArray())->toBe([
+            'title' => 'POST /pay',
+            'count' => 120,
+            'service' => 'checkout',
+            'detail' => '9 failed · p95 1.2 s',
+            'trace_id' => '0af7651916cd43dd8448eb211c80319c',
+        ]);
+
+        Http::assertSent(fn (Request $request): bool => str_contains(clickHouseStatement($request), 'HAVING Errors > 0 ORDER BY Errors DESC')
+            && str_contains(clickHouseStatement($request), 'countIf(StatusCode = {errorStatus:String})')
+            && clickHouseQuery($request)['param_spanKind'] === 'Server');
+    });
+
+    it('has nothing to name in a metric reading', function () {
+        Http::fake();
+
+        $rule = alertRuleFor('metrics', ['metric' => 'system.cpu.utilization', 'aggregation' => 'avg']);
+
+        expect(app(MetricAlertSource::class)->examples($rule, ['7'], [], $this->to->subMinutes(10), $this->to, 5))->toBe([]);
+
+        Http::assertNothingSent();
+    });
+
+    it('turns an overloaded store into unavailable, never an empty list', function () {
+        Http::fake(['127.0.0.1:8123/*' => Http::response('Code: 202. DB::Exception: Too many simultaneous queries. (TOO_MANY_SIMULTANEOUS_QUERIES)', 500)]);
+
+        app(LogAlertSource::class)->examples(alertRuleFor('logs', ['aggregation' => 'count']), ['7'], [], $this->to->subMinutes(10), $this->to, 5);
+    })->throws(AlertSourceUnavailable::class);
+});

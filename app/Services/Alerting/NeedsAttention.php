@@ -54,7 +54,7 @@ class NeedsAttention
             'items' => array_values($instances->take(self::LIMIT)->map(fn (AlertInstance $instance): array => [
                 ...$instance->toSummary(),
                 'explorerHref' => $this->explorerHref($instance, $team, $now),
-                'ruleHref' => route('alerts.edit', ['current_team' => $team->slug, 'alertRule' => $instance->rule->id]),
+                'ruleHref' => route('alerts.show', ['current_team' => $team->slug, 'alertRule' => $instance->rule->id]),
             ])->all()),
             'total' => $instances->count(),
             'firing' => $instances->filter(fn (AlertInstance $instance): bool => $instance->state === AlertState::Firing)->count(),

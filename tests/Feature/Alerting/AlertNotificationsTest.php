@@ -25,6 +25,7 @@ use App\Services\Alerting\Webhooks\WebhookHostResolver;
 use App\Services\Metrics\MetricFilters;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Request;
+use Illuminate\Mail\Markdown;
 use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -219,9 +220,9 @@ describe('email', function () {
         expect($email->getSubject())->toBe('[FIRING] Checkout error spike — service.name=checkout')
             ->and($email->getTo()[0]->getAddress())->toBe('oncall@acme.test')
             ->and($text)->toContain('The value is 87, above the threshold of 25.')
-            ->and($text)->toContain('Threshold: > 25')
-            ->and($text)->toContain('Severity: warning')
-            ->and($text)->toContain('Window: 2026-11-08 11:54 – 11:59 UTC (5 min)')
+            ->and($text)->toMatch('/Threshold<\/td>\s*<td[^>]*>> 25</')
+            ->and($text)->toMatch('/Firing.*Warning/s')
+            ->and($text)->toMatch('/Window<\/td>\s*<td[^>]*>2026-11-08 11:54 – 11:59 UTC \(5 min\)</')
             ->and($text)->toContain(route('logs.index', [
                 'current_team' => 'acme',
                 'project' => 'shop',
@@ -397,12 +398,21 @@ describe('webhook', function () {
                 'window' => ['from' => '2026-11-08T11:54:00Z', 'to' => '2026-11-08T11:59:00Z'],
                 'error' => null,
                 'issue' => null,
+                'reading' => [
+                    'events' => null,
+                    'baseline' => null,
+                    'compare_offset_seconds' => null,
+                    'min_events' => null,
+                    'below_minimum' => false,
+                ],
+                'examples' => [],
                 'links' => [
                     'explorer' => route('logs.index', [
                         'current_team' => 'acme', 'project' => 'shop', 'from' => '2026-11-08T11:54:00Z', 'to' => '2026-11-08T11:59:00Z',
                         'service' => 'checkout', 'severity' => ['error', 'fatal'],
                     ]),
-                    'rule' => route('alerts.edit', ['current_team' => 'acme', 'alertRule' => $this->rule->id]),
+                    'rule' => route('alerts.show', ['current_team' => 'acme', 'alertRule' => $this->rule->id]),
+                    'edit' => route('alerts.edit', ['current_team' => 'acme', 'alertRule' => $this->rule->id]),
                 ],
             ],
         ]);
@@ -551,5 +561,163 @@ describe('send test', function () {
         $messages = app('mailer')->getSymfonyTransport()->messages();
         expect($messages)->toHaveCount(1)
             ->and($messages[0]->getOriginalMessage()->getSubject())->toBe('[TEST] Bilis notification test');
+    });
+});
+
+describe('the reading, in words', function () {
+    beforeEach(function () {
+        $this->rule->forceFill([
+            'name' => 'Error spike',
+            'query' => [
+                'filters' => ['severities' => ['error', 'fatal']],
+                'aggregation' => 'count',
+                'group_by' => 'service.name',
+                'compare' => ['offset_seconds' => 604_800],
+                'min_events' => 20,
+            ],
+            'condition' => AlertCondition::GreaterThan,
+            'threshold' => 3,
+            'window_seconds' => 600,
+        ])->save();
+    });
+
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    function eventWithContext(AlertRule $rule, AlertEventType $type, ?float $value, array $context): AlertEvent
+    {
+        $event = firingEvent($rule, ['service.name' => 'bilis'], $type, $value);
+        $event->forceFill(['context' => [...$event->context, ...$context]])->save();
+
+        return $event->fresh();
+    }
+
+    it('says a compared count as both counts and a multiple, never as a bare number', function () {
+        $event = eventWithContext($this->rule, AlertEventType::Firing, 21.0, [
+            'events' => 21, 'baseline' => 0.0, 'compare_offset_seconds' => 604_800, 'min_events' => 20,
+        ]);
+
+        $message = AlertMessage::fromEvent($event);
+
+        expect($message->headline)->toBe('21 matching log lines in the window, against none at the same time last week — 21×, above the threshold of 3×.')
+            ->and($message->facts['Value'])->toBe('21× last week')
+            ->and($message->facts['Threshold'])->toBe('> 3× last week')
+            ->and($message->facts['Counted'])->toBe('21 matching log lines in the window, 0 last week')
+            ->and($message->payload['reading'])->toBe([
+                'events' => 21,
+                'baseline' => 0.0,
+                'compare_offset_seconds' => 604_800,
+                'min_events' => 20,
+                'below_minimum' => false,
+            ]);
+    });
+
+    it('names the baseline count when there was one', function () {
+        $event = eventWithContext($this->rule, AlertEventType::Firing, 4.5, [
+            'events' => 90, 'baseline' => 20.0, 'compare_offset_seconds' => 604_800,
+        ]);
+
+        expect(AlertMessage::fromEvent($event)->headline)
+            ->toBe('90 matching log lines in the window, against 20 at the same time last week — 4.5×, above the threshold of 3×.');
+    });
+
+    it('says a compared percentile as a multiple only', function () {
+        $this->rule->forceFill(['source' => 'traces', 'query' => ['aggregation' => 'p95', 'compare' => ['offset_seconds' => 86_400]], 'threshold' => 2])->save();
+        $event = eventWithContext($this->rule, AlertEventType::Firing, 2.4, [
+            'events' => 300, 'baseline' => 410.0, 'compare_offset_seconds' => 86_400,
+        ]);
+
+        expect(AlertMessage::fromEvent($event)->headline)
+            ->toBe('The reading is 2.4× what it was at the same time yesterday, above the threshold of 2×.');
+    });
+
+    it('says a series resolved for falling under min_events, not that no data arrived', function () {
+        $event = eventWithContext($this->rule, AlertEventType::Resolved, null, [
+            'no_data' => true, 'below_minimum' => true, 'events' => 12, 'min_events' => 20, 'compare_offset_seconds' => 604_800,
+        ]);
+
+        $message = AlertMessage::fromEvent($event);
+
+        expect($message->headline)->toBe('Resolved: only 12 matching log lines in the window, under the rule\'s minimum of 20 — too few to judge, so the rule stopped firing.')
+            ->and($message->payload['reading']['below_minimum'])->toBeTrue();
+    });
+
+    it('says a log series with nothing in the window matched nothing', function () {
+        $event = eventWithContext($this->rule, AlertEventType::Resolved, null, ['no_data' => true]);
+
+        expect(AlertMessage::fromEvent($event)->headline)->toBe('Resolved: nothing matched in the window.');
+    });
+
+    it('lists what the window caught in the mail, the Slack text and the webhook, as literal text', function () {
+        Http::fake(['hooks.slack.com/*' => Http::response('ok')]);
+
+        $event = eventWithContext($this->rule, AlertEventType::Firing, 21.0, [
+            'events' => 21, 'baseline' => 0.0, 'compare_offset_seconds' => 604_800,
+            'examples' => [
+                ['title' => 'Failed to write OTLP metrics to ClickHouse.', 'count' => 18, 'service' => 'bilis', 'detail' => null, 'trace_id' => null],
+                ['title' => 'See [here](https://evil.test) <b>now</b>', 'count' => 3, 'service' => 'bilis', 'detail' => null, 'trace_id' => null],
+            ],
+        ]);
+
+        $message = AlertMessage::fromEvent($event);
+        $email = NotificationChannel::factory()->for($this->team)->create();
+        $html = (string) (new AlertNotification($email->id, $email->type, $event->id))->toMail(new AnonymousNotifiable)->render();
+
+        expect($message->examples)->toHaveCount(2)
+            ->and($message->payload['examples'][0]['title'])->toBe('Failed to write OTLP metrics to ClickHouse.')
+            ->and($html)->toContain('What it caught')
+            ->and($html)->toContain('Failed to write OTLP metrics to ClickHouse.')
+            ->and($html)->toContain('18×')
+            // A log message is text: escaped, never a link or markup.
+            ->and($html)->toContain('See [here](https://evil.test) &lt;b&gt;now&lt;/b&gt;')
+            ->and($html)->not->toContain('href="https://evil.test"')
+            ->and($html)->not->toContain('<b>now</b>');
+
+        $slack = NotificationChannel::factory()->for($this->team)->slack()->create();
+        $this->rule->notificationChannels()->attach($slack);
+        app(AlertNotifier::class)->notify($event);
+
+        Http::assertSent(fn (Request $request): bool => str_contains($request->data()['text'], "*What it caught:*\n• 18 × Failed to write OTLP metrics to ClickHouse. (bilis)")
+            && str_contains($request->data()['text'], '• 3 × See [here](https://evil.test) &lt;b&gt;now&lt;/b&gt; (bilis)'));
+    });
+
+    it('lists examples only on a firing event', function () {
+        $event = eventWithContext($this->rule, AlertEventType::Resolved, 1.0, [
+            'examples' => [['title' => 'boom', 'count' => 1, 'service' => null, 'detail' => null, 'trace_id' => null]],
+        ]);
+
+        expect(AlertMessage::fromEvent($event)->examples)->toBe([]);
+    });
+});
+
+describe('mail layout', function () {
+    it('renders a plain-text part with the state, the heading, the facts and what it caught', function () {
+        $event = firingEvent($this->rule);
+        $event->forceFill(['context' => [...$event->context, 'examples' => [
+            ['title' => 'Payment declined', 'count' => 4, 'service' => 'checkout', 'detail' => null, 'trace_id' => null],
+        ]]])->save();
+
+        $channel = NotificationChannel::factory()->for($this->team)->create();
+        $mail = (new AlertNotification($channel->id, $channel->type, $event->id))->toMail(new AnonymousNotifiable);
+        $text = (string) app(Markdown::class)->renderText($mail->markdown, $mail->data());
+
+        expect($mail->markdown)->toBe('mail.alert')
+            ->and($text)->toContain('FIRING · Warning')
+            ->and($text)->toContain("Checkout error spike\nservice.name=checkout")
+            ->and($text)->toContain('Threshold: > 25')
+            ->and($text)->toContain("What it caught:\n- 4 × Payment declined (checkout)")
+            ->and($text)->toContain('See the rule live: '.route('alerts.show', ['current_team' => 'acme', 'alertRule' => $this->rule->id]));
+    });
+
+    it('prints the state and the rule in the HTML part, without repeating them as facts', function () {
+        $channel = NotificationChannel::factory()->for($this->team)->create();
+        $html = (string) (new AlertNotification($channel->id, $channel->type, firingEvent($this->rule)->id))->toMail(new AnonymousNotifiable)->render();
+
+        expect($html)->toContain('<h1')
+            ->and($html)->toMatch('/<h1[^>]*>Checkout error spike<\/h1>/')
+            ->and($html)->toContain('service.name=checkout')
+            ->and($html)->not->toContain('>Severity</td>')
+            ->and($html)->not->toContain('>Labels</td>')
+            ->and($html)->toContain('Open in Bilis');
     });
 });

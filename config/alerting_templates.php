@@ -25,7 +25,9 @@ return [
     'templates' => [
 
         'logs.error_spike' => [
-            'version' => 1,
+            // v2: keep firing for 30 min, not 10 — a spike that dips under
+            // `min_events` for one window no longer resolves and re-fires.
+            'version' => 2,
             'requires' => 'logs',
             'name' => 'Error spike',
             'why' => 'A service logged more than three times as many errors as in the same ten minutes last week.',
@@ -43,7 +45,7 @@ return [
                 'window_seconds' => 600,
                 'interval_seconds' => 300,
                 'for_seconds' => 0,
-                'keep_firing_for_seconds' => 600,
+                'keep_firing_for_seconds' => 1800,
                 'no_data_state' => 'inactive',
                 'severity' => 'warning',
             ],

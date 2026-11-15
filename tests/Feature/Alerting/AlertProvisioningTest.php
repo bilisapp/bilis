@@ -62,13 +62,21 @@ function teamWithProject(): Team
 }
 
 /**
- * Publish version 2 of a template. Keys contain dots, so the catalogue is
+ * The catalogue's current version of a template.
+ */
+function templateVersion(string $key): int
+{
+    return config('alerting_templates.templates')[$key]['version'];
+}
+
+/**
+ * Publish the next version of a template. Keys contain dots, so the catalogue is
  * replaced whole rather than set by dot path.
  */
 function bumpTemplate(string $key, float $threshold, ?string $name = null): void
 {
     $templates = config('alerting_templates.templates');
-    $templates[$key]['version'] = 2;
+    $templates[$key]['version']++;
     $templates[$key]['rule']['threshold'] = $threshold;
     $templates[$key]['name'] = $name ?? $templates[$key]['name'];
 
@@ -170,7 +178,7 @@ it('creates only the templates whose data is detected, linked to the issue-alert
         ->and($rule->created_by)->toBeNull()
         ->and($rule->next_evaluation_at)->toBeNull()
         ->and($rule->enabled)->toBeTrue()
-        ->and($rule->template_version)->toBe(1)
+        ->and($rule->template_version)->toBe(templateVersion('logs.error_spike'))
         ->and($rule->customized_at)->toBeNull()
         ->and($rule->isTemplate())->toBeTrue()
         ->and($rule->query['compare'])->toBe(['offset_seconds' => 604_800])
@@ -221,7 +229,7 @@ it('upgrades an untouched rule on a version bump, leaving its switches alone', f
     $rule->refresh();
 
     expect($result->upgraded)->toBe(['logs.error_spike'])
-        ->and($rule->template_version)->toBe(2)
+        ->and($rule->template_version)->toBe(templateVersion('logs.error_spike'))
         ->and($rule->threshold)->toBe(5.0)
         ->and($rule->name)->toBe('Error surge')
         ->and($rule->enabled)->toBeTrue()
@@ -248,7 +256,7 @@ it('leaves customized and turned-off rules alone, and never recreates them', fun
     expect($result->upgraded)->toBe([])
         ->and($result->created)->toBe([])
         ->and($edited->fresh()->threshold)->toBe(10.0)
-        ->and($edited->fresh()->template_version)->toBe(1)
+        ->and($edited->fresh()->template_version)->toBe(templateVersion('logs.error_spike') - 1)
         ->and($off->fresh()->threshold)->toBe(0.05)
         ->and($off->fresh()->enabled)->toBeFalse()
         ->and(AlertRule::query()->where('team_id', $team->id)->count())->toBe(3);
@@ -328,7 +336,7 @@ it('does not upgrade a rule edited after it was read', function () {
     expect($result->upgraded)->toBe([])
         ->and($edited)->toBeTrue()
         ->and($rule->fresh()->threshold)->toBe(7.0)
-        ->and($rule->fresh()->template_version)->toBe(1);
+        ->and($rule->fresh()->template_version)->toBe(templateVersion('logs.error_spike') - 1);
 });
 
 it('never runs two provisioning jobs for one team at once', function () {
